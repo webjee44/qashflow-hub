@@ -27,6 +27,7 @@ interface GroupDialogProps {
   editGroup?: Category | null;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  onClose?: () => void;
 }
 
 const colorOptions = [
@@ -49,6 +50,7 @@ export function GroupDialog({
   editGroup,
   open: controlledOpen, 
   onOpenChange: controlledOnOpenChange,
+  onClose,
 }: GroupDialogProps) {
   const [internalOpen, setInternalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -56,6 +58,7 @@ export function GroupDialog({
   const [color, setColor] = useState('hsl(221, 83%, 53%)');
   const [type, setType] = useState<'income' | 'expense'>('expense');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isInitialized, setIsInitialized] = useState(false);
 
   const isControlled = controlledOpen !== undefined;
   const open = isControlled ? controlledOpen : internalOpen;
@@ -81,8 +84,9 @@ export function GroupDialog({
       .map(c => c.id)
   );
 
+  // Initialize form only once when dialog opens
   useEffect(() => {
-    if (open) {
+    if (open && !isInitialized) {
       if (editGroup) {
         setName(editGroup.name);
         setColor(editGroup.color);
@@ -98,8 +102,12 @@ export function GroupDialog({
         setType('expense');
         setSelectedIds(new Set());
       }
+      setIsInitialized(true);
     }
-  }, [open, editGroup, categories]);
+    if (!open) {
+      setIsInitialized(false);
+    }
+  }, [open, isInitialized, editGroup]);
 
   const toggleCategory = (id: string) => {
     const newSet = new Set(selectedIds);
@@ -109,6 +117,11 @@ export function GroupDialog({
       newSet.add(id);
     }
     setSelectedIds(newSet);
+  };
+
+  const handleClose = () => {
+    setOpen(false);
+    onClose?.();
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -125,12 +138,12 @@ export function GroupDialog({
     setLoading(false);
 
     if (result) {
-      setOpen(false);
+      handleClose();
     }
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(value) => { if (!value) handleClose(); else setOpen(value); }}>
       {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
       <DialogContent className="sm:max-w-[480px]" aria-describedby={undefined}>
         <DialogHeader>
@@ -299,7 +312,7 @@ export function GroupDialog({
           </div>
 
           <div className="flex justify-end gap-3">
-            <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
+            <Button type="button" variant="ghost" onClick={handleClose}>
               Annuler
             </Button>
             <Button 
