@@ -100,6 +100,47 @@ export type Database = {
         }
         Relationships: []
       }
+      category_forecasts: {
+        Row: {
+          category_id: string
+          created_at: string
+          expected_amount: number
+          id: string
+          month: string
+          notes: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          category_id: string
+          created_at?: string
+          expected_amount?: number
+          id?: string
+          month: string
+          notes?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          category_id?: string
+          created_at?: string
+          expected_amount?: number
+          id?: string
+          month?: string
+          notes?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "category_forecasts_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       forecasts: {
         Row: {
           actual_expense: number | null
