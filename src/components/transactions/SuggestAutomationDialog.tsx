@@ -52,88 +52,82 @@ export function SuggestAutomationDialog({
   const [suggestion, setSuggestion] = useState<SuggestionResult | null>(null);
   const [similarTransactions, setSimilarTransactions] = useState<Transaction[]>([]);
 
+  // Extraction locale de pattern (instantanée)
+  const extractLocalPattern = (description: string): SuggestionResult => {
+    // Nettoyer la description
+    const cleaned = description.toUpperCase();
+    
+    // Patterns connus de fournisseurs (premier mot significatif)
+    const words = cleaned.split(/\s+/).filter(w => 
+      w.length > 2 && 
+      !/^\d+$/.test(w) && // Ignorer les nombres purs
+      !/^(CARTE|PAIEMENT|VIR|SEPA|PRLV|CB|PP\d+|FA\d+|MCC|EUR|USD)$/i.test(w) // Ignorer les mots bancaires
+    );
+    
+    // Prendre le premier mot significatif comme pattern
+    const pattern = words[0] || description.slice(0, 8).trim();
+    
+    return {
+      pattern,
+      operator: 'contains',
+      ruleName: `Auto: ${category?.name || 'Catégorie'} - ${pattern}`,
+    };
+  };
+
+  // Trouver les transactions similaires
+  const findSimilarTransactions = (pattern: string) => {
+    if (!transaction || !pattern) return [];
+    return allTransactions.filter(t => 
+      t.id !== transaction.id && 
+      !t.category_id &&
+      t.description.toLowerCase().includes(pattern.toLowerCase())
+    ).slice(0, 5);
+  };
+
   useEffect(() => {
     if (open && transaction && category) {
-      analyzeTransaction();
+      // 1. Pattern local immédiat
+      const localSuggestion = extractLocalPattern(transaction.description);
+      setSuggestion(localSuggestion);
+      setSimilarTransactions(findSimilarTransactions(localSuggestion.pattern));
+      
+      // 2. Raffinement IA en arrière-plan (optionnel)
+      refineWithAI(transaction.description, localSuggestion);
     } else {
       setSuggestion(null);
       setSimilarTransactions([]);
     }
   }, [open, transaction?.id]);
 
-  const analyzeTransaction = async () => {
-    if (!transaction) return;
-
-    setLoading(true);
+  const refineWithAI = async (description: string, localSuggestion: SuggestionResult) => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session) {
-        console.error('No session');
-        setLoading(false);
-        return;
-      }
+      if (!session) return;
 
+      setLoading(true);
+      
       const { data, error } = await supabase.functions.invoke('suggest-automation', {
         headers: {
           Authorization: `Bearer ${session.access_token}`,
         },
         body: {
-          description: transaction.description,
+          description,
           categoryName: category?.name,
         },
       });
 
-      if (error) {
-        console.error('Error suggesting automation:', error);
-        // Fallback: use simple extraction
-        const words = transaction.description.split(' ');
-        const pattern = words[0] || transaction.description.slice(0, 10);
-        setSuggestion({
-          pattern,
-          operator: 'contains',
-          ruleName: `Auto: ${category?.name} - ${pattern}`,
-        });
-      } else {
+      if (!error && data?.pattern && data.pattern !== localSuggestion.pattern) {
+        // L'IA a trouvé un meilleur pattern
         setSuggestion(data);
-      }
-
-      // Find similar transactions based on the pattern
-      if (data?.pattern || suggestion?.pattern) {
-        const patternToUse = data?.pattern || suggestion?.pattern;
-        const similar = allTransactions.filter(t => 
-          t.id !== transaction.id && 
-          !t.category_id &&
-          t.description.toLowerCase().includes(patternToUse.toLowerCase())
-        );
-        setSimilarTransactions(similar.slice(0, 5));
+        setSimilarTransactions(findSimilarTransactions(data.pattern));
       }
     } catch (err) {
-      console.error('Error:', err);
-      // Fallback
-      const words = transaction.description.split(' ');
-      const pattern = words[0] || transaction.description.slice(0, 10);
-      setSuggestion({
-        pattern,
-        operator: 'contains',
-        ruleName: `Auto: ${category?.name} - ${pattern}`,
-      });
+      console.error('AI refinement error:', err);
+      // Garder le pattern local
     } finally {
       setLoading(false);
     }
   };
-
-  // Update similar transactions when suggestion changes
-  useEffect(() => {
-    if (suggestion?.pattern && transaction) {
-      const similar = allTransactions.filter(t => 
-        t.id !== transaction.id && 
-        !t.category_id &&
-        t.description.toLowerCase().includes(suggestion.pattern.toLowerCase())
-      );
-      setSimilarTransactions(similar.slice(0, 5));
-    }
-  }, [suggestion?.pattern]);
 
   const handleCreateRule = async () => {
     if (!suggestion || !category) return;
