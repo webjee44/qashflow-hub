@@ -73,14 +73,21 @@ export function SuggestAutomationDialog({
     // If a word appears in more than 30% of transactions, it's probably the account holder's name
     const threshold = Math.max(2, allTransactions.length * 0.3);
     
+    // Mots bancaires et génériques à exclure
+    const excludedWords = /^(CARTE|PAIEMENT|VIR|SEPA|PRLV|CB|PP\d*|FA\d*|F\d+|MCC|EUR|USD|INTERNET|PRELEVEMENT|COMMANDE|POUR|INST|DE|DU|LA|LE|LES|AU|AUX|\d{6,}|[A-Z0-9]{10,})$/i;
+    
     const words = cleaned.split(/\s+/).filter(w => 
-      w.length > 2 && 
+      w.length >= 2 &&  // Inclure les mots de 2 lettres (GD, etc.)
       !/^\d+$/.test(w) &&
-      !/^(CARTE|PAIEMENT|VIR|SEPA|PRLV|CB|PP\d*|FA\d*|F\d+|MCC|EUR|USD|INTERNET|\d{6,})$/i.test(w) &&
+      !excludedWords.test(w) &&
       (wordFrequency.get(w) || 0) < threshold
     );
     
-    const pattern = words[0] || description.split(/\s+/)[0]?.slice(0, 10) || description.slice(0, 8).trim();
+    // Prendre les 2-3 premiers mots significatifs pour un meilleur pattern
+    const patternWords = words.slice(0, 3);
+    const pattern = patternWords.length > 0 
+      ? patternWords.join(' ')
+      : description.split(/\s+/)[0]?.slice(0, 10) || description.slice(0, 8).trim();
     
     return {
       pattern,
