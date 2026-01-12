@@ -180,6 +180,37 @@ export function useAutomationRules() {
     }
   };
 
+  const createCategory = async (data: {
+    name: string;
+    color: string;
+    icon: string;
+    type: 'income' | 'expense';
+  }) => {
+    if (!user) return null;
+
+    try {
+      const { data: newCategory, error } = await supabase
+        .from('categories')
+        .insert({
+          ...data,
+          user_id: user.id,
+          company_id: currentCompany?.id || null,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setCategories(prev => [...prev, newCategory]);
+      toast.success('Catégorie créée avec succès');
+      return newCategory;
+    } catch (error) {
+      console.error('Error creating category:', error);
+      toast.error('Erreur lors de la création de la catégorie');
+      return null;
+    }
+  };
+
   const updateRule = async (id: string, updates: Partial<AutomationRule>) => {
     try {
       const { data, error } = await supabase
@@ -247,6 +278,7 @@ export function useAutomationRules() {
     loading,
     stats,
     createRule,
+    createCategory,
     updateRule,
     toggleRule,
     deleteRule,
