@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Header } from '@/components/layout/Header';
 import { useCategories, Category } from '@/hooks/useCategories';
@@ -240,16 +240,16 @@ export default function Categories() {
       />
 
       {/* Edit Group Dialog */}
-      <GroupDialog
-        categories={categories}
-        editGroup={editingGroup}
-        open={groupDialogOpen}
-        onOpenChange={(open) => {
-          setGroupDialogOpen(open);
-          if (!open) setEditingGroup(null);
-        }}
-        onSave={handleSaveGroup}
-      />
+      {groupDialogOpen && (
+        <GroupDialog
+          categories={categories}
+          editGroup={editingGroup}
+          open={groupDialogOpen}
+          onOpenChange={setGroupDialogOpen}
+          onSave={handleSaveGroup}
+          onClose={() => setEditingGroup(null)}
+        />
+      )}
     </div>
   );
 }
