@@ -12,7 +12,8 @@ import {
   Loader2,
   Tag,
   Building2,
-  Wand2
+  Wand2,
+  PlusCircle
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -31,6 +32,7 @@ import { Tables } from '@/integrations/supabase/types';
 import { useCompany } from '@/hooks/useCompany';
 import { useAutomationRules } from '@/hooks/useAutomationRules';
 import { SuggestAutomationDialog } from './SuggestAutomationDialog';
+import { CategoryDialog } from '@/components/categories/CategoryDialog';
 
 type Transaction = Tables<'transactions'>;
 type Category = Tables<'categories'>;
@@ -46,6 +48,8 @@ export function TransactionsView() {
   const [showSuggestDialog, setShowSuggestDialog] = useState(false);
   const [lastCategorizedTransaction, setLastCategorizedTransaction] = useState<Transaction | null>(null);
   const [lastSelectedCategory, setLastSelectedCategory] = useState<Category | null>(null);
+  const [showCategoryDialog, setShowCategoryDialog] = useState(false);
+  const [pendingTransactionId, setPendingTransactionId] = useState<string | null>(null);
   const { toast } = useToast();
   const { currentCompany } = useCompany();
   const { createRule } = useAutomationRules();
@@ -333,6 +337,56 @@ export function TransactionsView() {
   const incomeCategories = categories.filter(c => c.type === 'income');
   const expenseCategories = categories.filter(c => c.type === 'expense');
 
+  // Create category handler
+  const handleCreateCategory = async (data: {
+    name: string;
+    color: string;
+    icon: string;
+    type: 'income' | 'expense';
+  }) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    const { data: newCategory, error } = await supabase
+      .from('categories')
+      .insert({
+        name: data.name,
+        color: data.color,
+        icon: data.icon,
+        type: data.type,
+        user_id: user.id,
+        company_id: currentCompany?.id || null,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error creating category:', error);
+      toast({
+        title: 'Erreur',
+        description: 'Impossible de créer la catégorie',
+        variant: 'destructive',
+      });
+      return null;
+    }
+
+    // Add the new category to the list
+    setCategories(prev => [...prev, newCategory]);
+    
+    toast({
+      title: 'Catégorie créée',
+      description: `La catégorie "${data.name}" a été créée`,
+    });
+
+    // If there's a pending transaction, assign the category
+    if (pendingTransactionId) {
+      await updateTransactionCategory(pendingTransactionId, newCategory.id);
+      setPendingTransactionId(null);
+    }
+
+    return newCategory;
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -516,6 +570,19 @@ export function TransactionsView() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="start" side="top" sideOffset={5} collisionPadding={20} className="w-56 max-h-80 overflow-y-auto">
+                          {/* Create new category option */}
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setPendingTransactionId(transaction.id);
+                              setShowCategoryDialog(true);
+                            }}
+                            className="flex items-center gap-2 text-primary"
+                          >
+                            <PlusCircle className="w-4 h-4" />
+                            Créer une catégorie
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+
                           {transaction.category_id && (
                             <>
                               <DropdownMenuItem
@@ -580,8 +647,6 @@ export function TransactionsView() {
                           {categories.length === 0 && (
                             <div className="px-2 py-4 text-center text-sm text-muted-foreground">
                               Aucune catégorie disponible.
-                              <br />
-                              Créez-en dans l'onglet Catégories.
                             </div>
                           )}
                         </DropdownMenuContent>
@@ -628,6 +693,16 @@ export function TransactionsView() {
         category={lastSelectedCategory}
         allTransactions={transactions}
         onCreateRule={createRule}
+      />
+
+      {/* Dialog de création de catégorie */}
+      <CategoryDialog
+        open={showCategoryDialog}
+        onOpenChange={(open) => {
+          setShowCategoryDialog(open);
+          if (!open) setPendingTransactionId(null);
+        }}
+        onSave={handleCreateCategory}
       />
     </div>
   );
