@@ -1,5 +1,4 @@
 import { motion } from 'framer-motion';
-import { automationRules, categories } from '@/lib/mockData';
 import { cn } from '@/lib/utils';
 import { 
   Zap, 
@@ -9,21 +8,58 @@ import {
   Trash2, 
   Plus,
   Sparkles,
-  ArrowRight
+  ArrowRight,
+  Loader2
 } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { useState } from 'react';
+import { useAutomationRules } from '@/hooks/useAutomationRules';
+import { CreateRuleDialog } from './CreateRuleDialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+
+const operatorLabels: Record<string, string> = {
+  contains: 'contient',
+  starts_with: 'commence par',
+  ends_with: 'se termine par',
+  equals: 'est égal à',
+  greater_than: '>',
+  less_than: '<',
+  between: 'entre',
+};
+
+const fieldLabels: Record<string, string> = {
+  description: 'Description',
+  amount: 'Montant',
+  source: 'Source',
+};
 
 export function AutomationRules() {
-  const [rules, setRules] = useState(automationRules);
+  const { rules, categories, loading, stats, createRule, toggleRule, deleteRule } = useAutomationRules();
 
-  const toggleRule = (id: string) => {
-    setRules(rules.map(rule => 
-      rule.id === id ? { ...rule, isActive: !rule.isActive } : rule
-    ));
+  const formatCondition = (rule: typeof rules[0]) => {
+    const field = fieldLabels[rule.condition_field] || rule.condition_field;
+    const operator = operatorLabels[rule.condition_operator] || rule.condition_operator;
+    return `${field} ${operator} "${rule.condition_value}"`;
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -40,17 +76,20 @@ export function AutomationRules() {
           <div className="flex-1">
             <h3 className="font-semibold text-foreground">Suggestion IA</h3>
             <p className="text-sm text-muted-foreground mt-1">
-              Nous avons détecté 12 transactions similaires qui pourraient être automatisées. 
-              Créez une règle pour les catégoriser automatiquement en "Abonnements SaaS".
+              Créez des règles pour catégoriser automatiquement vos transactions. 
+              L'IA appliquera ces règles aux nouvelles transactions importées.
             </p>
             <div className="flex gap-3 mt-4">
-              <Button size="sm" className="gradient-primary">
-                <Plus className="w-4 h-4 mr-2" />
-                Créer la règle
-              </Button>
-              <Button size="sm" variant="ghost">
-                Ignorer
-              </Button>
+              <CreateRuleDialog 
+                categories={categories} 
+                onCreateRule={createRule}
+                trigger={
+                  <Button size="sm" className="gradient-primary">
+                    <Plus className="w-4 h-4 mr-2" />
+                    Créer une règle
+                  </Button>
+                }
+              />
             </div>
           </div>
         </div>
@@ -67,83 +106,133 @@ export function AutomationRules() {
           <div>
             <h3 className="text-lg font-semibold text-foreground">Règles d'automatisation</h3>
             <p className="text-sm text-muted-foreground">
-              {rules.filter(r => r.isActive).length} règles actives sur {rules.length}
+              {rules.filter(r => r.is_active).length} règles actives sur {rules.length}
             </p>
           </div>
-          <Button className="gradient-primary">
-            <Plus className="w-4 h-4 mr-2" />
-            Nouvelle règle
-          </Button>
+          <CreateRuleDialog categories={categories} onCreateRule={createRule} />
         </div>
 
-        <div className="divide-y divide-border">
-          {rules.map((rule, index) => (
-            <motion.div
-              key={rule.id}
-              initial={{ x: -20, opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              transition={{ delay: 0.05 * index }}
-              className={cn(
-                "p-5 transition-colors",
-                rule.isActive ? "bg-card" : "bg-muted/30"
-              )}
-            >
-              <div className="flex items-center gap-4">
-                {/* Status Icon */}
-                <div className={cn(
-                  "w-10 h-10 rounded-xl flex items-center justify-center transition-all",
-                  rule.isActive 
-                    ? "bg-success/10 text-success" 
-                    : "bg-muted text-muted-foreground"
-                )}>
-                  {rule.isActive ? <Play className="w-5 h-5" /> : <Pause className="w-5 h-5" />}
-                </div>
-
-                {/* Rule Info */}
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <h4 className={cn(
-                      "font-semibold",
-                      rule.isActive ? "text-foreground" : "text-muted-foreground"
-                    )}>
-                      {rule.name}
-                    </h4>
-                    {rule.isActive && (
-                      <Badge className="bg-success/10 text-success border-success/20">
-                        Active
-                      </Badge>
-                    )}
-                  </div>
-                  
-                  {/* Rule Flow */}
-                  <div className="flex items-center gap-2 mt-2 text-sm">
-                    <span className="px-2 py-1 rounded-lg bg-muted text-muted-foreground">
-                      {rule.condition}
-                    </span>
-                    <ArrowRight className="w-4 h-4 text-muted-foreground" />
-                    <span className="px-2 py-1 rounded-lg bg-primary/10 text-primary font-medium">
-                      {rule.action}: {rule.category}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Actions */}
+        {rules.length === 0 ? (
+          <div className="p-12 text-center">
+            <Zap className="w-12 h-12 mx-auto text-muted-foreground/50 mb-4" />
+            <h4 className="font-semibold text-foreground mb-2">Aucune règle d'automatisation</h4>
+            <p className="text-sm text-muted-foreground mb-4">
+              Créez votre première règle pour automatiser la catégorisation de vos transactions.
+            </p>
+            <CreateRuleDialog 
+              categories={categories} 
+              onCreateRule={createRule}
+              trigger={
+                <Button className="gradient-primary">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Créer ma première règle
+                </Button>
+              }
+            />
+          </div>
+        ) : (
+          <div className="divide-y divide-border">
+            {rules.map((rule, index) => (
+              <motion.div
+                key={rule.id}
+                initial={{ x: -20, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                transition={{ delay: 0.05 * index }}
+                className={cn(
+                  "p-5 transition-colors",
+                  rule.is_active ? "bg-card" : "bg-muted/30"
+                )}
+              >
                 <div className="flex items-center gap-4">
-                  <Switch
-                    checked={rule.isActive}
-                    onCheckedChange={() => toggleRule(rule.id)}
-                  />
-                  <button className="p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground">
-                    <Edit3 className="w-4 h-4" />
-                  </button>
-                  <button className="p-2 rounded-lg hover:bg-destructive/10 transition-colors text-muted-foreground hover:text-destructive">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  {/* Status Icon */}
+                  <div className={cn(
+                    "w-10 h-10 rounded-xl flex items-center justify-center transition-all",
+                    rule.is_active 
+                      ? "bg-success/10 text-success" 
+                      : "bg-muted text-muted-foreground"
+                  )}>
+                    {rule.is_active ? <Play className="w-5 h-5" /> : <Pause className="w-5 h-5" />}
+                  </div>
+
+                  {/* Rule Info */}
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <h4 className={cn(
+                        "font-semibold",
+                        rule.is_active ? "text-foreground" : "text-muted-foreground"
+                      )}>
+                        {rule.name}
+                      </h4>
+                      {rule.is_active && (
+                        <Badge className="bg-success/10 text-success border-success/20">
+                          Active
+                        </Badge>
+                      )}
+                      {rule.match_count > 0 && (
+                        <Badge variant="outline" className="text-xs">
+                          {rule.match_count} correspondances
+                        </Badge>
+                      )}
+                    </div>
+                    
+                    {/* Rule Flow */}
+                    <div className="flex items-center gap-2 mt-2 text-sm flex-wrap">
+                      <span className="px-2 py-1 rounded-lg bg-muted text-muted-foreground">
+                        {formatCondition(rule)}
+                      </span>
+                      <ArrowRight className="w-4 h-4 text-muted-foreground" />
+                      <span 
+                        className="px-2 py-1 rounded-lg font-medium flex items-center gap-2"
+                        style={{ 
+                          backgroundColor: `${rule.category?.color}20`,
+                          color: rule.category?.color 
+                        }}
+                      >
+                        <div 
+                          className="w-2 h-2 rounded-full"
+                          style={{ backgroundColor: rule.category?.color }}
+                        />
+                        {rule.category?.name || 'Non assignée'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex items-center gap-4">
+                    <Switch
+                      checked={rule.is_active}
+                      onCheckedChange={() => toggleRule(rule.id)}
+                    />
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <button className="p-2 rounded-lg hover:bg-destructive/10 transition-colors text-muted-foreground hover:text-destructive">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Supprimer la règle ?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Cette action est irréversible. La règle "{rule.name}" sera définitivement supprimée.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Annuler</AlertDialogCancel>
+                          <AlertDialogAction 
+                            onClick={() => deleteRule(rule.id)}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          >
+                            Supprimer
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
                 </div>
-              </div>
-            </motion.div>
-          ))}
-        </div>
+              </motion.div>
+            ))}
+          </div>
+        )}
       </motion.div>
 
       {/* Stats */}
@@ -159,7 +248,7 @@ export function AutomationRules() {
               <Zap className="w-5 h-5 text-primary" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-foreground">847</p>
+              <p className="text-2xl font-bold text-foreground">{stats.totalAutomated}</p>
               <p className="text-sm text-muted-foreground">Transactions automatisées</p>
             </div>
           </div>
@@ -170,7 +259,7 @@ export function AutomationRules() {
               <Sparkles className="w-5 h-5 text-success" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-foreground">96%</p>
+              <p className="text-2xl font-bold text-foreground">{stats.accuracy}%</p>
               <p className="text-sm text-muted-foreground">Précision IA</p>
             </div>
           </div>
@@ -181,7 +270,7 @@ export function AutomationRules() {
               <Play className="w-5 h-5 text-warning" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-foreground">12h</p>
+              <p className="text-2xl font-bold text-foreground">{stats.timeSaved}</p>
               <p className="text-sm text-muted-foreground">Temps économisé / mois</p>
             </div>
           </div>
