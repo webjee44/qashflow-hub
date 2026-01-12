@@ -9,7 +9,8 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Sparkles, Loader2, ArrowDownRight, ArrowUpRight, Wand2 } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Sparkles, Loader2, ArrowDownRight, ArrowUpRight, Wand2, Pencil, Check } from 'lucide-react';
 import { Tables } from '@/integrations/supabase/types';
 import { cn } from '@/lib/utils';
 
@@ -50,6 +51,8 @@ export function SuggestAutomationDialog({
   const [creating, setCreating] = useState(false);
   const [suggestion, setSuggestion] = useState<SuggestionResult | null>(null);
   const [similarTransactions, setSimilarTransactions] = useState<Transaction[]>([]);
+  const [isEditingPattern, setIsEditingPattern] = useState(false);
+  const [editedPattern, setEditedPattern] = useState('');
 
   // Calculate word frequency to detect recurring patterns (like company name)
   const getWordFrequency = () => {
@@ -111,14 +114,36 @@ export function SuggestAutomationDialog({
       // Use local pattern extraction (instant) instead of AI call
       const localSuggestion = extractLocalPattern(transaction.description);
       setSuggestion(localSuggestion);
+      setEditedPattern(localSuggestion.pattern);
       setSimilarTransactions(findSimilarTransactions(localSuggestion.pattern));
       setInitialLoading(false);
+      setIsEditingPattern(false);
     } else {
       setSuggestion(null);
       setSimilarTransactions([]);
       setInitialLoading(false);
+      setIsEditingPattern(false);
+      setEditedPattern('');
     }
   }, [open, transaction?.id, category?.id]);
+
+  // Update similar transactions when pattern changes
+  const handlePatternChange = (newPattern: string) => {
+    setEditedPattern(newPattern);
+  };
+
+  const handlePatternConfirm = () => {
+    if (suggestion && editedPattern.trim()) {
+      const newPattern = editedPattern.trim().toUpperCase();
+      setSuggestion({
+        ...suggestion,
+        pattern: newPattern,
+        ruleName: `Auto: ${category?.name || 'Catégorie'} - ${newPattern}`,
+      });
+      setSimilarTransactions(findSimilarTransactions(newPattern));
+      setIsEditingPattern(false);
+    }
+  };
 
   const handleCreateRule = async () => {
     if (!suggestion || !category) return;
@@ -205,14 +230,49 @@ export function SuggestAutomationDialog({
 
                 {/* Pattern suggéré */}
                 <div className="border border-accent/30 bg-accent/5 rounded-lg p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Wand2 className="w-4 h-4 text-accent" />
-                    <span className="text-sm font-medium">Pattern suggéré</span>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Wand2 className="w-4 h-4 text-accent" />
+                      <span className="text-sm font-medium">Pattern suggéré</span>
+                    </div>
+                    {!isEditingPattern && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+                        onClick={() => setIsEditingPattern(true)}
+                      >
+                        <Pencil className="w-3 h-3 mr-1" />
+                        Modifier
+                      </Button>
+                    )}
                   </div>
-                  <p className="text-sm">
-                    Description <span className="font-semibold text-accent">{getOperatorLabel(suggestion.operator)}</span>{' '}
-                    "<span className="font-mono bg-muted px-1 rounded">{suggestion.pattern}</span>"
-                  </p>
+                  {isEditingPattern ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm">Description contient "</span>
+                      <Input
+                        value={editedPattern}
+                        onChange={(e) => handlePatternChange(e.target.value)}
+                        className="h-7 w-40 font-mono text-sm"
+                        autoFocus
+                        onKeyDown={(e) => e.key === 'Enter' && handlePatternConfirm()}
+                      />
+                      <span className="text-sm">"</span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0 text-accent hover:text-accent"
+                        onClick={handlePatternConfirm}
+                      >
+                        <Check className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <p className="text-sm">
+                      Description <span className="font-semibold text-accent">{getOperatorLabel(suggestion.operator)}</span>{' '}
+                      "<span className="font-mono bg-muted px-1 rounded">{suggestion.pattern}</span>"
+                    </p>
+                  )}
                 </div>
 
                 {/* Transactions similaires */}
