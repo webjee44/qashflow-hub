@@ -214,6 +214,7 @@ export type Database = {
         Row: {
           ai_confidence: number | null
           amount: number
+          bank_account_name: string | null
           category_id: string | null
           created_at: string
           date: string
@@ -229,6 +230,7 @@ export type Database = {
         Insert: {
           ai_confidence?: number | null
           amount: number
+          bank_account_name?: string | null
           category_id?: string | null
           created_at?: string
           date: string
@@ -244,6 +246,7 @@ export type Database = {
         Update: {
           ai_confidence?: number | null
           amount?: number
+          bank_account_name?: string | null
           category_id?: string | null
           created_at?: string
           date?: string

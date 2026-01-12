@@ -10,7 +10,8 @@ import {
   Search,
   RefreshCw,
   Loader2,
-  Tag
+  Tag,
+  Building2
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -440,6 +441,12 @@ export function TransactionsView() {
                       {transaction.source && (
                         <span className="text-xs text-muted-foreground px-2 py-0.5 rounded-full bg-muted">
                           {transaction.source}
+                        </span>
+                      )}
+                      {transaction.bank_account_name && (
+                        <span className="text-xs text-muted-foreground px-2 py-0.5 rounded-full bg-muted/50 flex items-center gap-1">
+                          <Building2 className="w-3 h-3" />
+                          {transaction.bank_account_name}
                         </span>
                       )}
                     </div>
