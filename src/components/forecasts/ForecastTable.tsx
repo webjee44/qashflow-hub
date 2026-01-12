@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useCategories } from '@/hooks/useCategories';
 import { useForecasts } from '@/hooks/useForecasts';
 import { format } from 'date-fns';
@@ -13,6 +13,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
+import { ForecastChart } from './ForecastChart';
 
 export function ForecastTable() {
   const { categories, loading: categoriesLoading } = useCategories();
@@ -140,7 +141,7 @@ export function ForecastTable() {
   }, [editingCell]);
 
   // Calculate totals for a month (HT - before VAT)
-  const getMonthTotal = (type: 'income' | 'expense', monthIndex: number, valueType: 'forecast' | 'actual') => {
+  const getMonthTotal = useCallback((type: 'income' | 'expense', monthIndex: number, valueType: 'forecast' | 'actual') => {
     const cats = type === 'income' ? incomeCategories : expenseCategories;
     return cats.reduce((sum, cat) => {
       const value = valueType === 'forecast' 
@@ -148,14 +149,14 @@ export function ForecastTable() {
         : getActual(cat.id, months[monthIndex]);
       return sum + Math.abs(value);
     }, 0);
-  };
+  }, [incomeCategories, expenseCategories, getForecast, getActual, months]);
 
   // Get VAT for a month
-  const getMonthVat = (type: 'income' | 'expense', monthIndex: number, valueType: 'forecast' | 'actual') => {
+  const getMonthVat = useCallback((type: 'income' | 'expense', monthIndex: number, valueType: 'forecast' | 'actual') => {
     return valueType === 'forecast'
       ? getVatForecast(type, months[monthIndex])
       : getVatActual(type, months[monthIndex]);
-  };
+  }, [getVatForecast, getVatActual, months]);
 
   const renderCell = (categoryId: string, monthIndex: number, type: 'income' | 'expense') => {
     const cellKey = `${categoryId}-${monthIndex}`;
@@ -482,12 +483,21 @@ export function ForecastTable() {
   }
 
   return (
-    <motion.div
-      initial={{ y: 20, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      transition={{ delay: 0.2 }}
-      className="bg-card rounded-2xl border border-border shadow-card overflow-hidden"
-    >
+    <div className="space-y-0">
+      {/* Chart */}
+      <ForecastChart 
+        months={months}
+        getMonthTotal={getMonthTotal}
+        getMonthVat={getMonthVat}
+      />
+      
+      {/* Table */}
+      <motion.div
+        initial={{ y: 20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ delay: 0.2 }}
+        className="bg-card rounded-2xl border border-border shadow-card overflow-hidden"
+      >
       <div className="p-6 border-b border-border">
         <h3 className="text-lg font-semibold text-foreground">Prévisions par catégorie</h3>
         <p className="text-sm text-muted-foreground">
@@ -599,5 +609,6 @@ export function ForecastTable() {
         </table>
       </div>
     </motion.div>
+    </div>
   );
 }
