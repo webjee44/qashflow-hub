@@ -1,5 +1,4 @@
 import { motion } from 'framer-motion';
-import { transactions, categories } from '@/lib/mockData';
 import { cn } from '@/lib/utils';
 import { 
   ArrowUpRight, 
@@ -9,20 +8,123 @@ import {
   AlertCircle,
   Filter,
   Search,
-  ChevronDown
+  ChevronDown,
+  RefreshCw,
+  Loader2
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
+import { Tables } from '@/integrations/supabase/types';
+
+type Transaction = Tables<'transactions'>;
+type Category = Tables<'categories'>;
 
 export function TransactionsView() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+  const { toast } = useToast();
+
+  const fetchTransactions = async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('transactions')
+      .select('*')
+      .order('date', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching transactions:', error);
+      toast({
+        title: 'Erreur',
+        description: 'Impossible de charger les transactions',
+        variant: 'destructive',
+      });
+    } else {
+      setTransactions(data || []);
+    }
+    setLoading(false);
+  };
+
+  const fetchCategories = async () => {
+    const { data, error } = await supabase
+      .from('categories')
+      .select('*');
+
+    if (error) {
+      console.error('Error fetching categories:', error);
+    } else {
+      setCategories(data || []);
+    }
+  };
+
+  useEffect(() => {
+    fetchTransactions();
+    fetchCategories();
+  }, []);
+
+  const syncPennylane = async () => {
+    setSyncing(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        toast({
+          title: 'Erreur',
+          description: 'Vous devez être connecté pour synchroniser',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const { data, error } = await supabase.functions.invoke('sync-pennylane', {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (error) {
+        console.error('Sync error:', error);
+        toast({
+          title: 'Erreur de synchronisation',
+          description: error.message || 'Une erreur est survenue',
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Synchronisation réussie',
+          description: data.message || `${data.synced} transactions importées`,
+        });
+        fetchTransactions();
+      }
+    } catch (err) {
+      console.error('Sync error:', err);
+      toast({
+        title: 'Erreur',
+        description: 'Impossible de synchroniser avec Pennylane',
+        variant: 'destructive',
+      });
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const getCategoryName = (categoryId: string | null) => {
+    if (!categoryId) return 'Non catégorisé';
+    const category = categories.find(c => c.id === categoryId);
+    return category?.name || 'Non catégorisé';
+  };
 
   const filteredTransactions = transactions.filter(t => {
     const matchesSearch = t.description.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = !selectedCategory || t.category === selectedCategory;
+    const categoryName = getCategoryName(t.category_id);
+    const matchesCategory = !selectedCategory || categoryName === selectedCategory;
     return matchesSearch && matchesCategory;
   });
 
@@ -44,18 +146,46 @@ export function TransactionsView() {
 
   const totalIncome = filteredTransactions
     .filter(t => t.type === 'income')
-    .reduce((acc, t) => acc + t.amount, 0);
+    .reduce((acc, t) => acc + Number(t.amount), 0);
 
   const totalExpense = filteredTransactions
     .filter(t => t.type === 'expense')
-    .reduce((acc, t) => acc + Math.abs(t.amount), 0);
+    .reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
+
+  const uniqueCategories = [...new Set(transactions.map(t => getCategoryName(t.category_id)))];
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
+      {/* Header with Sync Button */}
+      <motion.div
+        initial={{ y: -20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        className="flex items-center justify-between"
+      >
+        <h2 className="text-2xl font-bold text-foreground">Transactions</h2>
+        <Button onClick={syncPennylane} disabled={syncing}>
+          {syncing ? (
+            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+          ) : (
+            <RefreshCw className="w-4 h-4 mr-2" />
+          )}
+          Synchroniser Pennylane
+        </Button>
+      </motion.div>
+
       {/* Stats Bar */}
       <motion.div
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
+        transition={{ delay: 0.1 }}
         className="grid grid-cols-3 gap-4"
       >
         <div className="bg-card rounded-xl border border-border p-4 shadow-card">
@@ -81,7 +211,7 @@ export function TransactionsView() {
       <motion.div
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        transition={{ delay: 0.1 }}
+        transition={{ delay: 0.2 }}
         className="flex items-center gap-4"
       >
         <div className="relative flex-1 max-w-md">
@@ -94,110 +224,123 @@ export function TransactionsView() {
           />
         </div>
 
-        <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4 text-muted-foreground" />
-          <div className="flex gap-2">
-            {['Ventes', 'Salaires', 'Logiciels', 'Marketing'].map(cat => (
-              <Button
-                key={cat}
-                variant={selectedCategory === cat ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setSelectedCategory(selectedCategory === cat ? null : cat)}
-              >
-                {cat}
-              </Button>
-            ))}
+        {uniqueCategories.length > 0 && (
+          <div className="flex items-center gap-2">
+            <Filter className="w-4 h-4 text-muted-foreground" />
+            <div className="flex gap-2 flex-wrap">
+              {uniqueCategories.slice(0, 4).map(cat => (
+                <Button
+                  key={cat}
+                  variant={selectedCategory === cat ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setSelectedCategory(selectedCategory === cat ? null : cat)}
+                >
+                  {cat}
+                </Button>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
       </motion.div>
 
       {/* Transactions List */}
       <motion.div
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        transition={{ delay: 0.2 }}
+        transition={{ delay: 0.3 }}
         className="bg-card rounded-2xl border border-border shadow-card overflow-hidden"
       >
-        <div className="divide-y divide-border">
-          {filteredTransactions.map((transaction, index) => (
-            <motion.div
-              key={transaction.id}
-              initial={{ x: -20, opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              transition={{ delay: 0.05 * index }}
-              className="p-5 hover:bg-muted/30 transition-colors group cursor-pointer"
-            >
-              <div className="flex items-center gap-4">
-                {/* Icon */}
-                <div className={cn(
-                  "w-12 h-12 rounded-xl flex items-center justify-center transition-transform group-hover:scale-110",
-                  transaction.type === 'income' 
-                    ? 'bg-success/10 text-success' 
-                    : 'bg-destructive/10 text-destructive'
-                )}>
-                  {transaction.type === 'income' 
-                    ? <ArrowUpRight className="w-6 h-6" />
-                    : <ArrowDownRight className="w-6 h-6" />
-                  }
-                </div>
-
-                {/* Details */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="font-semibold text-foreground">
-                      {transaction.description}
-                    </p>
-                    {transaction.aiConfidence && (
-                      <div className="flex items-center gap-1 text-accent">
-                        <Sparkles className="w-4 h-4" />
-                        <span className="text-xs font-medium">
-                          {Math.round(transaction.aiConfidence * 100)}% IA
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-3 mt-1.5">
-                    <Badge variant="outline" className="text-xs">
-                      {transaction.category}
-                    </Badge>
-                    <span className="text-sm text-muted-foreground">
-                      {formatDate(transaction.date)}
-                    </span>
-                    <span className="text-xs text-muted-foreground px-2 py-0.5 rounded-full bg-muted">
-                      {transaction.source}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Amount & Status */}
-                <div className="text-right">
-                  <p className={cn(
-                    "text-xl font-bold",
-                    transaction.type === 'income' ? 'text-success' : 'text-foreground'
+        {filteredTransactions.length === 0 ? (
+          <div className="p-12 text-center">
+            <p className="text-muted-foreground">Aucune transaction trouvée</p>
+            <p className="text-sm text-muted-foreground mt-2">
+              Cliquez sur "Synchroniser Pennylane" pour importer vos transactions
+            </p>
+          </div>
+        ) : (
+          <div className="divide-y divide-border">
+            {filteredTransactions.map((transaction, index) => (
+              <motion.div
+                key={transaction.id}
+                initial={{ x: -20, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                transition={{ delay: 0.05 * Math.min(index, 10) }}
+                className="p-5 hover:bg-muted/30 transition-colors group cursor-pointer"
+              >
+                <div className="flex items-center gap-4">
+                  {/* Icon */}
+                  <div className={cn(
+                    "w-12 h-12 rounded-xl flex items-center justify-center transition-transform group-hover:scale-110",
+                    transaction.type === 'income' 
+                      ? 'bg-success/10 text-success' 
+                      : 'bg-destructive/10 text-destructive'
                   )}>
-                    {transaction.type === 'income' ? '+' : '-'}{formatAmount(transaction.amount)}
-                  </p>
-                  <div className="flex items-center justify-end gap-1.5 mt-1">
-                    {transaction.isReconciled ? (
-                      <>
-                        <Check className="w-4 h-4 text-success" />
-                        <span className="text-sm text-success font-medium">Validé</span>
-                      </>
-                    ) : (
-                      <>
-                        <AlertCircle className="w-4 h-4 text-warning" />
-                        <span className="text-sm text-warning font-medium">En attente</span>
-                      </>
-                    )}
+                    {transaction.type === 'income' 
+                      ? <ArrowUpRight className="w-6 h-6" />
+                      : <ArrowDownRight className="w-6 h-6" />
+                    }
                   </div>
-                </div>
 
-                {/* Action */}
-                <ChevronDown className="w-5 h-5 text-muted-foreground group-hover:text-foreground transition-colors" />
-              </div>
-            </motion.div>
-          ))}
-        </div>
+                  {/* Details */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="font-semibold text-foreground">
+                        {transaction.description}
+                      </p>
+                      {transaction.ai_confidence && (
+                        <div className="flex items-center gap-1 text-accent">
+                          <Sparkles className="w-4 h-4" />
+                          <span className="text-xs font-medium">
+                            {Math.round(Number(transaction.ai_confidence) * 100)}% IA
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3 mt-1.5">
+                      <Badge variant="outline" className="text-xs">
+                        {getCategoryName(transaction.category_id)}
+                      </Badge>
+                      <span className="text-sm text-muted-foreground">
+                        {formatDate(transaction.date)}
+                      </span>
+                      {transaction.source && (
+                        <span className="text-xs text-muted-foreground px-2 py-0.5 rounded-full bg-muted">
+                          {transaction.source}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Amount & Status */}
+                  <div className="text-right">
+                    <p className={cn(
+                      "text-xl font-bold",
+                      transaction.type === 'income' ? 'text-success' : 'text-foreground'
+                    )}>
+                      {transaction.type === 'income' ? '+' : '-'}{formatAmount(Number(transaction.amount))}
+                    </p>
+                    <div className="flex items-center justify-end gap-1.5 mt-1">
+                      {transaction.is_reconciled ? (
+                        <>
+                          <Check className="w-4 h-4 text-success" />
+                          <span className="text-sm text-success font-medium">Validé</span>
+                        </>
+                      ) : (
+                        <>
+                          <AlertCircle className="w-4 h-4 text-warning" />
+                          <span className="text-sm text-warning font-medium">En attente</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Action */}
+                  <ChevronDown className="w-5 h-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        )}
       </motion.div>
     </div>
   );
