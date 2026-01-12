@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Header } from '@/components/layout/Header';
 import { useCategories, Category } from '@/hooks/useCategories';
-import { CategoryCard } from '@/components/categories/CategoryCard';
+import { CategoryTable } from '@/components/categories/CategoryTable';
 import { CategoryDialog } from '@/components/categories/CategoryDialog';
 import { Button } from '@/components/ui/button';
 import { 
@@ -148,65 +148,21 @@ export default function Categories() {
         </motion.div>
       )}
 
-      {/* Income Categories */}
-      {incomeCategories.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-        >
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-success/10 flex items-center justify-center">
-                <TrendingUp className="w-4 h-4 text-success" />
-              </div>
-              <h3 className="text-lg font-semibold text-foreground">Revenus</h3>
-              <span className="text-sm text-muted-foreground">({incomeCategories.length})</span>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            {incomeCategories.map((cat, index) => (
-              <CategoryCard 
-                key={cat.id} 
-                category={cat} 
-                index={index}
-                onEdit={handleEdit}
-                onDelete={deleteCategory}
-              />
-            ))}
-          </div>
-        </motion.div>
-      )}
-
-      {/* Expense Categories */}
-      {expenseCategories.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-        >
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-destructive/10 flex items-center justify-center">
-                <TrendingDown className="w-4 h-4 text-destructive" />
-              </div>
-              <h3 className="text-lg font-semibold text-foreground">Dépenses</h3>
-              <span className="text-sm text-muted-foreground">({expenseCategories.length})</span>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            {expenseCategories.map((cat, index) => (
-              <CategoryCard 
-                key={cat.id} 
-                category={cat} 
-                index={index}
-                onEdit={handleEdit}
-                onDelete={deleteCategory}
-              />
-            ))}
-          </div>
-        </motion.div>
-      )}
+      {/* Categories Tables */}
+      <div className="space-y-4">
+        <CategoryTable 
+          categories={incomeCategories}
+          type="income"
+          onEdit={handleEdit}
+          onDelete={deleteCategory}
+        />
+        <CategoryTable 
+          categories={expenseCategories}
+          type="expense"
+          onEdit={handleEdit}
+          onDelete={deleteCategory}
+        />
+      </div>
 
       {/* Add Button (when categories exist) */}
       {totalCategories > 0 && (
