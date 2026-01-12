@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { FolderPlus, Check, Palette } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -63,6 +63,8 @@ export function GroupDialog({
   const open = isControlled ? controlledOpen : internalOpen;
   const setOpen = isControlled ? controlledOnOpenChange! : setInternalOpen;
 
+  const prevOpenRef = useRef<boolean>(false);
+
   const initForm = (nextType?: 'income' | 'expense') => {
     if (editGroup) {
       setName(editGroup.name);
@@ -81,30 +83,20 @@ export function GroupDialog({
     }
   };
 
-  const didInitRef = useRef(false);
+  const handleOpenChange = (nextOpen: boolean) => {
+    // Radix can call onOpenChange with the *same* value multiple times due to ref composition;
+    // never call setState in that case.
+    const wasOpen = prevOpenRef.current;
+    if (wasOpen === nextOpen) return;
 
-  // If the dialog mounts already open (controlled), initialize once.
-  useEffect(() => {
-    if (open && !didInitRef.current) {
+    if (nextOpen) {
       initForm();
-      didInitRef.current = true;
-    }
-    if (!open) {
-      didInitRef.current = false;
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, editGroup?.id]);
-  const handleOpenChange = (value: boolean) => {
-    // When opening: initialize values
-    if (value) {
-      initForm();
-      setOpen(true);
-      return;
+    } else {
+      onClose?.();
     }
 
-    // When closing: just close and notify parent
-    setOpen(false);
-    onClose?.();
+    prevOpenRef.current = nextOpen;
+    setOpen(nextOpen);
   };
 
   // Filter categories that can be added to this group
