@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Building2, Plus, Pencil, Trash2, Star, Key } from 'lucide-react';
+import { Building2, Plus, Pencil, Trash2, Star, Key, ShieldCheck, ShieldX } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -114,13 +114,21 @@ export function CompanyList() {
                         )}
                       </div>
                       <div className="flex items-center gap-2 mt-1">
-                        <Key className="w-3 h-3 text-muted-foreground" />
-                        <span className="text-sm text-muted-foreground">
-                          {company.pennylane_api_key 
-                            ? `API: ****${company.pennylane_api_key.slice(-4)}`
-                            : 'Aucune clé API'
-                          }
-                        </span>
+                        {company.has_pennylane_key ? (
+                          <>
+                            <ShieldCheck className="w-3 h-3 text-green-500" />
+                            <span className="text-sm text-muted-foreground">
+                              Clé API configurée
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <ShieldX className="w-3 h-3 text-muted-foreground" />
+                            <span className="text-sm text-muted-foreground">
+                              Aucune clé API
+                            </span>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
