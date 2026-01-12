@@ -4,6 +4,7 @@ import { Header } from '@/components/layout/Header';
 import { useCategories, Category } from '@/hooks/useCategories';
 import { CategoryTable } from '@/components/categories/CategoryTable';
 import { CategoryDialog } from '@/components/categories/CategoryDialog';
+import { GroupDialog } from '@/components/categories/GroupDialog';
 import { Button } from '@/components/ui/button';
 import { 
   Plus, 
@@ -11,7 +12,8 @@ import {
   TrendingUp, 
   TrendingDown,
   Sparkles,
-  Wand2
+  Wand2,
+  FolderPlus
 } from 'lucide-react';
 
 export default function Categories() {
@@ -23,15 +25,27 @@ export default function Categories() {
     createCategory, 
     updateCategory, 
     deleteCategory,
-    initializeDefaultCategories
+    initializeDefaultCategories,
+    getGroupedCategories,
+    createGroup,
+    updateGroup,
+    deleteGroup,
+    isGroup
   } = useCategories();
   
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingGroup, setEditingGroup] = useState<Category | null>(null);
+  const [groupDialogOpen, setGroupDialogOpen] = useState(false);
 
   const handleEdit = (category: Category) => {
     setEditingCategory(category);
     setEditDialogOpen(true);
+  };
+
+  const handleEditGroup = (group: Category) => {
+    setEditingGroup(group);
+    setGroupDialogOpen(true);
   };
 
   const handleSaveEdit = async (data: {
@@ -39,6 +53,7 @@ export default function Categories() {
     color: string;
     icon: string;
     type: 'income' | 'expense';
+    vat_rate: number;
     parent_id?: string | null;
   }) => {
     if (editingCategory) {
@@ -47,8 +62,24 @@ export default function Categories() {
     return null;
   };
 
-  // Get potential parent categories (categories that could be groups)
-  const availableParents = categories.filter(c => !c.parent_id);
+  const handleSaveGroup = async (data: {
+    name: string;
+    color: string;
+    type: 'income' | 'expense';
+    categoryIds: string[];
+  }) => {
+    if (editingGroup) {
+      return await updateGroup(editingGroup.id, data);
+    }
+    return await createGroup(data);
+  };
+
+  const handleDeleteGroup = async (groupId: string, deleteChildren: boolean) => {
+    await deleteGroup(groupId, deleteChildren);
+  };
+
+  const incomeGroups = getGroupedCategories('income');
+  const expenseGroups = getGroupedCategories('expense');
 
   const totalCategories = incomeCategories.length + expenseCategories.length;
 
@@ -142,7 +173,6 @@ export default function Categories() {
             </Button>
             <CategoryDialog
               onSave={createCategory}
-              availableParents={availableParents}
               trigger={
                 <Button className="gradient-primary">
                   <Plus className="w-4 h-4 mr-2" />
@@ -157,30 +187,43 @@ export default function Categories() {
       {/* Categories Tables */}
       <div className="space-y-4">
         <CategoryTable 
-          categories={incomeCategories}
+          groups={incomeGroups}
           type="income"
           onEdit={handleEdit}
+          onEditGroup={handleEditGroup}
           onDelete={deleteCategory}
+          onDeleteGroup={handleDeleteGroup}
         />
         <CategoryTable 
-          categories={expenseCategories}
+          groups={expenseGroups}
           type="expense"
           onEdit={handleEdit}
+          onEditGroup={handleEditGroup}
           onDelete={deleteCategory}
+          onDeleteGroup={handleDeleteGroup}
         />
       </div>
 
-      {/* Add Button (when categories exist) */}
+      {/* Action Buttons */}
       {totalCategories > 0 && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.3 }}
-          className="flex justify-center"
+          className="flex justify-center gap-3"
         >
+          <GroupDialog
+            categories={categories}
+            onSave={handleSaveGroup}
+            trigger={
+              <Button variant="outline">
+                <FolderPlus className="w-4 h-4 mr-2" />
+                Ajouter un groupe
+              </Button>
+            }
+          />
           <CategoryDialog
             onSave={createCategory}
-            availableParents={availableParents}
             trigger={
               <Button className="gradient-primary">
                 <Plus className="w-4 h-4 mr-2" />
@@ -191,14 +234,25 @@ export default function Categories() {
         </motion.div>
       )}
 
-      {/* Edit Dialog */}
+      {/* Edit Category Dialog */}
       <CategoryDialog
         category={editingCategory}
         open={editDialogOpen}
         onOpenChange={setEditDialogOpen}
         onSave={handleSaveEdit}
         onClose={() => setEditingCategory(null)}
-        availableParents={availableParents.filter(p => p.id !== editingCategory?.id)}
+      />
+
+      {/* Edit Group Dialog */}
+      <GroupDialog
+        categories={categories}
+        editGroup={editingGroup}
+        open={groupDialogOpen}
+        onOpenChange={(open) => {
+          setGroupDialogOpen(open);
+          if (!open) setEditingGroup(null);
+        }}
+        onSave={handleSaveGroup}
       />
     </div>
   );
