@@ -208,15 +208,20 @@ export function TransactionsView() {
           );
           const pattern = words[0] || '';
           
-          // Chercher des transactions similaires non catégorisées (utiliser l'état après mise à jour)
-          const similarCount = transactions.filter(t => 
+          console.log('Pattern extracted:', pattern, 'from:', transaction.description);
+          
+          // Chercher des transactions similaires non catégorisées
+          // Note: on exclut la transaction actuelle ET on vérifie qu'elles n'ont pas de catégorie
+          const similarTransactions = transactions.filter(t => 
             t.id !== transactionId && 
-            !t.category_id &&
+            t.category_id === null &&
             pattern && t.description.toUpperCase().includes(pattern)
-          ).length;
+          );
+          
+          console.log('Similar uncategorized transactions found:', similarTransactions.length);
           
           // Ne proposer l'automatisation que s'il y a au moins 1 transaction similaire
-          if (similarCount > 0) {
+          if (similarTransactions.length > 0) {
             setLastCategorizedTransaction({ ...transaction, category_id: categoryId });
             setLastSelectedCategory(category);
             setShowSuggestDialog(true);
