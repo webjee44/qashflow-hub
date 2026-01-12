@@ -21,6 +21,56 @@ interface PennylaneResponse {
   next_cursor: string | null
 }
 
+interface AutomationRule {
+  id: string
+  condition_field: string
+  condition_operator: string
+  condition_value: string
+  action_type: string
+  target_category_id: string | null
+  is_active: boolean
+}
+
+// Check if a transaction matches a rule
+function matchesRule(transaction: { description: string; amount: number; type: string }, rule: AutomationRule): boolean {
+  if (!rule.is_active) return false
+
+  let fieldValue: string = ''
+  
+  switch (rule.condition_field) {
+    case 'description':
+      fieldValue = transaction.description.toLowerCase()
+      break
+    case 'amount':
+      fieldValue = transaction.amount.toString()
+      break
+    case 'type':
+      fieldValue = transaction.type
+      break
+    default:
+      return false
+  }
+
+  const conditionValue = rule.condition_value.toLowerCase()
+
+  switch (rule.condition_operator) {
+    case 'contains':
+      return fieldValue.includes(conditionValue)
+    case 'equals':
+      return fieldValue === conditionValue
+    case 'starts_with':
+      return fieldValue.startsWith(conditionValue)
+    case 'ends_with':
+      return fieldValue.endsWith(conditionValue)
+    case 'greater_than':
+      return parseFloat(fieldValue) > parseFloat(conditionValue)
+    case 'less_than':
+      return parseFloat(fieldValue) < parseFloat(conditionValue)
+    default:
+      return false
+  }
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -37,15 +87,20 @@ Deno.serve(async (req) => {
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!
 
-    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    // Client with user context for auth
+    const supabaseUser = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } }
     })
 
+    // Service client for admin operations (updating match_count)
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
+
     // Verify user authentication
     const token = authHeader.replace('Bearer ', '')
-    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token)
+    const { data: claimsData, error: claimsError } = await supabaseUser.auth.getClaims(token)
     
     if (claimsError || !claimsData?.claims) {
       console.error('Auth error:', claimsError)
@@ -70,6 +125,20 @@ Deno.serve(async (req) => {
     }
 
     console.log('Pennylane API key found, starting sync...')
+
+    // Fetch user's automation rules
+    const { data: rules, error: rulesError } = await supabaseAdmin
+      .from('automation_rules')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('is_active', true)
+
+    if (rulesError) {
+      console.error('Error fetching rules:', rulesError)
+    }
+
+    const automationRules: AutomationRule[] = rules || []
+    console.log(`Found ${automationRules.length} active automation rules`)
 
     // Fetch transactions from Pennylane API v2
     let allTransactions: PennylaneTransaction[] = []
@@ -123,10 +192,12 @@ Deno.serve(async (req) => {
     // Sync transactions to database
     let syncedCount = 0
     let skippedCount = 0
+    let automatedCount = 0
+    const ruleMatchCounts: Record<string, number> = {}
 
     for (const tx of allTransactions) {
       // Check if transaction already exists
-      const { data: existing } = await supabase
+      const { data: existing } = await supabaseUser
         .from('transactions')
         .select('id')
         .eq('pennylane_id', tx.id.toString())
@@ -140,36 +211,71 @@ Deno.serve(async (req) => {
 
       // Determine transaction type based on amount
       const transactionType = tx.amount >= 0 ? 'income' : 'expense'
+      const description = tx.label || 'Transaction Pennylane'
+      const amount = Math.abs(tx.amount)
 
-      // Insert new transaction
-      const { error: insertError } = await supabase
+      // Check automation rules
+      let categoryId: string | null = null
+      let matchedRuleId: string | null = null
+
+      for (const rule of automationRules) {
+        if (matchesRule({ description, amount, type: transactionType }, rule)) {
+          if (rule.action_type === 'categorize' && rule.target_category_id) {
+            categoryId = rule.target_category_id
+            matchedRuleId = rule.id
+            console.log(`Transaction "${description}" matched rule "${rule.id}" -> category ${categoryId}`)
+            break // First match wins
+          }
+        }
+      }
+
+      // Insert new transaction with category if matched
+      const { error: insertError } = await supabaseUser
         .from('transactions')
         .insert({
           user_id: userId,
           pennylane_id: tx.id.toString(),
-          description: tx.label || 'Transaction Pennylane',
-          amount: Math.abs(tx.amount),
+          description,
+          amount,
           date: tx.date,
           type: transactionType,
           source: 'pennylane',
-          is_reconciled: false
+          is_reconciled: false,
+          category_id: categoryId,
+          ai_confidence: categoryId ? 1.0 : null // 100% confidence for rule-based
         })
 
       if (insertError) {
         console.error('Insert error:', insertError)
       } else {
         syncedCount++
+        if (categoryId && matchedRuleId) {
+          automatedCount++
+          ruleMatchCounts[matchedRuleId] = (ruleMatchCounts[matchedRuleId] || 0) + 1
+        }
       }
     }
 
-    console.log(`Sync complete: ${syncedCount} new, ${skippedCount} skipped`)
+    // Update match counts for rules
+    for (const [ruleId, count] of Object.entries(ruleMatchCounts)) {
+      const rule = automationRules.find(r => r.id === ruleId)
+      if (rule) {
+        await supabaseAdmin
+          .from('automation_rules')
+          .update({ match_count: (rule as any).match_count + count })
+          .eq('id', ruleId)
+      }
+    }
+
+    console.log(`Sync complete: ${syncedCount} new, ${skippedCount} skipped, ${automatedCount} auto-categorized`)
 
     return new Response(
       JSON.stringify({
         success: true,
-        message: `Synchronisation terminée: ${syncedCount} nouvelles transactions importées, ${skippedCount} déjà existantes.`,
+        message: `Synchronisation terminée: ${syncedCount} nouvelles transactions importées (${automatedCount} catégorisées automatiquement), ${skippedCount} déjà existantes.`,
         synced: syncedCount,
         skipped: skippedCount,
+        automated: automatedCount,
         total: allTransactions.length
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
