@@ -695,7 +695,7 @@ export function TransactionsView() {
         onOpenChange={setShowSuggestDialog}
         transaction={lastCategorizedTransaction}
         category={lastSelectedCategory}
-        allTransactions={transactions}
+        allTransactions={transactionsRef.current}
         onCreateRule={createRule}
       />
 
