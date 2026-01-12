@@ -25,7 +25,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Tables } from '@/integrations/supabase/types';
@@ -41,6 +41,7 @@ export function TransactionsView() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const transactionsRef = useRef<Transaction[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -77,7 +78,9 @@ export function TransactionsView() {
         variant: 'destructive',
       });
     } else {
-      setTransactions(data || []);
+      const next = data || [];
+      transactionsRef.current = next;
+      setTransactions(next);
     }
     setLoading(false);
   };
@@ -165,14 +168,16 @@ export function TransactionsView() {
   };
 
   const updateTransactionCategory = async (transactionId: string, categoryId: string | null) => {
-    const transaction = transactions.find(t => t.id === transactionId);
+    const transaction = transactionsRef.current.find(t => t.id === transactionId);
     const previousCategoryId = transaction?.category_id;
-    
-    // Optimistic update - mise à jour immédiate de l'UI
-    setTransactions(prev => 
-      prev.map(t => t.id === transactionId ? { ...t, category_id: categoryId } : t)
+
+    // Optimistic update - mise à jour immédiate de l'UI (et du ref)
+    const nextTransactions = transactionsRef.current.map(t =>
+      t.id === transactionId ? { ...t, category_id: categoryId } : t
     );
-    
+    transactionsRef.current = nextTransactions;
+    setTransactions(nextTransactions);
+
     const { error } = await supabase
       .from('transactions')
       .update({ category_id: categoryId })
@@ -181,9 +186,11 @@ export function TransactionsView() {
     if (error) {
       console.error('Error updating category:', error);
       // Rollback en cas d'erreur
-      setTransactions(prev => 
-        prev.map(t => t.id === transactionId ? { ...t, category_id: previousCategoryId } : t)
+      const rollbackTransactions = transactionsRef.current.map(t =>
+        t.id === transactionId ? { ...t, category_id: previousCategoryId ?? null } : t
       );
+      transactionsRef.current = rollbackTransactions;
+      setTransactions(rollbackTransactions);
       toast({
         title: 'Erreur',
         description: 'Impossible de mettre à jour la catégorie',
@@ -208,17 +215,13 @@ export function TransactionsView() {
           );
           const pattern = words[0] || '';
           
-          console.log('Pattern extracted:', pattern, 'from:', transaction.description);
-          
           // Chercher des transactions similaires non catégorisées
           // Note: on exclut la transaction actuelle ET on vérifie qu'elles n'ont pas de catégorie
-          const similarTransactions = transactions.filter(t => 
+          const similarTransactions = transactionsRef.current.filter(t => 
             t.id !== transactionId && 
             t.category_id === null &&
             pattern && t.description.toUpperCase().includes(pattern)
           );
-          
-          console.log('Similar uncategorized transactions found:', similarTransactions.length);
           
           // Ne proposer l'automatisation que s'il y a au moins 1 transaction similaire
           if (similarTransactions.length > 0) {
