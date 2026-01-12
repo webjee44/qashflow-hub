@@ -58,11 +58,54 @@ export function GroupDialog({
   const [color, setColor] = useState('hsl(221, 83%, 53%)');
   const [type, setType] = useState<'income' | 'expense'>('expense');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [isInitialized, setIsInitialized] = useState(false);
 
   const isControlled = controlledOpen !== undefined;
   const open = isControlled ? controlledOpen : internalOpen;
   const setOpen = isControlled ? controlledOnOpenChange! : setInternalOpen;
+
+  const initForm = (nextType?: 'income' | 'expense') => {
+    if (editGroup) {
+      setName(editGroup.name);
+      setColor(editGroup.color);
+      setType(editGroup.type);
+      const childIds = categories
+        .filter(c => c.parent_id === editGroup.id)
+        .map(c => c.id);
+      setSelectedIds(new Set(childIds));
+    } else {
+      const t = nextType ?? 'expense';
+      setName('');
+      setColor('hsl(221, 83%, 53%)');
+      setType(t);
+      setSelectedIds(new Set());
+    }
+  };
+
+  const didInitRef = useRef(false);
+
+  // If the dialog mounts already open (controlled), initialize once.
+  useEffect(() => {
+    if (open && !didInitRef.current) {
+      initForm();
+      didInitRef.current = true;
+    }
+    if (!open) {
+      didInitRef.current = false;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, editGroup?.id]);
+  const handleOpenChange = (value: boolean) => {
+    // When opening: initialize values
+    if (value) {
+      initForm();
+      setOpen(true);
+      return;
+    }
+
+    // When closing: just close and notify parent
+    setOpen(false);
+    onClose?.();
+  };
 
   // Filter categories that can be added to this group
   // - Must be same type
@@ -71,7 +114,6 @@ export function GroupDialog({
   const availableCategories = categories.filter(c => {
     if (c.type !== type) return false;
     if (editGroup && c.id === editGroup.id) return false;
-    // Check if this category is a group (has children)
     const hasChildren = categories.some(child => child.parent_id === c.id);
     if (hasChildren) return false;
     return true;
@@ -84,41 +126,6 @@ export function GroupDialog({
       .map(c => c.id)
   );
 
-  const prevOpenRef = useRef(false);
-
-  // Initialize form only once when dialog opens
-  useEffect(() => {
-    if (open && !isInitialized) {
-      if (editGroup) {
-        setName(editGroup.name);
-        setColor(editGroup.color);
-        setType(editGroup.type);
-        // Find categories that belong to this group
-        const childIds = categories
-          .filter(c => c.parent_id === editGroup.id)
-          .map(c => c.id);
-        setSelectedIds(new Set(childIds));
-      } else {
-        setName('');
-        setColor('hsl(221, 83%, 53%)');
-        setType('expense');
-        setSelectedIds(new Set());
-      }
-      setIsInitialized(true);
-    }
-    if (!open) {
-      setIsInitialized(false);
-    }
-  }, [open, isInitialized, editGroup, categories]);
-
-  // Call onClose only when transitioning from open -> closed (avoid loops)
-  useEffect(() => {
-    if (prevOpenRef.current && !open) {
-      onClose?.();
-    }
-    prevOpenRef.current = open;
-  }, [open, onClose]);
-
   const toggleCategory = (id: string) => {
     const newSet = new Set(selectedIds);
     if (newSet.has(id)) {
@@ -129,9 +136,7 @@ export function GroupDialog({
     setSelectedIds(newSet);
   };
 
-  const handleClose = () => {
-    setOpen(false);
-  };
+  const handleClose = () => handleOpenChange(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -152,7 +157,7 @@ export function GroupDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
       <DialogContent className="sm:max-w-[480px]" aria-describedby={undefined}>
         <DialogHeader>
