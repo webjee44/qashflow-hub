@@ -15,8 +15,12 @@ import {
   Wand2,
   PlusCircle,
   ArrowDownAZ,
-  ArrowDownWideNarrow
+  ArrowDownWideNarrow,
+  CheckSquare,
+  Square,
+  X
 } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -54,6 +58,8 @@ export function TransactionsView() {
   const [lastSelectedCategory, setLastSelectedCategory] = useState<Category | null>(null);
   const [showCategoryDialog, setShowCategoryDialog] = useState(false);
   const [pendingTransactionId, setPendingTransactionId] = useState<string | null>(null);
+  const [selectedTransactionIds, setSelectedTransactionIds] = useState<Set<string>>(new Set());
+  const [bulkCategorizing, setBulkCategorizing] = useState(false);
   const { toast } = useToast();
   const { currentCompany } = useCompany();
   const { createRule } = useAutomationRules();
@@ -356,6 +362,70 @@ export function TransactionsView() {
   const incomeCategories = categories.filter(c => c.type === 'income');
   const expenseCategories = categories.filter(c => c.type === 'expense');
 
+  // Bulk selection helpers
+  const toggleTransactionSelection = (transactionId: string) => {
+    setSelectedTransactionIds(prev => {
+      const next = new Set(prev);
+      if (next.has(transactionId)) {
+        next.delete(transactionId);
+      } else {
+        next.add(transactionId);
+      }
+      return next;
+    });
+  };
+
+  const selectAllVisible = () => {
+    const allVisibleIds = filteredTransactions.map(t => t.id);
+    setSelectedTransactionIds(new Set(allVisibleIds));
+  };
+
+  const clearSelection = () => {
+    setSelectedTransactionIds(new Set());
+  };
+
+  const bulkUpdateCategory = async (categoryId: string | null) => {
+    if (selectedTransactionIds.size === 0) return;
+
+    setBulkCategorizing(true);
+    const idsArray = Array.from(selectedTransactionIds);
+    
+    // Optimistic update
+    const previousTransactions = [...transactionsRef.current];
+    const nextTransactions = transactionsRef.current.map(t =>
+      selectedTransactionIds.has(t.id) ? { ...t, category_id: categoryId } : t
+    );
+    transactionsRef.current = nextTransactions;
+    setTransactions(nextTransactions);
+
+    const { error } = await supabase
+      .from('transactions')
+      .update({ category_id: categoryId })
+      .in('id', idsArray);
+
+    if (error) {
+      console.error('Error bulk updating categories:', error);
+      // Rollback
+      transactionsRef.current = previousTransactions;
+      setTransactions(previousTransactions);
+      toast({
+        title: 'Erreur',
+        description: 'Impossible de mettre à jour les catégories',
+        variant: 'destructive',
+      });
+    } else {
+      toast({
+        title: 'Catégories mises à jour',
+        description: `${idsArray.length} transaction${idsArray.length > 1 ? 's' : ''} catégorisée${idsArray.length > 1 ? 's' : ''}`,
+      });
+      clearSelection();
+    }
+    setBulkCategorizing(false);
+  };
+
+  const isAllVisibleSelected = filteredTransactions.length > 0 && 
+    filteredTransactions.every(t => selectedTransactionIds.has(t.id));
+
   // Create category handler
   const handleCreateCategory = async (data: {
     name: string;
@@ -518,7 +588,126 @@ export function TransactionsView() {
             </span>
           )}
         </Button>
+
+        {/* Bulk selection toggle */}
+        <Button
+          variant={selectedTransactionIds.size > 0 ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => {
+            if (selectedTransactionIds.size > 0) {
+              clearSelection();
+            } else {
+              selectAllVisible();
+            }
+          }}
+          className="gap-2"
+        >
+          {selectedTransactionIds.size > 0 ? (
+            <CheckSquare className="w-4 h-4" />
+          ) : (
+            <Square className="w-4 h-4" />
+          )}
+          {selectedTransactionIds.size > 0 
+            ? `${selectedTransactionIds.size} sélectionné${selectedTransactionIds.size > 1 ? 's' : ''}`
+            : 'Sélection multiple'
+          }
+        </Button>
       </motion.div>
+
+      {/* Bulk Action Bar */}
+      {selectedTransactionIds.size > 0 && (
+        <motion.div
+          initial={{ y: -10, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: -10, opacity: 0 }}
+          className="flex items-center gap-3 p-4 bg-primary/10 border border-primary/20 rounded-xl"
+        >
+          <div className="flex items-center gap-2">
+            <CheckSquare className="w-5 h-5 text-primary" />
+            <span className="font-medium text-sm">
+              {selectedTransactionIds.size} transaction{selectedTransactionIds.size > 1 ? 's' : ''} sélectionnée{selectedTransactionIds.size > 1 ? 's' : ''}
+            </span>
+          </div>
+          
+          <div className="flex-1" />
+
+          {/* Bulk category selector */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" className="gap-2" disabled={bulkCategorizing}>
+                {bulkCategorizing ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Tag className="w-4 h-4" />
+                )}
+                Catégoriser
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56 max-h-80 overflow-y-auto">
+              <DropdownMenuItem
+                onClick={() => bulkUpdateCategory(null)}
+                className="text-muted-foreground"
+              >
+                Retirer la catégorie
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              
+              {incomeCategories.length > 0 && (
+                <>
+                  <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+                    Encaissements
+                  </div>
+                  {incomeCategories.map(cat => (
+                    <DropdownMenuItem
+                      key={cat.id}
+                      onClick={() => bulkUpdateCategory(cat.id)}
+                      className="flex items-center gap-2"
+                    >
+                      <div 
+                        className="w-3 h-3 rounded-full" 
+                        style={{ backgroundColor: cat.color }}
+                      />
+                      {cat.name}
+                    </DropdownMenuItem>
+                  ))}
+                </>
+              )}
+              
+              {expenseCategories.length > 0 && (
+                <>
+                  {incomeCategories.length > 0 && <DropdownMenuSeparator />}
+                  <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+                    Décaissements
+                  </div>
+                  {expenseCategories.map(cat => (
+                    <DropdownMenuItem
+                      key={cat.id}
+                      onClick={() => bulkUpdateCategory(cat.id)}
+                      className="flex items-center gap-2"
+                    >
+                      <div 
+                        className="w-3 h-3 rounded-full" 
+                        style={{ backgroundColor: cat.color }}
+                      />
+                      {cat.name}
+                    </DropdownMenuItem>
+                  ))}
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={clearSelection}
+            className="gap-1"
+          >
+            <X className="w-4 h-4" />
+            Annuler
+          </Button>
+        </motion.div>
+      )}
 
       {/* Transactions List */}
       <motion.div
@@ -542,9 +731,19 @@ export function TransactionsView() {
                 initial={{ x: -20, opacity: 0 }}
                 animate={{ x: 0, opacity: 1 }}
                 transition={{ delay: 0.05 * Math.min(index, 10) }}
-                className="p-5 hover:bg-muted/30 transition-colors group"
+                className={cn(
+                  "p-5 hover:bg-muted/30 transition-colors group",
+                  selectedTransactionIds.has(transaction.id) && "bg-primary/5"
+                )}
               >
                 <div className="flex items-center gap-4">
+                  {/* Checkbox for bulk selection */}
+                  <Checkbox
+                    checked={selectedTransactionIds.has(transaction.id)}
+                    onCheckedChange={() => toggleTransactionSelection(transaction.id)}
+                    className="shrink-0"
+                  />
+
                   {/* Icon */}
                   <div className={cn(
                     "w-12 h-12 rounded-xl flex items-center justify-center transition-transform group-hover:scale-110",
