@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Palette } from 'lucide-react';
+import { Palette } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -18,6 +18,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Category } from '@/hooks/useCategories';
+import { DynamicIcon } from '@/components/ui/dynamic-icon';
 
 interface CategoryDialogProps {
   category?: Category | null;
@@ -179,12 +180,18 @@ export function CategoryDialog({
               onValueChange={(value) => setForm({ ...form, icon: value })}
             >
               <SelectTrigger>
-                <SelectValue />
+                <div className="flex items-center gap-2">
+                  <DynamicIcon name={form.icon} className="w-4 h-4" />
+                  <SelectValue />
+                </div>
               </SelectTrigger>
               <SelectContent>
                 {iconOptions.map((icon) => (
                   <SelectItem key={icon.value} value={icon.value}>
-                    {icon.label}
+                    <div className="flex items-center gap-2">
+                      <DynamicIcon name={icon.value} className="w-4 h-4" />
+                      {icon.label}
+                    </div>
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -199,9 +206,10 @@ export function CategoryDialog({
                 className="w-10 h-10 rounded-lg flex items-center justify-center"
                 style={{ backgroundColor: `${form.color}20` }}
               >
-                <div 
-                  className="w-5 h-5 rounded-full"
-                  style={{ backgroundColor: form.color }}
+                <DynamicIcon 
+                  name={form.icon} 
+                  className="w-5 h-5" 
+                  style={{ color: form.color }}
                 />
               </div>
               <span className="font-medium">{form.name || 'Nom de la catégorie'}</span>
