@@ -15,6 +15,12 @@ export interface Category {
   updated_at: string;
   user_id: string;
   company_id?: string | null;
+  parent_id?: string | null;
+}
+
+export interface CategoryGroup {
+  group: Category | null;
+  children: Category[];
 }
 
 const defaultCategories = [
@@ -173,6 +179,62 @@ export function useCategories() {
   const incomeCategories = categories.filter(c => c.type === 'income');
   const expenseCategories = categories.filter(c => c.type === 'expense');
 
+  // Get only parent/group categories (categories with no parent_id that have children)
+  const parentCategories = (type: 'income' | 'expense') => {
+    const typeCats = type === 'income' ? incomeCategories : expenseCategories;
+    const parentIds = new Set(typeCats.filter(c => c.parent_id).map(c => c.parent_id));
+    return typeCats.filter(c => parentIds.has(c.id));
+  };
+
+  // Group categories by parent
+  const getGroupedCategories = (type: 'income' | 'expense'): CategoryGroup[] => {
+    const typeCats = type === 'income' ? incomeCategories : expenseCategories;
+    const groups: CategoryGroup[] = [];
+    const childrenByParent = new Map<string, Category[]>();
+    const topLevelCats: Category[] = [];
+
+    // First pass: identify children and their parents
+    typeCats.forEach(cat => {
+      if (cat.parent_id) {
+        const existing = childrenByParent.get(cat.parent_id) || [];
+        existing.push(cat);
+        childrenByParent.set(cat.parent_id, existing);
+      }
+    });
+
+    // Second pass: categorize
+    typeCats.forEach(cat => {
+      if (!cat.parent_id) {
+        // This is a top-level category
+        if (childrenByParent.has(cat.id)) {
+          // It's a parent with children
+          groups.push({
+            group: cat,
+            children: childrenByParent.get(cat.id)!.sort((a, b) => a.name.localeCompare(b.name))
+          });
+        } else {
+          // It's a standalone category
+          topLevelCats.push(cat);
+        }
+      }
+    });
+
+    // Add standalone categories as a "no group" section
+    if (topLevelCats.length > 0) {
+      groups.unshift({
+        group: null,
+        children: topLevelCats.sort((a, b) => a.name.localeCompare(b.name))
+      });
+    }
+
+    // Sort groups by name
+    return groups.sort((a, b) => {
+      if (!a.group) return -1;
+      if (!b.group) return 1;
+      return a.group.name.localeCompare(b.group.name);
+    });
+  };
+
   return {
     categories,
     incomeCategories,
@@ -182,6 +244,8 @@ export function useCategories() {
     updateCategory,
     deleteCategory,
     initializeDefaultCategories,
-    refetch: fetchCategories
+    refetch: fetchCategories,
+    getGroupedCategories,
+    parentCategories
   };
 }
