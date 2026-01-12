@@ -167,109 +167,121 @@ export function SuggestAutomationDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[85vh]">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-accent" />
-            Créer une automatisation ?
-          </DialogTitle>
-          <DialogDescription>
-            Automatisez la catégorisation des transactions similaires
-          </DialogDescription>
-        </DialogHeader>
-
-        {loading ? (
-          <div className="flex flex-col items-center justify-center py-8 gap-3">
-            <Loader2 className="w-8 h-8 animate-spin text-primary" />
-            <p className="text-sm text-muted-foreground">Analyse en cours...</p>
+      <DialogContent className="sm:max-w-lg p-0 overflow-hidden">
+        <div className="flex max-h-[85vh] flex-col">
+          {/* Header */}
+          <div className="p-6 pb-4">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-accent" />
+                Créer une automatisation ?
+                {loading && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
+              </DialogTitle>
+              <DialogDescription>
+                Automatisez la catégorisation des transactions similaires
+              </DialogDescription>
+            </DialogHeader>
           </div>
-        ) : suggestion ? (
-          <div className="space-y-4">
-            {/* Transaction catégorisée */}
-            <div className="bg-muted/50 rounded-lg p-3">
-              <p className="text-xs text-muted-foreground mb-1">Vous venez de catégoriser :</p>
-              <p className="font-medium text-sm truncate">{transaction?.description}</p>
-              <Badge 
-                variant="outline" 
-                className="mt-2"
-                style={{ borderColor: category?.color, color: category?.color }}
-              >
-                → {category?.name}
-              </Badge>
-            </div>
 
-            {/* Pattern suggéré */}
-            <div className="border border-accent/30 bg-accent/5 rounded-lg p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Wand2 className="w-4 h-4 text-accent" />
-                <span className="text-sm font-medium">Pattern suggéré par l'IA</span>
-              </div>
-              <p className="text-sm">
-                Description <span className="font-semibold text-accent">{getOperatorLabel(suggestion.operator)}</span>{' '}
-                "<span className="font-mono bg-muted px-1 rounded">{suggestion.pattern}</span>"
-              </p>
-            </div>
-
-            {/* Transactions similaires */}
-            {similarTransactions.length > 0 && (
-              <div>
-                <p className="text-sm font-medium mb-2 flex items-center gap-2">
-                  <span className="bg-primary text-primary-foreground text-xs px-2 py-0.5 rounded-full">
-                    {similarTransactions.length}
-                  </span>
-                  transaction{similarTransactions.length > 1 ? 's' : ''} similaire{similarTransactions.length > 1 ? 's' : ''} non catégorisée{similarTransactions.length > 1 ? 's' : ''}
-                </p>
-                <div className="max-h-40 overflow-y-auto space-y-1">
-                  {similarTransactions.map(t => (
-                    <div 
-                      key={t.id} 
-                      className="flex items-center justify-between text-sm bg-muted/30 rounded px-3 py-2"
-                    >
-                      <div className="flex items-center gap-2 min-w-0 flex-1">
-                        {t.type === 'income' ? (
-                          <ArrowUpRight className="w-4 h-4 text-success shrink-0" />
-                        ) : (
-                          <ArrowDownRight className="w-4 h-4 text-destructive shrink-0" />
-                        )}
-                        <span className="truncate">{t.description}</span>
-                      </div>
-                      <span className={cn(
-                        "font-medium shrink-0 ml-2",
-                        t.type === 'income' ? 'text-success' : 'text-destructive'
-                      )}>
-                        {t.type === 'income' ? '+' : '-'}{formatAmount(Number(t.amount))}
-                      </span>
-                    </div>
-                  ))}
+          {/* Body (scroll) */}
+          <div className="flex-1 overflow-y-auto px-6 pb-6">
+            {suggestion ? (
+              <div className="space-y-4">
+                {/* Transaction catégorisée */}
+                <div className="bg-muted/50 rounded-lg p-3">
+                  <p className="text-xs text-muted-foreground mb-1">Vous venez de catégoriser :</p>
+                  <p className="font-medium text-sm truncate">{transaction?.description}</p>
+                  <Badge
+                    variant="outline"
+                    className="mt-2"
+                    style={{ borderColor: category?.color, color: category?.color }}
+                  >
+                    → {category?.name}
+                  </Badge>
                 </div>
+
+                {/* Pattern suggéré */}
+                <div className="border border-accent/30 bg-accent/5 rounded-lg p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Wand2 className="w-4 h-4 text-accent" />
+                    <span className="text-sm font-medium">Pattern suggéré</span>
+                  </div>
+                  <p className="text-sm">
+                    Description <span className="font-semibold text-accent">{getOperatorLabel(suggestion.operator)}</span>{' '}
+                    "<span className="font-mono bg-muted px-1 rounded">{suggestion.pattern}</span>"
+                  </p>
+                </div>
+
+                {/* Transactions similaires */}
+                {similarTransactions.length > 0 ? (
+                  <div>
+                    <p className="text-sm font-medium mb-2 flex items-center gap-2">
+                      <span className="bg-primary text-primary-foreground text-xs px-2 py-0.5 rounded-full">
+                        {similarTransactions.length}
+                      </span>
+                      transaction{similarTransactions.length > 1 ? 's' : ''} similaire{similarTransactions.length > 1 ? 's' : ''} non catégorisée{similarTransactions.length > 1 ? 's' : ''}
+                    </p>
+                    <div className="space-y-1">
+                      {similarTransactions.map(t => (
+                        <div
+                          key={t.id}
+                          className="flex items-center justify-between text-sm bg-muted/30 rounded px-3 py-2"
+                        >
+                          <div className="flex items-center gap-2 min-w-0 flex-1">
+                            {t.type === 'income' ? (
+                              <ArrowUpRight className="w-4 h-4 text-success shrink-0" />
+                            ) : (
+                              <ArrowDownRight className="w-4 h-4 text-destructive shrink-0" />
+                            )}
+                            <span className="truncate">{t.description}</span>
+                          </div>
+                          <span
+                            className={cn(
+                              "font-medium shrink-0 ml-2",
+                              t.type === 'income' ? 'text-success' : 'text-destructive'
+                            )}
+                          >
+                            {t.type === 'income' ? '+' : '-'}{formatAmount(Number(t.amount))}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-2">
+                    Aucune autre transaction similaire non catégorisée trouvée
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-10 gap-3">
+                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                <p className="text-sm text-muted-foreground">Préparation de la suggestion...</p>
               </div>
             )}
-
-            {similarTransactions.length === 0 && (
-              <p className="text-sm text-muted-foreground text-center py-2">
-                Aucune autre transaction similaire non catégorisée trouvée
-              </p>
-            )}
           </div>
-        ) : null}
 
-        <DialogFooter className="gap-2 sm:gap-0">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Non merci
-          </Button>
-          <Button 
-            onClick={handleCreateRule} 
-            disabled={loading || creating || !suggestion}
-            className="gap-2"
-          >
-            {creating ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Sparkles className="w-4 h-4" />
-            )}
-            Créer la règle
-          </Button>
-        </DialogFooter>
+          {/* Footer (always visible) */}
+          <div className="border-t border-border bg-background p-4">
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button variant="outline" onClick={() => onOpenChange(false)}>
+                Non merci
+              </Button>
+              <Button
+                onClick={handleCreateRule}
+                disabled={creating || !suggestion}
+                className="gap-2"
+              >
+                {creating ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Sparkles className="w-4 h-4" />
+                )}
+                Créer la règle
+              </Button>
+            </DialogFooter>
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   );
