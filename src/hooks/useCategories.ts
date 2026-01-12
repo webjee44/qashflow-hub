@@ -234,6 +234,145 @@ export function useCategories() {
       return a.group.name.localeCompare(b.group.name);
     });
   };
+  // Create a group with selected categories
+  const createGroup = async (data: {
+    name: string;
+    color: string;
+    type: 'income' | 'expense';
+    categoryIds: string[];
+  }) => {
+    if (!user) return null;
+
+    try {
+      // 1. Create the group category
+      const { data: groupData, error: groupError } = await supabase
+        .from('categories')
+        .insert({
+          name: data.name,
+          color: data.color,
+          icon: 'Folder',
+          type: data.type,
+          vat_rate: 0,
+          user_id: user.id,
+          company_id: currentCompany?.id || null,
+          parent_id: null
+        })
+        .select()
+        .single();
+
+      if (groupError) throw groupError;
+
+      // 2. Update selected categories to belong to this group
+      if (data.categoryIds.length > 0) {
+        const { error: updateError } = await supabase
+          .from('categories')
+          .update({ parent_id: groupData.id })
+          .in('id', data.categoryIds);
+
+        if (updateError) throw updateError;
+      }
+
+      await fetchCategories();
+      toast.success('Groupe créé avec succès');
+      return groupData;
+    } catch (error) {
+      console.error('Error creating group:', error);
+      toast.error('Erreur lors de la création du groupe');
+      return null;
+    }
+  };
+
+  // Update an existing group
+  const updateGroup = async (
+    groupId: string,
+    data: {
+      name: string;
+      color: string;
+      type: 'income' | 'expense';
+      categoryIds: string[];
+    }
+  ) => {
+    try {
+      // 1. Update the group itself
+      const { error: groupError } = await supabase
+        .from('categories')
+        .update({
+          name: data.name,
+          color: data.color,
+        })
+        .eq('id', groupId);
+
+      if (groupError) throw groupError;
+
+      // 2. Remove all categories from this group first
+      const { error: removeError } = await supabase
+        .from('categories')
+        .update({ parent_id: null })
+        .eq('parent_id', groupId);
+
+      if (removeError) throw removeError;
+
+      // 3. Add selected categories to this group
+      if (data.categoryIds.length > 0) {
+        const { error: updateError } = await supabase
+          .from('categories')
+          .update({ parent_id: groupId })
+          .in('id', data.categoryIds);
+
+        if (updateError) throw updateError;
+      }
+
+      await fetchCategories();
+      toast.success('Groupe mis à jour');
+      return true;
+    } catch (error) {
+      console.error('Error updating group:', error);
+      toast.error('Erreur lors de la mise à jour du groupe');
+      return null;
+    }
+  };
+
+  // Delete a group (optionally keeping or deleting children)
+  const deleteGroup = async (groupId: string, deleteChildren: boolean = false) => {
+    try {
+      if (deleteChildren) {
+        // Delete all children first
+        const { error: childError } = await supabase
+          .from('categories')
+          .delete()
+          .eq('parent_id', groupId);
+
+        if (childError) throw childError;
+      } else {
+        // Unlink children (set parent_id to null)
+        const { error: unlinkError } = await supabase
+          .from('categories')
+          .update({ parent_id: null })
+          .eq('parent_id', groupId);
+
+        if (unlinkError) throw unlinkError;
+      }
+
+      // Delete the group
+      const { error: groupError } = await supabase
+        .from('categories')
+        .delete()
+        .eq('id', groupId);
+
+      if (groupError) throw groupError;
+
+      await fetchCategories();
+      toast.success('Groupe supprimé');
+    } catch (error) {
+      console.error('Error deleting group:', error);
+      toast.error('Erreur lors de la suppression du groupe');
+    }
+  };
+
+  // Check if a category is a group (has children)
+  const isGroup = (categoryId: string) => {
+    return categories.some(c => c.parent_id === categoryId);
+  };
 
   return {
     categories,
@@ -246,6 +385,10 @@ export function useCategories() {
     initializeDefaultCategories,
     refetch: fetchCategories,
     getGroupedCategories,
-    parentCategories
+    parentCategories,
+    createGroup,
+    updateGroup,
+    deleteGroup,
+    isGroup
   };
 }

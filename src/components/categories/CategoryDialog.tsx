@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Palette, Percent, Check, TrendingUp, TrendingDown, FolderOpen } from 'lucide-react';
+import { Palette, Percent, Check, TrendingUp, TrendingDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,13 +10,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Category } from '@/hooks/useCategories';
 import { cn } from '@/lib/utils';
 
@@ -28,13 +21,11 @@ interface CategoryDialogProps {
     icon: string;
     type: 'income' | 'expense';
     vat_rate: number;
-    parent_id?: string | null;
   }) => Promise<any>;
   onClose?: () => void;
   trigger?: React.ReactNode;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
-  availableParents?: Category[];
 }
 
 const colorOptions = [
@@ -64,7 +55,6 @@ export function CategoryDialog({
   trigger, 
   open: controlledOpen, 
   onOpenChange: controlledOnOpenChange,
-  availableParents = []
 }: CategoryDialogProps) {
   const [internalOpen, setInternalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -75,11 +65,7 @@ export function CategoryDialog({
     icon: 'Tag',
     type: 'expense' as 'income' | 'expense',
     vat_rate: 0.20,
-    parent_id: null as string | null,
   });
-
-  // Filter parents by type
-  const filteredParents = availableParents.filter(p => p.type === form.type);
 
   const isControlled = controlledOpen !== undefined;
   const open = isControlled ? controlledOpen : internalOpen;
@@ -95,7 +81,6 @@ export function CategoryDialog({
         icon: category.icon,
         type: category.type,
         vat_rate: category.vat_rate,
-        parent_id: category.parent_id || null,
       });
     } else {
       setShowCustomVat(false);
@@ -105,7 +90,6 @@ export function CategoryDialog({
         icon: 'Tag',
         type: 'expense',
         vat_rate: 0.20,
-        parent_id: null,
       });
     }
   }, [category, open]);
@@ -162,7 +146,7 @@ export function CategoryDialog({
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
-                onClick={() => setForm({ ...form, type: 'expense', parent_id: null })}
+                onClick={() => setForm({ ...form, type: 'expense' })}
                 className={cn(
                   "flex items-center justify-center gap-2 p-3 rounded-lg border-2 transition-all",
                   form.type === 'expense'
@@ -175,7 +159,7 @@ export function CategoryDialog({
               </button>
               <button
                 type="button"
-                onClick={() => setForm({ ...form, type: 'income', parent_id: null })}
+                onClick={() => setForm({ ...form, type: 'income' })}
                 className={cn(
                   "flex items-center justify-center gap-2 p-3 rounded-lg border-2 transition-all",
                   form.type === 'income'
@@ -188,43 +172,6 @@ export function CategoryDialog({
               </button>
             </div>
           </div>
-
-          {/* Parent Group Selection */}
-          {filteredParents.length > 0 && (
-            <div className="space-y-2">
-              <Label className="flex items-center gap-2">
-                <FolderOpen className="w-4 h-4" />
-                Groupe parent
-              </Label>
-              <Select
-                value={form.parent_id || 'none'}
-                onValueChange={(value) => setForm({ ...form, parent_id: value === 'none' ? null : value })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Aucun (catégorie principale)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">
-                    <span className="text-muted-foreground">Aucun (catégorie principale)</span>
-                  </SelectItem>
-                  {filteredParents.map((parent) => (
-                    <SelectItem key={parent.id} value={parent.id}>
-                      <div className="flex items-center gap-2">
-                        <div 
-                          className="w-3 h-3 rounded-full" 
-                          style={{ backgroundColor: parent.color }}
-                        />
-                        {parent.name}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                Sélectionnez un groupe pour regrouper cette catégorie sous une autre
-              </p>
-            </div>
-          )}
 
           {/* VAT Selection - Radio buttons */}
           <div className="space-y-2">
