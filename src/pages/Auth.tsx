@@ -17,26 +17,52 @@ type AuthMode = 'login' | 'signup' | 'forgot' | 'reset';
 
 export default function Auth() {
   const [searchParams] = useSearchParams();
-  const initialMode = searchParams.get('mode') === 'reset' ? 'reset' : 'login';
-  
-  const [mode, setMode] = useState<AuthMode>(initialMode);
+  const [mode, setMode] = useState<AuthMode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isCheckingSession, setIsCheckingSession] = useState(true);
   const [errors, setErrors] = useState<{ email?: string; password?: string; confirmPassword?: string }>({});
   
   const { signIn, signUp, user, resetPassword } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
 
+  // Handle password reset flow - check for recovery session
   useEffect(() => {
-    if (user && mode !== 'reset') {
+    const checkResetSession = async () => {
+      const modeParam = searchParams.get('mode');
+      
+      // If we have mode=reset, check if there's an active session from the reset link
+      if (modeParam === 'reset') {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          // User has a valid session from the reset link
+          setMode('reset');
+        } else {
+          // No valid session - the link may have expired
+          toast({
+            title: 'Lien expiré',
+            description: 'Le lien de réinitialisation a expiré. Veuillez en demander un nouveau.',
+            variant: 'destructive',
+          });
+          setMode('forgot');
+        }
+      }
+      setIsCheckingSession(false);
+    };
+
+    checkResetSession();
+  }, [searchParams, toast]);
+
+  useEffect(() => {
+    if (user && mode !== 'reset' && !isCheckingSession) {
       navigate('/');
     }
-  }, [user, navigate, mode]);
+  }, [user, navigate, mode, isCheckingSession]);
 
   const validateForm = () => {
     const newErrors: { email?: string; password?: string; confirmPassword?: string } = {};
@@ -183,6 +209,14 @@ export default function Auth() {
       case 'reset': return 'Mettre à jour';
     }
   };
+
+  if (isCheckingSession) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background flex">
