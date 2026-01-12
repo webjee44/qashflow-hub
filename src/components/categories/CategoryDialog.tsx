@@ -18,7 +18,6 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Category } from '@/hooks/useCategories';
-import { DynamicIcon } from '@/components/ui/dynamic-icon';
 
 interface CategoryDialogProps {
   category?: Category | null;
@@ -47,20 +46,6 @@ const colorOptions = [
   { value: 'hsl(160, 60%, 45%)', label: 'Émeraude' },
 ];
 
-const iconOptions = [
-  { value: 'TrendingUp', label: 'Tendance hausse' },
-  { value: 'Briefcase', label: 'Mallette' },
-  { value: 'RotateCcw', label: 'Remboursement' },
-  { value: 'Users', label: 'Personnes' },
-  { value: 'Building', label: 'Bâtiment' },
-  { value: 'Package', label: 'Colis' },
-  { value: 'Megaphone', label: 'Marketing' },
-  { value: 'Laptop', label: 'Ordinateur' },
-  { value: 'Car', label: 'Véhicule' },
-  { value: 'Utensils', label: 'Restaurant' },
-  { value: 'Plane', label: 'Voyage' },
-  { value: 'Phone', label: 'Télécom' },
-];
 
 export function CategoryDialog({ 
   category, 
@@ -173,29 +158,7 @@ export function CategoryDialog({
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label>Icône</Label>
-            <Select
-              value={form.icon}
-              onValueChange={(value) => setForm({ ...form, icon: value })}
-            >
-              <SelectTrigger className="gap-2">
-                <DynamicIcon name={form.icon} className="w-4 h-4" />
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {iconOptions.map((icon) => (
-                  <SelectItem key={icon.value} value={icon.value}>
-                    <span className="flex items-center gap-2">
-                      <DynamicIcon name={icon.value} className="w-4 h-4" />
-                      {icon.label}
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
+          {/* Preview */}
           <div className="p-4 bg-muted/50 rounded-xl">
             <p className="text-xs text-muted-foreground mb-2">Aperçu</p>
             <div className="flex items-center gap-3">
@@ -203,10 +166,9 @@ export function CategoryDialog({
                 className="w-10 h-10 rounded-lg flex items-center justify-center"
                 style={{ backgroundColor: `${form.color}20` }}
               >
-                <DynamicIcon 
-                  name={form.icon} 
-                  className="w-5 h-5" 
-                  style={{ color: form.color }}
+                <div 
+                  className="w-5 h-5 rounded-full"
+                  style={{ backgroundColor: form.color }}
                 />
               </div>
               <span className="font-medium">{form.name || 'Nom de la catégorie'}</span>
