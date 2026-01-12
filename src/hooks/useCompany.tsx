@@ -8,10 +8,10 @@ export interface Company {
   id: string;
   user_id: string;
   name: string;
-  pennylane_api_key: string | null;
   is_default: boolean;
   created_at: string;
   updated_at: string;
+  has_pennylane_key?: boolean; // Computed from company_has_secret function
 }
 
 interface CompanyContextType {
@@ -20,7 +20,7 @@ interface CompanyContextType {
   companies: Company[];
   isLoading: boolean;
   createCompany: (data: { name: string; pennylane_api_key?: string; is_default?: boolean }) => Promise<Company>;
-  updateCompany: (id: string, data: Partial<Company>) => Promise<void>;
+  updateCompany: (id: string, data: { name?: string; is_default?: boolean; pennylane_api_key?: string }) => Promise<void>;
   deleteCompany: (id: string) => Promise<void>;
   refetch: () => void;
 }
@@ -34,7 +34,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const [currentCompany, setCurrentCompanyState] = useState<Company | null>(null);
 
-  // Fetch companies
+  // Fetch companies with secret check
   const { data: companies = [], isLoading, refetch } = useQuery({
     queryKey: ['companies', user?.id],
     queryFn: async () => {
@@ -47,7 +47,22 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
         .order('created_at', { ascending: true });
       
       if (error) throw error;
-      return data as Company[];
+
+      // Check if each company has a Pennylane API key configured
+      const companiesWithSecretStatus = await Promise.all(
+        (data || []).map(async (company) => {
+          const { data: hasSecret } = await supabase.rpc('company_has_secret', {
+            p_company_id: company.id,
+            p_secret_type: 'pennylane_api_key'
+          });
+          return {
+            ...company,
+            has_pennylane_key: hasSecret || false
+          } as Company;
+        })
+      );
+      
+      return companiesWithSecretStatus;
     },
     enabled: !!user?.id,
   });
@@ -80,7 +95,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Create company
+  // Create company with optional API key
   const createCompany = async (data: { name: string; pennylane_api_key?: string; is_default?: boolean }): Promise<Company> => {
     if (!user?.id) throw new Error('Non authentifié');
 
@@ -100,7 +115,6 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
       .insert({
         user_id: user.id,
         name: data.name,
-        pennylane_api_key: data.pennylane_api_key || null,
         is_default: isDefault,
       })
       .select()
@@ -108,19 +122,35 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
 
     if (error) throw error;
 
+    // If API key provided, store it in company_secrets
+    if (data.pennylane_api_key) {
+      const { error: secretError } = await supabase
+        .from('company_secrets')
+        .insert({
+          company_id: newCompany.id,
+          secret_type: 'pennylane_api_key',
+          encrypted_value: data.pennylane_api_key,
+        });
+
+      if (secretError) {
+        console.error('Error storing API key:', secretError);
+        // Don't fail the company creation, just log the error
+      }
+    }
+
     await refetch();
     
     // Auto-select if first company
     if (companies.length === 0) {
-      setCurrentCompany(newCompany as Company);
+      setCurrentCompany({ ...newCompany, has_pennylane_key: !!data.pennylane_api_key } as Company);
     }
 
     toast.success('Société créée avec succès');
-    return newCompany as Company;
+    return { ...newCompany, has_pennylane_key: !!data.pennylane_api_key } as Company;
   };
 
   // Update company
-  const updateCompany = async (id: string, data: Partial<Company>) => {
+  const updateCompany = async (id: string, data: { name?: string; is_default?: boolean; pennylane_api_key?: string }) => {
     if (!user?.id) throw new Error('Non authentifié');
 
     // If setting as default, unset other defaults
@@ -132,16 +162,46 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
         .neq('id', id);
     }
 
-    const { error } = await supabase
-      .from('companies')
-      .update({
-        name: data.name,
-        pennylane_api_key: data.pennylane_api_key,
-        is_default: data.is_default,
-      })
-      .eq('id', id);
+    // Update company basic info
+    const updateData: { name?: string; is_default?: boolean } = {};
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.is_default !== undefined) updateData.is_default = data.is_default;
 
-    if (error) throw error;
+    if (Object.keys(updateData).length > 0) {
+      const { error } = await supabase
+        .from('companies')
+        .update(updateData)
+        .eq('id', id);
+
+      if (error) throw error;
+    }
+
+    // Handle API key update if provided
+    if (data.pennylane_api_key !== undefined) {
+      if (data.pennylane_api_key) {
+        // Upsert the secret (insert or update)
+        const { error: secretError } = await supabase
+          .from('company_secrets')
+          .upsert({
+            company_id: id,
+            secret_type: 'pennylane_api_key',
+            encrypted_value: data.pennylane_api_key,
+          }, {
+            onConflict: 'company_id,secret_type'
+          });
+
+        if (secretError) {
+          console.error('Error updating API key:', secretError);
+        }
+      } else {
+        // Delete the secret if empty string provided
+        await supabase
+          .from('company_secrets')
+          .delete()
+          .eq('company_id', id)
+          .eq('secret_type', 'pennylane_api_key');
+      }
+    }
 
     await refetch();
 
@@ -160,6 +220,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
   const deleteCompany = async (id: string) => {
     if (!user?.id) throw new Error('Non authentifié');
 
+    // Secrets are deleted automatically via CASCADE
     const { error } = await supabase
       .from('companies')
       .delete()

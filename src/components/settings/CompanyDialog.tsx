@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -22,7 +22,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { useCompany, Company } from '@/hooks/useCompany';
-import { Building2 } from 'lucide-react';
+import { Building2, Key, ShieldCheck } from 'lucide-react';
 
 const formSchema = z.object({
   name: z.string().min(1, 'Le nom est requis'),
@@ -41,6 +41,7 @@ interface CompanyDialogProps {
 export function CompanyDialog({ open, onOpenChange, company }: CompanyDialogProps) {
   const { createCompany, updateCompany } = useCompany();
   const isEditing = !!company;
+  const [showApiKeyInput, setShowApiKeyInput] = useState(false);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -55,26 +56,34 @@ export function CompanyDialog({ open, onOpenChange, company }: CompanyDialogProp
     if (company) {
       form.reset({
         name: company.name,
-        pennylane_api_key: company.pennylane_api_key || '',
+        pennylane_api_key: '', // Never show existing key for security
         is_default: company.is_default,
       });
+      setShowApiKeyInput(false);
     } else {
       form.reset({
         name: '',
         pennylane_api_key: '',
         is_default: false,
       });
+      setShowApiKeyInput(true);
     }
-  }, [company, form]);
+  }, [company, form, open]);
 
   const onSubmit = async (values: FormValues) => {
     try {
       if (isEditing) {
-        await updateCompany(company.id, {
+        // Only include API key if user wants to update it
+        const updateData: { name: string; is_default: boolean; pennylane_api_key?: string } = {
           name: values.name,
-          pennylane_api_key: values.pennylane_api_key || null,
           is_default: values.is_default,
-        });
+        };
+        
+        if (showApiKeyInput && values.pennylane_api_key) {
+          updateData.pennylane_api_key = values.pennylane_api_key;
+        }
+        
+        await updateCompany(company.id, updateData);
       } else {
         await createCompany({
           name: values.name,
@@ -120,26 +129,50 @@ export function CompanyDialog({ open, onOpenChange, company }: CompanyDialogProp
               )}
             />
 
-            <FormField
-              control={form.control}
-              name="pennylane_api_key"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Clé API Pennylane</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="password"
-                      placeholder="Votre clé API Pennylane"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    Optionnel. Permet de synchroniser les transactions depuis Pennylane.
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {/* API Key Section */}
+            {isEditing && company?.has_pennylane_key && !showApiKeyInput ? (
+              <div className="rounded-lg border border-border p-4 space-y-3">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <ShieldCheck className="w-4 h-4 text-green-500" />
+                  <span>Clé API Pennylane configurée</span>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowApiKeyInput(true)}
+                  className="gap-2"
+                >
+                  <Key className="w-4 h-4" />
+                  Modifier la clé
+                </Button>
+              </div>
+            ) : (
+              <FormField
+                control={form.control}
+                name="pennylane_api_key"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center gap-2">
+                      <Key className="w-4 h-4" />
+                      Clé API Pennylane
+                    </FormLabel>
+                    <FormControl>
+                      <Input
+                        type="password"
+                        placeholder={isEditing ? "Nouvelle clé API" : "Votre clé API Pennylane"}
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription className="flex items-center gap-1.5">
+                      <ShieldCheck className="w-3 h-3" />
+                      Stockée de manière sécurisée, non accessible en lecture.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
 
             <FormField
               control={form.control}

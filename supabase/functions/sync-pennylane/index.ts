@@ -119,7 +119,7 @@ Deno.serve(async (req) => {
       global: { headers: { Authorization: authHeader } }
     })
 
-    // Service client for admin operations (updating match_count)
+    // Service client for admin operations (reading secrets, updating match_count)
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
 
     // Verify user authentication
@@ -138,23 +138,36 @@ Deno.serve(async (req) => {
     console.log('User authenticated:', userId)
     console.log('Company ID:', companyId)
 
-    // Get Pennylane API key - first try from company, then fallback to env
+    // Get Pennylane API key from company_secrets (using service role)
     let pennylaneApiKey: string | null = null
     let companyName: string | null = null
 
     if (companyId) {
-      // Fetch company details including API key
+      // First get company name
       const { data: company, error: companyError } = await supabaseUser
         .from('companies')
-        .select('name, pennylane_api_key')
+        .select('name')
         .eq('id', companyId)
         .single()
 
       if (companyError) {
         console.error('Error fetching company:', companyError)
-      } else if (company?.pennylane_api_key) {
-        pennylaneApiKey = company.pennylane_api_key
-        companyName = company.name
+      } else {
+        companyName = company?.name || null
+      }
+
+      // Get API key from company_secrets using service role (only service role can read secrets)
+      const { data: secret, error: secretError } = await supabaseAdmin
+        .from('company_secrets')
+        .select('encrypted_value')
+        .eq('company_id', companyId)
+        .eq('secret_type', 'pennylane_api_key')
+        .single()
+
+      if (secretError) {
+        console.error('Error fetching company secret:', secretError)
+      } else if (secret?.encrypted_value) {
+        pennylaneApiKey = secret.encrypted_value
         console.log(`Using API key from company: ${companyName}`)
       }
     }
