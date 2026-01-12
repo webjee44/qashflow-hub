@@ -7,10 +7,13 @@ import {
   Zap,
   HelpCircle,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  LogOut
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
+import { useAuth } from '@/hooks/useAuth';
+import { useToast } from '@/hooks/use-toast';
 
 interface NavItem {
   icon: React.ElementType;
@@ -38,6 +41,16 @@ interface SidebarProps {
 
 export function Sidebar({ currentPath, onNavigate }: SidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const { signOut, user } = useAuth();
+  const { toast } = useToast();
+
+  const handleSignOut = async () => {
+    await signOut();
+    toast({
+      title: 'Déconnexion',
+      description: 'À bientôt !',
+    });
+  };
 
   return (
     <motion.aside
@@ -139,14 +152,27 @@ export function Sidebar({ currentPath, onNavigate }: SidebarProps) {
             {!isCollapsed && <span className="text-sm font-medium">{item.label}</span>}
           </button>
         ))}
+        
+        {/* Sign Out Button */}
+        <button
+          onClick={handleSignOut}
+          className={cn(
+            "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200",
+            "text-destructive hover:bg-destructive/10"
+          )}
+        >
+          <LogOut size={18} />
+          {!isCollapsed && <span className="text-sm font-medium">Déconnexion</span>}
+        </button>
       </div>
 
-      {/* Connection Status */}
-      {!isCollapsed && (
-        <div className="p-4 mx-4 mb-4 rounded-xl bg-success/10 border border-success/20">
-          <div className="flex items-center gap-2">
+      {/* User Info */}
+      {!isCollapsed && user && (
+        <div className="p-4 mx-4 mb-4 rounded-xl bg-muted/50 border border-border">
+          <p className="text-sm font-medium text-foreground truncate">{user.email}</p>
+          <div className="flex items-center gap-2 mt-1">
             <div className="w-2 h-2 rounded-full bg-success animate-pulse-soft" />
-            <span className="text-xs font-medium text-success">Pennylane connecté</span>
+            <span className="text-xs text-muted-foreground">Connecté</span>
           </div>
         </div>
       )}
