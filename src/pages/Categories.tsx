@@ -16,6 +16,13 @@ import {
   FolderPlus
 } from 'lucide-react';
 
+// Unified state for group dialog
+interface GroupDialogState {
+  open: boolean;
+  mode: 'create' | 'edit';
+  editGroup: Category | null;
+}
+
 export default function Categories() {
   const { 
     categories,
@@ -35,8 +42,13 @@ export default function Categories() {
   
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [editingGroup, setEditingGroup] = useState<Category | null>(null);
-  const [groupDialogOpen, setGroupDialogOpen] = useState(false);
+  
+  // Unified group dialog state - avoids complex controlled/uncontrolled patterns
+  const [groupDialog, setGroupDialog] = useState<GroupDialogState>({
+    open: false,
+    mode: 'create',
+    editGroup: null,
+  });
 
   const handleEdit = (category: Category) => {
     setEditingCategory(category);
@@ -44,8 +56,27 @@ export default function Categories() {
   };
 
   const handleEditGroup = (group: Category) => {
-    setEditingGroup(group);
-    setGroupDialogOpen(true);
+    setGroupDialog({
+      open: true,
+      mode: 'edit',
+      editGroup: group,
+    });
+  };
+
+  const openCreateGroupDialog = () => {
+    setGroupDialog({
+      open: true,
+      mode: 'create',
+      editGroup: null,
+    });
+  };
+
+  const closeGroupDialog = () => {
+    setGroupDialog({
+      open: false,
+      mode: 'create',
+      editGroup: null,
+    });
   };
 
   const handleSaveEdit = async (data: {
@@ -68,10 +99,14 @@ export default function Categories() {
     type: 'income' | 'expense';
     categoryIds: string[];
   }) => {
-    if (editingGroup) {
-      return await updateGroup(editingGroup.id, data);
+    let result;
+    if (groupDialog.editGroup) {
+      result = await updateGroup(groupDialog.editGroup.id, data);
+    } else {
+      result = await createGroup(data);
     }
-    return await createGroup(data);
+    closeGroupDialog();
+    return result;
   };
 
   const handleDeleteGroup = async (groupId: string, deleteChildren: boolean) => {
@@ -100,16 +135,10 @@ export default function Categories() {
         />
         {totalCategories > 0 && (
           <div className="flex gap-3 flex-shrink-0">
-            <GroupDialog
-              categories={categories}
-              onSave={handleSaveGroup}
-              trigger={
-                <Button variant="outline">
-                  <FolderPlus className="w-4 h-4 mr-2" />
-                  Ajouter un groupe
-                </Button>
-              }
-            />
+            <Button variant="outline" onClick={openCreateGroupDialog}>
+              <FolderPlus className="w-4 h-4 mr-2" />
+              Ajouter un groupe
+            </Button>
             <CategoryDialog
               onSave={createCategory}
               trigger={
@@ -239,15 +268,18 @@ export default function Categories() {
         onClose={() => setEditingCategory(null)}
       />
 
-      {/* Edit Group Dialog */}
-      {groupDialogOpen && (
+      {/* Group Dialog - keyed remount to ensure fresh state */}
+      {groupDialog.open && (
         <GroupDialog
+          key={groupDialog.mode === 'edit' ? groupDialog.editGroup?.id : 'create'}
           categories={categories}
-          editGroup={editingGroup}
-          open={groupDialogOpen}
-          onOpenChange={setGroupDialogOpen}
+          editGroup={groupDialog.editGroup}
+          mode={groupDialog.mode}
+          open={groupDialog.open}
+          onOpenChange={(open) => {
+            if (!open) closeGroupDialog();
+          }}
           onSave={handleSaveGroup}
-          onClose={() => setEditingGroup(null)}
         />
       )}
     </div>
