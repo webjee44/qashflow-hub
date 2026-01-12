@@ -1,10 +1,11 @@
 import { motion } from 'framer-motion';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
-import { getBalanceData } from '@/lib/mockData';
-import { TrendingUp } from 'lucide-react';
+import { TrendingUp, TrendingDown } from 'lucide-react';
+import { useBalanceChartData } from '@/hooks/useDashboardStats';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export function BalanceChart() {
-  const data = getBalanceData();
+  const { data, loading } = useBalanceChartData();
 
   const formatValue = (value: number) => {
     return new Intl.NumberFormat('fr-FR', {
@@ -45,6 +46,51 @@ export function BalanceChart() {
     }
     return null;
   };
+
+  // Calculate trend
+  const pastData = data.filter(d => !d.isProjection);
+  const futureData = data.filter(d => d.isProjection);
+  const lastPastBalance = pastData[pastData.length - 1]?.balance || 0;
+  const lastFutureBalance = futureData[futureData.length - 1]?.balance || lastPastBalance;
+  const trendPercent = lastPastBalance > 0 
+    ? ((lastFutureBalance - lastPastBalance) / lastPastBalance * 100).toFixed(0)
+    : '0';
+  const isPositiveTrend = Number(trendPercent) >= 0;
+
+  if (loading) {
+    return (
+      <motion.div
+        initial={{ y: 20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ delay: 0.2 }}
+        className="bg-card rounded-2xl border border-border shadow-card p-6"
+      >
+        <Skeleton className="h-6 w-48 mb-2" />
+        <Skeleton className="h-4 w-32 mb-6" />
+        <Skeleton className="h-80 w-full" />
+      </motion.div>
+    );
+  }
+
+  if (data.length === 0) {
+    return (
+      <motion.div
+        initial={{ y: 20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ delay: 0.2 }}
+        className="bg-card rounded-2xl border border-border shadow-card p-6"
+      >
+        <h3 className="text-lg font-semibold text-foreground">Projection de trésorerie</h3>
+        <p className="text-sm text-muted-foreground mb-6">Vision sur 12 mois glissants</p>
+        <div className="h-80 flex items-center justify-center text-muted-foreground">
+          Aucune donnée disponible. Synchronisez vos transactions pour commencer.
+        </div>
+      </motion.div>
+    );
+  }
+
+  const minBalance = Math.min(...data.map(d => d.balance));
+  const maxBalance = Math.max(...data.map(d => d.balance));
 
   return (
     <motion.div
@@ -137,17 +183,17 @@ export function BalanceChart() {
       <div className="grid grid-cols-3 gap-4 mt-6 pt-6 border-t border-border">
         <div className="text-center">
           <p className="text-sm text-muted-foreground">Solde min prévu</p>
-          <p className="text-lg font-semibold text-foreground">{formatValue(Math.min(...data.map(d => d.balance)))}</p>
+          <p className="text-lg font-semibold text-foreground">{formatValue(minBalance)}</p>
         </div>
         <div className="text-center border-x border-border">
           <p className="text-sm text-muted-foreground">Solde max prévu</p>
-          <p className="text-lg font-semibold text-foreground">{formatValue(Math.max(...data.map(d => d.balance)))}</p>
+          <p className="text-lg font-semibold text-foreground">{formatValue(maxBalance)}</p>
         </div>
         <div className="text-center">
           <p className="text-sm text-muted-foreground">Tendance</p>
-          <p className="text-lg font-semibold text-success flex items-center justify-center gap-1">
-            <TrendingUp className="w-4 h-4" />
-            +18%
+          <p className={`text-lg font-semibold flex items-center justify-center gap-1 ${isPositiveTrend ? 'text-success' : 'text-destructive'}`}>
+            {isPositiveTrend ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+            {isPositiveTrend ? '+' : ''}{trendPercent}%
           </p>
         </div>
       </div>

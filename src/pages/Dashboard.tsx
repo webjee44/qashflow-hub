@@ -5,8 +5,33 @@ import { TransactionList } from '@/components/dashboard/TransactionList';
 import { CategoryBreakdown } from '@/components/dashboard/CategoryBreakdown';
 import { QuickActions } from '@/components/dashboard/QuickActions';
 import { Wallet, TrendingUp, TrendingDown, Calendar } from 'lucide-react';
+import { useDashboardStats } from '@/hooks/useDashboardStats';
+import { Skeleton } from '@/components/ui/skeleton';
+import { format } from 'date-fns';
+import { fr } from 'date-fns/locale';
+
+const formatCurrency = (value: number) => {
+  return new Intl.NumberFormat('fr-FR', {
+    style: 'currency',
+    currency: 'EUR',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(value);
+};
 
 export default function Dashboard() {
+  const { 
+    currentBalance, 
+    monthlyIncome, 
+    monthlyExpense, 
+    forecast90Days,
+    incomeChange,
+    expenseChange,
+    loading 
+  } = useDashboardStats();
+
+  const currentMonth = format(new Date(), 'MMM', { locale: fr });
+
   return (
     <div className="space-y-8">
       <Header 
@@ -16,36 +41,45 @@ export default function Dashboard() {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard
-          title="Solde actuel"
-          value="127 450 €"
-          change={{ value: '+8.2%', type: 'positive' }}
-          icon={Wallet}
-          variant="primary"
-          delay={0}
-        />
-        <StatCard
-          title="Encaissements (jan)"
-          value="49 700 €"
-          change={{ value: '-9.6%', type: 'negative' }}
-          icon={TrendingUp}
-          variant="success"
-          delay={0.05}
-        />
-        <StatCard
-          title="Décaissements (jan)"
-          value="38 539 €"
-          change={{ value: '-3.5%', type: 'positive' }}
-          icon={TrendingDown}
-          delay={0.1}
-        />
-        <StatCard
-          title="Prévision à 90 jours"
-          value="156 800 €"
-          change={{ value: '+23%', type: 'positive' }}
-          icon={Calendar}
-          delay={0.15}
-        />
+        {loading ? (
+          <>
+            <Skeleton className="h-36 rounded-2xl" />
+            <Skeleton className="h-36 rounded-2xl" />
+            <Skeleton className="h-36 rounded-2xl" />
+            <Skeleton className="h-36 rounded-2xl" />
+          </>
+        ) : (
+          <>
+            <StatCard
+              title="Solde actuel"
+              value={formatCurrency(currentBalance)}
+              icon={Wallet}
+              variant="primary"
+              delay={0}
+            />
+            <StatCard
+              title={`Encaissements (${currentMonth})`}
+              value={formatCurrency(monthlyIncome)}
+              change={incomeChange}
+              icon={TrendingUp}
+              variant="success"
+              delay={0.05}
+            />
+            <StatCard
+              title={`Décaissements (${currentMonth})`}
+              value={formatCurrency(monthlyExpense)}
+              change={expenseChange}
+              icon={TrendingDown}
+              delay={0.1}
+            />
+            <StatCard
+              title="Prévision à 90 jours"
+              value={formatCurrency(forecast90Days)}
+              icon={Calendar}
+              delay={0.15}
+            />
+          </>
+        )}
       </div>
 
       {/* Main Chart */}
