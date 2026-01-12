@@ -8,7 +8,8 @@ import {
   Zap,
   HelpCircle,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Tags
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
@@ -25,7 +26,8 @@ const navItems: NavItem[] = [
   { icon: LayoutDashboard, label: 'Tableau de bord', href: '/' },
   { icon: ArrowLeftRight, label: 'Transactions', href: '/transactions' },
   { icon: TrendingUp, label: 'Prévisions', href: '/previsions' },
-  { icon: Zap, label: 'Automatisations', href: '/automatisations', badge: '4' },
+  { icon: Tags, label: 'Catégories', href: '/categories' },
+  { icon: Zap, label: 'Automatisations', href: '/automatisations' },
 ];
 
 const bottomNavItems: NavItem[] = [
