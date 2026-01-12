@@ -46,38 +46,15 @@ Deno.serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: "google/gemini-2.5-flash-lite", // Modèle le plus rapide
         messages: [
           {
             role: "system",
-            content: `Tu es un expert en analyse de transactions bancaires. Tu dois extraire le pattern le plus pertinent d'une description de transaction pour créer une règle d'automatisation.
-
-Règles:
-- Identifie le nom du fournisseur, marchand ou entité principale
-- Ignore les numéros de référence, dates, codes
-- Le pattern doit être suffisamment général pour matcher d'autres transactions similaires
-- Le pattern doit être suffisamment spécifique pour ne pas matcher des transactions non liées
-- Retourne un pattern court (1-3 mots maximum)
-
-Exemples:
-- "VDLV FACC 25017561 VDLV EFUMEUR INTERNET PP35815688" → pattern: "VDLV"
-- "PAIEMENT CB 1234 AMAZON MARKETPLACE" → pattern: "AMAZON"
-- "VIR SEPA OVH SAS FACTURE 12345" → pattern: "OVH"
-- "PRLV SEPA FREE MOBILE" → pattern: "FREE MOBILE"`,
+            content: `Extrais le nom du fournisseur/marchand d'une transaction bancaire. Ignore numéros, dates, codes. Réponds en JSON: {"pattern":"NOM","operator":"contains","ruleName":"Auto: CATEGORIE - NOM"}`,
           },
           {
             role: "user",
-            content: `Analyse cette description de transaction et suggère un pattern:
-
-Description: "${description}"
-Catégorie assignée: "${categoryName || 'Non spécifiée'}"
-
-Réponds UNIQUEMENT avec un JSON valide de cette forme:
-{
-  "pattern": "LE_PATTERN",
-  "operator": "contains",
-  "ruleName": "Auto: ${categoryName || 'Catégorie'} - LE_PATTERN"
-}`,
+            content: `Transaction: "${description}" | Catégorie: "${categoryName || 'Catégorie'}"`,
           },
         ],
       }),
