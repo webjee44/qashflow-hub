@@ -21,6 +21,20 @@ interface PennylaneResponse {
   next_cursor: string | null
 }
 
+interface PennylaneBankAccount {
+  id: number
+  name: string
+  iban: string | null
+  bic: string | null
+  bank_name: string | null
+}
+
+interface BankAccountsResponse {
+  items: PennylaneBankAccount[]
+  has_more: boolean
+  next_cursor: string | null
+}
+
 interface AutomationRule {
   id: string
   condition_field: string
@@ -126,6 +140,50 @@ Deno.serve(async (req) => {
 
     console.log('Pennylane API key found, starting sync...')
 
+    // Fetch bank accounts from Pennylane
+    const bankAccountsMap = new Map<number, string>()
+    let bankCursor: string | null = null
+    let bankHasMore = true
+    
+    while (bankHasMore) {
+      const bankUrl = new URL('https://app.pennylane.com/api/external/v2/bank_accounts')
+      bankUrl.searchParams.set('limit', '100')
+      if (bankCursor) {
+        bankUrl.searchParams.set('cursor', bankCursor)
+      }
+
+      console.log('Fetching bank accounts from Pennylane...')
+
+      const bankResponse = await fetch(bankUrl.toString(), {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${pennylaneApiKey}`,
+          'Accept': 'application/json',
+        },
+      })
+
+      if (bankResponse.ok) {
+        const bankData: BankAccountsResponse = await bankResponse.json()
+        console.log(`Fetched ${bankData.items?.length || 0} bank accounts`)
+        
+        if (bankData.items && Array.isArray(bankData.items)) {
+          for (const account of bankData.items) {
+            // Use bank_name if available, otherwise use account name
+            const displayName = account.bank_name || account.name || `Compte ${account.id}`
+            bankAccountsMap.set(account.id, displayName)
+          }
+        }
+        
+        bankHasMore = bankData.has_more || false
+        bankCursor = bankData.next_cursor || null
+      } else {
+        console.warn('Failed to fetch bank accounts, continuing without bank info')
+        bankHasMore = false
+      }
+    }
+
+    console.log(`Bank accounts mapped: ${bankAccountsMap.size} accounts`)
+
     // Fetch user's automation rules
     const { data: rules, error: rulesError } = await supabaseAdmin
       .from('automation_rules')
@@ -229,6 +287,9 @@ Deno.serve(async (req) => {
         }
       }
 
+      // Get bank account name
+      const bankAccountName = bankAccountsMap.get(tx.bank_account_id) || null
+
       // Insert new transaction with category if matched
       const { error: insertError } = await supabaseUser
         .from('transactions')
@@ -242,7 +303,8 @@ Deno.serve(async (req) => {
           source: 'pennylane',
           is_reconciled: false,
           category_id: categoryId,
-          ai_confidence: categoryId ? 1.0 : null // 100% confidence for rule-based
+          ai_confidence: categoryId ? 1.0 : null, // 100% confidence for rule-based
+          bank_account_name: bankAccountName
         })
 
       if (insertError) {
