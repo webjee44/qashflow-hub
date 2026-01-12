@@ -179,26 +179,23 @@ export function CategoryDialog({
               value={form.icon}
               onValueChange={(value) => setForm({ ...form, icon: value })}
             >
-              <SelectTrigger>
-                <div className="flex items-center gap-2">
-                  <DynamicIcon name={form.icon} className="w-4 h-4" />
-                  <SelectValue />
-                </div>
+              <SelectTrigger className="gap-2">
+                <DynamicIcon name={form.icon} className="w-4 h-4" />
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 {iconOptions.map((icon) => (
                   <SelectItem key={icon.value} value={icon.value}>
-                    <div className="flex items-center gap-2">
+                    <span className="flex items-center gap-2">
                       <DynamicIcon name={icon.value} className="w-4 h-4" />
                       {icon.label}
-                    </div>
+                    </span>
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
 
-          {/* Preview */}
           <div className="p-4 bg-muted/50 rounded-xl">
             <p className="text-xs text-muted-foreground mb-2">Aperçu</p>
             <div className="flex items-center gap-3">
