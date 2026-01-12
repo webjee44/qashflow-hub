@@ -6,21 +6,19 @@ const corsHeaders = {
 }
 
 interface PennylaneTransaction {
-  id: string
+  id: number
   label: string
   amount: number
   currency: string
   date: string
-  transaction_type: 'credit' | 'debit'
+  fee: number | null
+  bank_account_id: number
 }
 
 interface PennylaneResponse {
-  transactions: PennylaneTransaction[]
-  pagination: {
-    page: number
-    pages: number
-    total: number
-  }
+  items: PennylaneTransaction[]
+  has_more: boolean
+  next_cursor: string | null
 }
 
 Deno.serve(async (req) => {
@@ -70,55 +68,55 @@ Deno.serve(async (req) => {
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
+
     console.log('Pennylane API key found, starting sync...')
 
-    // Fetch transactions from Pennylane API
+    // Fetch transactions from Pennylane API v2
     let allTransactions: PennylaneTransaction[] = []
-    let currentPage = 1
-    let totalPages = 1
+    let cursor: string | null = null
+    let hasMore = true
+    let pageCount = 0
+    const maxPages = 10 // Safety limit
 
-    do {
-      const pennylaneResponse = await fetch(
-        `https://app.pennylane.com/api/external/v1/customer_invoices?page=${currentPage}&per_page=100`,
-        {
-          headers: {
-            'Authorization': `Bearer ${pennylaneApiKey}`,
-            'Accept': 'application/json',
-          },
-        }
-      )
+    while (hasMore && pageCount < maxPages) {
+      const url = new URL('https://app.pennylane.com/api/external/v2/transactions')
+      url.searchParams.set('limit', '100')
+      if (cursor) {
+        url.searchParams.set('cursor', cursor)
+      }
+
+      console.log(`Fetching page ${pageCount + 1} from Pennylane: ${url.toString()}`)
+
+      const pennylaneResponse = await fetch(url.toString(), {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${pennylaneApiKey}`,
+          'Accept': 'application/json',
+        },
+      })
 
       if (!pennylaneResponse.ok) {
         const errorText = await pennylaneResponse.text()
         console.error('Pennylane API error:', pennylaneResponse.status, errorText)
         return new Response(
           JSON.stringify({ 
-            error: `Erreur API Pennylane: ${pennylaneResponse.status}. Vérifiez votre clé API.` 
+            error: `Erreur API Pennylane: ${pennylaneResponse.status}. ${errorText}` 
           }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
 
-      const data = await pennylaneResponse.json()
-      console.log(`Fetched page ${currentPage} from Pennylane`)
+      const data: PennylaneResponse = await pennylaneResponse.json()
+      console.log(`Page ${pageCount + 1}: ${data.items?.length || 0} transactions fetched`)
 
-      // Map Pennylane invoices to transactions
-      if (data.invoices && Array.isArray(data.invoices)) {
-        for (const invoice of data.invoices) {
-          allTransactions.push({
-            id: invoice.id?.toString() || crypto.randomUUID(),
-            label: invoice.label || invoice.filename || 'Transaction Pennylane',
-            amount: Math.abs(parseFloat(invoice.amount || invoice.total_amount || 0)),
-            currency: invoice.currency || 'EUR',
-            date: invoice.date || invoice.invoice_date || new Date().toISOString().split('T')[0],
-            transaction_type: invoice.direction === 'supplier' ? 'debit' : 'credit'
-          })
-        }
+      if (data.items && Array.isArray(data.items)) {
+        allTransactions = [...allTransactions, ...data.items]
       }
 
-      totalPages = data.pagination?.total_pages || data.total_pages || 1
-      currentPage++
-    } while (currentPage <= totalPages && currentPage <= 10) // Limit to 10 pages for safety
+      hasMore = data.has_more || false
+      cursor = data.next_cursor || null
+      pageCount++
+    }
 
     console.log(`Total transactions fetched: ${allTransactions.length}`)
 
@@ -131,7 +129,7 @@ Deno.serve(async (req) => {
       const { data: existing } = await supabase
         .from('transactions')
         .select('id')
-        .eq('pennylane_id', tx.id)
+        .eq('pennylane_id', tx.id.toString())
         .eq('user_id', userId)
         .single()
 
@@ -140,16 +138,19 @@ Deno.serve(async (req) => {
         continue
       }
 
+      // Determine transaction type based on amount
+      const transactionType = tx.amount >= 0 ? 'income' : 'expense'
+
       // Insert new transaction
       const { error: insertError } = await supabase
         .from('transactions')
         .insert({
           user_id: userId,
-          pennylane_id: tx.id,
-          description: tx.label,
-          amount: tx.amount,
+          pennylane_id: tx.id.toString(),
+          description: tx.label || 'Transaction Pennylane',
+          amount: Math.abs(tx.amount),
           date: tx.date,
-          type: tx.transaction_type === 'credit' ? 'income' : 'expense',
+          type: transactionType,
           source: 'pennylane',
           is_reconciled: false
         })
