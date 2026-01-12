@@ -250,19 +250,34 @@ Deno.serve(async (req) => {
     // Sync transactions to database
     let syncedCount = 0
     let skippedCount = 0
+    let updatedBankCount = 0
     let automatedCount = 0
     const ruleMatchCounts: Record<string, number> = {}
 
     for (const tx of allTransactions) {
+      // Get bank account name for this transaction
+      const bankAccountName = bankAccountsMap.get(tx.bank_account_id) || null
+
       // Check if transaction already exists
       const { data: existing } = await supabaseUser
         .from('transactions')
-        .select('id')
+        .select('id, bank_account_name')
         .eq('pennylane_id', tx.id.toString())
         .eq('user_id', userId)
         .single()
 
       if (existing) {
+        // Update bank_account_name if it's missing
+        if (!existing.bank_account_name && bankAccountName) {
+          const { error: updateError } = await supabaseUser
+            .from('transactions')
+            .update({ bank_account_name: bankAccountName })
+            .eq('id', existing.id)
+          
+          if (!updateError) {
+            updatedBankCount++
+          }
+        }
         skippedCount++
         continue
       }
@@ -287,10 +302,7 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Get bank account name
-      const bankAccountName = bankAccountsMap.get(tx.bank_account_id) || null
-
-      // Insert new transaction with category if matched
+      // Insert new transaction with category if matched (bankAccountName already defined above)
       const { error: insertError } = await supabaseUser
         .from('transactions')
         .insert({
@@ -329,15 +341,17 @@ Deno.serve(async (req) => {
       }
     }
 
-    console.log(`Sync complete: ${syncedCount} new, ${skippedCount} skipped, ${automatedCount} auto-categorized`)
+    console.log(`Sync complete: ${syncedCount} new, ${skippedCount} skipped, ${automatedCount} auto-categorized, ${updatedBankCount} bank info updated`)
 
+    const bankMessage = updatedBankCount > 0 ? `, ${updatedBankCount} banques ajoutées` : ''
     return new Response(
       JSON.stringify({
         success: true,
-        message: `Synchronisation terminée: ${syncedCount} nouvelles transactions importées (${automatedCount} catégorisées automatiquement), ${skippedCount} déjà existantes.`,
+        message: `Synchronisation terminée: ${syncedCount} nouvelles transactions importées (${automatedCount} catégorisées automatiquement), ${skippedCount} déjà existantes${bankMessage}.`,
         synced: syncedCount,
         skipped: skippedCount,
         automated: automatedCount,
+        updatedBank: updatedBankCount,
         total: allTransactions.length
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
