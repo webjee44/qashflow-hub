@@ -1,7 +1,6 @@
 import { motion } from 'framer-motion';
-import { Bell, Search, Plus, Building2, ChevronDown, Check } from 'lucide-react';
+import { Bell, Building2, ChevronDown, Check, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -99,27 +98,12 @@ export function Header({ title, subtitle }: HeaderProps) {
       </div>
 
       <div className="flex items-center gap-4">
-        {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Rechercher..."
-            className="pl-10 w-64 bg-card border-border focus:ring-primary"
-          />
-        </div>
-
         {/* Notifications */}
         <Button variant="ghost" size="icon" className="relative">
           <Bell className="w-5 h-5" />
           <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-destructive text-destructive-foreground text-[10px] font-bold rounded-full flex items-center justify-center">
             3
           </span>
-        </Button>
-
-        {/* Quick Action */}
-        <Button className="gradient-primary gap-2 shadow-lg hover:shadow-xl transition-shadow">
-          <Plus className="w-4 h-4" />
-          Nouvelle prévision
         </Button>
       </div>
     </motion.header>
