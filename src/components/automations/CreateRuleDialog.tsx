@@ -104,7 +104,7 @@ export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, t
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[480px]">
+      <DialogContent className="sm:max-w-[480px]" aria-describedby={undefined}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Zap className="w-5 h-5 text-primary" />
