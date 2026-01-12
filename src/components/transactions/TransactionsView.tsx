@@ -212,32 +212,12 @@ export function TransactionsView() {
       });
       
       // Si on assigne une catégorie (pas si on la retire), proposer l'automatisation
-      // Seulement s'il existe d'autres transactions similaires non catégorisées
       if (categoryId && !previousCategoryId && transaction) {
         const category = categories.find(c => c.id === categoryId);
         if (category) {
-          // Extraire un pattern simple (premier mot significatif)
-          const words = transaction.description.toUpperCase().split(/\s+/).filter(w => 
-            w.length > 2 && 
-            !/^\d+$/.test(w) && 
-            !/^(CARTE|PAIEMENT|VIR|SEPA|PRLV|CB|PP\d+|FA\d+|MCC|EUR|USD)$/i.test(w)
-          );
-          const pattern = words[0] || '';
-          
-          // Chercher des transactions similaires non catégorisées
-          // Note: on exclut la transaction actuelle ET on vérifie qu'elles n'ont pas de catégorie
-          const similarTransactions = transactionsRef.current.filter(t => 
-            t.id !== transactionId && 
-            t.category_id === null &&
-            pattern && t.description.toUpperCase().includes(pattern)
-          );
-          
-          // Ne proposer l'automatisation que s'il y a au moins 1 transaction similaire
-          if (similarTransactions.length > 0) {
-            setLastCategorizedTransaction({ ...transaction, category_id: categoryId });
-            setLastSelectedCategory(category);
-            setShowSuggestDialog(true);
-          }
+          setLastCategorizedTransaction({ ...transaction, category_id: categoryId });
+          setLastSelectedCategory(category);
+          setShowSuggestDialog(true);
         }
       }
     }
