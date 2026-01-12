@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.apply-automation-rule]
 verify_jwt = false
+
+[functions.categorize-transaction]
+verify_jwt = false

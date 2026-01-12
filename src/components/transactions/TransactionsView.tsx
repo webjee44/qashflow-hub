@@ -11,7 +11,8 @@ import {
   RefreshCw,
   Loader2,
   Tag,
-  Building2
+  Building2,
+  Wand2
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -27,6 +28,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Tables } from '@/integrations/supabase/types';
+import { useCompany } from '@/hooks/useCompany';
 
 type Transaction = Tables<'transactions'>;
 type Category = Tables<'categories'>;
@@ -38,7 +40,9 @@ export function TransactionsView() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [categorizing, setCategorizing] = useState(false);
   const { toast } = useToast();
+  const { currentCompany } = useCompany();
 
   const fetchTransactions = async () => {
     setLoading(true);
@@ -147,6 +151,68 @@ export function TransactionsView() {
     }
   };
 
+  const categorizeWithAI = async () => {
+    const uncategorizedIds = transactions
+      .filter(t => !t.category_id)
+      .map(t => t.id);
+
+    if (uncategorizedIds.length === 0) {
+      toast({
+        title: 'Aucune transaction à catégoriser',
+        description: 'Toutes les transactions sont déjà catégorisées',
+      });
+      return;
+    }
+
+    setCategorizing(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        toast({
+          title: 'Erreur',
+          description: 'Vous devez être connecté',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const { data, error } = await supabase.functions.invoke('categorize-transaction', {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: {
+          transactionIds: uncategorizedIds,
+          companyId: currentCompany?.id,
+        },
+      });
+
+      if (error) {
+        console.error('AI categorization error:', error);
+        toast({
+          title: 'Erreur de catégorisation',
+          description: error.message || 'Une erreur est survenue',
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Catégorisation IA terminée',
+          description: `${data.categorized}/${data.total} transactions catégorisées`,
+        });
+        fetchTransactions();
+      }
+    } catch (err) {
+      console.error('AI error:', err);
+      toast({
+        title: 'Erreur',
+        description: 'Impossible de catégoriser les transactions',
+        variant: 'destructive',
+      });
+    } finally {
+      setCategorizing(false);
+    }
+  };
+
   const getCategoryName = (categoryId: string | null) => {
     if (!categoryId) return 'Non catégorisé';
     const category = categories.find(c => c.id === categoryId);
@@ -210,17 +276,32 @@ export function TransactionsView() {
       <motion.div
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        className="flex items-center justify-between"
+        className="flex items-center justify-between flex-wrap gap-3"
       >
         <h2 className="text-2xl font-bold text-foreground">Transactions</h2>
-        <Button onClick={syncPennylane} disabled={syncing}>
-          {syncing ? (
-            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-          ) : (
-            <RefreshCw className="w-4 h-4 mr-2" />
-          )}
-          Synchroniser Pennylane
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            onClick={categorizeWithAI} 
+            disabled={categorizing}
+            variant="outline"
+            className="gap-2"
+          >
+            {categorizing ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Wand2 className="w-4 h-4" />
+            )}
+            Catégoriser avec l'IA
+          </Button>
+          <Button onClick={syncPennylane} disabled={syncing}>
+            {syncing ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <RefreshCw className="w-4 h-4 mr-2" />
+            )}
+            Synchroniser Pennylane
+          </Button>
+        </div>
       </motion.div>
 
       {/* Stats Bar */}
