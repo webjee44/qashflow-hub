@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { FolderPlus, Check, Palette } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,329 +7,254 @@ import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
-import { Category } from '@/hooks/useCategories';
-import { cn } from '@/lib/utils';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { ScrollArea } from '@/components/ui/scroll-area';
 
+// Predefined colors
+const COLORS = [
+  '#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16',
+  '#22c55e', '#10b981', '#14b8a6', '#06b6d4', '#0ea5e9',
+  '#3b82f6', '#6366f1', '#8b5cf6', '#a855f7', '#d946ef',
+  '#ec4899', '#f43f5e', '#78716c', '#64748b', '#6b7280',
+];
+
+interface Category {
+  id: string;
+  name: string;
+  type: 'income' | 'expense';
+  color: string;
+  icon: string;
+  vat_rate: number;
+  parent_id?: string | null;
+}
+
 interface GroupDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  mode: 'create' | 'edit';
+  editGroup?: Category | null;
   categories: Category[];
+  defaultType?: 'income' | 'expense';
   onSave: (data: {
     name: string;
     color: string;
     type: 'income' | 'expense';
     categoryIds: string[];
-  }) => Promise<any>;
-  trigger?: React.ReactNode;
-  editGroup?: Category | null;
-  open?: boolean;
-  onOpenChange?: (open: boolean) => void;
-  onClose?: () => void;
+  }) => void;
 }
 
-const colorOptions = [
-  { value: 'hsl(142, 76%, 36%)', label: 'Vert' },
-  { value: 'hsl(200, 80%, 50%)', label: 'Bleu' },
-  { value: 'hsl(173, 80%, 40%)', label: 'Turquoise' },
-  { value: 'hsl(0, 84%, 60%)', label: 'Rouge' },
-  { value: 'hsl(280, 60%, 50%)', label: 'Violet' },
-  { value: 'hsl(38, 92%, 50%)', label: 'Orange' },
-  { value: 'hsl(320, 70%, 50%)', label: 'Rose' },
-  { value: 'hsl(221, 83%, 53%)', label: 'Indigo' },
-  { value: 'hsl(45, 93%, 47%)', label: 'Jaune' },
-  { value: 'hsl(160, 60%, 45%)', label: 'Émeraude' },
-];
-
-export function GroupDialog({ 
-  categories,
-  onSave, 
-  trigger,
+export function GroupDialog({
+  open,
+  onOpenChange,
+  mode,
   editGroup,
-  open: controlledOpen, 
-  onOpenChange: controlledOnOpenChange,
-  onClose,
+  categories,
+  defaultType = 'expense',
+  onSave,
 }: GroupDialogProps) {
-  const [internalOpen, setInternalOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [name, setName] = useState('');
-  const [color, setColor] = useState('hsl(221, 83%, 53%)');
-  const [type, setType] = useState<'income' | 'expense'>('expense');
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-
-  const isControlled = controlledOpen !== undefined;
-  const open = isControlled ? controlledOpen : internalOpen;
-  const setOpen = isControlled ? controlledOnOpenChange! : setInternalOpen;
-
-  const prevOpenRef = useRef<boolean>(false);
-
-  const initForm = (nextType?: 'income' | 'expense') => {
-    if (editGroup) {
-      setName(editGroup.name);
-      setColor(editGroup.color);
-      setType(editGroup.type);
-      const childIds = categories
+  // Initialize state based on mode - this runs once per mount (keyed remount strategy)
+  const [name, setName] = useState(() => 
+    mode === 'edit' && editGroup ? editGroup.name : ''
+  );
+  const [color, setColor] = useState(() => 
+    mode === 'edit' && editGroup ? editGroup.color : COLORS[Math.floor(Math.random() * COLORS.length)]
+  );
+  const [type, setType] = useState<'income' | 'expense'>(() => 
+    mode === 'edit' && editGroup ? editGroup.type : defaultType
+  );
+  const [selectedIds, setSelectedIds] = useState<string[]>(() => {
+    if (mode === 'edit' && editGroup) {
+      return categories
         .filter(c => c.parent_id === editGroup.id)
         .map(c => c.id);
-      setSelectedIds(new Set(childIds));
-    } else {
-      const t = nextType ?? 'expense';
-      setName('');
-      setColor('hsl(221, 83%, 53%)');
-      setType(t);
-      setSelectedIds(new Set());
     }
-  };
-
-  const handleOpenChange = (nextOpen: boolean) => {
-    // Radix can call onOpenChange with the *same* value multiple times due to ref composition;
-    // never call setState in that case.
-    const wasOpen = prevOpenRef.current;
-    if (wasOpen === nextOpen) return;
-
-    if (nextOpen) {
-      initForm();
-    } else {
-      onClose?.();
-    }
-
-    prevOpenRef.current = nextOpen;
-    setOpen(nextOpen);
-  };
+    return [];
+  });
 
   // Filter categories that can be added to this group
-  // - Must be same type
-  // - Must not already be a group (have children)
-  // - When editing, exclude the group itself
-  const availableCategories = categories.filter(c => {
-    if (c.type !== type) return false;
-    if (editGroup && c.id === editGroup.id) return false;
-    const hasChildren = categories.some(child => child.parent_id === c.id);
+  const availableCategories = categories.filter(cat => {
+    // Must match the group type
+    if (cat.type !== type) return false;
+    // Must not be a group itself (has children)
+    const hasChildren = categories.some(c => c.parent_id === cat.id);
     if (hasChildren) return false;
+    // Must not already belong to another group (except this one if editing)
+    if (cat.parent_id !== null && cat.parent_id !== editGroup?.id) return false;
+    // Exclude the group itself
+    if (cat.id === editGroup?.id) return false;
     return true;
   });
 
-  // Get categories already in another group (for display purposes)
-  const categoriesInOtherGroups = new Set(
-    categories
-      .filter(c => c.parent_id && (!editGroup || c.parent_id !== editGroup.id))
-      .map(c => c.id)
-  );
-
   const toggleCategory = (id: string) => {
-    const newSet = new Set(selectedIds);
-    if (newSet.has(id)) {
-      newSet.delete(id);
-    } else {
-      newSet.add(id);
-    }
-    setSelectedIds(newSet);
+    setSelectedIds(prev => 
+      prev.includes(id) 
+        ? prev.filter(x => x !== id) 
+        : [...prev, id]
+    );
   };
 
-  const handleClose = () => handleOpenChange(false);
+  const handleTypeChange = (newType: 'income' | 'expense') => {
+    setType(newType);
+    // Reset selection when type changes
+    setSelectedIds([]);
+  };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSave = () => {
     if (!name.trim()) return;
-
-    setLoading(true);
-    const result = await onSave({
+    onSave({
       name: name.trim(),
       color,
       type,
-      categoryIds: Array.from(selectedIds),
+      categoryIds: selectedIds,
     });
-    setLoading(false);
-
-    if (result) {
-      handleClose();
-    }
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
-      <DialogContent className="sm:max-w-[480px]" aria-describedby={undefined}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <FolderPlus className="w-5 h-5 text-primary" />
-            {editGroup ? 'Modifier le groupe' : 'Créer un groupe'}
+            <FolderPlus className="h-5 w-5" />
+            {mode === 'edit' ? 'Modifier le groupe' : 'Créer un groupe'}
           </DialogTitle>
+          <DialogDescription>
+            {mode === 'edit' 
+              ? 'Modifiez les informations du groupe et ses catégories.'
+              : 'Donnez un nom au groupe et sélectionnez les catégories à regrouper.'
+            }
+          </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-5 mt-4">
+
+        <div className="space-y-4 py-4">
           {/* Group Name */}
           <div className="space-y-2">
             <Label htmlFor="group-name">Nom du groupe</Label>
             <Input
               id="group-name"
-              placeholder="Ex: Frais généraux"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              maxLength={50}
-              autoFocus
+              placeholder="Ex: Frais de bureau"
             />
           </div>
 
           {/* Type Selection */}
           <div className="space-y-2">
             <Label>Type</Label>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setType('expense');
-                  setSelectedIds(new Set());
-                }}
-                className={cn(
-                  "flex items-center justify-center gap-2 p-3 rounded-lg border-2 transition-all",
-                  type === 'expense'
-                    ? "border-primary bg-primary/10 text-primary"
-                    : "border-border hover:border-primary/50"
-                )}
-              >
-                <span className="font-medium">Dépenses</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setType('income');
-                  setSelectedIds(new Set());
-                }}
-                className={cn(
-                  "flex items-center justify-center gap-2 p-3 rounded-lg border-2 transition-all",
-                  type === 'income'
-                    ? "border-primary bg-primary/10 text-primary"
-                    : "border-border hover:border-primary/50"
-                )}
-              >
-                <span className="font-medium">Revenus</span>
-              </button>
-            </div>
+            <Select value={type} onValueChange={handleTypeChange}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="expense">Dépense</SelectItem>
+                <SelectItem value="income">Revenu</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Color Selection */}
           <div className="space-y-2">
-            <Label className="flex items-center gap-2">
-              <Palette className="w-4 h-4" />
-              Couleur du groupe
-            </Label>
-            <div className="grid grid-cols-5 gap-2">
-              {colorOptions.map((c) => (
-                <button
-                  key={c.value}
-                  type="button"
-                  onClick={() => setColor(c.value)}
-                  className={cn(
-                    "w-10 h-10 rounded-lg transition-all flex items-center justify-center",
-                    color === c.value 
-                      ? 'ring-2 ring-primary ring-offset-2 scale-110' 
-                      : 'hover:scale-105'
-                  )}
-                  style={{ backgroundColor: c.value }}
-                  title={c.label}
+            <Label>Couleur</Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="w-full justify-start gap-2"
                 >
-                  {color === c.value && (
-                    <Check className="w-5 h-5 text-white drop-shadow-md" />
-                  )}
-                </button>
-              ))}
-            </div>
+                  <div
+                    className="h-4 w-4 rounded-full border"
+                    style={{ backgroundColor: color }}
+                  />
+                  <Palette className="h-4 w-4" />
+                  Choisir une couleur
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-64">
+                <div className="grid grid-cols-5 gap-2">
+                  {COLORS.map((c) => (
+                    <button
+                      key={c}
+                      className="h-8 w-8 rounded-full border-2 transition-transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-ring"
+                      style={{
+                        backgroundColor: c,
+                        borderColor: color === c ? 'white' : 'transparent',
+                        boxShadow: color === c ? `0 0 0 2px ${c}` : 'none',
+                      }}
+                      onClick={() => setColor(c)}
+                    />
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
 
           {/* Category Selection */}
           <div className="space-y-2">
-            <Label>Catégories à inclure ({selectedIds.size} sélectionnées)</Label>
-            <ScrollArea className="h-[200px] rounded-lg border border-border">
-              <div className="p-3 space-y-1">
-                {availableCategories.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-4">
-                    Aucune catégorie disponible pour ce type
-                  </p>
-                ) : (
-                  availableCategories.map((cat) => {
-                    const isInOtherGroup = categoriesInOtherGroups.has(cat.id);
-                    const isSelected = selectedIds.has(cat.id);
-                    
+            <Label>
+              Catégories à inclure ({selectedIds.length} sélectionnée{selectedIds.length > 1 ? 's' : ''})
+            </Label>
+            <ScrollArea className="h-[200px] rounded-md border p-2">
+              {availableCategories.length === 0 ? (
+                <p className="text-sm text-muted-foreground p-2">
+                  Aucune catégorie {type === 'income' ? 'de revenu' : 'de dépense'} disponible.
+                </p>
+              ) : (
+                <div className="space-y-1">
+                  {availableCategories.map((cat) => {
+                    const isSelected = selectedIds.includes(cat.id);
                     return (
                       <div
                         key={cat.id}
-                        onClick={() => !isInOtherGroup && toggleCategory(cat.id)}
-                        className={cn(
-                          "flex items-center gap-3 p-2 rounded-lg transition-colors cursor-pointer",
-                          isInOtherGroup 
-                            ? "opacity-50 cursor-not-allowed" 
-                            : isSelected
-                              ? "bg-primary/10"
-                              : "hover:bg-muted"
-                        )}
+                        className={`flex items-center gap-3 p-2 rounded-md cursor-pointer transition-colors ${
+                          isSelected ? 'bg-accent' : 'hover:bg-accent/50'
+                        }`}
+                        onClick={() => toggleCategory(cat.id)}
                       >
                         <Checkbox
                           checked={isSelected}
-                          disabled={isInOtherGroup}
-                          onCheckedChange={() => !isInOtherGroup && toggleCategory(cat.id)}
+                          onCheckedChange={() => toggleCategory(cat.id)}
+                          onClick={(e) => e.stopPropagation()}
                         />
                         <div
-                          className="w-4 h-4 rounded-md flex-shrink-0"
+                          className="h-3 w-3 rounded-full"
                           style={{ backgroundColor: cat.color }}
                         />
-                        <span className={cn(
-                          "text-sm font-medium flex-1",
-                          isInOtherGroup && "text-muted-foreground"
-                        )}>
-                          {cat.name}
-                        </span>
-                        {isInOtherGroup && (
-                          <span className="text-xs text-muted-foreground">
-                            Dans un autre groupe
-                          </span>
+                        <span className="text-sm">{cat.name}</span>
+                        {isSelected && (
+                          <Check className="h-4 w-4 ml-auto text-primary" />
                         )}
                       </div>
                     );
-                  })
-                )}
-              </div>
+                  })}
+                </div>
+              )}
             </ScrollArea>
           </div>
+        </div>
 
-          {/* Preview */}
-          <div className="p-4 bg-muted/50 rounded-xl">
-            <p className="text-xs text-muted-foreground mb-2">Aperçu</p>
-            <div className="flex items-center gap-3">
-              <div 
-                className="w-10 h-10 rounded-lg flex items-center justify-center"
-                style={{ backgroundColor: `${color}20` }}
-              >
-                <FolderPlus 
-                  className="w-5 h-5"
-                  style={{ color }}
-                />
-              </div>
-              <div>
-                <span className="font-medium">{name || 'Nom du groupe'}</span>
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <span>{type === 'income' ? 'Revenus' : 'Dépenses'}</span>
-                  <span>•</span>
-                  <span>{selectedIds.size} catégorie{selectedIds.size > 1 ? 's' : ''}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-3">
-            <Button type="button" variant="ghost" onClick={handleClose}>
-              Annuler
-            </Button>
-            <Button 
-              type="submit" 
-              className="gradient-primary"
-              disabled={loading || !name.trim()}
-            >
-              {loading ? 'Enregistrement...' : editGroup ? 'Mettre à jour' : 'Créer le groupe'}
-            </Button>
-          </div>
-        </form>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Annuler
+          </Button>
+          <Button onClick={handleSave} disabled={!name.trim()}>
+            {mode === 'edit' ? 'Enregistrer' : 'Créer le groupe'}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
