@@ -47,7 +47,7 @@ export function SuggestAutomationDialog({
   allTransactions,
   onCreateRule,
 }: SuggestAutomationDialogProps) {
-  const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [suggestion, setSuggestion] = useState<SuggestionResult | null>(null);
   const [similarTransactions, setSimilarTransactions] = useState<Transaction[]>([]);
@@ -102,25 +102,30 @@ export function SuggestAutomationDialog({
 
   useEffect(() => {
     if (open && transaction && category) {
-      // 1. Pattern local immédiat avec exclusion des mots fréquents
-      const localSuggestion = extractLocalPattern(transaction.description);
-      setSuggestion(localSuggestion);
-      setSimilarTransactions(findSimilarTransactions(localSuggestion.pattern));
+      setInitialLoading(true);
+      setSuggestion(null);
+      setSimilarTransactions([]);
       
-      // 2. Raffinement IA en arrière-plan
-      refineWithAI(transaction.description, localSuggestion);
+      // Start AI analysis directly
+      analyzeWithAI(transaction.description);
     } else {
       setSuggestion(null);
       setSimilarTransactions([]);
+      setInitialLoading(true);
     }
   }, [open, transaction?.id]);
 
-  const refineWithAI = async (description: string, localSuggestion: SuggestionResult) => {
+  const analyzeWithAI = async (description: string) => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-
-      setLoading(true);
+      if (!session) {
+        // Fallback to local pattern
+        const localSuggestion = extractLocalPattern(description);
+        setSuggestion(localSuggestion);
+        setSimilarTransactions(findSimilarTransactions(localSuggestion.pattern));
+        setInitialLoading(false);
+        return;
+      }
       
       // Send sample transactions for context to detect recurring patterns
       const sampleDescriptions = allTransactions
@@ -139,16 +144,23 @@ export function SuggestAutomationDialog({
         },
       });
 
-      if (!error && data?.pattern && data.pattern !== localSuggestion.pattern) {
-        // L'IA a trouvé un meilleur pattern
+      if (!error && data?.pattern) {
         setSuggestion(data);
         setSimilarTransactions(findSimilarTransactions(data.pattern));
+      } else {
+        // Fallback to local pattern
+        const localSuggestion = extractLocalPattern(description);
+        setSuggestion(localSuggestion);
+        setSimilarTransactions(findSimilarTransactions(localSuggestion.pattern));
       }
     } catch (err) {
-      console.error('AI refinement error:', err);
-      // Garder le pattern local
+      console.error('AI analysis error:', err);
+      // Fallback to local pattern
+      const localSuggestion = extractLocalPattern(description);
+      setSuggestion(localSuggestion);
+      setSimilarTransactions(findSimilarTransactions(localSuggestion.pattern));
     } finally {
-      setLoading(false);
+      setInitialLoading(false);
     }
   };
 
@@ -198,7 +210,6 @@ export function SuggestAutomationDialog({
               <DialogTitle className="flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-accent" />
                 Créer une automatisation ?
-                {loading && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
               </DialogTitle>
               <DialogDescription>
                 Automatisez la catégorisation des transactions similaires
@@ -208,7 +219,20 @@ export function SuggestAutomationDialog({
 
           {/* Body (scroll) */}
           <div className="flex-1 overflow-y-auto px-6 pb-6">
-            {suggestion ? (
+            {initialLoading ? (
+              <div className="flex flex-col items-center justify-center py-12 gap-4">
+                <div className="relative">
+                  <div className="w-16 h-16 rounded-full bg-accent/10 flex items-center justify-center">
+                    <Wand2 className="w-8 h-8 text-accent animate-pulse" />
+                  </div>
+                  <div className="absolute inset-0 rounded-full border-2 border-accent/30 border-t-accent animate-spin" />
+                </div>
+                <div className="text-center space-y-1">
+                  <p className="text-sm font-medium">Optimisation IA</p>
+                  <p className="text-xs text-muted-foreground">Analyse du pattern en cours...</p>
+                </div>
+              </div>
+            ) : suggestion ? (
               <div className="space-y-4">
                 {/* Transaction catégorisée */}
                 <div className="bg-muted/50 rounded-lg p-3">
@@ -276,12 +300,7 @@ export function SuggestAutomationDialog({
                   </p>
                 )}
               </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center py-10 gap-3">
-                <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                <p className="text-sm text-muted-foreground">Préparation de la suggestion...</p>
-              </div>
-            )}
+            ) : null}
           </div>
 
           {/* Footer (always visible) */}
