@@ -43,6 +43,7 @@ interface AutomationRule {
   action_type: string
   target_category_id: string | null
   is_active: boolean
+  company_id: string | null
 }
 
 // Check if a transaction matches a rule
@@ -100,6 +101,15 @@ Deno.serve(async (req) => {
       )
     }
 
+    // Parse request body to get company_id
+    let companyId: string | null = null
+    try {
+      const body = await req.json()
+      companyId = body.company_id || null
+    } catch {
+      // No body or invalid JSON, that's fine
+    }
+
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!
@@ -126,15 +136,40 @@ Deno.serve(async (req) => {
 
     const userId = claimsData.claims.sub as string
     console.log('User authenticated:', userId)
+    console.log('Company ID:', companyId)
 
-    // Get global Pennylane API key from environment
-    const pennylaneApiKey = Deno.env.get('PENNYLANE_API_KEY')
+    // Get Pennylane API key - first try from company, then fallback to env
+    let pennylaneApiKey: string | null = null
+    let companyName: string | null = null
+
+    if (companyId) {
+      // Fetch company details including API key
+      const { data: company, error: companyError } = await supabaseUser
+        .from('companies')
+        .select('name, pennylane_api_key')
+        .eq('id', companyId)
+        .single()
+
+      if (companyError) {
+        console.error('Error fetching company:', companyError)
+      } else if (company?.pennylane_api_key) {
+        pennylaneApiKey = company.pennylane_api_key
+        companyName = company.name
+        console.log(`Using API key from company: ${companyName}`)
+      }
+    }
+
+    // Fallback to global API key if no company key
+    if (!pennylaneApiKey) {
+      pennylaneApiKey = Deno.env.get('PENNYLANE_API_KEY') || null
+      console.log('Using global PENNYLANE_API_KEY')
+    }
     
     if (!pennylaneApiKey) {
-      console.error('PENNYLANE_API_KEY not configured')
+      console.error('No Pennylane API key available')
       return new Response(
-        JSON.stringify({ error: 'Clé API Pennylane non configurée sur le serveur.' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: 'Clé API Pennylane non configurée. Ajoutez-la dans les paramètres de votre société.' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
@@ -184,12 +219,18 @@ Deno.serve(async (req) => {
 
     console.log(`Bank accounts mapped: ${bankAccountsMap.size} accounts`)
 
-    // Fetch user's automation rules
-    const { data: rules, error: rulesError } = await supabaseAdmin
+    // Fetch user's automation rules (filtered by company)
+    let rulesQuery = supabaseAdmin
       .from('automation_rules')
       .select('*')
       .eq('user_id', userId)
       .eq('is_active', true)
+
+    if (companyId) {
+      rulesQuery = rulesQuery.or(`company_id.eq.${companyId},company_id.is.null`)
+    }
+
+    const { data: rules, error: rulesError } = await rulesQuery
 
     if (rulesError) {
       console.error('Error fetching rules:', rulesError)
@@ -302,11 +343,12 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Insert new transaction with category if matched (bankAccountName already defined above)
+      // Insert new transaction with category if matched and company_id
       const { error: insertError } = await supabaseUser
         .from('transactions')
         .insert({
           user_id: userId,
+          company_id: companyId,
           pennylane_id: tx.id.toString(),
           description,
           amount,
@@ -341,13 +383,14 @@ Deno.serve(async (req) => {
       }
     }
 
-    console.log(`Sync complete: ${syncedCount} new, ${skippedCount} skipped, ${automatedCount} auto-categorized, ${updatedBankCount} bank info updated`)
+    const companyLabel = companyName ? ` (${companyName})` : ''
+    console.log(`Sync complete${companyLabel}: ${syncedCount} new, ${skippedCount} skipped, ${automatedCount} auto-categorized, ${updatedBankCount} bank info updated`)
 
     const bankMessage = updatedBankCount > 0 ? `, ${updatedBankCount} banques ajoutées` : ''
     return new Response(
       JSON.stringify({
         success: true,
-        message: `Synchronisation terminée: ${syncedCount} nouvelles transactions importées (${automatedCount} catégorisées automatiquement), ${skippedCount} déjà existantes${bankMessage}.`,
+        message: `Synchronisation terminée${companyLabel}: ${syncedCount} nouvelles transactions importées (${automatedCount} catégorisées automatiquement), ${skippedCount} déjà existantes${bankMessage}.`,
         synced: syncedCount,
         skipped: skippedCount,
         automated: automatedCount,
