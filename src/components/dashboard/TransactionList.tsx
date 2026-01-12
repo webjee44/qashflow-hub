@@ -166,16 +166,6 @@ export function TransactionList() {
                   )}>
                     {transaction.type === 'income' ? '+' : '-'}{formatAmount(Number(transaction.amount))}
                   </p>
-                  <div className="flex items-center justify-end gap-1 mt-1">
-                    {transaction.is_reconciled ? (
-                      <Check className="w-3.5 h-3.5 text-success" />
-                    ) : (
-                      <AlertCircle className="w-3.5 h-3.5 text-warning" />
-                    )}
-                    <span className="text-xs text-muted-foreground">
-                      {transaction.is_reconciled ? 'Validé' : 'En attente'}
-                    </span>
-                  </div>
                 </div>
               </div>
             </motion.div>
