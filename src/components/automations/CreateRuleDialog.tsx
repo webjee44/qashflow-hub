@@ -167,7 +167,7 @@ export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, t
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent position="popper" className="z-[200] bg-popover">
                     {conditionFields.map((field) => (
                       <SelectItem key={field.value} value={field.value}>
                         {field.label}
@@ -186,7 +186,7 @@ export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, t
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent position="popper" className="z-[200] bg-popover">
                     {availableOperators.map((op) => (
                       <SelectItem key={op.value} value={op.value}>
                         {op.label}
@@ -225,7 +225,7 @@ export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, t
                 <SelectTrigger>
                   <SelectValue placeholder="Sélectionner une catégorie" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent position="popper" className="z-[200] bg-popover">
                   {onCreateCategory && (
                     <>
                       <SelectItem value="__new__">
