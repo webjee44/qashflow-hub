@@ -46,10 +46,18 @@ export function TransactionsView() {
 
   const fetchTransactions = async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    
+    let query = supabase
       .from('transactions')
       .select('*')
       .order('date', { ascending: false });
+
+    // Filtrer par société si une est sélectionnée
+    if (currentCompany?.id) {
+      query = query.eq('company_id', currentCompany.id);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error('Error fetching transactions:', error);
@@ -65,9 +73,16 @@ export function TransactionsView() {
   };
 
   const fetchCategories = async () => {
-    const { data, error } = await supabase
+    let query = supabase
       .from('categories')
       .select('*');
+
+    // Filtrer par société (inclure aussi les catégories sans société)
+    if (currentCompany?.id) {
+      query = query.or(`company_id.eq.${currentCompany.id},company_id.is.null`);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error('Error fetching categories:', error);
@@ -79,7 +94,7 @@ export function TransactionsView() {
   useEffect(() => {
     fetchTransactions();
     fetchCategories();
-  }, []);
+  }, [currentCompany?.id]);
 
   const syncPennylane = async () => {
     if (!currentCompany) {
