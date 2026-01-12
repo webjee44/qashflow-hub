@@ -13,7 +13,9 @@ import {
   Tag,
   Building2,
   Wand2,
-  PlusCircle
+  PlusCircle,
+  ArrowDownAZ,
+  ArrowDownWideNarrow
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -40,6 +42,7 @@ type Category = Tables<'categories'>;
 export function TransactionsView() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [sortByName, setSortByName] = useState(false);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const transactionsRef = useRef<Transaction[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -308,12 +311,20 @@ export function TransactionsView() {
     return category?.color;
   };
 
-  const filteredTransactions = transactions.filter(t => {
-    const matchesSearch = t.description.toLowerCase().includes(searchQuery.toLowerCase());
-    const categoryName = getCategoryName(t.category_id);
-    const matchesCategory = !selectedCategory || categoryName === selectedCategory;
-    return matchesSearch && matchesCategory;
-  });
+  const filteredTransactions = transactions
+    .filter(t => {
+      const matchesSearch = t.description.toLowerCase().includes(searchQuery.toLowerCase());
+      const categoryName = getCategoryName(t.category_id);
+      const matchesCategory = !selectedCategory || categoryName === selectedCategory;
+      return matchesSearch && matchesCategory;
+    })
+    .sort((a, b) => {
+      if (sortByName) {
+        return a.description.localeCompare(b.description, 'fr', { sensitivity: 'base' });
+      }
+      // Default: sort by date descending
+      return new Date(b.date).getTime() - new Date(a.date).getTime();
+    });
 
   const formatAmount = (amount: number) => {
     return new Intl.NumberFormat('fr-FR', {
@@ -479,6 +490,20 @@ export function TransactionsView() {
             className="pl-10"
           />
         </div>
+
+        <Button
+          variant={sortByName ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setSortByName(!sortByName)}
+          className="gap-2"
+        >
+          {sortByName ? (
+            <ArrowDownAZ className="w-4 h-4" />
+          ) : (
+            <ArrowDownWideNarrow className="w-4 h-4" />
+          )}
+          {sortByName ? 'Trié par nom' : 'Trier par nom'}
+        </Button>
 
         <Button
           variant={selectedCategory === 'Non catégorisé' ? 'default' : 'outline'}
