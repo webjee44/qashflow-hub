@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Plus, Zap } from 'lucide-react';
+import { X, Plus, Zap, PlusCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,6 +10,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SelectSeparator,
 } from '@/components/ui/select';
 import {
   Dialog,
@@ -19,6 +20,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Category } from '@/hooks/useAutomationRules';
+import { CategoryDialog } from '@/components/categories/CategoryDialog';
 
 interface CreateRuleDialogProps {
   categories: Category[];
@@ -29,6 +31,12 @@ interface CreateRuleDialogProps {
     condition_value: string;
     action_type: string;
     target_category_id: string | null;
+  }) => Promise<any>;
+  onCreateCategory?: (data: {
+    name: string;
+    color: string;
+    icon: string;
+    type: 'income' | 'expense';
   }) => Promise<any>;
   trigger?: React.ReactNode;
 }
@@ -58,9 +66,10 @@ const conditionOperators: Record<string, { value: string; label: string }[]> = {
   ],
 };
 
-export function CreateRuleDialog({ categories, onCreateRule, trigger }: CreateRuleDialogProps) {
+export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, trigger }: CreateRuleDialogProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showCategoryDialog, setShowCategoryDialog] = useState(false);
   const [form, setForm] = useState({
     name: '',
     condition_field: 'description',
@@ -69,6 +78,23 @@ export function CreateRuleDialog({ categories, onCreateRule, trigger }: CreateRu
     action_type: 'categorize',
     target_category_id: '',
   });
+
+  const handleCreateCategory = async (data: {
+    name: string;
+    color: string;
+    icon: string;
+    type: 'income' | 'expense';
+  }) => {
+    if (onCreateCategory) {
+      const result = await onCreateCategory(data);
+      if (result?.id) {
+        // Sélectionner automatiquement la nouvelle catégorie
+        setForm({ ...form, target_category_id: result.id });
+      }
+      return result;
+    }
+    return null;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -188,12 +214,29 @@ export function CreateRuleDialog({ categories, onCreateRule, trigger }: CreateRu
               <Label>Catégoriser dans</Label>
               <Select
                 value={form.target_category_id}
-                onValueChange={(value) => setForm({ ...form, target_category_id: value })}
+                onValueChange={(value) => {
+                  if (value === '__new__') {
+                    setShowCategoryDialog(true);
+                  } else {
+                    setForm({ ...form, target_category_id: value });
+                  }
+                }}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Sélectionner une catégorie" />
                 </SelectTrigger>
                 <SelectContent>
+                  {onCreateCategory && (
+                    <>
+                      <SelectItem value="__new__">
+                        <div className="flex items-center gap-2 text-primary">
+                          <PlusCircle className="w-4 h-4" />
+                          Créer une nouvelle catégorie
+                        </div>
+                      </SelectItem>
+                      <SelectSeparator />
+                    </>
+                  )}
                   {categories.map((cat) => (
                     <SelectItem key={cat.id} value={cat.id}>
                       <div className="flex items-center gap-2">
@@ -209,6 +252,13 @@ export function CreateRuleDialog({ categories, onCreateRule, trigger }: CreateRu
               </Select>
             </div>
           </div>
+
+          {/* Dialog pour créer une nouvelle catégorie */}
+          <CategoryDialog
+            open={showCategoryDialog}
+            onOpenChange={setShowCategoryDialog}
+            onSave={handleCreateCategory}
+          />
 
           <div className="flex justify-end gap-3">
             <Button type="button" variant="ghost" onClick={() => setOpen(false)}>

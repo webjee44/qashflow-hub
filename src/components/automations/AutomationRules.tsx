@@ -45,7 +45,7 @@ const fieldLabels: Record<string, string> = {
 };
 
 export function AutomationRules() {
-  const { rules, categories, loading, stats, createRule, toggleRule, deleteRule } = useAutomationRules();
+  const { rules, categories, loading, stats, createRule, createCategory, toggleRule, deleteRule } = useAutomationRules();
 
   const formatCondition = (rule: typeof rules[0]) => {
     const field = fieldLabels[rule.condition_field] || rule.condition_field;
@@ -83,6 +83,7 @@ export function AutomationRules() {
               <CreateRuleDialog 
                 categories={categories} 
                 onCreateRule={createRule}
+                onCreateCategory={createCategory}
                 trigger={
                   <Button size="sm" className="gradient-primary">
                     <Plus className="w-4 h-4 mr-2" />
@@ -109,7 +110,7 @@ export function AutomationRules() {
               {rules.filter(r => r.is_active).length} règles actives sur {rules.length}
             </p>
           </div>
-          <CreateRuleDialog categories={categories} onCreateRule={createRule} />
+          <CreateRuleDialog categories={categories} onCreateRule={createRule} onCreateCategory={createCategory} />
         </div>
 
         {rules.length === 0 ? (
@@ -122,6 +123,7 @@ export function AutomationRules() {
             <CreateRuleDialog 
               categories={categories} 
               onCreateRule={createRule}
+              onCreateCategory={createCategory}
               trigger={
                 <Button className="gradient-primary">
                   <Plus className="w-4 h-4 mr-2" />
