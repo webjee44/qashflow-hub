@@ -165,7 +165,7 @@ export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, t
                   })}
                 >
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue placeholder="Choisir un champ" />
                   </SelectTrigger>
                   <SelectContent position="popper" className="z-[200] bg-popover">
                     {conditionFields.map((field) => (
@@ -184,7 +184,7 @@ export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, t
                   onValueChange={(value) => setForm({ ...form, condition_operator: value })}
                 >
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue placeholder="Choisir un opérateur" />
                   </SelectTrigger>
                   <SelectContent position="popper" className="z-[200] bg-popover">
                     {availableOperators.map((op) => (
@@ -194,6 +194,9 @@ export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, t
                     ))}
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-muted-foreground">
+                  Comment comparer le champ avec la valeur
+                </p>
               </div>
             </div>
 
