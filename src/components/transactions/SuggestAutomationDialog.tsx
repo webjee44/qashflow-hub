@@ -167,8 +167,8 @@ export function SuggestAutomationDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg p-0 overflow-hidden">
-        <div className="flex max-h-[85vh] flex-col">
+      <DialogContent className="p-0">
+        <div className="flex max-h-[85vh] flex-col overflow-hidden">
           {/* Header */}
           <div className="p-6 pb-4">
             <DialogHeader>
