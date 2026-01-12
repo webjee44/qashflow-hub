@@ -60,22 +60,16 @@ Deno.serve(async (req) => {
     const userId = claimsData.claims.sub as string
     console.log('User authenticated:', userId)
 
-    // Get user's Pennylane API key from profile
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('pennylane_api_key')
-      .eq('id', userId)
-      .single()
-
-    if (profileError || !profile?.pennylane_api_key) {
-      console.error('Profile error:', profileError)
+    // Get global Pennylane API key from environment
+    const pennylaneApiKey = Deno.env.get('PENNYLANE_API_KEY')
+    
+    if (!pennylaneApiKey) {
+      console.error('PENNYLANE_API_KEY not configured')
       return new Response(
-        JSON.stringify({ error: 'Clé API Pennylane non configurée. Veuillez ajouter votre clé API dans les paramètres.' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: 'Clé API Pennylane non configurée sur le serveur.' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
-
-    const pennylaneApiKey = profile.pennylane_api_key
     console.log('Pennylane API key found, starting sync...')
 
     // Fetch transactions from Pennylane API
