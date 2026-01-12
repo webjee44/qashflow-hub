@@ -5,7 +5,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
-import Index from "./pages/Index";
+import { AppLayout } from "@/components/layout/AppLayout";
+import Dashboard from "./pages/Dashboard";
+import Transactions from "./pages/Transactions";
+import Forecasts from "./pages/Forecasts";
+import Automations from "./pages/Automations";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
@@ -21,13 +25,17 @@ const App = () => (
           <Routes>
             <Route path="/auth" element={<Auth />} />
             <Route 
-              path="/" 
               element={
                 <ProtectedRoute>
-                  <Index />
+                  <AppLayout />
                 </ProtectedRoute>
-              } 
-            />
+              }
+            >
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/transactions" element={<Transactions />} />
+              <Route path="/previsions" element={<Forecasts />} />
+              <Route path="/automatisations" element={<Automations />} />
+            </Route>
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion';
+import { Link, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, 
   ArrowLeftRight, 
@@ -23,23 +24,20 @@ interface NavItem {
 const navItems: NavItem[] = [
   { icon: LayoutDashboard, label: 'Tableau de bord', href: '/' },
   { icon: ArrowLeftRight, label: 'Transactions', href: '/transactions' },
-  { icon: TrendingUp, label: 'Prévisions', href: '/forecasts' },
-  { icon: Zap, label: 'Automatisations', href: '/automations', badge: '4' },
+  { icon: TrendingUp, label: 'Prévisions', href: '/previsions' },
+  { icon: Zap, label: 'Automatisations', href: '/automatisations', badge: '4' },
 ];
 
 const bottomNavItems: NavItem[] = [
-  { icon: Settings, label: 'Paramètres', href: '/settings' },
-  { icon: HelpCircle, label: 'Aide', href: '/help' },
+  { icon: Settings, label: 'Paramètres', href: '/parametres' },
+  { icon: HelpCircle, label: 'Aide', href: '/aide' },
 ];
 
-interface SidebarProps {
-  currentPath: string;
-  onNavigate: (path: string) => void;
-}
-
-export function Sidebar({ currentPath, onNavigate }: SidebarProps) {
+export function Sidebar() {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const { user } = useAuth();
+  const location = useLocation();
+  const currentPath = location.pathname;
 
   return (
     <motion.aside
@@ -52,22 +50,24 @@ export function Sidebar({ currentPath, onNavigate }: SidebarProps) {
     >
       {/* Logo */}
       <div className="p-6 border-b border-border flex items-center justify-between">
-        <motion.div 
-          className="flex items-center gap-3"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.1 }}
-        >
-          <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center shadow-lg">
-            <span className="text-primary-foreground font-bold text-lg">P</span>
-          </div>
-          {!isCollapsed && (
-            <div>
-              <h1 className="font-bold text-foreground text-lg">PennyFlow</h1>
-              <p className="text-xs text-muted-foreground">Trésorerie simplifiée</p>
+        <Link to="/" className="flex items-center gap-3">
+          <motion.div 
+            className="flex items-center gap-3"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.1 }}
+          >
+            <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center shadow-lg">
+              <span className="text-primary-foreground font-bold text-lg">P</span>
             </div>
-          )}
-        </motion.div>
+            {!isCollapsed && (
+              <div>
+                <h1 className="font-bold text-foreground text-lg">PennyFlow</h1>
+                <p className="text-xs text-muted-foreground">Trésorerie simplifiée</p>
+              </div>
+            )}
+          </motion.div>
+        </Link>
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}
           className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
@@ -81,47 +81,50 @@ export function Sidebar({ currentPath, onNavigate }: SidebarProps) {
         {navItems.map((item, index) => {
           const isActive = currentPath === item.href;
           return (
-            <motion.button
+            <motion.div
               key={item.href}
               initial={{ x: -20, opacity: 0 }}
               animate={{ x: 0, opacity: 1 }}
               transition={{ delay: 0.05 * index }}
-              onClick={() => onNavigate(item.href)}
-              className={cn(
-                "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group relative",
-                isActive 
-                  ? "bg-primary text-primary-foreground shadow-md" 
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
-              )}
             >
-              <item.icon size={20} className={cn(
-                "transition-transform group-hover:scale-110",
-                isActive && "drop-shadow-sm"
-              )} />
-              {!isCollapsed && (
-                <>
-                  <span className="font-medium">{item.label}</span>
-                  {item.badge && (
-                    <span className={cn(
-                      "ml-auto text-xs font-semibold px-2 py-0.5 rounded-full",
-                      isActive 
-                        ? "bg-primary-foreground/20 text-primary-foreground" 
-                        : "bg-primary/10 text-primary"
-                    )}>
-                      {item.badge}
-                    </span>
-                  )}
-                </>
-              )}
-              {isActive && (
-                <motion.div
-                  layoutId="activeIndicator"
-                  className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-primary-foreground rounded-r-full"
-                  initial={false}
-                  transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                />
-              )}
-            </motion.button>
+              <Link
+                to={item.href}
+                className={cn(
+                  "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group relative",
+                  isActive 
+                    ? "bg-primary text-primary-foreground shadow-md" 
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                )}
+              >
+                <item.icon size={20} className={cn(
+                  "transition-transform group-hover:scale-110",
+                  isActive && "drop-shadow-sm"
+                )} />
+                {!isCollapsed && (
+                  <>
+                    <span className="font-medium">{item.label}</span>
+                    {item.badge && (
+                      <span className={cn(
+                        "ml-auto text-xs font-semibold px-2 py-0.5 rounded-full",
+                        isActive 
+                          ? "bg-primary-foreground/20 text-primary-foreground" 
+                          : "bg-primary/10 text-primary"
+                      )}>
+                        {item.badge}
+                      </span>
+                    )}
+                  </>
+                )}
+                {isActive && (
+                  <motion.div
+                    layoutId="activeIndicator"
+                    className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-primary-foreground rounded-r-full"
+                    initial={false}
+                    transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                  />
+                )}
+              </Link>
+            </motion.div>
           );
         })}
       </nav>
@@ -129,9 +132,9 @@ export function Sidebar({ currentPath, onNavigate }: SidebarProps) {
       {/* Bottom Navigation */}
       <div className="p-4 border-t border-border space-y-1">
         {bottomNavItems.map((item) => (
-          <button
+          <Link
             key={item.href}
-            onClick={() => onNavigate(item.href)}
+            to={item.href}
             className={cn(
               "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200",
               "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -139,7 +142,7 @@ export function Sidebar({ currentPath, onNavigate }: SidebarProps) {
           >
             <item.icon size={18} />
             {!isCollapsed && <span className="text-sm font-medium">{item.label}</span>}
-          </button>
+          </Link>
         ))}
       </div>
 
