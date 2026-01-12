@@ -417,7 +417,7 @@ export function TransactionsView() {
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ delay: 0.3 }}
-        className="bg-card rounded-2xl border border-border shadow-card overflow-hidden"
+        className="bg-card rounded-2xl border border-border shadow-card"
       >
         {filteredTransactions.length === 0 ? (
           <div className="p-12 text-center">
@@ -490,7 +490,7 @@ export function TransactionsView() {
                             </Badge>
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="start" className="w-56">
+                        <DropdownMenuContent align="start" side="top" sideOffset={5} collisionPadding={20} className="w-56 max-h-80 overflow-y-auto">
                           {transaction.category_id && (
                             <>
                               <DropdownMenuItem
