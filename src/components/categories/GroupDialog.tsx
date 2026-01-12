@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { FolderPlus, Check, Palette } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -84,6 +84,8 @@ export function GroupDialog({
       .map(c => c.id)
   );
 
+  const prevOpenRef = useRef(false);
+
   // Initialize form only once when dialog opens
   useEffect(() => {
     if (open && !isInitialized) {
@@ -107,7 +109,15 @@ export function GroupDialog({
     if (!open) {
       setIsInitialized(false);
     }
-  }, [open, isInitialized, editGroup]);
+  }, [open, isInitialized, editGroup, categories]);
+
+  // Call onClose only when transitioning from open -> closed (avoid loops)
+  useEffect(() => {
+    if (prevOpenRef.current && !open) {
+      onClose?.();
+    }
+    prevOpenRef.current = open;
+  }, [open, onClose]);
 
   const toggleCategory = (id: string) => {
     const newSet = new Set(selectedIds);
@@ -121,7 +131,6 @@ export function GroupDialog({
 
   const handleClose = () => {
     setOpen(false);
-    onClose?.();
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -143,7 +152,7 @@ export function GroupDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={(value) => { if (!value) handleClose(); else setOpen(value); }}>
+    <Dialog open={open} onOpenChange={setOpen}>
       {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
       <DialogContent className="sm:max-w-[480px]" aria-describedby={undefined}>
         <DialogHeader>
