@@ -10,7 +10,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Sparkles, Loader2, ArrowDownRight, ArrowUpRight, Wand2 } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
 import { Tables } from '@/integrations/supabase/types';
 import { cn } from '@/lib/utils';
 
@@ -102,67 +101,17 @@ export function SuggestAutomationDialog({
 
   useEffect(() => {
     if (open && transaction && category) {
-      setInitialLoading(true);
-      setSuggestion(null);
-      setSimilarTransactions([]);
-      
-      // Start AI analysis directly
-      analyzeWithAI(transaction.description);
+      // Use local pattern extraction (instant) instead of AI call
+      const localSuggestion = extractLocalPattern(transaction.description);
+      setSuggestion(localSuggestion);
+      setSimilarTransactions(findSimilarTransactions(localSuggestion.pattern));
+      setInitialLoading(false);
     } else {
       setSuggestion(null);
       setSimilarTransactions([]);
-      setInitialLoading(true);
-    }
-  }, [open, transaction?.id]);
-
-  const analyzeWithAI = async (description: string) => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        // Fallback to local pattern
-        const localSuggestion = extractLocalPattern(description);
-        setSuggestion(localSuggestion);
-        setSimilarTransactions(findSimilarTransactions(localSuggestion.pattern));
-        setInitialLoading(false);
-        return;
-      }
-      
-      // Send sample transactions for context to detect recurring patterns
-      const sampleDescriptions = allTransactions
-        .filter(t => t.id !== transaction?.id)
-        .slice(0, 15)
-        .map(t => t.description);
-      
-      const { data, error } = await supabase.functions.invoke('suggest-automation', {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: {
-          description,
-          categoryName: category?.name,
-          sampleTransactions: sampleDescriptions,
-        },
-      });
-
-      if (!error && data?.pattern) {
-        setSuggestion(data);
-        setSimilarTransactions(findSimilarTransactions(data.pattern));
-      } else {
-        // Fallback to local pattern
-        const localSuggestion = extractLocalPattern(description);
-        setSuggestion(localSuggestion);
-        setSimilarTransactions(findSimilarTransactions(localSuggestion.pattern));
-      }
-    } catch (err) {
-      console.error('AI analysis error:', err);
-      // Fallback to local pattern
-      const localSuggestion = extractLocalPattern(description);
-      setSuggestion(localSuggestion);
-      setSimilarTransactions(findSimilarTransactions(localSuggestion.pattern));
-    } finally {
       setInitialLoading(false);
     }
-  };
+  }, [open, transaction?.id, category?.id]);
 
   const handleCreateRule = async () => {
     if (!suggestion || !category) return;
