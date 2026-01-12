@@ -178,7 +178,6 @@ export type Database = {
           id: string
           is_default: boolean | null
           name: string
-          pennylane_api_key: string | null
           updated_at: string | null
           user_id: string
         }
@@ -187,7 +186,6 @@ export type Database = {
           id?: string
           is_default?: boolean | null
           name: string
-          pennylane_api_key?: string | null
           updated_at?: string | null
           user_id: string
         }
@@ -196,11 +194,45 @@ export type Database = {
           id?: string
           is_default?: boolean | null
           name?: string
-          pennylane_api_key?: string | null
           updated_at?: string | null
           user_id?: string
         }
         Relationships: []
+      }
+      company_secrets: {
+        Row: {
+          company_id: string
+          created_at: string
+          encrypted_value: string
+          id: string
+          secret_type: string
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          encrypted_value: string
+          id?: string
+          secret_type?: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          encrypted_value?: string
+          id?: string
+          secret_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_secrets_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       forecasts: {
         Row: {
@@ -356,7 +388,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      company_has_secret: {
+        Args: { p_company_id: string; p_secret_type?: string }
+        Returns: boolean
+      }
     }
     Enums: {
       transaction_type: "income" | "expense"
