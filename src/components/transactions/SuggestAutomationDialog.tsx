@@ -83,8 +83,8 @@ export function SuggestAutomationDialog({
       (wordFrequency.get(w) || 0) < threshold
     );
     
-    // Prendre les 2-3 premiers mots significatifs pour un meilleur pattern
-    const patternWords = words.slice(0, 3);
+    // Prendre les 2 premiers mots significatifs (évite les codes de commande)
+    const patternWords = words.slice(0, 2);
     const pattern = patternWords.length > 0 
       ? patternWords.join(' ')
       : description.split(/\s+/)[0]?.slice(0, 10) || description.slice(0, 8).trim();
