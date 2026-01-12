@@ -12,6 +12,7 @@ interface AutomationRule {
   condition_value: string;
   target_category_id: string;
   user_id: string;
+  match_count: number;
 }
 
 interface Transaction {
@@ -62,6 +63,15 @@ function matchesRule(transaction: Transaction, rule: AutomationRule): boolean {
     default:
       return false;
   }
+}
+
+// Helper to chunk array into smaller batches
+function chunkArray<T>(array: T[], chunkSize: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < array.length; i += chunkSize) {
+    chunks.push(array.slice(i, i + chunkSize));
+  }
+  return chunks;
 }
 
 Deno.serve(async (req) => {
@@ -116,10 +126,18 @@ Deno.serve(async (req) => {
       .select('*')
       .eq('id', rule_id)
       .eq('user_id', user.id)
-      .single();
+      .maybeSingle();
 
-    if (ruleError || !rule) {
-      console.error('Rule not found:', ruleError);
+    if (ruleError) {
+      console.error('Error fetching rule:', ruleError);
+      return new Response(
+        JSON.stringify({ error: 'Failed to fetch rule' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!rule) {
+      console.error('Rule not found');
       return new Response(
         JSON.stringify({ error: 'Rule not found' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -164,37 +182,44 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Mettre à jour les transactions
+    // Mettre à jour les transactions par lots de 100 pour éviter les limites d'URL
     const transactionIds = matchingTransactions.map(tx => tx.id);
-    const { error: updateError } = await supabaseAdmin
-      .from('transactions')
-      .update({ category_id: rule.target_category_id })
-      .in('id', transactionIds);
+    const batches = chunkArray(transactionIds, 100);
+    let totalUpdated = 0;
 
-    if (updateError) {
-      console.error('Error updating transactions:', updateError);
-      return new Response(
-        JSON.stringify({ error: 'Failed to update transactions' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    console.log(`Updating ${transactionIds.length} transactions in ${batches.length} batches`);
+
+    for (const batch of batches) {
+      const { error: updateError, count } = await supabaseAdmin
+        .from('transactions')
+        .update({ category_id: rule.target_category_id })
+        .in('id', batch);
+
+      if (updateError) {
+        console.error('Error updating batch:', updateError);
+        // Continue with other batches even if one fails
+      } else {
+        totalUpdated += batch.length;
+        console.log(`Updated batch of ${batch.length} transactions`);
+      }
     }
 
     // Incrémenter le match_count
     const { error: countError } = await supabaseAdmin
       .from('automation_rules')
-      .update({ match_count: (rule.match_count || 0) + matchingTransactions.length })
+      .update({ match_count: (rule.match_count || 0) + totalUpdated })
       .eq('id', rule_id);
 
     if (countError) {
       console.error('Error updating match count:', countError);
     }
 
-    console.log(`Successfully updated ${matchingTransactions.length} transactions`);
+    console.log(`Successfully updated ${totalUpdated} transactions`);
 
     return new Response(
       JSON.stringify({ 
         matched: matchingTransactions.length, 
-        updated: matchingTransactions.length 
+        updated: totalUpdated 
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
