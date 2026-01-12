@@ -174,6 +174,8 @@ export type Database = {
       }
       companies: {
         Row: {
+          bank_balance: number | null
+          bank_balance_updated_at: string | null
           created_at: string | null
           id: string
           initial_balance: number
@@ -183,6 +185,8 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          bank_balance?: number | null
+          bank_balance_updated_at?: string | null
           created_at?: string | null
           id?: string
           initial_balance?: number
@@ -192,6 +196,8 @@ export type Database = {
           user_id: string
         }
         Update: {
+          bank_balance?: number | null
+          bank_balance_updated_at?: string | null
           created_at?: string | null
           id?: string
           initial_balance?: number

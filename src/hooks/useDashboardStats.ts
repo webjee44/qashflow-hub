@@ -95,16 +95,26 @@ export function useDashboardStats() {
           .filter(t => t.type === 'expense')
           .reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
 
-        // Current balance (initial balance + sum of all transactions)
-        const initialBalance = currentCompany?.initial_balance || 0;
-        const transactionsBalance = transactions?.reduce((acc, t) => {
-          if (t.type === 'income') {
-            return acc + Number(t.amount);
-          } else {
-            return acc - Math.abs(Number(t.amount));
-          }
-        }, 0) || 0;
-        const currentBalance = initialBalance + transactionsBalance;
+        // Current balance: use real bank balance from Pennylane if available, otherwise calculate from transactions
+        let currentBalance: number;
+        
+        if (currentCompany?.bank_balance !== null && currentCompany?.bank_balance !== undefined) {
+          // Use real bank balance from Pennylane trial balance
+          currentBalance = Number(currentCompany.bank_balance);
+          console.log('Using real bank balance from Pennylane:', currentBalance);
+        } else {
+          // Fallback: calculate from initial balance + transactions
+          const initialBalance = currentCompany?.initial_balance || 0;
+          const transactionsBalance = transactions?.reduce((acc, t) => {
+            if (t.type === 'income') {
+              return acc + Number(t.amount);
+            } else {
+              return acc - Math.abs(Number(t.amount));
+            }
+          }, 0) || 0;
+          currentBalance = initialBalance + transactionsBalance;
+          console.log('Using calculated balance (initial + transactions):', currentBalance);
+        }
 
         // 90-day forecast - use forecasts table
         let forecastQuery = supabase
@@ -203,16 +213,22 @@ export function useBalanceChartData() {
 
         const { data: forecasts } = await forecastsQuery;
 
-        // Calculate current balance (initial balance + transactions)
-        const initialBalance = currentCompany?.initial_balance || 0;
-        const transactionsBalance = transactions?.reduce((acc, t) => {
-          if (t.type === 'income') {
-            return acc + Number(t.amount);
-          } else {
-            return acc - Math.abs(Number(t.amount));
-          }
-        }, 0) || 0;
-        const currentBalance = initialBalance + transactionsBalance;
+        // Calculate current balance: use real bank balance if available
+        let currentBalance: number;
+        
+        if (currentCompany?.bank_balance !== null && currentCompany?.bank_balance !== undefined) {
+          currentBalance = Number(currentCompany.bank_balance);
+        } else {
+          const initialBalance = currentCompany?.initial_balance || 0;
+          const transactionsBalance = transactions?.reduce((acc, t) => {
+            if (t.type === 'income') {
+              return acc + Number(t.amount);
+            } else {
+              return acc - Math.abs(Number(t.amount));
+            }
+          }, 0) || 0;
+          currentBalance = initialBalance + transactionsBalance;
+        }
 
         // Group past transactions by month (last 6 months)
         const monthlyData: Record<string, { income: number; expense: number }> = {};

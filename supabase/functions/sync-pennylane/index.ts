@@ -35,6 +35,20 @@ interface BankAccountsResponse {
   next_cursor: string | null
 }
 
+interface TrialBalanceItem {
+  number: string
+  formatted_number: string
+  label: string
+  debits: string
+  credits: string
+}
+
+interface TrialBalanceResponse {
+  items: TrialBalanceItem[]
+  has_more: boolean
+  next_cursor: string | null
+}
+
 interface AutomationRule {
   id: string
   condition_field: string
@@ -409,18 +423,89 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Fetch trial balance to get real bank balance (accounts starting with 512)
+    let bankBalance = 0
+    let trialBalanceFetched = false
+    
+    try {
+      const now = new Date()
+      const periodStart = '2020-01-01' // Far enough back to include all history
+      const periodEnd = now.toISOString().split('T')[0]
+      
+      const trialBalanceUrl = new URL('https://app.pennylane.com/api/external/v2/trial_balance')
+      trialBalanceUrl.searchParams.set('period_start', periodStart)
+      trialBalanceUrl.searchParams.set('period_end', periodEnd)
+      trialBalanceUrl.searchParams.set('limit', '1000')
+      
+      console.log('Fetching trial balance from Pennylane...')
+      
+      const trialBalanceResponse = await fetch(trialBalanceUrl.toString(), {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${pennylaneApiKey}`,
+          'Accept': 'application/json',
+        },
+      })
+      
+      if (trialBalanceResponse.ok) {
+        const trialData: TrialBalanceResponse = await trialBalanceResponse.json()
+        console.log(`Trial balance: ${trialData.items?.length || 0} accounts found`)
+        
+        // Sum up all 512xxx accounts (bank accounts in French accounting)
+        if (trialData.items && Array.isArray(trialData.items)) {
+          for (const account of trialData.items) {
+            // Bank accounts start with 512
+            if (account.number.startsWith('512')) {
+              const debits = parseFloat(account.debits) || 0
+              const credits = parseFloat(account.credits) || 0
+              // Bank accounts are asset accounts: debits increase, credits decrease
+              const accountBalance = debits - credits
+              bankBalance += accountBalance
+              console.log(`Bank account ${account.number} (${account.label}): ${accountBalance}€`)
+            }
+          }
+        }
+        
+        trialBalanceFetched = true
+        console.log(`Total bank balance from trial balance: ${bankBalance}€`)
+        
+        // Update company with the real bank balance
+        if (companyId) {
+          const { error: updateBalanceError } = await supabaseAdmin
+            .from('companies')
+            .update({ 
+              bank_balance: bankBalance,
+              bank_balance_updated_at: new Date().toISOString()
+            })
+            .eq('id', companyId)
+          
+          if (updateBalanceError) {
+            console.error('Error updating bank balance:', updateBalanceError)
+          } else {
+            console.log('Bank balance updated successfully')
+          }
+        }
+      } else {
+        console.warn('Failed to fetch trial balance:', await trialBalanceResponse.text())
+      }
+    } catch (trialError) {
+      console.error('Error fetching trial balance:', trialError)
+    }
+
     const companyLabel = companyName ? ` (${companyName})` : ''
     console.log(`Sync complete${companyLabel}: ${syncedCount} new, ${skippedCount} skipped, ${automatedCount} auto-categorized, ${updatedBankCount} bank info updated`)
 
     const bankMessage = updatedBankCount > 0 ? `, ${updatedBankCount} banques ajoutées` : ''
+    const balanceMessage = trialBalanceFetched ? `, solde bancaire: ${bankBalance.toLocaleString('fr-FR')}€` : ''
     return new Response(
       JSON.stringify({
         success: true,
-        message: `Synchronisation terminée${companyLabel}: ${syncedCount} nouvelles transactions importées (${automatedCount} catégorisées automatiquement), ${skippedCount} déjà existantes${bankMessage}.`,
+        message: `Synchronisation terminée${companyLabel}: ${syncedCount} nouvelles transactions importées (${automatedCount} catégorisées automatiquement), ${skippedCount} déjà existantes${bankMessage}${balanceMessage}.`,
         synced: syncedCount,
         skipped: skippedCount,
         automated: automatedCount,
         updatedBank: updatedBankCount,
+        bankBalance: trialBalanceFetched ? bankBalance : null,
         total: allTransactions.length
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
