@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -19,7 +18,7 @@ interface Transaction {
   type: 'income' | 'expense';
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -42,6 +41,10 @@ serve(async (req) => {
       });
     }
 
+    // Limiter à 50 transactions à la fois pour éviter les timeouts
+    const limitedIds = transactionIds.slice(0, 50);
+    console.log(`Processing ${limitedIds.length} transactions out of ${transactionIds.length}`);
+
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
       console.error("LOVABLE_API_KEY is not configured");
@@ -55,16 +58,23 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Fetch transactions to categorize
-    const { data: transactions, error: txError } = await supabase
+    // Fetch transactions to categorize - use filter instead of .in() for large arrays
+    let txQuery = supabase
       .from('transactions')
       .select('id, description, amount, type')
-      .in('id', transactionIds)
-      .is('category_id', null);
+      .is('category_id', null)
+      .limit(50);
+
+    // Filter by company if provided
+    if (companyId) {
+      txQuery = txQuery.eq('company_id', companyId);
+    }
+
+    const { data: transactions, error: txError } = await txQuery;
 
     if (txError) {
       console.error('Error fetching transactions:', txError);
-      throw txError;
+      throw new Error(`Erreur de récupération des transactions: ${txError.message}`);
     }
 
     if (!transactions || transactions.length === 0) {
