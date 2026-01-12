@@ -5,7 +5,8 @@ import { useCategories } from '@/hooks/useCategories';
 import { useForecasts } from '@/hooks/useForecasts';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { Loader2, Copy, Check } from 'lucide-react';
+import { Loader2, Copy, Check, TrendingUp } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
   Popover,
@@ -27,7 +28,9 @@ export function ForecastTable() {
   const [editingCell, setEditingCell] = useState<string | null>(null);
   const [editValue, setEditValue] = useState<string>('');
   const [showCopyOption, setShowCopyOption] = useState(false);
-  const [pendingSave, setPendingSave] = useState<{ categoryId: string; monthIndex: number } | null>(null);
+  const [pendingSave, setPendingSave] = useState<{ categoryId: string; monthIndex: number; type: 'income' | 'expense' } | null>(null);
+  const [growthPercent, setGrowthPercent] = useState<string>('5');
+  const [showGrowthInput, setShowGrowthInput] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const isLoading = categoriesLoading || forecastsLoading;
@@ -57,11 +60,11 @@ export function ForecastTable() {
     setPendingSave(null);
   };
 
-  const handleSave = async (categoryId: string, monthIndex: number, copyToFollowing: boolean = false) => {
+  const handleSave = async (categoryId: string, monthIndex: number, mode: 'single' | 'copy' | 'growth' = 'single') => {
     const value = parseFloat(editValue) || 0;
     
-    if (copyToFollowing) {
-      // Save to current month and all following months
+    if (mode === 'copy') {
+      // Save to current month and all following months with same value
       const promises = [];
       for (let i = monthIndex; i < months.length; i++) {
         promises.push(upsertForecast.mutateAsync({
@@ -69,6 +72,20 @@ export function ForecastTable() {
           month: months[i],
           expectedAmount: value,
         }));
+      }
+      await Promise.all(promises);
+    } else if (mode === 'growth') {
+      // Save with progressive growth
+      const growth = parseFloat(growthPercent) || 0;
+      const promises = [];
+      let currentValue = value;
+      for (let i = monthIndex; i < months.length; i++) {
+        promises.push(upsertForecast.mutateAsync({
+          categoryId,
+          month: months[i],
+          expectedAmount: Math.round(currentValue),
+        }));
+        currentValue = currentValue * (1 + growth / 100);
       }
       await Promise.all(promises);
     } else {
@@ -83,31 +100,35 @@ export function ForecastTable() {
     setEditingCell(null);
     setShowCopyOption(false);
     setPendingSave(null);
+    setShowGrowthInput(false);
   };
 
-  const handleInputBlur = (categoryId: string, monthIndex: number) => {
+  const handleInputBlur = (categoryId: string, monthIndex: number, type: 'income' | 'expense') => {
     // Only show copy option if there are following months
     if (monthIndex < months.length - 1) {
-      setPendingSave({ categoryId, monthIndex });
+      setPendingSave({ categoryId, monthIndex, type });
       setShowCopyOption(true);
+      setShowGrowthInput(false);
     } else {
-      handleSave(categoryId, monthIndex, false);
+      handleSave(categoryId, monthIndex, 'single');
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent, categoryId: string, monthIndex: number) => {
+  const handleKeyDown = (e: React.KeyboardEvent, categoryId: string, monthIndex: number, type: 'income' | 'expense') => {
     if (e.key === 'Enter') {
       e.preventDefault();
       if (monthIndex < months.length - 1) {
-        setPendingSave({ categoryId, monthIndex });
+        setPendingSave({ categoryId, monthIndex, type });
         setShowCopyOption(true);
+        setShowGrowthInput(false);
       } else {
-        handleSave(categoryId, monthIndex, false);
+        handleSave(categoryId, monthIndex, 'single');
       }
     } else if (e.key === 'Escape') {
       setEditingCell(null);
       setShowCopyOption(false);
       setPendingSave(null);
+      setShowGrowthInput(false);
     }
   };
 
@@ -142,6 +163,7 @@ export function ForecastTable() {
     const actual = getActual(categoryId, months[monthIndex]);
     const isEditing = editingCell === cellKey;
     const showingCopyForThis = showCopyOption && pendingSave?.categoryId === categoryId && pendingSave?.monthIndex === monthIndex;
+    const isIncomeCategory = pendingSave?.type === 'income';
     
     // Color logic: green if actual >= forecast (for income) or actual <= forecast (for expense)
     const hasActual = actual !== 0;
@@ -164,7 +186,7 @@ export function ForecastTable() {
           <Popover open={showingCopyForThis} onOpenChange={(open) => {
             if (!open && showingCopyForThis) {
               // User clicked outside, save without copying
-              handleSave(categoryId, monthIndex, false);
+              handleSave(categoryId, monthIndex, 'single');
             }
           }}>
             <PopoverTrigger asChild>
@@ -178,8 +200,8 @@ export function ForecastTable() {
                     type="number"
                     value={editValue}
                     onChange={(e) => setEditValue(e.target.value)}
-                    onBlur={() => handleInputBlur(categoryId, monthIndex)}
-                    onKeyDown={(e) => handleKeyDown(e, categoryId, monthIndex)}
+                    onBlur={() => handleInputBlur(categoryId, monthIndex, type)}
+                    onKeyDown={(e) => handleKeyDown(e, categoryId, monthIndex, type)}
                     className="w-full bg-background border border-primary rounded px-2 py-0.5 text-right text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                   />
                 ) : (
@@ -192,13 +214,13 @@ export function ForecastTable() {
                 )}
               </div>
             </PopoverTrigger>
-            <PopoverContent className="w-auto p-2" side="bottom" align="end">
+            <PopoverContent className="w-64 p-2" side="bottom" align="end">
               <div className="flex flex-col gap-1">
                 <Button
                   variant="ghost"
                   size="sm"
                   className="justify-start gap-2"
-                  onClick={() => handleSave(categoryId, monthIndex, false)}
+                  onClick={() => handleSave(categoryId, monthIndex, 'single')}
                 >
                   <Check className="w-4 h-4" />
                   Ce mois uniquement
@@ -207,11 +229,46 @@ export function ForecastTable() {
                   variant="ghost"
                   size="sm"
                   className="justify-start gap-2 text-primary"
-                  onClick={() => handleSave(categoryId, monthIndex, true)}
+                  onClick={() => handleSave(categoryId, monthIndex, 'copy')}
                 >
                   <Copy className="w-4 h-4" />
                   Copier sur les mois suivants
                 </Button>
+                {isIncomeCategory && (
+                  <>
+                    {!showGrowthInput ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="justify-start gap-2 text-success"
+                        onClick={() => setShowGrowthInput(true)}
+                      >
+                        <TrendingUp className="w-4 h-4" />
+                        Copier + augmenter par mois
+                      </Button>
+                    ) : (
+                      <div className="flex items-center gap-2 px-2 py-1.5">
+                        <TrendingUp className="w-4 h-4 text-success flex-shrink-0" />
+                        <span className="text-sm text-muted-foreground">+</span>
+                        <Input
+                          type="number"
+                          value={growthPercent}
+                          onChange={(e) => setGrowthPercent(e.target.value)}
+                          className="w-16 h-7 text-sm text-center"
+                          autoFocus
+                        />
+                        <span className="text-sm text-muted-foreground">% / mois</span>
+                        <Button
+                          size="sm"
+                          className="h-7 px-2"
+                          onClick={() => handleSave(categoryId, monthIndex, 'growth')}
+                        >
+                          OK
+                        </Button>
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             </PopoverContent>
           </Popover>
