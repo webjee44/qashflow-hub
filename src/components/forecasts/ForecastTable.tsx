@@ -1,11 +1,11 @@
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
-import { useState, useRef, useEffect, useCallback } from 'react';
-import { useCategories } from '@/hooks/useCategories';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useCategories, CategoryGroup } from '@/hooks/useCategories';
 import { useForecasts } from '@/hooks/useForecasts';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { Loader2, Copy, Check, TrendingUp } from 'lucide-react';
+import { Loader2, Copy, Check, TrendingUp, ChevronRight, ChevronDown } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
@@ -15,8 +15,10 @@ import {
 } from '@/components/ui/popover';
 import { ForecastChart } from './ForecastChart';
 
+const COLLAPSED_GROUPS_KEY = 'forecast-collapsed-groups';
+
 export function ForecastTable() {
-  const { categories, loading: categoriesLoading } = useCategories();
+  const { categories, loading: categoriesLoading, getGroupedCategories } = useCategories();
   const { 
     months, 
     getForecast, 
@@ -33,10 +35,41 @@ export function ForecastTable() {
   const [growthPercent, setGrowthPercent] = useState<string>('5');
   const [showGrowthInput, setShowGrowthInput] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  
+  // Collapsed groups state with localStorage persistence
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem(COLLAPSED_GROUPS_KEY);
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
+
+  // Save collapsed state to localStorage
+  useEffect(() => {
+    localStorage.setItem(COLLAPSED_GROUPS_KEY, JSON.stringify([...collapsedGroups]));
+  }, [collapsedGroups]);
+
+  const toggleGroup = (groupId: string) => {
+    setCollapsedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(groupId)) {
+        next.delete(groupId);
+      } else {
+        next.add(groupId);
+      }
+      return next;
+    });
+  };
 
   const isLoading = categoriesLoading || forecastsLoading;
 
-  // Separate categories by type
+  // Get grouped categories
+  const incomeGroups = useMemo(() => getGroupedCategories('income'), [categories]);
+  const expenseGroups = useMemo(() => getGroupedCategories('expense'), [categories]);
+
+  // Separate categories by type (for backward compatibility)
   const incomeCategories = categories.filter(c => c.type === 'income');
   const expenseCategories = categories.filter(c => c.type === 'expense');
 
@@ -276,6 +309,130 @@ export function ForecastTable() {
         </div>
       </td>
     );
+  };
+
+  // Calculate group total
+  const getGroupTotal = useCallback((group: CategoryGroup, monthIndex: number, valueType: 'forecast' | 'actual') => {
+    return group.children.reduce((sum, cat) => {
+      const value = valueType === 'forecast' 
+        ? getForecast(cat.id, months[monthIndex])
+        : getActual(cat.id, months[monthIndex]);
+      return sum + Math.abs(value);
+    }, 0);
+  }, [getForecast, getActual, months]);
+
+  const renderGroupRow = (group: CategoryGroup, type: 'income' | 'expense') => {
+    if (!group.group) return null; // Don't render header for ungrouped categories
+    
+    const groupId = group.group.id;
+    const isCollapsed = collapsedGroups.has(groupId);
+    const textClass = type === 'income' ? 'text-success' : 'text-destructive';
+    
+    return (
+      <tr 
+        key={`group-${groupId}`}
+        className="bg-muted/40 cursor-pointer hover:bg-muted/60 transition-colors border-b border-border"
+        onClick={() => toggleGroup(groupId)}
+      >
+        <td className="p-3 sticky left-0 z-10 bg-muted/40 border-r border-border">
+          <div className="flex items-center gap-2 font-semibold">
+            {isCollapsed ? (
+              <ChevronRight className="w-4 h-4 text-muted-foreground" />
+            ) : (
+              <ChevronDown className="w-4 h-4 text-muted-foreground" />
+            )}
+            <div 
+              className="w-3 h-3 rounded-full" 
+              style={{ backgroundColor: group.group.color }}
+            />
+            <span className={cn("text-foreground", textClass)}>{group.group.name}</span>
+            <span className="text-xs text-muted-foreground">
+              ({group.children.length})
+            </span>
+          </div>
+        </td>
+        {months.map((_, monthIndex) => {
+          const forecastTotal = getGroupTotal(group, monthIndex, 'forecast');
+          const actualTotal = getGroupTotal(group, monthIndex, 'actual');
+          
+          return (
+            <td key={monthIndex} className="p-0 border-r border-border">
+              <div className="flex">
+                <div className={cn("flex-1 px-3 py-2 text-right border-r border-border/50 font-medium", textClass)}>
+                  {actualTotal > 0 ? formatValue(actualTotal) : '—'}
+                </div>
+                <div className={cn("flex-1 px-3 py-2 text-right font-medium", textClass)}>
+                  {forecastTotal > 0 ? formatValue(forecastTotal) : '—'}
+                </div>
+              </div>
+            </td>
+          );
+        })}
+      </tr>
+    );
+  };
+
+  const renderCategoryRow = (category: typeof categories[0], index: number, type: 'income' | 'expense', isChild: boolean = false) => {
+    return (
+      <motion.tr
+        key={category.id}
+        initial={{ opacity: 0, x: -20 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, height: 0 }}
+        transition={{ delay: 0.03 * index }}
+        className="border-b border-border hover:bg-muted/20 transition-colors"
+      >
+        <td className={cn(
+          "p-3 sticky left-0 z-10 bg-card border-r border-border",
+          isChild && "pl-8"
+        )}>
+          <div className="flex items-center gap-2">
+            <div 
+              className="w-3 h-3 rounded-full" 
+              style={{ backgroundColor: category.color }}
+            />
+            <span className="font-medium text-foreground">{category.name}</span>
+            {category.vat_rate > 0 && (
+              <span className="text-xs text-muted-foreground">
+                ({(category.vat_rate * 100).toFixed(0)}%)
+              </span>
+            )}
+          </div>
+        </td>
+        {months.map((_, monthIndex) => renderCell(category.id, monthIndex, type))}
+      </motion.tr>
+    );
+  };
+
+  const renderGroupedSection = (groups: CategoryGroup[], type: 'income' | 'expense', startIndex: number) => {
+    let currentIndex = startIndex;
+    
+    return groups.map((group) => {
+      const groupId = group.group?.id || 'ungrouped';
+      const isCollapsed = group.group ? collapsedGroups.has(groupId) : false;
+      
+      const elements = [];
+      
+      // Render group header if it exists
+      if (group.group) {
+        elements.push(renderGroupRow(group, type));
+      }
+      
+      // Render children if not collapsed (or if no group header)
+      if (!isCollapsed) {
+        elements.push(
+          <AnimatePresence key={`children-${groupId}`}>
+            {group.children.map((category) => {
+              const row = renderCategoryRow(category, currentIndex, type, !!group.group);
+              currentIndex++;
+              return row;
+            })}
+          </AnimatePresence>
+        );
+      }
+      
+      return elements;
+    });
   };
 
   const renderTotalRow = (label: string, type: 'income' | 'expense', variant: 'subtotal' | 'total' = 'subtotal') => {
@@ -536,31 +693,7 @@ export function ForecastTable() {
                 📈 Encaissements (HT)
               </td>
             </tr>
-            {incomeCategories.map((category, index) => (
-              <motion.tr
-                key={category.id}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.03 * index }}
-                className="border-b border-border hover:bg-muted/20 transition-colors"
-              >
-                <td className="p-3 sticky left-0 z-10 bg-card border-r border-border">
-                  <div className="flex items-center gap-2">
-                    <div 
-                      className="w-3 h-3 rounded-full" 
-                      style={{ backgroundColor: category.color }}
-                    />
-                    <span className="font-medium text-foreground">{category.name}</span>
-                    {category.vat_rate > 0 && (
-                      <span className="text-xs text-muted-foreground">
-                        ({(category.vat_rate * 100).toFixed(0)}%)
-                      </span>
-                    )}
-                  </div>
-                </td>
-                {months.map((_, monthIndex) => renderCell(category.id, monthIndex, 'income'))}
-              </motion.tr>
-            ))}
+            {renderGroupedSection(incomeGroups, 'income', 0)}
             {renderTotalRow('Total Encaissements HT', 'income')}
             {renderVatRow('TVA collectée', 'income')}
             {renderTtcRow('Total Encaissements TTC', 'income')}
@@ -571,31 +704,7 @@ export function ForecastTable() {
                 📉 Décaissements (HT)
               </td>
             </tr>
-            {expenseCategories.map((category, index) => (
-              <motion.tr
-                key={category.id}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.03 * (index + incomeCategories.length) }}
-                className="border-b border-border hover:bg-muted/20 transition-colors"
-              >
-                <td className="p-3 sticky left-0 z-10 bg-card border-r border-border">
-                  <div className="flex items-center gap-2">
-                    <div 
-                      className="w-3 h-3 rounded-full" 
-                      style={{ backgroundColor: category.color }}
-                    />
-                    <span className="font-medium text-foreground">{category.name}</span>
-                    {category.vat_rate > 0 && (
-                      <span className="text-xs text-muted-foreground">
-                        ({(category.vat_rate * 100).toFixed(0)}%)
-                      </span>
-                    )}
-                  </div>
-                </td>
-                {months.map((_, monthIndex) => renderCell(category.id, monthIndex, 'expense'))}
-              </motion.tr>
-            ))}
+            {renderGroupedSection(expenseGroups, 'expense', incomeCategories.length)}
             {renderTotalRow('Total Décaissements HT', 'expense')}
             {renderVatRow('TVA déductible', 'expense')}
             {renderTtcRow('Total Décaissements TTC', 'expense')}

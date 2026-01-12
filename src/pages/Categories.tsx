@@ -16,6 +16,7 @@ import {
 
 export default function Categories() {
   const { 
+    categories,
     incomeCategories, 
     expenseCategories, 
     loading, 
@@ -38,12 +39,16 @@ export default function Categories() {
     color: string;
     icon: string;
     type: 'income' | 'expense';
+    parent_id?: string | null;
   }) => {
     if (editingCategory) {
       return await updateCategory(editingCategory.id, data);
     }
     return null;
   };
+
+  // Get potential parent categories (categories that could be groups)
+  const availableParents = categories.filter(c => !c.parent_id);
 
   const totalCategories = incomeCategories.length + expenseCategories.length;
 
@@ -137,6 +142,7 @@ export default function Categories() {
             </Button>
             <CategoryDialog
               onSave={createCategory}
+              availableParents={availableParents}
               trigger={
                 <Button className="gradient-primary">
                   <Plus className="w-4 h-4 mr-2" />
@@ -174,6 +180,7 @@ export default function Categories() {
         >
           <CategoryDialog
             onSave={createCategory}
+            availableParents={availableParents}
             trigger={
               <Button className="gradient-primary">
                 <Plus className="w-4 h-4 mr-2" />
@@ -191,6 +198,7 @@ export default function Categories() {
         onOpenChange={setEditDialogOpen}
         onSave={handleSaveEdit}
         onClose={() => setEditingCategory(null)}
+        availableParents={availableParents.filter(p => p.id !== editingCategory?.id)}
       />
     </div>
   );
