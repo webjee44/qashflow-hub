@@ -52,20 +52,36 @@ export function SuggestAutomationDialog({
   const [suggestion, setSuggestion] = useState<SuggestionResult | null>(null);
   const [similarTransactions, setSimilarTransactions] = useState<Transaction[]>([]);
 
-  // Extraction locale de pattern (instantanée)
+  // Calculate word frequency to detect recurring patterns (like company name)
+  const getWordFrequency = () => {
+    const wordFrequency = new Map<string, number>();
+    allTransactions.forEach(t => {
+      const words = t.description.toUpperCase().split(/\s+/);
+      new Set(words).forEach(w => {
+        if (w.length > 2) {
+          wordFrequency.set(w, (wordFrequency.get(w) || 0) + 1);
+        }
+      });
+    });
+    return wordFrequency;
+  };
+
+  // Extract pattern locally, excluding words that appear too frequently (like company name)
   const extractLocalPattern = (description: string): SuggestionResult => {
-    // Nettoyer la description
     const cleaned = description.toUpperCase();
+    const wordFrequency = getWordFrequency();
     
-    // Patterns connus de fournisseurs (premier mot significatif)
+    // If a word appears in more than 30% of transactions, it's probably the account holder's name
+    const threshold = Math.max(2, allTransactions.length * 0.3);
+    
     const words = cleaned.split(/\s+/).filter(w => 
       w.length > 2 && 
-      !/^\d+$/.test(w) && // Ignorer les nombres purs
-      !/^(CARTE|PAIEMENT|VIR|SEPA|PRLV|CB|PP\d+|FA\d+|MCC|EUR|USD)$/i.test(w) // Ignorer les mots bancaires
+      !/^\d+$/.test(w) &&
+      !/^(CARTE|PAIEMENT|VIR|SEPA|PRLV|CB|PP\d*|FA\d*|F\d+|MCC|EUR|USD|INTERNET|\d{6,})$/i.test(w) &&
+      (wordFrequency.get(w) || 0) < threshold
     );
     
-    // Prendre le premier mot significatif comme pattern
-    const pattern = words[0] || description.slice(0, 8).trim();
+    const pattern = words[0] || description.split(/\s+/)[0]?.slice(0, 10) || description.slice(0, 8).trim();
     
     return {
       pattern,
@@ -74,24 +90,24 @@ export function SuggestAutomationDialog({
     };
   };
 
-  // Trouver les transactions similaires
+  // Find similar uncategorized transactions
   const findSimilarTransactions = (pattern: string) => {
     if (!transaction || !pattern) return [];
     return allTransactions.filter(t => 
       t.id !== transaction.id && 
       !t.category_id &&
-      t.description.toLowerCase().includes(pattern.toLowerCase())
+      t.description.toUpperCase().includes(pattern.toUpperCase())
     ).slice(0, 5);
   };
 
   useEffect(() => {
     if (open && transaction && category) {
-      // 1. Pattern local immédiat
+      // 1. Pattern local immédiat avec exclusion des mots fréquents
       const localSuggestion = extractLocalPattern(transaction.description);
       setSuggestion(localSuggestion);
       setSimilarTransactions(findSimilarTransactions(localSuggestion.pattern));
       
-      // 2. Raffinement IA en arrière-plan (optionnel)
+      // 2. Raffinement IA en arrière-plan
       refineWithAI(transaction.description, localSuggestion);
     } else {
       setSuggestion(null);
@@ -106,6 +122,12 @@ export function SuggestAutomationDialog({
 
       setLoading(true);
       
+      // Send sample transactions for context to detect recurring patterns
+      const sampleDescriptions = allTransactions
+        .filter(t => t.id !== transaction?.id)
+        .slice(0, 15)
+        .map(t => t.description);
+      
       const { data, error } = await supabase.functions.invoke('suggest-automation', {
         headers: {
           Authorization: `Bearer ${session.access_token}`,
@@ -113,6 +135,7 @@ export function SuggestAutomationDialog({
         body: {
           description,
           categoryName: category?.name,
+          sampleTransactions: sampleDescriptions,
         },
       });
 
