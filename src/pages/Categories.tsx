@@ -93,10 +93,35 @@ export default function Categories() {
 
   return (
     <div className="space-y-8">
-      <Header 
-        title="Catégories" 
-        subtitle="Gérez vos catégories pour la classification automatique par IA" 
-      />
+      <div className="flex items-start justify-between gap-4">
+        <Header 
+          title="Catégories" 
+          subtitle="Gérez vos catégories pour la classification automatique par IA" 
+        />
+        {totalCategories > 0 && (
+          <div className="flex gap-3 flex-shrink-0">
+            <GroupDialog
+              categories={categories}
+              onSave={handleSaveGroup}
+              trigger={
+                <Button variant="outline">
+                  <FolderPlus className="w-4 h-4 mr-2" />
+                  Ajouter un groupe
+                </Button>
+              }
+            />
+            <CategoryDialog
+              onSave={createCategory}
+              trigger={
+                <Button className="gradient-primary">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Ajouter une catégorie
+                </Button>
+              }
+            />
+          </div>
+        )}
+      </div>
 
       {/* AI Info Banner */}
       <motion.div
@@ -204,35 +229,6 @@ export default function Categories() {
         />
       </div>
 
-      {/* Action Buttons */}
-      {totalCategories > 0 && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.3 }}
-          className="flex justify-center gap-3"
-        >
-          <GroupDialog
-            categories={categories}
-            onSave={handleSaveGroup}
-            trigger={
-              <Button variant="outline">
-                <FolderPlus className="w-4 h-4 mr-2" />
-                Ajouter un groupe
-              </Button>
-            }
-          />
-          <CategoryDialog
-            onSave={createCategory}
-            trigger={
-              <Button className="gradient-primary">
-                <Plus className="w-4 h-4 mr-2" />
-                Ajouter une catégorie
-              </Button>
-            }
-          />
-        </motion.div>
-      )}
 
       {/* Edit Category Dialog */}
       <CategoryDialog
