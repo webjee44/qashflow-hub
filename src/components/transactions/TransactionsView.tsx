@@ -82,6 +82,15 @@ export function TransactionsView() {
   }, []);
 
   const syncPennylane = async () => {
+    if (!currentCompany) {
+      toast({
+        title: 'Aucune société sélectionnée',
+        description: 'Veuillez sélectionner ou créer une société dans les paramètres',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setSyncing(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -98,6 +107,9 @@ export function TransactionsView() {
       const { data, error } = await supabase.functions.invoke('sync-pennylane', {
         headers: {
           Authorization: `Bearer ${session.access_token}`,
+        },
+        body: {
+          company_id: currentCompany.id,
         },
       });
 
