@@ -22,10 +22,11 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { useCompany, Company } from '@/hooks/useCompany';
-import { Building2, Key, ShieldCheck } from 'lucide-react';
+import { Building2, Key, ShieldCheck, Wallet } from 'lucide-react';
 
 const formSchema = z.object({
   name: z.string().min(1, 'Le nom est requis'),
+  initial_balance: z.coerce.number().default(0),
   pennylane_api_key: z.string().optional(),
   is_default: z.boolean().default(false),
 });
@@ -47,6 +48,7 @@ export function CompanyDialog({ open, onOpenChange, company }: CompanyDialogProp
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: '',
+      initial_balance: 0,
       pennylane_api_key: '',
       is_default: false,
     },
@@ -56,6 +58,7 @@ export function CompanyDialog({ open, onOpenChange, company }: CompanyDialogProp
     if (company) {
       form.reset({
         name: company.name,
+        initial_balance: company.initial_balance || 0,
         pennylane_api_key: '', // Never show existing key for security
         is_default: company.is_default,
       });
@@ -63,6 +66,7 @@ export function CompanyDialog({ open, onOpenChange, company }: CompanyDialogProp
     } else {
       form.reset({
         name: '',
+        initial_balance: 0,
         pennylane_api_key: '',
         is_default: false,
       });
@@ -74,9 +78,10 @@ export function CompanyDialog({ open, onOpenChange, company }: CompanyDialogProp
     try {
       if (isEditing) {
         // Only include API key if user wants to update it
-        const updateData: { name: string; is_default: boolean; pennylane_api_key?: string } = {
+        const updateData: { name: string; is_default: boolean; initial_balance: number; pennylane_api_key?: string } = {
           name: values.name,
           is_default: values.is_default,
+          initial_balance: values.initial_balance,
         };
         
         if (showApiKeyInput && values.pennylane_api_key) {
@@ -87,6 +92,7 @@ export function CompanyDialog({ open, onOpenChange, company }: CompanyDialogProp
       } else {
         await createCompany({
           name: values.name,
+          initial_balance: values.initial_balance,
           pennylane_api_key: values.pennylane_api_key,
           is_default: values.is_default,
         });
@@ -124,6 +130,31 @@ export function CompanyDialog({ open, onOpenChange, company }: CompanyDialogProp
                   <FormControl>
                     <Input placeholder="Ma Société" {...field} />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="initial_balance"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="flex items-center gap-2">
+                    <Wallet className="w-4 h-4" />
+                    Solde initial
+                  </FormLabel>
+                  <FormControl>
+                    <Input 
+                      type="number" 
+                      step="0.01"
+                      placeholder="0.00" 
+                      {...field} 
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    Solde de départ de vos comptes bancaires
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}

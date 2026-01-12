@@ -176,6 +176,7 @@ export type Database = {
         Row: {
           created_at: string | null
           id: string
+          initial_balance: number
           is_default: boolean | null
           name: string
           updated_at: string | null
@@ -184,6 +185,7 @@ export type Database = {
         Insert: {
           created_at?: string | null
           id?: string
+          initial_balance?: number
           is_default?: boolean | null
           name: string
           updated_at?: string | null
@@ -192,6 +194,7 @@ export type Database = {
         Update: {
           created_at?: string | null
           id?: string
+          initial_balance?: number
           is_default?: boolean | null
           name?: string
           updated_at?: string | null
