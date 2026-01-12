@@ -10,6 +10,8 @@ export interface Company {
   name: string;
   is_default: boolean;
   initial_balance: number;
+  bank_balance: number | null;
+  bank_balance_updated_at: string | null;
   created_at: string;
   updated_at: string;
   has_pennylane_key?: boolean; // Computed from company_has_secret function
