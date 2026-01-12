@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
+import { useCompany } from './useCompany';
 import { toast } from 'sonner';
 
 export interface AutomationRule {
@@ -16,6 +17,7 @@ export interface AutomationRule {
   created_at: string;
   updated_at: string;
   user_id: string;
+  company_id?: string | null;
   category?: {
     id: string;
     name: string;
@@ -33,6 +35,7 @@ export interface Category {
 
 export function useAutomationRules() {
   const { user } = useAuth();
+  const { currentCompany } = useCompany();
   const [rules, setRules] = useState<AutomationRule[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,7 +49,7 @@ export function useAutomationRules() {
     if (!user) return;
     
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('automation_rules')
         .select(`
           *,
@@ -54,6 +57,13 @@ export function useAutomationRules() {
         `)
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
+
+      // Filter by company if one is selected
+      if (currentCompany) {
+        query = query.or(`company_id.eq.${currentCompany.id},company_id.is.null`);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       setRules(data || []);
@@ -71,10 +81,17 @@ export function useAutomationRules() {
     if (!user) return;
     
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('categories')
         .select('*')
         .eq('user_id', user.id);
+
+      // Filter by company if one is selected
+      if (currentCompany) {
+        query = query.or(`company_id.eq.${currentCompany.id},company_id.is.null`);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       setCategories(data || []);
@@ -93,12 +110,12 @@ export function useAutomationRules() {
     if (user) {
       loadData();
     }
-  }, [user]);
+  }, [user, currentCompany]);
 
   const applyRuleToExistingTransactions = async (ruleId: string) => {
     try {
       const { data, error } = await supabase.functions.invoke('apply-automation-rule', {
-        body: { rule_id: ruleId }
+        body: { rule_id: ruleId, company_id: currentCompany?.id }
       });
 
       if (error) {
@@ -129,6 +146,7 @@ export function useAutomationRules() {
         .insert({
           ...rule,
           user_id: user.id,
+          company_id: currentCompany?.id || null,
           is_active: true,
           match_count: 0
         })

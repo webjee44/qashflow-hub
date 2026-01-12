@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
+import { useCompany } from './useCompany';
 import { toast } from 'sonner';
 
 export interface Category {
@@ -12,6 +13,7 @@ export interface Category {
   created_at: string;
   updated_at: string;
   user_id: string;
+  company_id?: string | null;
 }
 
 const defaultCategories = [
@@ -27,6 +29,7 @@ const defaultCategories = [
 
 export function useCategories() {
   const { user } = useAuth();
+  const { currentCompany } = useCompany();
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -34,12 +37,19 @@ export function useCategories() {
     if (!user) return;
     
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('categories')
         .select('*')
         .eq('user_id', user.id)
         .order('type', { ascending: true })
         .order('name', { ascending: true });
+
+      // Filter by company if one is selected
+      if (currentCompany) {
+        query = query.or(`company_id.eq.${currentCompany.id},company_id.is.null`);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       setCategories(data || []);
@@ -65,7 +75,8 @@ export function useCategories() {
 
       const categoriesToInsert = defaultCategories.map(cat => ({
         ...cat,
-        user_id: user.id
+        user_id: user.id,
+        company_id: currentCompany?.id || null
       }));
 
       const { error } = await supabase
@@ -85,7 +96,7 @@ export function useCategories() {
     if (user) {
       fetchCategories();
     }
-  }, [user]);
+  }, [user, currentCompany]);
 
   const createCategory = async (category: {
     name: string;
@@ -100,7 +111,8 @@ export function useCategories() {
         .from('categories')
         .insert({
           ...category,
-          user_id: user.id
+          user_id: user.id,
+          company_id: currentCompany?.id || null
         })
         .select()
         .single();

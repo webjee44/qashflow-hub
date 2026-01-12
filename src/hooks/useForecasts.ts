@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
+import { useCompany } from './useCompany';
 import { toast } from 'sonner';
 import { addMonths, startOfMonth, format } from 'date-fns';
 
@@ -13,6 +14,7 @@ export interface CategoryForecast {
   notes: string | null;
   created_at: string;
   updated_at: string;
+  company_id?: string | null;
 }
 
 export interface ForecastWithActual extends CategoryForecast {
@@ -21,6 +23,7 @@ export interface ForecastWithActual extends CategoryForecast {
 
 export function useForecasts() {
   const { user } = useAuth();
+  const { currentCompany } = useCompany();
   const queryClient = useQueryClient();
 
   // Get the next 6 months starting from current month
@@ -37,19 +40,26 @@ export function useForecasts() {
 
   // Fetch category forecasts
   const { data: forecasts = [], isLoading: forecastsLoading } = useQuery({
-    queryKey: ['category-forecasts', user?.id],
+    queryKey: ['category-forecasts', user?.id, currentCompany?.id],
     queryFn: async () => {
       if (!user?.id) return [];
       
       const startMonth = format(months[0], 'yyyy-MM-01');
       const endMonth = format(months[months.length - 1], 'yyyy-MM-01');
       
-      const { data, error } = await supabase
+      let query = supabase
         .from('category_forecasts')
         .select('*')
         .gte('month', startMonth)
         .lte('month', endMonth)
         .order('month');
+
+      // Filter by company if one is selected
+      if (currentCompany) {
+        query = query.or(`company_id.eq.${currentCompany.id},company_id.is.null`);
+      }
+      
+      const { data, error } = await query;
       
       if (error) throw error;
       return data as CategoryForecast[];
@@ -59,18 +69,25 @@ export function useForecasts() {
 
   // Fetch actual amounts from transactions grouped by category and month
   const { data: actuals = [], isLoading: actualsLoading } = useQuery({
-    queryKey: ['category-actuals', user?.id],
+    queryKey: ['category-actuals', user?.id, currentCompany?.id],
     queryFn: async () => {
       if (!user?.id) return [];
       
       const startMonth = format(months[0], 'yyyy-MM-01');
       const endMonth = format(addMonths(months[months.length - 1], 1), 'yyyy-MM-01');
       
-      const { data, error } = await supabase
+      let query = supabase
         .from('transactions')
         .select('category_id, amount, date, type')
         .gte('date', startMonth)
         .lt('date', endMonth);
+
+      // Filter by company if one is selected
+      if (currentCompany) {
+        query = query.or(`company_id.eq.${currentCompany.id},company_id.is.null`);
+      }
+      
+      const { data, error } = await query;
       
       if (error) throw error;
       
@@ -118,6 +135,7 @@ export function useForecasts() {
           category_id: categoryId,
           month: monthStr,
           expected_amount: expectedAmount,
+          company_id: currentCompany?.id || null,
         }, {
           onConflict: 'user_id,category_id,month',
         })

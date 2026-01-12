@@ -17,6 +17,7 @@ export type Database = {
       automation_rules: {
         Row: {
           action_type: string
+          company_id: string | null
           condition_field: string
           condition_operator: string
           condition_value: string
@@ -31,6 +32,7 @@ export type Database = {
         }
         Insert: {
           action_type?: string
+          company_id?: string | null
           condition_field: string
           condition_operator: string
           condition_value: string
@@ -45,6 +47,7 @@ export type Database = {
         }
         Update: {
           action_type?: string
+          company_id?: string | null
           condition_field?: string
           condition_operator?: string
           condition_value?: string
@@ -59,6 +62,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "automation_rules_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "automation_rules_target_category_id_fkey"
             columns: ["target_category_id"]
             isOneToOne: false
@@ -70,6 +80,7 @@ export type Database = {
       categories: {
         Row: {
           color: string
+          company_id: string | null
           created_at: string
           icon: string
           id: string
@@ -80,6 +91,7 @@ export type Database = {
         }
         Insert: {
           color?: string
+          company_id?: string | null
           created_at?: string
           icon?: string
           id?: string
@@ -90,6 +102,7 @@ export type Database = {
         }
         Update: {
           color?: string
+          company_id?: string | null
           created_at?: string
           icon?: string
           id?: string
@@ -98,11 +111,20 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "categories_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       category_forecasts: {
         Row: {
           category_id: string
+          company_id: string | null
           created_at: string
           expected_amount: number
           id: string
@@ -113,6 +135,7 @@ export type Database = {
         }
         Insert: {
           category_id: string
+          company_id?: string | null
           created_at?: string
           expected_amount?: number
           id?: string
@@ -123,6 +146,7 @@ export type Database = {
         }
         Update: {
           category_id?: string
+          company_id?: string | null
           created_at?: string
           expected_amount?: number
           id?: string
@@ -139,12 +163,50 @@ export type Database = {
             referencedRelation: "categories"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "category_forecasts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
         ]
+      }
+      companies: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_default: boolean | null
+          name: string
+          pennylane_api_key: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_default?: boolean | null
+          name: string
+          pennylane_api_key?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_default?: boolean | null
+          name?: string
+          pennylane_api_key?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
       }
       forecasts: {
         Row: {
           actual_expense: number | null
           actual_income: number | null
+          company_id: string | null
           created_at: string
           expected_expense: number
           expected_income: number
@@ -157,6 +219,7 @@ export type Database = {
         Insert: {
           actual_expense?: number | null
           actual_income?: number | null
+          company_id?: string | null
           created_at?: string
           expected_expense?: number
           expected_income?: number
@@ -169,6 +232,7 @@ export type Database = {
         Update: {
           actual_expense?: number | null
           actual_income?: number | null
+          company_id?: string | null
           created_at?: string
           expected_expense?: number
           expected_income?: number
@@ -178,7 +242,15 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "forecasts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -216,6 +288,7 @@ export type Database = {
           amount: number
           bank_account_name: string | null
           category_id: string | null
+          company_id: string | null
           created_at: string
           date: string
           description: string
@@ -232,6 +305,7 @@ export type Database = {
           amount: number
           bank_account_name?: string | null
           category_id?: string | null
+          company_id?: string | null
           created_at?: string
           date: string
           description: string
@@ -248,6 +322,7 @@ export type Database = {
           amount?: number
           bank_account_name?: string | null
           category_id?: string | null
+          company_id?: string | null
           created_at?: string
           date?: string
           description?: string
@@ -265,6 +340,13 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]

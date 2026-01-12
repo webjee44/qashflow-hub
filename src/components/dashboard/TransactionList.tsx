@@ -6,26 +6,40 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Tables } from '@/integrations/supabase/types';
 import { Link } from 'react-router-dom';
+import { useCompany } from '@/hooks/useCompany';
 
 type Transaction = Tables<'transactions'>;
 type Category = Tables<'categories'>;
 
 export function TransactionList() {
+  const { currentCompany } = useCompany();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
+      setLoading(true);
+      
+      let transactionsQuery = supabase
+        .from('transactions')
+        .select('*')
+        .order('date', { ascending: false })
+        .limit(6);
+
+      let categoriesQuery = supabase
+        .from('categories')
+        .select('*');
+
+      // Filter by company if one is selected
+      if (currentCompany) {
+        transactionsQuery = transactionsQuery.or(`company_id.eq.${currentCompany.id},company_id.is.null`);
+        categoriesQuery = categoriesQuery.or(`company_id.eq.${currentCompany.id},company_id.is.null`);
+      }
+
       const [transactionsRes, categoriesRes] = await Promise.all([
-        supabase
-          .from('transactions')
-          .select('*')
-          .order('date', { ascending: false })
-          .limit(6),
-        supabase
-          .from('categories')
-          .select('*')
+        transactionsQuery,
+        categoriesQuery
       ]);
 
       if (transactionsRes.data) setTransactions(transactionsRes.data);
@@ -34,7 +48,7 @@ export function TransactionList() {
     };
 
     fetchData();
-  }, []);
+  }, [currentCompany]);
 
   const getCategoryName = (categoryId: string | null) => {
     if (!categoryId) return 'Non catégorisé';
@@ -80,7 +94,9 @@ export function TransactionList() {
       <div className="p-6 border-b border-border flex items-center justify-between">
         <div>
           <h3 className="text-lg font-semibold text-foreground">Dernières transactions</h3>
-          <p className="text-sm text-muted-foreground">Synchronisées depuis Pennylane</p>
+          <p className="text-sm text-muted-foreground">
+            {currentCompany ? currentCompany.name : 'Toutes les sociétés'}
+          </p>
         </div>
         <Link to="/transactions" className="text-sm text-primary font-medium hover:underline">
           Voir tout →
