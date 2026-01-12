@@ -79,7 +79,7 @@ export function Sidebar() {
       </div>
 
       {/* Main Navigation */}
-      <nav className="flex-1 p-4 space-y-1">
+      <nav className="flex-1 p-4 space-y-1 overflow-y-auto overflow-x-hidden">
         {navItems.map((item, index) => {
           const isActive = currentPath === item.href;
           return (
@@ -92,14 +92,14 @@ export function Sidebar() {
               <Link
                 to={item.href}
                 className={cn(
-                  "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group relative",
+                  "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group relative overflow-hidden",
                   isActive 
                     ? "bg-primary text-primary-foreground shadow-md" 
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 )}
               >
                 <item.icon size={20} className={cn(
-                  "transition-transform group-hover:scale-110",
+                  "transition-transform group-hover:scale-110 shrink-0",
                   isActive && "drop-shadow-sm"
                 )} />
                 {!isCollapsed && (
