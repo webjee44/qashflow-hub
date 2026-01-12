@@ -9,7 +9,15 @@ import { Loader2 } from 'lucide-react';
 
 export function ForecastTable() {
   const { categories, loading: categoriesLoading } = useCategories();
-  const { months, getForecast, getActual, upsertForecast, isLoading: forecastsLoading } = useForecasts();
+  const { 
+    months, 
+    getForecast, 
+    getActual, 
+    getVatForecast, 
+    getVatActual, 
+    upsertForecast, 
+    isLoading: forecastsLoading 
+  } = useForecasts();
   const [editingCell, setEditingCell] = useState<string | null>(null);
   const [editValue, setEditValue] = useState<string>('');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -64,7 +72,7 @@ export function ForecastTable() {
     }
   }, [editingCell]);
 
-  // Calculate totals for a month
+  // Calculate totals for a month (HT - before VAT)
   const getMonthTotal = (type: 'income' | 'expense', monthIndex: number, valueType: 'forecast' | 'actual') => {
     const cats = type === 'income' ? incomeCategories : expenseCategories;
     return cats.reduce((sum, cat) => {
@@ -75,12 +83,18 @@ export function ForecastTable() {
     }, 0);
   };
 
+  // Get VAT for a month
+  const getMonthVat = (type: 'income' | 'expense', monthIndex: number, valueType: 'forecast' | 'actual') => {
+    return valueType === 'forecast'
+      ? getVatForecast(type, months[monthIndex])
+      : getVatActual(type, months[monthIndex]);
+  };
+
   const renderCell = (categoryId: string, monthIndex: number, type: 'income' | 'expense') => {
     const cellKey = `${categoryId}-${monthIndex}`;
     const forecast = getForecast(categoryId, months[monthIndex]);
     const actual = getActual(categoryId, months[monthIndex]);
     const isEditing = editingCell === cellKey;
-    const isCurrentOrPast = months[monthIndex] <= new Date();
     
     // Color logic: green if actual >= forecast (for income) or actual <= forecast (for expense)
     const hasActual = actual !== 0;
@@ -158,20 +172,137 @@ export function ForecastTable() {
     );
   };
 
+  const renderVatRow = (label: string, type: 'income' | 'expense') => {
+    const textClass = type === 'income' ? 'text-success/70' : 'text-destructive/70';
+    
+    return (
+      <tr className="bg-muted/30 text-sm">
+        <td className="p-2 pl-6 sticky left-0 z-10 bg-muted/30 border-r border-border italic">
+          {label}
+        </td>
+        {months.map((_, monthIndex) => {
+          const forecastVat = getMonthVat(type, monthIndex, 'forecast');
+          const actualVat = getMonthVat(type, monthIndex, 'actual');
+          
+          return (
+            <td key={monthIndex} className="p-0 border-r border-border">
+              <div className="flex">
+                <div className={cn("flex-1 px-3 py-1.5 text-right border-r border-border/50", textClass)}>
+                  {actualVat > 0 ? formatValue(actualVat) : '—'}
+                </div>
+                <div className={cn("flex-1 px-3 py-1.5 text-right", textClass)}>
+                  {forecastVat > 0 ? formatValue(forecastVat) : '—'}
+                </div>
+              </div>
+            </td>
+          );
+        })}
+      </tr>
+    );
+  };
+
+  const renderTtcRow = (label: string, type: 'income' | 'expense') => {
+    const textClass = type === 'income' ? 'text-success' : 'text-destructive';
+    
+    return (
+      <tr className="font-bold bg-muted/60">
+        <td className={cn("p-3 sticky left-0 z-10 bg-muted/60 border-r border-border", textClass)}>
+          {label}
+        </td>
+        {months.map((_, monthIndex) => {
+          const forecastHt = getMonthTotal(type, monthIndex, 'forecast');
+          const actualHt = getMonthTotal(type, monthIndex, 'actual');
+          const forecastVat = getMonthVat(type, monthIndex, 'forecast');
+          const actualVat = getMonthVat(type, monthIndex, 'actual');
+          
+          const forecastTtc = forecastHt + forecastVat;
+          const actualTtc = actualHt + actualVat;
+          
+          return (
+            <td key={monthIndex} className="p-0 border-r border-border">
+              <div className="flex">
+                <div className={cn("flex-1 px-3 py-2 text-right border-r border-border/50", textClass)}>
+                  {actualTtc > 0 ? formatValue(actualTtc) : '—'}
+                </div>
+                <div className={cn("flex-1 px-3 py-2 text-right", textClass)}>
+                  {forecastTtc > 0 ? formatValue(forecastTtc) : '—'}
+                </div>
+              </div>
+            </td>
+          );
+        })}
+      </tr>
+    );
+  };
+
+  const renderVatToPayRow = () => {
+    return (
+      <tr className="font-semibold bg-amber-500/10">
+        <td className="p-3 sticky left-0 z-10 bg-amber-500/10 border-r border-border text-amber-700 dark:text-amber-400">
+          💰 TVA à payer
+        </td>
+        {months.map((_, monthIndex) => {
+          const incomeVatForecast = getMonthVat('income', monthIndex, 'forecast');
+          const expenseVatForecast = getMonthVat('expense', monthIndex, 'forecast');
+          const incomeVatActual = getMonthVat('income', monthIndex, 'actual');
+          const expenseVatActual = getMonthVat('expense', monthIndex, 'actual');
+          
+          const vatToPayForecast = incomeVatForecast - expenseVatForecast;
+          const vatToPayActual = incomeVatActual - expenseVatActual;
+          
+          const hasActual = incomeVatActual > 0 || expenseVatActual > 0;
+          const hasForecast = incomeVatForecast > 0 || expenseVatForecast > 0;
+          
+          return (
+            <td key={monthIndex} className="p-0 border-r border-border">
+              <div className="flex">
+                <div className={cn(
+                  "flex-1 px-3 py-2 text-right border-r border-border/50",
+                  vatToPayActual >= 0 ? "text-amber-700 dark:text-amber-400" : "text-success"
+                )}>
+                  {hasActual ? formatValue(vatToPayActual) : '—'}
+                </div>
+                <div className={cn(
+                  "flex-1 px-3 py-2 text-right",
+                  vatToPayForecast >= 0 ? "text-amber-700 dark:text-amber-400" : "text-success"
+                )}>
+                  {hasForecast ? formatValue(vatToPayForecast) : '—'}
+                </div>
+              </div>
+            </td>
+          );
+        })}
+      </tr>
+    );
+  };
+
   const renderNetRow = () => {
     return (
       <tr className="font-bold bg-card border-t-2 border-primary">
         <td className="p-3 sticky left-0 z-10 bg-card border-r border-border text-primary">
-          Solde Net
+          Solde Net TTC
         </td>
         {months.map((_, monthIndex) => {
-          const incomeActual = getMonthTotal('income', monthIndex, 'actual');
-          const expenseActual = getMonthTotal('expense', monthIndex, 'actual');
-          const incomeForecast = getMonthTotal('income', monthIndex, 'forecast');
-          const expenseForecast = getMonthTotal('expense', monthIndex, 'forecast');
+          const incomeHt = getMonthTotal('income', monthIndex, 'actual');
+          const expenseHt = getMonthTotal('expense', monthIndex, 'actual');
+          const incomeVat = getMonthVat('income', monthIndex, 'actual');
+          const expenseVat = getMonthVat('expense', monthIndex, 'actual');
           
-          const netActual = incomeActual - expenseActual;
-          const netForecast = incomeForecast - expenseForecast;
+          const incomeForecastHt = getMonthTotal('income', monthIndex, 'forecast');
+          const expenseForecastHt = getMonthTotal('expense', monthIndex, 'forecast');
+          const incomeForecastVat = getMonthVat('income', monthIndex, 'forecast');
+          const expenseForecastVat = getMonthVat('expense', monthIndex, 'forecast');
+          
+          const incomeTtc = incomeHt + incomeVat;
+          const expenseTtc = expenseHt + expenseVat;
+          const incomeForecastTtc = incomeForecastHt + incomeForecastVat;
+          const expenseForecastTtc = expenseForecastHt + expenseForecastVat;
+          
+          const netActual = incomeTtc - expenseTtc;
+          const netForecast = incomeForecastTtc - expenseForecastTtc;
+          
+          const hasActual = incomeHt > 0 || expenseHt > 0;
+          const hasForecast = incomeForecastHt > 0 || expenseForecastHt > 0;
           
           return (
             <td key={monthIndex} className="p-0 border-r border-border">
@@ -180,13 +311,13 @@ export function ForecastTable() {
                   "flex-1 px-3 py-2 text-right border-r border-border/50 font-bold",
                   netActual >= 0 ? "text-success" : "text-destructive"
                 )}>
-                  {(incomeActual > 0 || expenseActual > 0) ? formatValue(netActual) : '—'}
+                  {hasActual ? formatValue(netActual) : '—'}
                 </div>
                 <div className={cn(
                   "flex-1 px-3 py-2 text-right font-bold",
                   netForecast >= 0 ? "text-primary" : "text-destructive"
                 )}>
-                  {(incomeForecast > 0 || expenseForecast > 0) ? formatValue(netForecast) : '—'}
+                  {hasForecast ? formatValue(netForecast) : '—'}
                 </div>
               </div>
             </td>
@@ -224,7 +355,9 @@ export function ForecastTable() {
     >
       <div className="p-6 border-b border-border">
         <h3 className="text-lg font-semibold text-foreground">Prévisions par catégorie</h3>
-        <p className="text-sm text-muted-foreground">Cliquez sur une cellule "Prévu" pour modifier les prévisions</p>
+        <p className="text-sm text-muted-foreground">
+          Cliquez sur une cellule "Prévu" pour modifier • Les montants sont HT, la TVA est calculée automatiquement
+        </p>
       </div>
 
       <div className="overflow-x-auto">
@@ -255,7 +388,7 @@ export function ForecastTable() {
             {/* Income Section */}
             <tr className="bg-success/5">
               <td colSpan={months.length + 1} className="p-2 font-semibold text-success border-b border-border">
-                📈 Encaissements
+                📈 Encaissements (HT)
               </td>
             </tr>
             {incomeCategories.map((category, index) => (
@@ -273,17 +406,24 @@ export function ForecastTable() {
                       style={{ backgroundColor: category.color }}
                     />
                     <span className="font-medium text-foreground">{category.name}</span>
+                    {category.vat_rate > 0 && (
+                      <span className="text-xs text-muted-foreground">
+                        ({(category.vat_rate * 100).toFixed(0)}%)
+                      </span>
+                    )}
                   </div>
                 </td>
                 {months.map((_, monthIndex) => renderCell(category.id, monthIndex, 'income'))}
               </motion.tr>
             ))}
-            {renderTotalRow('Total Encaissements', 'income')}
+            {renderTotalRow('Total Encaissements HT', 'income')}
+            {renderVatRow('TVA collectée', 'income')}
+            {renderTtcRow('Total Encaissements TTC', 'income')}
 
             {/* Expense Section */}
             <tr className="bg-destructive/5">
               <td colSpan={months.length + 1} className="p-2 font-semibold text-destructive border-b border-border">
-                📉 Décaissements
+                📉 Décaissements (HT)
               </td>
             </tr>
             {expenseCategories.map((category, index) => (
@@ -301,12 +441,22 @@ export function ForecastTable() {
                       style={{ backgroundColor: category.color }}
                     />
                     <span className="font-medium text-foreground">{category.name}</span>
+                    {category.vat_rate > 0 && (
+                      <span className="text-xs text-muted-foreground">
+                        ({(category.vat_rate * 100).toFixed(0)}%)
+                      </span>
+                    )}
                   </div>
                 </td>
                 {months.map((_, monthIndex) => renderCell(category.id, monthIndex, 'expense'))}
               </motion.tr>
             ))}
-            {renderTotalRow('Total Décaissements', 'expense')}
+            {renderTotalRow('Total Décaissements HT', 'expense')}
+            {renderVatRow('TVA déductible', 'expense')}
+            {renderTtcRow('Total Décaissements TTC', 'expense')}
+
+            {/* VAT to Pay Row */}
+            {renderVatToPayRow()}
 
             {/* Net Row */}
             {renderNetRow()}
