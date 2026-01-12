@@ -9,6 +9,7 @@ export interface Company {
   user_id: string;
   name: string;
   is_default: boolean;
+  initial_balance: number;
   created_at: string;
   updated_at: string;
   has_pennylane_key?: boolean; // Computed from company_has_secret function
@@ -19,8 +20,8 @@ interface CompanyContextType {
   setCurrentCompany: (company: Company | null) => void;
   companies: Company[];
   isLoading: boolean;
-  createCompany: (data: { name: string; pennylane_api_key?: string; is_default?: boolean }) => Promise<Company>;
-  updateCompany: (id: string, data: { name?: string; is_default?: boolean; pennylane_api_key?: string }) => Promise<void>;
+  createCompany: (data: { name: string; initial_balance?: number; pennylane_api_key?: string; is_default?: boolean }) => Promise<Company>;
+  updateCompany: (id: string, data: { name?: string; initial_balance?: number; is_default?: boolean; pennylane_api_key?: string }) => Promise<void>;
   deleteCompany: (id: string) => Promise<void>;
   refetch: () => void;
 }
@@ -96,7 +97,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
   };
 
   // Create company with optional API key
-  const createCompany = async (data: { name: string; pennylane_api_key?: string; is_default?: boolean }): Promise<Company> => {
+  const createCompany = async (data: { name: string; initial_balance?: number; pennylane_api_key?: string; is_default?: boolean }): Promise<Company> => {
     if (!user?.id) throw new Error('Non authentifié');
 
     // If this is the first company or is_default is true, make it default
@@ -115,6 +116,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
       .insert({
         user_id: user.id,
         name: data.name,
+        initial_balance: data.initial_balance || 0,
         is_default: isDefault,
       })
       .select()
@@ -150,7 +152,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
   };
 
   // Update company
-  const updateCompany = async (id: string, data: { name?: string; is_default?: boolean; pennylane_api_key?: string }) => {
+  const updateCompany = async (id: string, data: { name?: string; initial_balance?: number; is_default?: boolean; pennylane_api_key?: string }) => {
     if (!user?.id) throw new Error('Non authentifié');
 
     // If setting as default, unset other defaults
@@ -163,8 +165,9 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     }
 
     // Update company basic info
-    const updateData: { name?: string; is_default?: boolean } = {};
+    const updateData: { name?: string; initial_balance?: number; is_default?: boolean } = {};
     if (data.name !== undefined) updateData.name = data.name;
+    if (data.initial_balance !== undefined) updateData.initial_balance = data.initial_balance;
     if (data.is_default !== undefined) updateData.is_default = data.is_default;
 
     if (Object.keys(updateData).length > 0) {

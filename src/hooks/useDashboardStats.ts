@@ -95,14 +95,16 @@ export function useDashboardStats() {
           .filter(t => t.type === 'expense')
           .reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
 
-        // Current balance (sum of all transactions)
-        const currentBalance = transactions?.reduce((acc, t) => {
+        // Current balance (initial balance + sum of all transactions)
+        const initialBalance = currentCompany?.initial_balance || 0;
+        const transactionsBalance = transactions?.reduce((acc, t) => {
           if (t.type === 'income') {
             return acc + Number(t.amount);
           } else {
             return acc - Math.abs(Number(t.amount));
           }
         }, 0) || 0;
+        const currentBalance = initialBalance + transactionsBalance;
 
         // 90-day forecast - use forecasts table
         let forecastQuery = supabase
@@ -201,14 +203,16 @@ export function useBalanceChartData() {
 
         const { data: forecasts } = await forecastsQuery;
 
-        // Calculate current balance
-        const currentBalance = transactions?.reduce((acc, t) => {
+        // Calculate current balance (initial balance + transactions)
+        const initialBalance = currentCompany?.initial_balance || 0;
+        const transactionsBalance = transactions?.reduce((acc, t) => {
           if (t.type === 'income') {
             return acc + Number(t.amount);
           } else {
             return acc - Math.abs(Number(t.amount));
           }
         }, 0) || 0;
+        const currentBalance = initialBalance + transactionsBalance;
 
         // Group past transactions by month (last 6 months)
         const monthlyData: Record<string, { income: number; expense: number }> = {};
