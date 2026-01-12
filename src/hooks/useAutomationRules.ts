@@ -95,6 +95,24 @@ export function useAutomationRules() {
     }
   }, [user]);
 
+  const applyRuleToExistingTransactions = async (ruleId: string) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('apply-automation-rule', {
+        body: { rule_id: ruleId }
+      });
+
+      if (error) {
+        console.error('Error applying rule:', error);
+        return 0;
+      }
+
+      return data?.updated || 0;
+    } catch (error) {
+      console.error('Error applying rule:', error);
+      return 0;
+    }
+  };
+
   const createRule = async (rule: {
     name: string;
     condition_field: string;
@@ -123,7 +141,19 @@ export function useAutomationRules() {
       if (error) throw error;
       
       setRules(prev => [data, ...prev]);
-      toast.success('Règle créée avec succès');
+      
+      // Appliquer immédiatement aux transactions existantes
+      const updated = await applyRuleToExistingTransactions(data.id);
+      if (updated > 0) {
+        toast.success(`Règle créée - ${updated} transaction${updated > 1 ? 's' : ''} catégorisée${updated > 1 ? 's' : ''}`);
+        // Mettre à jour le match_count localement
+        setRules(prev => prev.map(r => 
+          r.id === data.id ? { ...r, match_count: updated } : r
+        ));
+      } else {
+        toast.success('Règle créée avec succès');
+      }
+      
       return data;
     } catch (error) {
       console.error('Error creating rule:', error);
@@ -160,7 +190,20 @@ export function useAutomationRules() {
     const rule = rules.find(r => r.id === id);
     if (!rule) return;
     
-    await updateRule(id, { is_active: !rule.is_active });
+    const newState = !rule.is_active;
+    await updateRule(id, { is_active: newState });
+    
+    // Si on active la règle, l'appliquer aux transactions existantes
+    if (newState) {
+      const updated = await applyRuleToExistingTransactions(id);
+      if (updated > 0) {
+        toast.success(`${updated} transaction${updated > 1 ? 's' : ''} catégorisée${updated > 1 ? 's' : ''}`);
+        // Mettre à jour le match_count localement
+        setRules(prev => prev.map(r => 
+          r.id === id ? { ...r, match_count: (r.match_count || 0) + updated } : r
+        ));
+      }
+    }
   };
 
   const deleteRule = async (id: string) => {
