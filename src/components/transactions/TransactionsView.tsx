@@ -8,13 +8,20 @@ import {
   AlertCircle,
   Filter,
   Search,
-  ChevronDown,
   RefreshCw,
-  Loader2
+  Loader2,
+  Tag
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -115,10 +122,40 @@ export function TransactionsView() {
     }
   };
 
+  const updateTransactionCategory = async (transactionId: string, categoryId: string | null) => {
+    const { error } = await supabase
+      .from('transactions')
+      .update({ category_id: categoryId })
+      .eq('id', transactionId);
+
+    if (error) {
+      console.error('Error updating category:', error);
+      toast({
+        title: 'Erreur',
+        description: 'Impossible de mettre à jour la catégorie',
+        variant: 'destructive',
+      });
+    } else {
+      setTransactions(prev => 
+        prev.map(t => t.id === transactionId ? { ...t, category_id: categoryId } : t)
+      );
+      toast({
+        title: 'Catégorie mise à jour',
+        description: 'La transaction a été catégorisée avec succès',
+      });
+    }
+  };
+
   const getCategoryName = (categoryId: string | null) => {
     if (!categoryId) return 'Non catégorisé';
     const category = categories.find(c => c.id === categoryId);
     return category?.name || 'Non catégorisé';
+  };
+
+  const getCategoryColor = (categoryId: string | null) => {
+    if (!categoryId) return undefined;
+    const category = categories.find(c => c.id === categoryId);
+    return category?.color;
   };
 
   const filteredTransactions = transactions.filter(t => {
@@ -153,6 +190,10 @@ export function TransactionsView() {
     .reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
 
   const uniqueCategories = [...new Set(transactions.map(t => getCategoryName(t.category_id)))];
+
+  // Group categories by type for the dropdown
+  const incomeCategories = categories.filter(c => c.type === 'income');
+  const expenseCategories = categories.filter(c => c.type === 'expense');
 
   if (loading) {
     return (
@@ -265,7 +306,7 @@ export function TransactionsView() {
                 initial={{ x: -20, opacity: 0 }}
                 animate={{ x: 0, opacity: 1 }}
                 transition={{ delay: 0.05 * Math.min(index, 10) }}
-                className="p-5 hover:bg-muted/30 transition-colors group cursor-pointer"
+                className="p-5 hover:bg-muted/30 transition-colors group"
               >
                 <div className="flex items-center gap-4">
                   {/* Icon */}
@@ -297,9 +338,102 @@ export function TransactionsView() {
                       )}
                     </div>
                     <div className="flex items-center gap-3 mt-1.5">
-                      <Badge variant="outline" className="text-xs">
-                        {getCategoryName(transaction.category_id)}
-                      </Badge>
+                      {/* Quick Category Selector - 2 clicks */}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-auto p-0 hover:bg-transparent"
+                          >
+                            <Badge 
+                              variant="outline" 
+                              className={cn(
+                                "text-xs cursor-pointer hover:bg-muted transition-colors",
+                                !transaction.category_id && "border-dashed border-warning text-warning"
+                              )}
+                              style={transaction.category_id ? {
+                                borderColor: getCategoryColor(transaction.category_id),
+                                color: getCategoryColor(transaction.category_id),
+                              } : undefined}
+                            >
+                              <Tag className="w-3 h-3 mr-1" />
+                              {getCategoryName(transaction.category_id)}
+                            </Badge>
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" className="w-56">
+                          {transaction.category_id && (
+                            <>
+                              <DropdownMenuItem
+                                onClick={() => updateTransactionCategory(transaction.id, null)}
+                                className="text-muted-foreground"
+                              >
+                                Retirer la catégorie
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                            </>
+                          )}
+                          
+                          {incomeCategories.length > 0 && (
+                            <>
+                              <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+                                Encaissements
+                              </div>
+                              {incomeCategories.map(cat => (
+                                <DropdownMenuItem
+                                  key={cat.id}
+                                  onClick={() => updateTransactionCategory(transaction.id, cat.id)}
+                                  className="flex items-center gap-2"
+                                >
+                                  <div 
+                                    className="w-3 h-3 rounded-full" 
+                                    style={{ backgroundColor: cat.color }}
+                                  />
+                                  {cat.name}
+                                  {transaction.category_id === cat.id && (
+                                    <Check className="w-4 h-4 ml-auto" />
+                                  )}
+                                </DropdownMenuItem>
+                              ))}
+                            </>
+                          )}
+                          
+                          {expenseCategories.length > 0 && (
+                            <>
+                              {incomeCategories.length > 0 && <DropdownMenuSeparator />}
+                              <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+                                Décaissements
+                              </div>
+                              {expenseCategories.map(cat => (
+                                <DropdownMenuItem
+                                  key={cat.id}
+                                  onClick={() => updateTransactionCategory(transaction.id, cat.id)}
+                                  className="flex items-center gap-2"
+                                >
+                                  <div 
+                                    className="w-3 h-3 rounded-full" 
+                                    style={{ backgroundColor: cat.color }}
+                                  />
+                                  {cat.name}
+                                  {transaction.category_id === cat.id && (
+                                    <Check className="w-4 h-4 ml-auto" />
+                                  )}
+                                </DropdownMenuItem>
+                              ))}
+                            </>
+                          )}
+                          
+                          {categories.length === 0 && (
+                            <div className="px-2 py-4 text-center text-sm text-muted-foreground">
+                              Aucune catégorie disponible.
+                              <br />
+                              Créez-en dans l'onglet Catégories.
+                            </div>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+
                       <span className="text-sm text-muted-foreground">
                         {formatDate(transaction.date)}
                       </span>
@@ -333,9 +467,6 @@ export function TransactionsView() {
                       )}
                     </div>
                   </div>
-
-                  {/* Action */}
-                  <ChevronDown className="w-5 h-5 text-muted-foreground group-hover:text-foreground transition-colors" />
                 </div>
               </motion.div>
             ))}
