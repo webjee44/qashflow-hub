@@ -1,21 +1,23 @@
-import { 
-  TrendingUp, 
-  Briefcase, 
-  RotateCcw, 
-  Users, 
-  Building, 
-  Package, 
-  Megaphone, 
-  Laptop, 
-  Car, 
-  Utensils, 
-  Plane, 
+import * as React from 'react';
+import {
+  TrendingUp,
+  Briefcase,
+  RotateCcw,
+  Users,
+  Building,
+  Package,
+  Megaphone,
+  Laptop,
+  Car,
+  Utensils,
+  Plane,
   Phone,
   Tag,
-  LucideProps
+  LucideProps,
+  LucideIcon,
 } from 'lucide-react';
 
-const iconMap: Record<string, React.ComponentType<LucideProps>> = {
+const iconMap: Record<string, LucideIcon> = {
   TrendingUp,
   Briefcase,
   RotateCcw,
@@ -31,11 +33,15 @@ const iconMap: Record<string, React.ComponentType<LucideProps>> = {
   Tag,
 };
 
-interface DynamicIconProps extends LucideProps {
+export interface DynamicIconProps extends Omit<LucideProps, 'ref'> {
   name: string;
 }
 
-export function DynamicIcon({ name, ...props }: DynamicIconProps) {
-  const IconComponent = iconMap[name] || Tag;
-  return <IconComponent {...props} />;
-}
+export const DynamicIcon = React.forwardRef<SVGSVGElement, DynamicIconProps>(
+  ({ name, ...props }, ref) => {
+    const IconComponent = iconMap[name] || Tag;
+    return <IconComponent ref={ref} {...props} />;
+  },
+);
+DynamicIcon.displayName = 'DynamicIcon';
+
