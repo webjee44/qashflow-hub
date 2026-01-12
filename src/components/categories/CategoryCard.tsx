@@ -54,6 +54,9 @@ export function CategoryCard({ category, index, onEdit, onDelete }: CategoryCard
                 Dépense
               </span>
             )}
+            <span className="text-xs text-muted-foreground">
+              • TVA {(category.vat_rate * 100).toFixed(category.vat_rate * 100 % 1 === 0 ? 0 : 1)}%
+            </span>
           </div>
         </div>
 

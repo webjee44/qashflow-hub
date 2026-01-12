@@ -88,6 +88,7 @@ export type Database = {
           type: Database["public"]["Enums"]["transaction_type"]
           updated_at: string
           user_id: string
+          vat_rate: number
         }
         Insert: {
           color?: string
@@ -99,6 +100,7 @@ export type Database = {
           type: Database["public"]["Enums"]["transaction_type"]
           updated_at?: string
           user_id: string
+          vat_rate?: number
         }
         Update: {
           color?: string
@@ -110,6 +112,7 @@ export type Database = {
           type?: Database["public"]["Enums"]["transaction_type"]
           updated_at?: string
           user_id?: string
+          vat_rate?: number
         }
         Relationships: [
           {

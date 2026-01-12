@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Palette } from 'lucide-react';
+import { Palette, Percent } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -26,6 +26,7 @@ interface CategoryDialogProps {
     color: string;
     icon: string;
     type: 'income' | 'expense';
+    vat_rate: number;
   }) => Promise<any>;
   onClose?: () => void;
   trigger?: React.ReactNode;
@@ -46,6 +47,13 @@ const colorOptions = [
   { value: 'hsl(160, 60%, 45%)', label: 'Émeraude' },
 ];
 
+const vatOptions = [
+  { value: '0', label: '0% (Exonéré)' },
+  { value: '0.055', label: '5.5% (Réduit)' },
+  { value: '0.10', label: '10% (Intermédiaire)' },
+  { value: '0.20', label: '20% (Normal)' },
+  { value: 'custom', label: 'Personnalisé' },
+];
 
 export function CategoryDialog({ 
   category, 
@@ -57,34 +65,60 @@ export function CategoryDialog({
 }: CategoryDialogProps) {
   const [internalOpen, setInternalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showCustomVat, setShowCustomVat] = useState(false);
   const [form, setForm] = useState({
     name: '',
     color: 'hsl(221, 83%, 53%)',
     icon: 'Tag',
     type: 'expense' as 'income' | 'expense',
+    vat_rate: 0.20,
   });
 
   const isControlled = controlledOpen !== undefined;
   const open = isControlled ? controlledOpen : internalOpen;
   const setOpen = isControlled ? controlledOnOpenChange! : setInternalOpen;
 
+  const getVatSelectValue = (rate: number): string => {
+    const predefined = vatOptions.find(opt => opt.value !== 'custom' && parseFloat(opt.value) === rate);
+    return predefined ? predefined.value : 'custom';
+  };
+
   useEffect(() => {
     if (category) {
+      const vatValue = getVatSelectValue(category.vat_rate);
+      setShowCustomVat(vatValue === 'custom');
       setForm({
         name: category.name,
         color: category.color,
         icon: category.icon,
         type: category.type,
+        vat_rate: category.vat_rate,
       });
     } else {
+      setShowCustomVat(false);
       setForm({
         name: '',
         color: 'hsl(221, 83%, 53%)',
         icon: 'Tag',
         type: 'expense',
+        vat_rate: 0.20,
       });
     }
   }, [category, open]);
+
+  const handleVatChange = (value: string) => {
+    if (value === 'custom') {
+      setShowCustomVat(true);
+    } else {
+      setShowCustomVat(false);
+      setForm({ ...form, vat_rate: parseFloat(value) });
+    }
+  };
+
+  const handleCustomVatChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const percent = parseFloat(e.target.value) || 0;
+    setForm({ ...form, vat_rate: percent / 100 });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -98,6 +132,10 @@ export function CategoryDialog({
       setOpen(false);
       onClose?.();
     }
+  };
+
+  const formatVatDisplay = (rate: number) => {
+    return `${(rate * 100).toFixed(rate * 100 % 1 === 0 ? 0 : 1)}%`;
   };
 
   return (
@@ -122,21 +160,62 @@ export function CategoryDialog({
             />
           </div>
 
-          <div className="space-y-2">
-            <Label>Type</Label>
-            <Select
-              value={form.type}
-              onValueChange={(value: 'income' | 'expense') => setForm({ ...form, type: value })}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="income">Revenu</SelectItem>
-                <SelectItem value="expense">Dépense</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Type</Label>
+              <Select
+                value={form.type}
+                onValueChange={(value: 'income' | 'expense') => setForm({ ...form, type: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="income">Revenu</SelectItem>
+                  <SelectItem value="expense">Dépense</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Taux de TVA</Label>
+              <Select
+                value={getVatSelectValue(form.vat_rate)}
+                onValueChange={handleVatChange}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {vatOptions.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
+
+          {showCustomVat && (
+            <div className="space-y-2">
+              <Label htmlFor="custom-vat">Taux personnalisé (%)</Label>
+              <div className="relative">
+                <Input
+                  id="custom-vat"
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  max="100"
+                  placeholder="Ex: 8.5"
+                  value={(form.vat_rate * 100).toFixed(1)}
+                  onChange={handleCustomVatChange}
+                  className="pr-8"
+                />
+                <Percent className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              </div>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label>Couleur</Label>
@@ -171,7 +250,14 @@ export function CategoryDialog({
                   style={{ backgroundColor: form.color }}
                 />
               </div>
-              <span className="font-medium">{form.name || 'Nom de la catégorie'}</span>
+              <div>
+                <span className="font-medium">{form.name || 'Nom de la catégorie'}</span>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span>{form.type === 'income' ? 'Revenu' : 'Dépense'}</span>
+                  <span>•</span>
+                  <span>TVA {formatVatDisplay(form.vat_rate)}</span>
+                </div>
+              </div>
             </div>
           </div>
 

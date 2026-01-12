@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { useCompany } from './useCompany';
+import { useCategories, Category } from './useCategories';
 import { toast } from 'sonner';
 import { addMonths, startOfMonth, format } from 'date-fns';
 
@@ -24,6 +25,7 @@ export interface ForecastWithActual extends CategoryForecast {
 export function useForecasts() {
   const { user } = useAuth();
   const { currentCompany } = useCompany();
+  const { categories } = useCategories();
   const queryClient = useQueryClient();
 
   // Get the next 6 months starting from current month
@@ -168,13 +170,36 @@ export function useForecasts() {
     return actuals[categoryId]?.[monthStr] ?? 0;
   };
 
+  // Helper to calculate VAT forecast for a type (income/expense) and month
+  const getVatForecast = (type: 'income' | 'expense', month: Date): number => {
+    const typedCategories = categories.filter(c => c.type === type);
+    return typedCategories.reduce((sum, cat) => {
+      const forecast = getForecast(cat.id, month);
+      const vatAmount = forecast * cat.vat_rate;
+      return sum + vatAmount;
+    }, 0);
+  };
+
+  // Helper to calculate VAT actual for a type (income/expense) and month
+  const getVatActual = (type: 'income' | 'expense', month: Date): number => {
+    const typedCategories = categories.filter(c => c.type === type);
+    return typedCategories.reduce((sum, cat) => {
+      const actual = Math.abs(getActual(cat.id, month));
+      const vatAmount = actual * cat.vat_rate;
+      return sum + vatAmount;
+    }, 0);
+  };
+
   return {
     months,
     forecasts,
     actuals,
+    categories,
     isLoading: forecastsLoading || actualsLoading,
     upsertForecast,
     getForecast,
     getActual,
+    getVatForecast,
+    getVatActual,
   };
 }
