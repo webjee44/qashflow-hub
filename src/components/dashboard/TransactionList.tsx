@@ -1,10 +1,47 @@
 import { motion } from 'framer-motion';
-import { transactions } from '@/lib/mockData';
 import { cn } from '@/lib/utils';
-import { ArrowUpRight, ArrowDownRight, Sparkles, Check, AlertCircle } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, Sparkles, Check, AlertCircle, Building2, Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { useEffect, useState } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { Tables } from '@/integrations/supabase/types';
+import { Link } from 'react-router-dom';
+
+type Transaction = Tables<'transactions'>;
+type Category = Tables<'categories'>;
 
 export function TransactionList() {
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      const [transactionsRes, categoriesRes] = await Promise.all([
+        supabase
+          .from('transactions')
+          .select('*')
+          .order('date', { ascending: false })
+          .limit(6),
+        supabase
+          .from('categories')
+          .select('*')
+      ]);
+
+      if (transactionsRes.data) setTransactions(transactionsRes.data);
+      if (categoriesRes.data) setCategories(categoriesRes.data);
+      setLoading(false);
+    };
+
+    fetchData();
+  }, []);
+
+  const getCategoryName = (categoryId: string | null) => {
+    if (!categoryId) return 'Non catégorisé';
+    const category = categories.find(c => c.id === categoryId);
+    return category?.name || 'Non catégorisé';
+  };
+
   const formatAmount = (amount: number) => {
     return new Intl.NumberFormat('fr-FR', {
       style: 'currency',
@@ -20,6 +57,19 @@ export function TransactionList() {
     }).format(date);
   };
 
+  if (loading) {
+    return (
+      <motion.div
+        initial={{ y: 20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ delay: 0.3 }}
+        className="bg-card rounded-2xl border border-border shadow-card p-12 flex items-center justify-center"
+      >
+        <Loader2 className="w-6 h-6 animate-spin text-primary" />
+      </motion.div>
+    );
+  }
+
   return (
     <motion.div
       initial={{ y: 20, opacity: 0 }}
@@ -32,76 +82,89 @@ export function TransactionList() {
           <h3 className="text-lg font-semibold text-foreground">Dernières transactions</h3>
           <p className="text-sm text-muted-foreground">Synchronisées depuis Pennylane</p>
         </div>
-        <button className="text-sm text-primary font-medium hover:underline">
+        <Link to="/transactions" className="text-sm text-primary font-medium hover:underline">
           Voir tout →
-        </button>
+        </Link>
       </div>
 
       <div className="divide-y divide-border">
-        {transactions.slice(0, 6).map((transaction, index) => (
-          <motion.div
-            key={transaction.id}
-            initial={{ x: -20, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            transition={{ delay: 0.1 * index }}
-            className="p-4 hover:bg-muted/50 transition-colors group"
-          >
-            <div className="flex items-center gap-4">
-              {/* Icon */}
-              <div className={cn(
-                "w-10 h-10 rounded-xl flex items-center justify-center transition-transform group-hover:scale-110",
-                transaction.type === 'income' 
-                  ? 'bg-success/10 text-success' 
-                  : 'bg-destructive/10 text-destructive'
-              )}>
-                {transaction.type === 'income' 
-                  ? <ArrowUpRight className="w-5 h-5" />
-                  : <ArrowDownRight className="w-5 h-5" />
-                }
-              </div>
-
-              {/* Details */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <p className="font-medium text-foreground truncate">
-                    {transaction.description}
-                  </p>
-                  {transaction.aiConfidence && transaction.aiConfidence >= 0.9 && (
-                    <Sparkles className="w-4 h-4 text-accent flex-shrink-0" />
-                  )}
-                </div>
-                <div className="flex items-center gap-2 mt-1">
-                  <Badge variant="outline" className="text-xs">
-                    {transaction.category}
-                  </Badge>
-                  <span className="text-xs text-muted-foreground">
-                    {formatDate(transaction.date)}
-                  </span>
-                </div>
-              </div>
-
-              {/* Amount & Status */}
-              <div className="text-right">
-                <p className={cn(
-                  "font-semibold",
-                  transaction.type === 'income' ? 'text-success' : 'text-foreground'
+        {transactions.length === 0 ? (
+          <div className="p-8 text-center text-muted-foreground">
+            <p>Aucune transaction</p>
+            <p className="text-sm mt-1">Synchronisez depuis Pennylane pour voir vos opérations</p>
+          </div>
+        ) : (
+          transactions.map((transaction, index) => (
+            <motion.div
+              key={transaction.id}
+              initial={{ x: -20, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              transition={{ delay: 0.1 * index }}
+              className="p-4 hover:bg-muted/50 transition-colors group"
+            >
+              <div className="flex items-center gap-4">
+                {/* Icon */}
+                <div className={cn(
+                  "w-10 h-10 rounded-xl flex items-center justify-center transition-transform group-hover:scale-110",
+                  transaction.type === 'income' 
+                    ? 'bg-success/10 text-success' 
+                    : 'bg-destructive/10 text-destructive'
                 )}>
-                  {transaction.type === 'income' ? '+' : '-'}{formatAmount(transaction.amount)}
-                </p>
-                <div className="flex items-center justify-end gap-1 mt-1">
-                  {transaction.isReconciled ? (
-                    <Check className="w-3.5 h-3.5 text-success" />
-                  ) : (
-                    <AlertCircle className="w-3.5 h-3.5 text-warning" />
-                  )}
-                  <span className="text-xs text-muted-foreground">
-                    {transaction.isReconciled ? 'Validé' : 'En attente'}
-                  </span>
+                  {transaction.type === 'income' 
+                    ? <ArrowUpRight className="w-5 h-5" />
+                    : <ArrowDownRight className="w-5 h-5" />
+                  }
+                </div>
+
+                {/* Details */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium text-foreground truncate">
+                      {transaction.description}
+                    </p>
+                    {transaction.ai_confidence && Number(transaction.ai_confidence) >= 0.9 && (
+                      <Sparkles className="w-4 h-4 text-accent flex-shrink-0" />
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                    <Badge variant="outline" className="text-xs">
+                      {getCategoryName(transaction.category_id)}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">
+                      {formatDate(transaction.date)}
+                    </span>
+                    {transaction.bank_account_name && (
+                      <span className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Building2 className="w-3 h-3" />
+                        {transaction.bank_account_name}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Amount & Status */}
+                <div className="text-right">
+                  <p className={cn(
+                    "font-semibold",
+                    transaction.type === 'income' ? 'text-success' : 'text-foreground'
+                  )}>
+                    {transaction.type === 'income' ? '+' : '-'}{formatAmount(Number(transaction.amount))}
+                  </p>
+                  <div className="flex items-center justify-end gap-1 mt-1">
+                    {transaction.is_reconciled ? (
+                      <Check className="w-3.5 h-3.5 text-success" />
+                    ) : (
+                      <AlertCircle className="w-3.5 h-3.5 text-warning" />
+                    )}
+                    <span className="text-xs text-muted-foreground">
+                      {transaction.is_reconciled ? 'Validé' : 'En attente'}
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
-          </motion.div>
-        ))}
+            </motion.div>
+          ))
+        )}
       </div>
     </motion.div>
   );
