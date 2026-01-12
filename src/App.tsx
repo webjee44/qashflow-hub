@@ -10,6 +10,7 @@ import Dashboard from "./pages/Dashboard";
 import Transactions from "./pages/Transactions";
 import Forecasts from "./pages/Forecasts";
 import Automations from "./pages/Automations";
+import Categories from "./pages/Categories";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
@@ -34,6 +35,7 @@ const App = () => (
               <Route path="/" element={<Dashboard />} />
               <Route path="/transactions" element={<Transactions />} />
               <Route path="/previsions" element={<Forecasts />} />
+              <Route path="/categories" element={<Categories />} />
               <Route path="/automatisations" element={<Automations />} />
             </Route>
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
