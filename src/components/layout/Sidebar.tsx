@@ -7,13 +7,11 @@ import {
   Zap,
   HelpCircle,
   ChevronLeft,
-  ChevronRight,
-  LogOut
+  ChevronRight
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { useToast } from '@/hooks/use-toast';
 
 interface NavItem {
   icon: React.ElementType;
@@ -41,16 +39,7 @@ interface SidebarProps {
 
 export function Sidebar({ currentPath, onNavigate }: SidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const { signOut, user } = useAuth();
-  const { toast } = useToast();
-
-  const handleSignOut = async () => {
-    await signOut();
-    toast({
-      title: 'Déconnexion',
-      description: 'À bientôt !',
-    });
-  };
+  const { user } = useAuth();
 
   return (
     <motion.aside
@@ -152,18 +141,6 @@ export function Sidebar({ currentPath, onNavigate }: SidebarProps) {
             {!isCollapsed && <span className="text-sm font-medium">{item.label}</span>}
           </button>
         ))}
-        
-        {/* Sign Out Button */}
-        <button
-          onClick={handleSignOut}
-          className={cn(
-            "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200",
-            "text-destructive hover:bg-destructive/10"
-          )}
-        >
-          <LogOut size={18} />
-          {!isCollapsed && <span className="text-sm font-medium">Déconnexion</span>}
-        </button>
       </div>
 
       {/* User Info */}
