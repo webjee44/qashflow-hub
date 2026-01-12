@@ -339,7 +339,7 @@ export function TransactionsView() {
     .filter(t => t.type === 'expense')
     .reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
 
-  const uniqueCategories = [...new Set(transactions.map(t => getCategoryName(t.category_id)))];
+  const uncategorizedCount = transactions.filter(t => !t.category_id).length;
 
   // Group categories by type for the dropdown
   const incomeCategories = categories.filter(c => c.type === 'income');
@@ -480,23 +480,19 @@ export function TransactionsView() {
           />
         </div>
 
-        {uniqueCategories.length > 0 && (
-          <div className="flex items-center gap-2">
-            <Filter className="w-4 h-4 text-muted-foreground" />
-            <div className="flex gap-2 flex-wrap">
-              {uniqueCategories.slice(0, 4).map(cat => (
-                <Button
-                  key={cat}
-                  variant={selectedCategory === cat ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setSelectedCategory(selectedCategory === cat ? null : cat)}
-                >
-                  {cat}
-                </Button>
-              ))}
-            </div>
-          </div>
-        )}
+        <Button
+          variant={selectedCategory === 'Non catégorisé' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setSelectedCategory(selectedCategory === 'Non catégorisé' ? null : 'Non catégorisé')}
+          className="relative"
+        >
+          Non catégorisé
+          {uncategorizedCount > 0 && (
+            <span className="absolute -top-2 -right-2 min-w-5 h-5 flex items-center justify-center rounded-full bg-destructive text-destructive-foreground text-xs font-semibold px-1.5">
+              {uncategorizedCount}
+            </span>
+          )}
+        </Button>
       </motion.div>
 
       {/* Transactions List */}
