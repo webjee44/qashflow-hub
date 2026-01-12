@@ -164,6 +164,11 @@ export function TransactionsView() {
     const transaction = transactions.find(t => t.id === transactionId);
     const previousCategoryId = transaction?.category_id;
     
+    // Optimistic update - mise à jour immédiate de l'UI
+    setTransactions(prev => 
+      prev.map(t => t.id === transactionId ? { ...t, category_id: categoryId } : t)
+    );
+    
     const { error } = await supabase
       .from('transactions')
       .update({ category_id: categoryId })
@@ -171,15 +176,16 @@ export function TransactionsView() {
 
     if (error) {
       console.error('Error updating category:', error);
+      // Rollback en cas d'erreur
+      setTransactions(prev => 
+        prev.map(t => t.id === transactionId ? { ...t, category_id: previousCategoryId } : t)
+      );
       toast({
         title: 'Erreur',
         description: 'Impossible de mettre à jour la catégorie',
         variant: 'destructive',
       });
     } else {
-      setTransactions(prev => 
-        prev.map(t => t.id === transactionId ? { ...t, category_id: categoryId } : t)
-      );
       toast({
         title: 'Catégorie mise à jour',
         description: 'La transaction a été catégorisée avec succès',
@@ -198,7 +204,7 @@ export function TransactionsView() {
           );
           const pattern = words[0] || '';
           
-          // Chercher des transactions similaires non catégorisées
+          // Chercher des transactions similaires non catégorisées (utiliser l'état après mise à jour)
           const similarCount = transactions.filter(t => 
             t.id !== transactionId && 
             !t.category_id &&
