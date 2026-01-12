@@ -29,6 +29,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Tables } from '@/integrations/supabase/types';
 import { useCompany } from '@/hooks/useCompany';
+import { useAutomationRules } from '@/hooks/useAutomationRules';
+import { SuggestAutomationDialog } from './SuggestAutomationDialog';
 
 type Transaction = Tables<'transactions'>;
 type Category = Tables<'categories'>;
@@ -41,8 +43,12 @@ export function TransactionsView() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [categorizing, setCategorizing] = useState(false);
+  const [showSuggestDialog, setShowSuggestDialog] = useState(false);
+  const [lastCategorizedTransaction, setLastCategorizedTransaction] = useState<Transaction | null>(null);
+  const [lastSelectedCategory, setLastSelectedCategory] = useState<Category | null>(null);
   const { toast } = useToast();
   const { currentCompany } = useCompany();
+  const { createRule } = useAutomationRules();
 
   const fetchTransactions = async () => {
     setLoading(true);
@@ -155,6 +161,9 @@ export function TransactionsView() {
   };
 
   const updateTransactionCategory = async (transactionId: string, categoryId: string | null) => {
+    const transaction = transactions.find(t => t.id === transactionId);
+    const previousCategoryId = transaction?.category_id;
+    
     const { error } = await supabase
       .from('transactions')
       .update({ category_id: categoryId })
@@ -175,6 +184,16 @@ export function TransactionsView() {
         title: 'Catégorie mise à jour',
         description: 'La transaction a été catégorisée avec succès',
       });
+      
+      // Si on assigne une catégorie (pas si on la retire), proposer l'automatisation
+      if (categoryId && !previousCategoryId && transaction) {
+        const category = categories.find(c => c.id === categoryId);
+        if (category) {
+          setLastCategorizedTransaction({ ...transaction, category_id: categoryId });
+          setLastSelectedCategory(category);
+          setShowSuggestDialog(true);
+        }
+      }
     }
   };
 
@@ -575,6 +594,16 @@ export function TransactionsView() {
           </div>
         )}
       </motion.div>
+
+      {/* Dialog de suggestion d'automatisation */}
+      <SuggestAutomationDialog
+        open={showSuggestDialog}
+        onOpenChange={setShowSuggestDialog}
+        transaction={lastCategorizedTransaction}
+        category={lastSelectedCategory}
+        allTransactions={transactions}
+        onCreateRule={createRule}
+      />
     </div>
   );
 }

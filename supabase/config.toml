@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.categorize-transaction]
 verify_jwt = false
+
+[functions.suggest-automation]
+verify_jwt = false
