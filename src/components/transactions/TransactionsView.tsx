@@ -568,19 +568,6 @@ export function TransactionsView() {
                     )}>
                       {transaction.type === 'income' ? '+' : '-'}{formatAmount(Number(transaction.amount))}
                     </p>
-                    <div className="flex items-center justify-end gap-1.5 mt-1">
-                      {transaction.is_reconciled ? (
-                        <>
-                          <Check className="w-4 h-4 text-success" />
-                          <span className="text-sm text-success font-medium">Validé</span>
-                        </>
-                      ) : (
-                        <>
-                          <AlertCircle className="w-4 h-4 text-warning" />
-                          <span className="text-sm text-warning font-medium">En attente</span>
-                        </>
-                      )}
-                    </div>
                   </div>
                 </div>
               </motion.div>
