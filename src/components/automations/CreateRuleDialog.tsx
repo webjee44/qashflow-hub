@@ -169,7 +169,7 @@ export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, t
                   </SelectTrigger>
                   <SelectContent position="popper" className="z-[200] bg-popover">
                     {conditionFields.map((field) => (
-                      <SelectItem key={field.value} value={field.value}>
+                      <SelectItem key={field.value} value={field.value} textValue={field.label}>
                         {field.label}
                       </SelectItem>
                     ))}
@@ -188,7 +188,7 @@ export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, t
                   </SelectTrigger>
                   <SelectContent position="popper" className="z-[200] bg-popover">
                     {availableOperators.map((op) => (
-                      <SelectItem key={op.value} value={op.value}>
+                      <SelectItem key={op.value} value={op.value} textValue={op.label}>
                         {op.label}
                       </SelectItem>
                     ))}
@@ -231,7 +231,7 @@ export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, t
                 <SelectContent position="popper" className="z-[200] bg-popover">
                   {onCreateCategory && (
                     <>
-                      <SelectItem value="__new__">
+                      <SelectItem value="__new__" textValue="Créer une nouvelle catégorie">
                         <div className="flex items-center gap-2 text-primary">
                           <PlusCircle className="w-4 h-4" />
                           Créer une nouvelle catégorie
@@ -240,17 +240,23 @@ export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, t
                       <SelectSeparator />
                     </>
                   )}
-                  {categories.map((cat) => (
-                    <SelectItem key={cat.id} value={cat.id}>
-                      <div className="flex items-center gap-2">
-                        <div 
-                          className="w-3 h-3 rounded-full" 
-                          style={{ backgroundColor: cat.color }}
-                        />
-                        {cat.name}
-                      </div>
-                    </SelectItem>
-                  ))}
+                  {categories.length === 0 ? (
+                    <div className="py-2 px-3 text-sm text-muted-foreground">
+                      Aucune catégorie disponible
+                    </div>
+                  ) : (
+                    categories.map((cat) => (
+                      <SelectItem key={cat.id} value={cat.id} textValue={cat.name}>
+                        <div className="flex items-center gap-2">
+                          <div 
+                            className="w-3 h-3 rounded-full" 
+                            style={{ backgroundColor: cat.color }}
+                          />
+                          {cat.name}
+                        </div>
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </div>
