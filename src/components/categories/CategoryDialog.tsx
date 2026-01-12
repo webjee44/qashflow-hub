@@ -1,15 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Palette, Percent } from 'lucide-react';
+import { Palette, Percent, Check, TrendingUp, TrendingDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import {
   Dialog,
   DialogContent,
@@ -18,6 +11,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Category } from '@/hooks/useCategories';
+import { cn } from '@/lib/utils';
 
 interface CategoryDialogProps {
   category?: Category | null;
@@ -48,11 +42,10 @@ const colorOptions = [
 ];
 
 const vatOptions = [
-  { value: '0', label: '0% (Exonéré)' },
-  { value: '0.055', label: '5.5% (Réduit)' },
-  { value: '0.10', label: '10% (Intermédiaire)' },
-  { value: '0.20', label: '20% (Normal)' },
-  { value: 'custom', label: 'Personnalisé' },
+  { value: 0, label: '0%', description: 'Exonéré' },
+  { value: 0.055, label: '5.5%', description: 'Réduit' },
+  { value: 0.10, label: '10%', description: 'Intermédiaire' },
+  { value: 0.20, label: '20%', description: 'Normal' },
 ];
 
 export function CategoryDialog({ 
@@ -78,15 +71,10 @@ export function CategoryDialog({
   const open = isControlled ? controlledOpen : internalOpen;
   const setOpen = isControlled ? controlledOnOpenChange! : setInternalOpen;
 
-  const getVatSelectValue = (rate: number): string => {
-    const predefined = vatOptions.find(opt => opt.value !== 'custom' && parseFloat(opt.value) === rate);
-    return predefined ? predefined.value : 'custom';
-  };
-
   useEffect(() => {
     if (category) {
-      const vatValue = getVatSelectValue(category.vat_rate);
-      setShowCustomVat(vatValue === 'custom');
+      const isPredefined = vatOptions.some(opt => opt.value === category.vat_rate);
+      setShowCustomVat(!isPredefined);
       setForm({
         name: category.name,
         color: category.color,
@@ -105,15 +93,6 @@ export function CategoryDialog({
       });
     }
   }, [category, open]);
-
-  const handleVatChange = (value: string) => {
-    if (value === 'custom') {
-      setShowCustomVat(true);
-    } else {
-      setShowCustomVat(false);
-      setForm({ ...form, vat_rate: parseFloat(value) });
-    }
-  };
 
   const handleCustomVatChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const percent = parseFloat(e.target.value) || 0;
@@ -148,7 +127,7 @@ export function CategoryDialog({
             {category ? 'Modifier la catégorie' : 'Nouvelle catégorie'}
           </DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-6 mt-4">
+        <form onSubmit={handleSubmit} className="space-y-5 mt-4">
           <div className="space-y-2">
             <Label htmlFor="name">Nom de la catégorie</Label>
             <Input
@@ -157,44 +136,80 @@ export function CategoryDialog({
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               maxLength={50}
+              autoFocus
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Type</Label>
-              <Select
-                value={form.type}
-                onValueChange={(value: 'income' | 'expense') => setForm({ ...form, type: value })}
+          {/* Type Selection - Radio buttons */}
+          <div className="space-y-2">
+            <Label>Type</Label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setForm({ ...form, type: 'expense' })}
+                className={cn(
+                  "flex items-center justify-center gap-2 p-3 rounded-lg border-2 transition-all",
+                  form.type === 'expense'
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-border hover:border-primary/50"
+                )}
               >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="income">Revenu</SelectItem>
-                  <SelectItem value="expense">Dépense</SelectItem>
-                </SelectContent>
-              </Select>
+                <TrendingDown className="w-4 h-4" />
+                <span className="font-medium">Dépense</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setForm({ ...form, type: 'income' })}
+                className={cn(
+                  "flex items-center justify-center gap-2 p-3 rounded-lg border-2 transition-all",
+                  form.type === 'income'
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-border hover:border-primary/50"
+                )}
+              >
+                <TrendingUp className="w-4 h-4" />
+                <span className="font-medium">Revenu</span>
+              </button>
             </div>
+          </div>
 
-            <div className="space-y-2">
-              <Label>Taux de TVA</Label>
-              <Select
-                value={getVatSelectValue(form.vat_rate)}
-                onValueChange={handleVatChange}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {vatOptions.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          {/* VAT Selection - Radio buttons */}
+          <div className="space-y-2">
+            <Label>Taux de TVA</Label>
+            <div className="grid grid-cols-4 gap-2">
+              {vatOptions.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => {
+                    setForm({ ...form, vat_rate: opt.value });
+                    setShowCustomVat(false);
+                  }}
+                  className={cn(
+                    "flex flex-col items-center p-2 rounded-lg border-2 transition-all",
+                    form.vat_rate === opt.value && !showCustomVat
+                      ? "border-primary bg-primary/10"
+                      : "border-border hover:border-primary/50"
+                  )}
+                >
+                  <span className="font-semibold text-sm">{opt.label}</span>
+                  <span className="text-[10px] text-muted-foreground">{opt.description}</span>
+                </button>
+              ))}
             </div>
+            <button
+              type="button"
+              onClick={() => setShowCustomVat(true)}
+              className={cn(
+                "w-full flex items-center justify-center gap-2 p-2 rounded-lg border-2 border-dashed transition-all text-sm",
+                showCustomVat
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-border hover:border-primary/50 text-muted-foreground"
+              )}
+            >
+              <Percent className="w-3.5 h-3.5" />
+              Taux personnalisé
+            </button>
           </div>
 
           {showCustomVat && (
@@ -217,6 +232,7 @@ export function CategoryDialog({
             </div>
           )}
 
+          {/* Color Selection */}
           <div className="space-y-2">
             <Label>Couleur</Label>
             <div className="grid grid-cols-5 gap-2">
@@ -225,14 +241,19 @@ export function CategoryDialog({
                   key={color.value}
                   type="button"
                   onClick={() => setForm({ ...form, color: color.value })}
-                  className={`w-10 h-10 rounded-lg transition-all ${
+                  className={cn(
+                    "w-10 h-10 rounded-lg transition-all flex items-center justify-center",
                     form.color === color.value 
                       ? 'ring-2 ring-primary ring-offset-2 scale-110' 
                       : 'hover:scale-105'
-                  }`}
+                  )}
                   style={{ backgroundColor: color.value }}
                   title={color.label}
-                />
+                >
+                  {form.color === color.value && (
+                    <Check className="w-5 h-5 text-white drop-shadow-md" />
+                  )}
+                </button>
               ))}
             </div>
           </div>
