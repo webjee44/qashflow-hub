@@ -315,24 +315,37 @@ Deno.serve(async (req) => {
       // Check if transaction already exists
       const { data: existing } = await supabaseUser
         .from('transactions')
-        .select('id, bank_account_name')
+        .select('id, bank_account_name, company_id')
         .eq('pennylane_id', tx.id.toString())
         .eq('user_id', userId)
-        .single()
+        .maybeSingle()
 
       if (existing) {
-        // Update bank_account_name if it's missing
+        // Update bank_account_name and company_id if missing
+        const updates: Record<string, any> = {}
+        
         if (!existing.bank_account_name && bankAccountName) {
+          updates.bank_account_name = bankAccountName
+        }
+        
+        // Associate with company if transaction has no company
+        if (!existing.company_id && companyId) {
+          updates.company_id = companyId
+        }
+        
+        if (Object.keys(updates).length > 0) {
           const { error: updateError } = await supabaseUser
             .from('transactions')
-            .update({ bank_account_name: bankAccountName })
+            .update(updates)
             .eq('id', existing.id)
           
           if (!updateError) {
-            updatedBankCount++
+            if (updates.bank_account_name) updatedBankCount++
+            if (updates.company_id) syncedCount++ // Count as synced for this company
           }
+        } else {
+          skippedCount++
         }
-        skippedCount++
         continue
       }
 
