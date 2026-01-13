@@ -4,6 +4,12 @@ import { useCompany } from '@/hooks/useCompany';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { startOfMonth, format, parseISO } from 'date-fns';
+import { 
+  calculateDetailedCharges, 
+  getGlobalChargesRate, 
+  DetailedCharges,
+  URSSAF_RATES_2026 
+} from '@/lib/french-rates';
 
 export interface Personnel {
   id: string;
@@ -15,6 +21,9 @@ export interface Personnel {
   start_date: string;
   end_date: string | null;
   notes: string | null;
+  contract_type: string;
+  is_executive: boolean;
+  company_size: string;
   created_at: string;
   updated_at: string;
 }
@@ -50,17 +59,28 @@ export function usePersonnel() {
     mutationFn: async (data: Partial<Personnel>) => {
       if (!user) throw new Error('Not authenticated');
 
+      const grossSalary = data.gross_salary || 0;
+      const isExecutive = data.is_executive ?? false;
+      const companySize = (data.company_size || 'small') as 'small' | 'medium' | 'large';
+      const contractType = data.contract_type || 'cdi';
+
+      // Calculer le taux de charges réel URSSAF
+      const chargesRate = getGlobalChargesRate(grossSalary, isExecutive, companySize, contractType);
+
       const { data: newPersonnel, error } = await supabase
         .from('bp_personnel')
         .insert({
           user_id: user.id,
           company_id: currentCompany?.id || null,
           position: data.position || 'Nouveau poste',
-          gross_salary: data.gross_salary || 0,
-          employer_charges_rate: data.employer_charges_rate ?? 0.45,
+          gross_salary: grossSalary,
+          employer_charges_rate: chargesRate,
           start_date: data.start_date || format(new Date(), 'yyyy-MM-dd'),
           end_date: data.end_date || null,
           notes: data.notes || null,
+          contract_type: contractType,
+          is_executive: isExecutive,
+          company_size: companySize,
         })
         .select()
         .single();
@@ -70,7 +90,7 @@ export function usePersonnel() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bp_personnel'] });
-      toast({ title: 'Poste créé', description: 'Le poste a été ajouté' });
+      toast({ title: 'Poste créé', description: 'Le poste a été ajouté avec les taux URSSAF 2026' });
     },
     onError: (error) => {
       toast({ title: 'Erreur', description: error.message, variant: 'destructive' });
@@ -80,9 +100,26 @@ export function usePersonnel() {
   // Update personnel mutation
   const updatePersonnel = useMutation({
     mutationFn: async ({ id, ...data }: Partial<Personnel> & { id: string }) => {
+      // Recalculer le taux si les paramètres changent
+      let updateData = { ...data };
+      
+      if (data.gross_salary !== undefined || data.is_executive !== undefined || 
+          data.company_size !== undefined || data.contract_type !== undefined) {
+        // Trouver les valeurs actuelles
+        const current = personnel.find(p => p.id === id);
+        if (current) {
+          const grossSalary = data.gross_salary ?? Number(current.gross_salary);
+          const isExecutive = data.is_executive ?? current.is_executive;
+          const companySize = (data.company_size ?? current.company_size) as 'small' | 'medium' | 'large';
+          const contractType = data.contract_type ?? current.contract_type;
+          
+          updateData.employer_charges_rate = getGlobalChargesRate(grossSalary, isExecutive, companySize, contractType);
+        }
+      }
+
       const { error } = await supabase
         .from('bp_personnel')
-        .update(data)
+        .update(updateData)
         .eq('id', id);
 
       if (error) throw error;
@@ -126,10 +163,20 @@ export function usePersonnel() {
     return true;
   };
 
+  // Helper: get detailed URSSAF charges for one personnel
+  const getDetailedCharges = (person: Personnel): DetailedCharges => {
+    return calculateDetailedCharges(
+      Number(person.gross_salary),
+      person.is_executive ?? false,
+      (person.company_size || 'small') as 'small' | 'medium' | 'large',
+      person.contract_type || 'cdi'
+    );
+  };
+
   // Helper: get total cost for one personnel (salary + employer charges)
   const getTotalCost = (person: Personnel): number => {
     const salary = Number(person.gross_salary);
-    const charges = salary * Number(person.employer_charges_rate);
+    const charges = getDetailedCharges(person).total;
     return salary + charges;
   };
 
@@ -144,7 +191,7 @@ export function usePersonnel() {
   const getBreakdownForMonth = (month: Date): { grossSalaries: number; employerCharges: number; total: number } => {
     const activePersonnel = personnel.filter(p => isPersonnelActiveForMonth(p, month));
     const grossSalaries = activePersonnel.reduce((sum, p) => sum + Number(p.gross_salary), 0);
-    const employerCharges = activePersonnel.reduce((sum, p) => sum + (Number(p.gross_salary) * Number(p.employer_charges_rate)), 0);
+    const employerCharges = activePersonnel.reduce((sum, p) => sum + getDetailedCharges(p).total, 0);
     return {
       grossSalaries,
       employerCharges,
@@ -162,5 +209,7 @@ export function usePersonnel() {
     getTotalCost,
     getTotalForMonth,
     getBreakdownForMonth,
+    getDetailedCharges,
+    URSSAF_RATES: URSSAF_RATES_2026,
   };
 }

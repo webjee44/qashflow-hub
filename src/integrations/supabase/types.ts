@@ -77,6 +77,59 @@ export type Database = {
           },
         ]
       }
+      bp_directors: {
+        Row: {
+          charges_rate: number | null
+          company_id: string | null
+          created_at: string | null
+          end_date: string | null
+          id: string
+          monthly_remuneration: number | null
+          name: string
+          notes: string | null
+          start_date: string
+          status: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          charges_rate?: number | null
+          company_id?: string | null
+          created_at?: string | null
+          end_date?: string | null
+          id?: string
+          monthly_remuneration?: number | null
+          name: string
+          notes?: string | null
+          start_date?: string
+          status?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          charges_rate?: number | null
+          company_id?: string | null
+          created_at?: string | null
+          end_date?: string | null
+          id?: string
+          monthly_remuneration?: number | null
+          name?: string
+          notes?: string | null
+          start_date?: string
+          status?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bp_directors_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bp_fixed_expenses: {
         Row: {
           category: string | null
@@ -84,12 +137,14 @@ export type Database = {
           created_at: string | null
           end_date: string | null
           id: string
+          is_vat_deductible: boolean | null
           monthly_amount: number | null
           name: string
           notes: string | null
           start_date: string
           updated_at: string | null
           user_id: string
+          vat_rate: number | null
         }
         Insert: {
           category?: string | null
@@ -97,12 +152,14 @@ export type Database = {
           created_at?: string | null
           end_date?: string | null
           id?: string
+          is_vat_deductible?: boolean | null
           monthly_amount?: number | null
           name: string
           notes?: string | null
           start_date?: string
           updated_at?: string | null
           user_id: string
+          vat_rate?: number | null
         }
         Update: {
           category?: string | null
@@ -110,12 +167,14 @@ export type Database = {
           created_at?: string | null
           end_date?: string | null
           id?: string
+          is_vat_deductible?: boolean | null
           monthly_amount?: number | null
           name?: string
           notes?: string | null
           start_date?: string
           updated_at?: string | null
           user_id?: string
+          vat_rate?: number | null
         }
         Relationships: [
           {
@@ -127,14 +186,70 @@ export type Database = {
           },
         ]
       }
+      bp_investments: {
+        Row: {
+          category: string | null
+          company_id: string | null
+          created_at: string | null
+          depreciation_method: string | null
+          depreciation_years: number | null
+          id: string
+          name: string
+          notes: string | null
+          purchase_amount: number
+          purchase_date: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          category?: string | null
+          company_id?: string | null
+          created_at?: string | null
+          depreciation_method?: string | null
+          depreciation_years?: number | null
+          id?: string
+          name: string
+          notes?: string | null
+          purchase_amount?: number
+          purchase_date?: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          category?: string | null
+          company_id?: string | null
+          created_at?: string | null
+          depreciation_method?: string | null
+          depreciation_years?: number | null
+          id?: string
+          name?: string
+          notes?: string | null
+          purchase_amount?: number
+          purchase_date?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bp_investments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bp_personnel: {
         Row: {
           company_id: string | null
+          company_size: string | null
+          contract_type: string | null
           created_at: string | null
           employer_charges_rate: number | null
           end_date: string | null
           gross_salary: number | null
           id: string
+          is_executive: boolean | null
           notes: string | null
           position: string
           start_date: string
@@ -143,11 +258,14 @@ export type Database = {
         }
         Insert: {
           company_id?: string | null
+          company_size?: string | null
+          contract_type?: string | null
           created_at?: string | null
           employer_charges_rate?: number | null
           end_date?: string | null
           gross_salary?: number | null
           id?: string
+          is_executive?: boolean | null
           notes?: string | null
           position: string
           start_date?: string
@@ -156,11 +274,14 @@ export type Database = {
         }
         Update: {
           company_id?: string | null
+          company_size?: string | null
+          contract_type?: string | null
           created_at?: string | null
           employer_charges_rate?: number | null
           end_date?: string | null
           gross_salary?: number | null
           id?: string
+          is_executive?: boolean | null
           notes?: string | null
           position?: string
           start_date?: string
@@ -246,6 +367,7 @@ export type Database = {
           name: string
           updated_at: string | null
           user_id: string
+          vat_rate: number | null
         }
         Insert: {
           color?: string | null
@@ -258,6 +380,7 @@ export type Database = {
           name: string
           updated_at?: string | null
           user_id: string
+          vat_rate?: number | null
         }
         Update: {
           color?: string | null
@@ -270,6 +393,7 @@ export type Database = {
           name?: string
           updated_at?: string | null
           user_id?: string
+          vat_rate?: number | null
         }
         Relationships: [
           {
@@ -338,8 +462,10 @@ export type Database = {
           customer_payment_delay: number | null
           id: string
           initial_cash: number | null
+          is_pme: boolean | null
           projection_months: number | null
           supplier_payment_delay: number | null
+          tax_regime: string | null
           updated_at: string | null
           user_id: string
         }
@@ -349,8 +475,10 @@ export type Database = {
           customer_payment_delay?: number | null
           id?: string
           initial_cash?: number | null
+          is_pme?: boolean | null
           projection_months?: number | null
           supplier_payment_delay?: number | null
+          tax_regime?: string | null
           updated_at?: string | null
           user_id: string
         }
@@ -360,8 +488,10 @@ export type Database = {
           customer_payment_delay?: number | null
           id?: string
           initial_cash?: number | null
+          is_pme?: boolean | null
           projection_months?: number | null
           supplier_payment_delay?: number | null
+          tax_regime?: string | null
           updated_at?: string | null
           user_id?: string
         }
