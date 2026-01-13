@@ -443,15 +443,71 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Update company with the real bank balance from bank accounts API
+    // If bank accounts API didn't return balances (all 0), fallback to trial balance
+    let finalBankBalance = totalBankBalance
+    let balanceSource = 'bank_accounts_api'
+    
+    if (totalBankBalance === 0 && companyId) {
+      console.log('Bank accounts API returned 0 balance, falling back to trial balance...')
+      
+      try {
+        const now = new Date()
+        const periodStart = '2020-01-01' // Far enough back to include all history
+        const periodEnd = now.toISOString().split('T')[0]
+        
+        const trialBalanceUrl = new URL('https://app.pennylane.com/api/external/v2/trial_balance')
+        trialBalanceUrl.searchParams.set('period_start', periodStart)
+        trialBalanceUrl.searchParams.set('period_end', periodEnd)
+        trialBalanceUrl.searchParams.set('limit', '1000')
+        
+        console.log('Fetching trial balance from Pennylane...')
+        
+        const trialBalanceResponse = await fetch(trialBalanceUrl.toString(), {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${pennylaneApiKey}`,
+            'Accept': 'application/json',
+          },
+        })
+        
+        if (trialBalanceResponse.ok) {
+          const trialData: TrialBalanceResponse = await trialBalanceResponse.json()
+          console.log(`Trial balance: ${trialData.items?.length || 0} accounts found`)
+          
+          // Sum up all 512xxx accounts (bank accounts in French accounting)
+          if (trialData.items && Array.isArray(trialData.items)) {
+            for (const account of trialData.items) {
+              // Bank accounts start with 512
+              if (account.number.startsWith('512')) {
+                const debits = parseFloat(account.debits) || 0
+                const credits = parseFloat(account.credits) || 0
+                // Bank accounts are asset accounts: debits increase, credits decrease
+                const accountBalance = debits - credits
+                finalBankBalance += accountBalance
+                console.log(`Trial balance account ${account.number} (${account.label}): ${accountBalance.toLocaleString('fr-FR')}€`)
+              }
+            }
+          }
+          
+          balanceSource = 'trial_balance'
+          console.log(`Total bank balance from trial balance: ${finalBankBalance.toLocaleString('fr-FR')}€`)
+        } else {
+          console.warn('Failed to fetch trial balance:', await trialBalanceResponse.text())
+        }
+      } catch (trialError) {
+        console.error('Error fetching trial balance:', trialError)
+      }
+    }
+
+    // Update company with the bank balance
     let balanceUpdated = false
-    if (companyId && bankAccountBalances.length > 0) {
-      console.log(`Updating company bank balance: ${totalBankBalance.toLocaleString('fr-FR')}€ from ${bankAccountBalances.length} accounts`)
+    if (companyId && (finalBankBalance !== 0 || bankAccountBalances.length > 0)) {
+      console.log(`Updating company bank balance: ${finalBankBalance.toLocaleString('fr-FR')}€ (source: ${balanceSource})`)
       
       const { error: updateBalanceError } = await supabaseAdmin
         .from('companies')
         .update({ 
-          bank_balance: totalBankBalance,
+          bank_balance: finalBankBalance,
           bank_balance_updated_at: new Date().toISOString()
         })
         .eq('id', companyId)
@@ -468,7 +524,7 @@ Deno.serve(async (req) => {
     console.log(`Sync complete${companyLabel}: ${syncedCount} new, ${skippedCount} skipped, ${automatedCount} auto-categorized, ${updatedBankCount} bank info updated`)
 
     const bankMessage = updatedBankCount > 0 ? `, ${updatedBankCount} banques ajoutées` : ''
-    const balanceMessage = balanceUpdated ? `, solde bancaire: ${totalBankBalance.toLocaleString('fr-FR')}€` : ''
+    const balanceMessage = balanceUpdated ? `, solde bancaire: ${finalBankBalance.toLocaleString('fr-FR')}€` : ''
     return new Response(
       JSON.stringify({
         success: true,
@@ -477,8 +533,9 @@ Deno.serve(async (req) => {
         skipped: skippedCount,
         automated: automatedCount,
         updatedBank: updatedBankCount,
-        bankBalance: balanceUpdated ? totalBankBalance : null,
+        bankBalance: balanceUpdated ? finalBankBalance : null,
         bankAccounts: bankAccountBalances,
+        balanceSource,
         total: allTransactions.length
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
