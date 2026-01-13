@@ -102,7 +102,7 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="z-[200] bg-popover">
                 <SelectItem value="fixed">Montant fixe mensuel</SelectItem>
                 <SelectItem value="units">Unités × Prix unitaire</SelectItem>
                 <SelectItem value="growth">Croissance progressive</SelectItem>
