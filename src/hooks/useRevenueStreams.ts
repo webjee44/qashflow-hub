@@ -12,8 +12,13 @@ export interface RevenueStream {
   name: string;
   description: string | null;
   color: string;
-  model: 'fixed' | 'units' | 'growth';
+  model: 'fixed' | 'units' | 'growth' | 'subscription';
   is_active: boolean;
+  // Subscription model fields
+  initial_subscribers: number;
+  monthly_price: number;
+  churn_rate: number;
+  growth_rate: number;
   created_at: string;
   updated_at: string;
 }
@@ -97,6 +102,10 @@ export function useRevenueStreams() {
           color: data.color || 'hsl(142, 76%, 36%)',
           model: data.model || 'fixed',
           is_active: true,
+          initial_subscribers: data.initial_subscribers || 0,
+          monthly_price: data.monthly_price || 0,
+          churn_rate: data.churn_rate || 0.05,
+          growth_rate: data.growth_rate || 0.10,
         })
         .select()
         .single();
@@ -185,6 +194,23 @@ export function useRevenueStreams() {
 
   // Helper: get forecast for a stream and month
   const getForecast = (streamId: string, month: Date): number => {
+    const stream = streams.find(s => s.id === streamId);
+    if (!stream) return 0;
+
+    // For subscription model, calculate MRR automatically
+    if (stream.model === 'subscription') {
+      const startMonth = startOfMonth(new Date());
+      const targetMonth = startOfMonth(month);
+      const monthsDiff = Math.round((targetMonth.getTime() - startMonth.getTime()) / (1000 * 60 * 60 * 24 * 30));
+      
+      if (monthsDiff < 0) return 0;
+      
+      const netGrowth = (stream.growth_rate || 0.10) - (stream.churn_rate || 0.05);
+      const subscribers = Math.round((stream.initial_subscribers || 0) * Math.pow(1 + netGrowth, monthsDiff));
+      return subscribers * (stream.monthly_price || 0);
+    }
+
+    // For other models, use stored forecast
     const monthStr = format(startOfMonth(month), 'yyyy-MM-dd');
     const forecast = forecasts.find(f => f.stream_id === streamId && f.month === monthStr);
     return forecast?.amount || 0;
@@ -192,10 +218,7 @@ export function useRevenueStreams() {
 
   // Helper: get total revenue for a month
   const getTotalRevenue = (month: Date): number => {
-    const monthStr = format(startOfMonth(month), 'yyyy-MM-dd');
-    return forecasts
-      .filter(f => f.month === monthStr)
-      .reduce((sum, f) => sum + Number(f.amount), 0);
+    return streams.reduce((sum, stream) => sum + getForecast(stream.id, month), 0);
   };
 
   return {

@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { RevenueStream } from '@/hooks/useRevenueStreams';
+import { Users, TrendingUp, TrendingDown } from 'lucide-react';
 
 interface RevenueStreamDialogProps {
   open: boolean;
@@ -23,11 +24,19 @@ const COLORS = [
   { value: 'hsl(20, 70%, 50%)', label: 'Orange' },
 ];
 
+type ModelType = 'fixed' | 'units' | 'growth' | 'subscription';
+
 export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: RevenueStreamDialogProps) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [color, setColor] = useState(COLORS[0].value);
-  const [model, setModel] = useState<'fixed' | 'units' | 'growth'>('fixed');
+  const [model, setModel] = useState<ModelType>('fixed');
+  
+  // Subscription model fields
+  const [initialSubscribers, setInitialSubscribers] = useState('0');
+  const [monthlyPrice, setMonthlyPrice] = useState('');
+  const [churnRate, setChurnRate] = useState('5');
+  const [growthRate, setGrowthRate] = useState('10');
 
   useEffect(() => {
     if (stream) {
@@ -35,11 +44,19 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
       setDescription(stream.description || '');
       setColor(stream.color);
       setModel(stream.model);
+      setInitialSubscribers(stream.initial_subscribers?.toString() || '0');
+      setMonthlyPrice(stream.monthly_price?.toString() || '');
+      setChurnRate(((stream.churn_rate || 0.05) * 100).toString());
+      setGrowthRate(((stream.growth_rate || 0.10) * 100).toString());
     } else {
       setName('');
       setDescription('');
       setColor(COLORS[0].value);
       setModel('fixed');
+      setInitialSubscribers('0');
+      setMonthlyPrice('');
+      setChurnRate('5');
+      setGrowthRate('10');
     }
   }, [stream, open]);
 
@@ -50,13 +67,30 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
       description: description || null,
       color,
       model,
+      initial_subscribers: parseInt(initialSubscribers) || 0,
+      monthly_price: parseFloat(monthlyPrice) || 0,
+      churn_rate: (parseFloat(churnRate) || 5) / 100,
+      growth_rate: (parseFloat(growthRate) || 10) / 100,
     });
     onOpenChange(false);
   };
 
+  // Calculate preview for subscription model
+  const subscribers = parseInt(initialSubscribers) || 0;
+  const price = parseFloat(monthlyPrice) || 0;
+  const churn = (parseFloat(churnRate) || 5) / 100;
+  const growth = (parseFloat(growthRate) || 10) / 100;
+  
+  const initialMRR = subscribers * price;
+  const month12Subscribers = Math.round(subscribers * Math.pow(1 + growth - churn, 12));
+  const month12MRR = month12Subscribers * price;
+
+  const formatCurrency = (value: number) => 
+    new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(value);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>{stream ? 'Modifier le flux' : 'Nouveau flux de revenus'}</DialogTitle>
         </DialogHeader>
@@ -67,7 +101,7 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
               id="name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Ex: Abonnements mensuels"
+              placeholder="Ex: Abonnements Pro"
             />
           </div>
           <div className="grid gap-2">
@@ -77,7 +111,7 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Décrivez ce flux de revenus..."
-              rows={3}
+              rows={2}
             />
           </div>
           <div className="grid gap-2">
@@ -98,7 +132,7 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
           </div>
           <div className="grid gap-2">
             <Label>Modèle de calcul</Label>
-            <Select value={model} onValueChange={(v) => setModel(v as typeof model)}>
+            <Select value={model} onValueChange={(v) => setModel(v as ModelType)}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -110,12 +144,95 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
               </SelectContent>
             </Select>
           </div>
+
+          {/* Subscription model specific fields */}
+          {model === 'subscription' && (
+            <div className="space-y-4 p-4 bg-muted/30 rounded-lg border">
+              <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                <Users className="h-4 w-4" />
+                Paramètres SaaS
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="subscribers">Abonnés initiaux</Label>
+                  <Input
+                    id="subscribers"
+                    type="number"
+                    value={initialSubscribers}
+                    onChange={(e) => setInitialSubscribers(e.target.value)}
+                    placeholder="0"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="price">Prix mensuel (€)</Label>
+                  <Input
+                    id="price"
+                    type="number"
+                    value={monthlyPrice}
+                    onChange={(e) => setMonthlyPrice(e.target.value)}
+                    placeholder="29"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="growth" className="flex items-center gap-1">
+                    <TrendingUp className="h-3 w-3 text-success" />
+                    Croissance (%/mois)
+                  </Label>
+                  <Input
+                    id="growth"
+                    type="number"
+                    value={growthRate}
+                    onChange={(e) => setGrowthRate(e.target.value)}
+                    placeholder="10"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="churn" className="flex items-center gap-1">
+                    <TrendingDown className="h-3 w-3 text-destructive" />
+                    Churn (%/mois)
+                  </Label>
+                  <Input
+                    id="churn"
+                    type="number"
+                    value={churnRate}
+                    onChange={(e) => setChurnRate(e.target.value)}
+                    placeholder="5"
+                  />
+                </div>
+              </div>
+
+              {/* Preview */}
+              {subscribers > 0 && price > 0 && (
+                <div className="pt-3 border-t space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">MRR initial</span>
+                    <span className="font-medium">{formatCurrency(initialMRR)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Abonnés à M12</span>
+                    <span className="font-medium">{month12Subscribers.toLocaleString('fr-FR')}</span>
+                  </div>
+                  <div className="flex justify-between text-sm font-semibold">
+                    <span>MRR à M12</span>
+                    <span className="text-success">{formatCurrency(month12MRR)}</span>
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    ARR projeté : {formatCurrency(month12MRR * 12)}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Annuler
           </Button>
-          <Button onClick={handleSave} disabled={!name.trim()}>
+          <Button onClick={handleSave} disabled={!name.trim() || (model === 'subscription' && !monthlyPrice)}>
             {stream ? 'Enregistrer' : 'Créer'}
           </Button>
         </DialogFooter>

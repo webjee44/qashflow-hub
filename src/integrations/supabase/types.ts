@@ -357,39 +357,51 @@ export type Database = {
       }
       bp_revenue_streams: {
         Row: {
+          churn_rate: number | null
           color: string | null
           company_id: string | null
           created_at: string | null
           description: string | null
+          growth_rate: number | null
           id: string
+          initial_subscribers: number | null
           is_active: boolean | null
           model: string | null
+          monthly_price: number | null
           name: string
           updated_at: string | null
           user_id: string
           vat_rate: number | null
         }
         Insert: {
+          churn_rate?: number | null
           color?: string | null
           company_id?: string | null
           created_at?: string | null
           description?: string | null
+          growth_rate?: number | null
           id?: string
+          initial_subscribers?: number | null
           is_active?: boolean | null
           model?: string | null
+          monthly_price?: number | null
           name: string
           updated_at?: string | null
           user_id: string
           vat_rate?: number | null
         }
         Update: {
+          churn_rate?: number | null
           color?: string | null
           company_id?: string | null
           created_at?: string | null
           description?: string | null
+          growth_rate?: number | null
           id?: string
+          initial_subscribers?: number | null
           is_active?: boolean | null
           model?: string | null
+          monthly_price?: number | null
           name?: string
           updated_at?: string | null
           user_id?: string
