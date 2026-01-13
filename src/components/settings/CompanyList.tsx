@@ -261,22 +261,38 @@ export function CompanyList() {
                   </div>
 
                   <div className="flex items-center gap-2">
-                    {/* Bridge Connect/Sync button */}
+                    {/* Bridge Connect/Sync buttons */}
                     {(company as any).bridge_user_uuid ? (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleSyncBridgeAccounts(company)}
-                        disabled={connectingBridge === company.id}
-                        className="gap-1.5"
-                      >
-                        {connectingBridge === company.id ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Landmark className="w-4 h-4" />
-                        )}
-                        Sync Bridge
-                      </Button>
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleConnectBridge(company)}
+                          disabled={connectingBridge === company.id}
+                          className="gap-1.5"
+                        >
+                          {connectingBridge === company.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Plus className="w-4 h-4" />
+                          )}
+                          Ajouter banque
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleSyncBridgeAccounts(company)}
+                          disabled={connectingBridge === company.id}
+                          className="gap-1.5"
+                        >
+                          {connectingBridge === company.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Landmark className="w-4 h-4" />
+                          )}
+                          Sync Bridge
+                        </Button>
+                      </>
                     ) : (
                       <Button
                         variant="outline"
