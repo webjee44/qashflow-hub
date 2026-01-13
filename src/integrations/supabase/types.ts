@@ -77,6 +77,304 @@ export type Database = {
           },
         ]
       }
+      bp_fixed_expenses: {
+        Row: {
+          category: string | null
+          company_id: string | null
+          created_at: string | null
+          end_date: string | null
+          id: string
+          monthly_amount: number | null
+          name: string
+          notes: string | null
+          start_date: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          category?: string | null
+          company_id?: string | null
+          created_at?: string | null
+          end_date?: string | null
+          id?: string
+          monthly_amount?: number | null
+          name: string
+          notes?: string | null
+          start_date?: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          category?: string | null
+          company_id?: string | null
+          created_at?: string | null
+          end_date?: string | null
+          id?: string
+          monthly_amount?: number | null
+          name?: string
+          notes?: string | null
+          start_date?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bp_fixed_expenses_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bp_personnel: {
+        Row: {
+          company_id: string | null
+          created_at: string | null
+          employer_charges_rate: number | null
+          end_date: string | null
+          gross_salary: number | null
+          id: string
+          notes: string | null
+          position: string
+          start_date: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          company_id?: string | null
+          created_at?: string | null
+          employer_charges_rate?: number | null
+          end_date?: string | null
+          gross_salary?: number | null
+          id?: string
+          notes?: string | null
+          position: string
+          start_date?: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          company_id?: string | null
+          created_at?: string | null
+          employer_charges_rate?: number | null
+          end_date?: string | null
+          gross_salary?: number | null
+          id?: string
+          notes?: string | null
+          position?: string
+          start_date?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bp_personnel_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bp_revenue_forecasts: {
+        Row: {
+          amount: number | null
+          company_id: string | null
+          created_at: string | null
+          id: string
+          month: string
+          notes: string | null
+          stream_id: string
+          unit_price: number | null
+          units: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          amount?: number | null
+          company_id?: string | null
+          created_at?: string | null
+          id?: string
+          month: string
+          notes?: string | null
+          stream_id: string
+          unit_price?: number | null
+          units?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          amount?: number | null
+          company_id?: string | null
+          created_at?: string | null
+          id?: string
+          month?: string
+          notes?: string | null
+          stream_id?: string
+          unit_price?: number | null
+          units?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bp_revenue_forecasts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bp_revenue_forecasts_stream_id_fkey"
+            columns: ["stream_id"]
+            isOneToOne: false
+            referencedRelation: "bp_revenue_streams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bp_revenue_streams: {
+        Row: {
+          color: string | null
+          company_id: string | null
+          created_at: string | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          model: string | null
+          name: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          color?: string | null
+          company_id?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          model?: string | null
+          name: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          color?: string | null
+          company_id?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          model?: string | null
+          name?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bp_revenue_streams_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bp_scenarios: {
+        Row: {
+          color: string | null
+          company_id: string | null
+          created_at: string | null
+          expense_multiplier: number | null
+          icon: string | null
+          id: string
+          is_default: boolean | null
+          name: string
+          revenue_multiplier: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          color?: string | null
+          company_id?: string | null
+          created_at?: string | null
+          expense_multiplier?: number | null
+          icon?: string | null
+          id?: string
+          is_default?: boolean | null
+          name: string
+          revenue_multiplier?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          color?: string | null
+          company_id?: string | null
+          created_at?: string | null
+          expense_multiplier?: number | null
+          icon?: string | null
+          id?: string
+          is_default?: boolean | null
+          name?: string
+          revenue_multiplier?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bp_scenarios_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bp_settings: {
+        Row: {
+          company_id: string | null
+          created_at: string | null
+          customer_payment_delay: number | null
+          id: string
+          initial_cash: number | null
+          projection_months: number | null
+          supplier_payment_delay: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          company_id?: string | null
+          created_at?: string | null
+          customer_payment_delay?: number | null
+          id?: string
+          initial_cash?: number | null
+          projection_months?: number | null
+          supplier_payment_delay?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          company_id?: string | null
+          created_at?: string | null
+          customer_payment_delay?: number | null
+          id?: string
+          initial_cash?: number | null
+          projection_months?: number | null
+          supplier_payment_delay?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bp_settings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       categories: {
         Row: {
           color: string
