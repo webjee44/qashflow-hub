@@ -189,6 +189,7 @@ export type Database = {
         Row: {
           bank_balance: number | null
           bank_balance_updated_at: string | null
+          bridge_user_uuid: string | null
           created_at: string | null
           id: string
           initial_balance: number
@@ -200,6 +201,7 @@ export type Database = {
         Insert: {
           bank_balance?: number | null
           bank_balance_updated_at?: string | null
+          bridge_user_uuid?: string | null
           created_at?: string | null
           id?: string
           initial_balance?: number
@@ -211,6 +213,7 @@ export type Database = {
         Update: {
           bank_balance?: number | null
           bank_balance_updated_at?: string | null
+          bridge_user_uuid?: string | null
           created_at?: string | null
           id?: string
           initial_balance?: number
