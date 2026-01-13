@@ -107,7 +107,7 @@ export function TransactionList() {
         {transactions.length === 0 ? (
           <div className="p-8 text-center text-muted-foreground">
             <p>Aucune transaction</p>
-            <p className="text-sm mt-1">Synchronisez depuis Pennylane pour voir vos opérations</p>
+            <p className="text-sm mt-1">Importez depuis Bridge pour voir vos opérations</p>
           </div>
         ) : (
           transactions.map((transaction, index) => (

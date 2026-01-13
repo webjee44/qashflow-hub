@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Building2, Plus, Pencil, Trash2, Star, ShieldCheck, ShieldX, Landmark, Loader2, ExternalLink } from 'lucide-react';
+import { Building2, Plus, Pencil, Trash2, Star, Landmark, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -58,7 +58,7 @@ export function CompanyList() {
       }
 
       // Check if company already has a Bridge user, if not create one
-      let bridgeUserUuid = (company as any).bridge_user_uuid;
+      let bridgeUserUuid = company.bridge_user_uuid;
       
       if (!bridgeUserUuid) {
         // Create Bridge user
@@ -125,7 +125,7 @@ export function CompanyList() {
   };
 
   const handleSyncBridgeAccounts = async (company: Company) => {
-    const bridgeUserUuid = (company as any).bridge_user_uuid;
+    const bridgeUserUuid = company.bridge_user_uuid;
     if (!bridgeUserUuid) {
       toast.error('Connectez d\'abord Bridge pour cette société');
       return;
@@ -186,7 +186,7 @@ export function CompanyList() {
               Mes sociétés
             </CardTitle>
             <CardDescription>
-              Gérez vos sociétés et leurs clés API Pennylane
+              Gérez vos sociétés et leurs comptes Bridge
             </CardDescription>
           </div>
           <Button onClick={handleAdd} className="gap-2">
@@ -234,18 +234,7 @@ export function CompanyList() {
                         )}
                       </div>
                       <div className="flex items-center gap-3 mt-1 flex-wrap">
-                        {company.has_pennylane_key ? (
-                          <div className="flex items-center gap-1">
-                            <ShieldCheck className="w-3 h-3 text-green-500" />
-                            <span className="text-sm text-muted-foreground">Pennylane</span>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-1">
-                            <ShieldX className="w-3 h-3 text-muted-foreground" />
-                            <span className="text-sm text-muted-foreground">Pennylane</span>
-                          </div>
-                        )}
-                        {(company as any).bridge_user_uuid ? (
+                        {company.bridge_user_uuid ? (
                           <div className="flex items-center gap-1">
                             <Landmark className="w-3 h-3 text-blue-500" />
                             <span className="text-sm text-muted-foreground">Bridge connecté</span>
@@ -262,7 +251,7 @@ export function CompanyList() {
 
                   <div className="flex items-center gap-2">
                     {/* Bridge Connect/Sync buttons */}
-                    {(company as any).bridge_user_uuid ? (
+                    {company.bridge_user_uuid ? (
                       <>
                         <Button
                           variant="outline"

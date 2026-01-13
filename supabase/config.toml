@@ -1,8 +1,5 @@
 project_id = "slllsekdepfnlcapcgex"
 
-[functions.sync-pennylane]
-verify_jwt = false
-
 [functions.apply-automation-rule]
 verify_jwt = false
 
@@ -10,4 +7,10 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.suggest-automation]
+verify_jwt = false
+
+[functions.bridge-sync]
+verify_jwt = false
+
+[functions.admin-reset-password]
 verify_jwt = false

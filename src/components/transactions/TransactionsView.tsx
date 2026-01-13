@@ -8,7 +8,6 @@ import {
   AlertCircle,
   Filter,
   Search,
-  RefreshCw,
   Loader2,
   Tag,
   Building2,
@@ -51,7 +50,6 @@ export function TransactionsView() {
   const transactionsRef = useRef<Transaction[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
   const [categorizing, setCategorizing] = useState(false);
   const [showSuggestDialog, setShowSuggestDialog] = useState(false);
   const [lastCategorizedTransaction, setLastCategorizedTransaction] = useState<Transaction | null>(null);
@@ -61,7 +59,7 @@ export function TransactionsView() {
   const [selectedTransactionIds, setSelectedTransactionIds] = useState<Set<string>>(new Set());
   const [bulkCategorizing, setBulkCategorizing] = useState(false);
   const { toast } = useToast();
-  const { currentCompany, refetch: refetchCompanies } = useCompany();
+  const { currentCompany } = useCompany();
   const { createRule } = useAutomationRules();
 
   const fetchTransactions = async () => {
@@ -117,65 +115,6 @@ export function TransactionsView() {
     fetchTransactions();
     fetchCategories();
   }, [currentCompany?.id]);
-
-  const syncPennylane = async () => {
-    if (!currentCompany) {
-      toast({
-        title: 'Aucune société sélectionnée',
-        description: 'Veuillez sélectionner ou créer une société dans les paramètres',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setSyncing(true);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session) {
-        toast({
-          title: 'Erreur',
-          description: 'Vous devez être connecté pour synchroniser',
-          variant: 'destructive',
-        });
-        return;
-      }
-
-      const { data, error } = await supabase.functions.invoke('sync-pennylane', {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: {
-          company_id: currentCompany.id,
-        },
-      });
-
-      if (error) {
-        console.error('Sync error:', error);
-        toast({
-          title: 'Erreur de synchronisation',
-          description: error.message || 'Une erreur est survenue',
-          variant: 'destructive',
-        });
-      } else {
-        toast({
-          title: 'Synchronisation réussie',
-          description: data.message || `${data.synced} transactions importées`,
-        });
-        // Refresh transactions + company (for bank_balance)
-        await Promise.all([fetchTransactions(), refetchCompanies()]);
-      }
-    } catch (err) {
-      console.error('Sync error:', err);
-      toast({
-        title: 'Erreur',
-        description: 'Impossible de synchroniser avec Pennylane',
-        variant: 'destructive',
-      });
-    } finally {
-      setSyncing(false);
-    }
-  };
 
   const updateTransactionCategory = async (transactionId: string, categoryId: string | null) => {
     const transaction = transactionsRef.current.find(t => t.id === transactionId);
@@ -487,14 +426,6 @@ export function TransactionsView() {
               <Wand2 className="w-4 h-4" />
             )}
             Catégoriser avec l'IA
-          </Button>
-          <Button onClick={syncPennylane} disabled={syncing}>
-            {syncing ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            ) : (
-              <RefreshCw className="w-4 h-4 mr-2" />
-            )}
-            Synchroniser Pennylane
           </Button>
         </div>
       </motion.div>

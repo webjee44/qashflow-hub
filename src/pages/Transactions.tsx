@@ -6,7 +6,7 @@ export default function Transactions() {
     <div className="space-y-8">
       <Header 
         title="Transactions" 
-        subtitle="Toutes vos opérations synchronisées depuis Pennylane" 
+        subtitle="Toutes vos opérations synchronisées depuis Bridge" 
       />
       <TransactionsView />
     </div>
