@@ -1,9 +1,21 @@
+import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Wallet, Settings } from 'lucide-react';
+import { Settings, AlertTriangle, CheckCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { BPCashFlowChart } from '@/components/businessplan/BPCashFlowChart';
+import { BPSettingsDialog } from '@/components/businessplan/BPSettingsDialog';
+import { useBPCashFlow } from '@/hooks/useBPCashFlow';
+import { useBPSettings } from '@/hooks/useBPSettings';
 
 export default function CashFlow() {
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const { data, isHealthy, getMinimumInitialCash } = useBPCashFlow();
+  const { settings } = useBPSettings();
+
+  const formatCurrency = (value: number) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(value);
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -11,48 +23,56 @@ export default function CashFlow() {
           <h1 className="text-3xl font-bold text-foreground">Trésorerie Prévisionnelle</h1>
           <p className="text-muted-foreground mt-1">Projection du cash-flow basée sur le Business Plan</p>
         </div>
-        <Button variant="outline" className="gap-2">
+        <Button variant="outline" className="gap-2" onClick={() => setSettingsOpen(true)}>
           <Settings className="h-4 w-4" />
           Paramètres
         </Button>
       </div>
 
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-      >
+      {!isHealthy() && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            Attention : votre trésorerie devient négative. Besoin minimum de {formatCurrency(getMinimumInitialCash())} en trésorerie initiale.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {isHealthy() && data.balance.some(b => b > 0) && (
+        <Alert className="border-success/50 bg-success/10">
+          <CheckCircle className="h-4 w-4 text-success" />
+          <AlertDescription className="text-success">Votre trésorerie reste positive sur toute la période.</AlertDescription>
+        </Alert>
+      )}
+
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
         <Card>
-          <CardHeader>
-            <CardTitle>Évolution de la trésorerie</CardTitle>
-          </CardHeader>
-          <CardContent className="h-[400px] flex items-center justify-center">
-            <div className="text-center text-muted-foreground">
-              <Wallet className="h-16 w-16 mx-auto mb-4 opacity-20" />
-              <p className="text-lg font-medium">Aucune projection</p>
-              <p className="text-sm">La trésorerie prévisionnelle sera calculée</p>
-              <p className="text-sm">à partir de vos revenus et charges prévus</p>
-            </div>
-          </CardContent>
+          <CardHeader><CardTitle>Évolution de la trésorerie</CardTitle></CardHeader>
+          <CardContent><BPCashFlowChart /></CardContent>
         </Card>
       </motion.div>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Paramètres de trésorerie</CardTitle>
-        </CardHeader>
+        <CardHeader><CardTitle>Paramètres de trésorerie</CardTitle></CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-3">
             <div className="p-4 rounded-lg bg-muted/50">
-              <p className="text-sm font-medium">Délai de paiement clients</p>
-              <p className="text-2xl font-bold text-foreground">30 jours</p>
+              <p className="text-sm font-medium text-muted-foreground">Trésorerie initiale</p>
+              <p className="text-2xl font-bold text-foreground">{formatCurrency(settings.initial_cash)}</p>
             </div>
             <div className="p-4 rounded-lg bg-muted/50">
-              <p className="text-sm font-medium">Délai de paiement fournisseurs</p>
-              <p className="text-2xl font-bold text-foreground">30 jours</p>
+              <p className="text-sm font-medium text-muted-foreground">Délai paiement clients</p>
+              <p className="text-2xl font-bold text-foreground">{settings.customer_payment_delay} jours</p>
+            </div>
+            <div className="p-4 rounded-lg bg-muted/50">
+              <p className="text-sm font-medium text-muted-foreground">Délai paiement fournisseurs</p>
+              <p className="text-2xl font-bold text-foreground">{settings.supplier_payment_delay} jours</p>
             </div>
           </div>
         </CardContent>
       </Card>
+
+      <BPSettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
     </div>
   );
 }
