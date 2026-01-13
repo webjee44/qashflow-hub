@@ -38,7 +38,8 @@ export function PersonnelDialog({ open, onOpenChange, personnel, onSave }: Perso
   useEffect(() => {
     if (personnel) {
       setPosition(personnel.position);
-      setGrossSalary(personnel.gross_salary.toString());
+      // Convert monthly to annual for display
+      setGrossSalary((personnel.gross_salary * 12).toString());
       setStartDate(personnel.start_date);
       setEndDate(personnel.end_date || '');
       setNotes(personnel.notes || '');
@@ -57,24 +58,25 @@ export function PersonnelDialog({ open, onOpenChange, personnel, onSave }: Perso
     }
   }, [personnel, open]);
 
-  const grossSalaryNum = parseFloat(grossSalary) || 0;
+  const grossSalaryAnnual = parseFloat(grossSalary) || 0;
+  const grossSalaryMonthly = grossSalaryAnnual / 12;
   
-  // Calcul détaillé des charges URSSAF
+  // Calcul détaillé des charges URSSAF (basé sur le mensuel)
   const detailedCharges = calculateDetailedCharges(
-    grossSalaryNum,
+    grossSalaryMonthly,
     isExecutive,
     companySize as 'small' | 'medium' | 'large',
     contractType
   );
   
-  const totalCost = grossSalaryNum + detailedCharges.total;
-  const effectiveRate = grossSalaryNum > 0 ? (detailedCharges.total / grossSalaryNum * 100) : 0;
+  const totalCostMonthly = grossSalaryMonthly + detailedCharges.total;
+  const effectiveRate = grossSalaryMonthly > 0 ? (detailedCharges.total / grossSalaryMonthly * 100) : 0;
 
   const handleSave = () => {
     onSave({
       id: personnel?.id,
       position,
-      gross_salary: grossSalaryNum,
+      gross_salary: grossSalaryMonthly, // Store as monthly
       start_date: startDate,
       end_date: endDate || null,
       notes: notes || null,
@@ -89,21 +91,21 @@ export function PersonnelDialog({ open, onOpenChange, personnel, onSave }: Perso
     new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(value);
 
   const chargesBreakdown = [
-    { label: 'Maladie', value: detailedCharges.maladie, rate: grossSalaryNum > 0 ? detailedCharges.maladie / grossSalaryNum : 0 },
+    { label: 'Maladie', value: detailedCharges.maladie, rate: grossSalaryMonthly > 0 ? detailedCharges.maladie / grossSalaryMonthly : 0 },
     { label: 'CSA', value: detailedCharges.csa, rate: URSSAF_RATES_2026.employer.csa },
     { label: 'Vieillesse déplafonnée', value: detailedCharges.vieillesseDeplafonnee, rate: URSSAF_RATES_2026.employer.vieillesse_deplafonnee },
-    { label: 'Vieillesse plafonnée', value: detailedCharges.vieillessePlafonnee, rate: grossSalaryNum > 0 ? detailedCharges.vieillessePlafonnee / grossSalaryNum : 0 },
-    { label: 'Alloc. familiales', value: detailedCharges.allocationsFamiliales, rate: grossSalaryNum > 0 ? detailedCharges.allocationsFamiliales / grossSalaryNum : 0 },
+    { label: 'Vieillesse plafonnée', value: detailedCharges.vieillessePlafonnee, rate: grossSalaryMonthly > 0 ? detailedCharges.vieillessePlafonnee / grossSalaryMonthly : 0 },
+    { label: 'Alloc. familiales', value: detailedCharges.allocationsFamiliales, rate: grossSalaryMonthly > 0 ? detailedCharges.allocationsFamiliales / grossSalaryMonthly : 0 },
     { label: 'Chômage', value: detailedCharges.chomage, rate: URSSAF_RATES_2026.employer.chomage },
     { label: 'AGS', value: detailedCharges.ags, rate: URSSAF_RATES_2026.employer.ags },
-    { label: 'FNAL', value: detailedCharges.fnal, rate: grossSalaryNum > 0 ? detailedCharges.fnal / grossSalaryNum : 0 },
-    { label: 'Formation', value: detailedCharges.formation, rate: grossSalaryNum > 0 ? detailedCharges.formation / grossSalaryNum : 0 },
+    { label: 'FNAL', value: detailedCharges.fnal, rate: grossSalaryMonthly > 0 ? detailedCharges.fnal / grossSalaryMonthly : 0 },
+    { label: 'Formation', value: detailedCharges.formation, rate: grossSalaryMonthly > 0 ? detailedCharges.formation / grossSalaryMonthly : 0 },
     { label: 'Taxe apprentissage', value: detailedCharges.apprentissage, rate: URSSAF_RATES_2026.employer.apprentissage },
     { label: 'AT/MP', value: detailedCharges.atMp, rate: URSSAF_RATES_2026.employer.at_mp },
-    { label: 'Retraite compl. T1', value: detailedCharges.retraiteComplementaireT1, rate: grossSalaryNum > 0 ? detailedCharges.retraiteComplementaireT1 / grossSalaryNum : 0 },
+    { label: 'Retraite compl. T1', value: detailedCharges.retraiteComplementaireT1, rate: grossSalaryMonthly > 0 ? detailedCharges.retraiteComplementaireT1 / grossSalaryMonthly : 0 },
     ...(isExecutive ? [
-      { label: 'Retraite compl. T2 (cadre)', value: detailedCharges.retraiteComplementaireT2, rate: grossSalaryNum > 0 ? detailedCharges.retraiteComplementaireT2 / grossSalaryNum : 0 },
-      { label: 'Prévoyance cadre', value: detailedCharges.prevoyanceCadre, rate: grossSalaryNum > 0 ? detailedCharges.prevoyanceCadre / grossSalaryNum : 0 },
+      { label: 'Retraite compl. T2 (cadre)', value: detailedCharges.retraiteComplementaireT2, rate: grossSalaryMonthly > 0 ? detailedCharges.retraiteComplementaireT2 / grossSalaryMonthly : 0 },
+      { label: 'Prévoyance cadre', value: detailedCharges.prevoyanceCadre, rate: grossSalaryMonthly > 0 ? detailedCharges.prevoyanceCadre / grossSalaryMonthly : 0 },
     ] : []),
     { label: 'CET', value: detailedCharges.cet, rate: URSSAF_RATES_2026.employer.cet },
   ].filter(c => c.value > 0);
@@ -169,14 +171,19 @@ export function PersonnelDialog({ open, onOpenChange, personnel, onSave }: Perso
 
           <div className="grid grid-cols-2 gap-4">
             <div className="grid gap-2">
-              <Label htmlFor="salary">Salaire brut mensuel (€)</Label>
+              <Label htmlFor="salary">Salaire brut annuel (€)</Label>
               <Input
                 id="salary"
                 type="number"
                 value={grossSalary}
                 onChange={(e) => setGrossSalary(e.target.value)}
-                placeholder="0"
+                placeholder="Ex: 35000"
               />
+              {grossSalaryAnnual > 0 && (
+                <span className="text-xs text-muted-foreground">
+                  soit {formatCurrency(grossSalaryMonthly)}/mois
+                </span>
+              )}
             </div>
             <div className="grid gap-2">
               <Label className="text-muted-foreground">Taux charges patronales</Label>
@@ -187,11 +194,11 @@ export function PersonnelDialog({ open, onOpenChange, personnel, onSave }: Perso
           </div>
 
           {/* Aperçu des coûts */}
-          {grossSalaryNum > 0 && (
+          {grossSalaryAnnual > 0 && (
             <div className="p-4 bg-muted/50 rounded-lg space-y-3">
               <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Salaire brut</span>
-                <span>{formatCurrency(grossSalaryNum)}</span>
+                <span className="text-muted-foreground">Salaire brut annuel</span>
+                <span>{formatCurrency(grossSalaryAnnual)}</span>
               </div>
               
               <Collapsible open={showDetails} onOpenChange={setShowDetails}>
@@ -218,10 +225,10 @@ export function PersonnelDialog({ open, onOpenChange, personnel, onSave }: Perso
 
               <div className="flex justify-between font-semibold pt-2 border-t">
                 <span>Coût total employeur</span>
-                <span className="text-destructive">{formatCurrency(totalCost)}/mois</span>
+                <span className="text-destructive">{formatCurrency(totalCostMonthly)}/mois</span>
               </div>
               <div className="text-xs text-muted-foreground text-right">
-                soit {formatCurrency(totalCost * 12)}/an
+                soit {formatCurrency(totalCostMonthly * 12)}/an
               </div>
             </div>
           )}
