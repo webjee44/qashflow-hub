@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, 
   ArrowLeftRight, 
@@ -9,11 +9,18 @@ import {
   HelpCircle,
   ChevronLeft,
   ChevronRight,
-  Tags
+  Tags,
+  Wallet,
+  FileSpreadsheet,
+  DollarSign,
+  Building2,
+  GitBranch
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { useAppMode } from '@/hooks/useAppMode';
+import { Switch } from '@/components/ui/switch';
 
 interface NavItem {
   icon: React.ElementType;
@@ -22,12 +29,21 @@ interface NavItem {
   badge?: string;
 }
 
-const navItems: NavItem[] = [
+const treasuryNavItems: NavItem[] = [
   { icon: LayoutDashboard, label: 'Tableau de bord', href: '/' },
   { icon: ArrowLeftRight, label: 'Transactions', href: '/transactions' },
   { icon: TrendingUp, label: 'Prévisions', href: '/previsions' },
   { icon: Tags, label: 'Catégories', href: '/categories' },
   { icon: Zap, label: 'Automatisations', href: '/automatisations' },
+];
+
+const businessPlanNavItems: NavItem[] = [
+  { icon: LayoutDashboard, label: 'Dashboard', href: '/bp' },
+  { icon: DollarSign, label: 'Revenus', href: '/bp/revenus' },
+  { icon: Building2, label: 'Charges', href: '/bp/charges' },
+  { icon: FileSpreadsheet, label: 'Compte de résultat', href: '/bp/pnl' },
+  { icon: Wallet, label: 'Trésorerie', href: '/bp/tresorerie' },
+  { icon: GitBranch, label: 'Scénarios', href: '/bp/scenarios' },
 ];
 
 const bottomNavItems: NavItem[] = [
@@ -38,8 +54,19 @@ const bottomNavItems: NavItem[] = [
 export function Sidebar() {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const { user } = useAuth();
+  const { mode, setMode, isBusinessPlan } = useAppMode();
   const location = useLocation();
+  const navigate = useNavigate();
   const currentPath = location.pathname;
+  
+  const navItems = isBusinessPlan ? businessPlanNavItems : treasuryNavItems;
+
+  const handleModeChange = (checked: boolean) => {
+    const newMode = checked ? 'business-plan' : 'treasury';
+    setMode(newMode);
+    // Navigate to the default route of the new mode
+    navigate(checked ? '/bp' : '/');
+  };
 
   return (
     <motion.aside
@@ -65,7 +92,9 @@ export function Sidebar() {
             {!isCollapsed && (
               <div>
                 <h1 className="font-bold text-foreground text-lg">PennyFlow</h1>
-                <p className="text-xs text-muted-foreground">Trésorerie simplifiée</p>
+                <p className="text-xs text-muted-foreground">
+                  {isBusinessPlan ? 'Business Plan' : 'Trésorerie'}
+                </p>
               </div>
             )}
           </motion.div>
@@ -77,6 +106,38 @@ export function Sidebar() {
           {isCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
         </button>
       </div>
+
+      {/* Mode Toggle */}
+      {!isCollapsed && (
+        <div className="px-4 py-3 border-b border-border">
+          <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-muted/50">
+            <button
+              onClick={() => handleModeChange(false)}
+              className={cn(
+                "flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-xs font-medium transition-all",
+                !isBusinessPlan 
+                  ? "bg-primary text-primary-foreground shadow-sm" 
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <Wallet className="h-3.5 w-3.5" />
+              Tréso
+            </button>
+            <button
+              onClick={() => handleModeChange(true)}
+              className={cn(
+                "flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-xs font-medium transition-all",
+                isBusinessPlan 
+                  ? "bg-primary text-primary-foreground shadow-sm" 
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <FileSpreadsheet className="h-3.5 w-3.5" />
+              BP
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Main Navigation */}
       <nav className="flex-1 p-4 space-y-1 overflow-y-auto overflow-x-hidden">
