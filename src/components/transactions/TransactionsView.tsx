@@ -61,7 +61,7 @@ export function TransactionsView() {
   const [selectedTransactionIds, setSelectedTransactionIds] = useState<Set<string>>(new Set());
   const [bulkCategorizing, setBulkCategorizing] = useState(false);
   const { toast } = useToast();
-  const { currentCompany } = useCompany();
+  const { currentCompany, refetch: refetchCompanies } = useCompany();
   const { createRule } = useAutomationRules();
 
   const fetchTransactions = async () => {
@@ -162,7 +162,8 @@ export function TransactionsView() {
           title: 'Synchronisation réussie',
           description: data.message || `${data.synced} transactions importées`,
         });
-        fetchTransactions();
+        // Refresh transactions + company (for bank_balance)
+        await Promise.all([fetchTransactions(), refetchCompanies()]);
       }
     } catch (err) {
       console.error('Sync error:', err);
