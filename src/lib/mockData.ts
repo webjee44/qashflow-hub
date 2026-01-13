@@ -49,16 +49,16 @@ export const categories: Category[] = [
 ];
 
 export const transactions: Transaction[] = [
-  { id: '1', date: '2026-01-12', description: 'Paiement client - ACME Corp', amount: 15000, category: 'Ventes', type: 'income', isReconciled: true, source: 'Pennylane', aiConfidence: 0.98 },
-  { id: '2', date: '2026-01-11', description: 'Abonnement AWS', amount: -450, category: 'Logiciels', type: 'expense', isReconciled: true, source: 'Pennylane', aiConfidence: 0.95 },
-  { id: '3', date: '2026-01-10', description: 'Virement salaires janvier', amount: -28000, category: 'Salaires', type: 'expense', isReconciled: true, source: 'Pennylane', aiConfidence: 0.99 },
-  { id: '4', date: '2026-01-09', description: 'Facture client - TechStart', amount: 8500, category: 'Prestations', type: 'income', isReconciled: false, source: 'Pennylane', aiConfidence: 0.87 },
-  { id: '5', date: '2026-01-08', description: 'Loyer bureaux janvier', amount: -3200, category: 'Loyer', type: 'expense', isReconciled: true, source: 'Pennylane', aiConfidence: 0.99 },
-  { id: '6', date: '2026-01-07', description: 'Google Ads - Campagne Q1', amount: -1200, category: 'Marketing', type: 'expense', isReconciled: true, source: 'Pennylane', aiConfidence: 0.92 },
-  { id: '7', date: '2026-01-06', description: 'Paiement fournisseur matériel', amount: -5600, category: 'Fournisseurs', type: 'expense', isReconciled: false, source: 'Pennylane', aiConfidence: 0.88 },
-  { id: '8', date: '2026-01-05', description: 'Client - Startup Vision', amount: 22000, category: 'Ventes', type: 'income', isReconciled: true, source: 'Pennylane', aiConfidence: 0.96 },
-  { id: '9', date: '2026-01-04', description: 'Remboursement TVA', amount: 4200, category: 'Remboursements', type: 'income', isReconciled: true, source: 'Pennylane', aiConfidence: 0.99 },
-  { id: '10', date: '2026-01-03', description: 'Abonnement Slack', amount: -89, category: 'Logiciels', type: 'expense', isReconciled: true, source: 'Pennylane', aiConfidence: 0.97 },
+  { id: '1', date: '2026-01-12', description: 'Paiement client - ACME Corp', amount: 15000, category: 'Ventes', type: 'income', isReconciled: true, source: 'Bridge', aiConfidence: 0.98 },
+  { id: '2', date: '2026-01-11', description: 'Abonnement AWS', amount: -450, category: 'Logiciels', type: 'expense', isReconciled: true, source: 'Bridge', aiConfidence: 0.95 },
+  { id: '3', date: '2026-01-10', description: 'Virement salaires janvier', amount: -28000, category: 'Salaires', type: 'expense', isReconciled: true, source: 'Bridge', aiConfidence: 0.99 },
+  { id: '4', date: '2026-01-09', description: 'Facture client - TechStart', amount: 8500, category: 'Prestations', type: 'income', isReconciled: false, source: 'Bridge', aiConfidence: 0.87 },
+  { id: '5', date: '2026-01-08', description: 'Loyer bureaux janvier', amount: -3200, category: 'Loyer', type: 'expense', isReconciled: true, source: 'Bridge', aiConfidence: 0.99 },
+  { id: '6', date: '2026-01-07', description: 'Google Ads - Campagne Q1', amount: -1200, category: 'Marketing', type: 'expense', isReconciled: true, source: 'Bridge', aiConfidence: 0.92 },
+  { id: '7', date: '2026-01-06', description: 'Paiement fournisseur matériel', amount: -5600, category: 'Fournisseurs', type: 'expense', isReconciled: false, source: 'Bridge', aiConfidence: 0.88 },
+  { id: '8', date: '2026-01-05', description: 'Client - Startup Vision', amount: 22000, category: 'Ventes', type: 'income', isReconciled: true, source: 'Bridge', aiConfidence: 0.96 },
+  { id: '9', date: '2026-01-04', description: 'Remboursement TVA', amount: 4200, category: 'Remboursements', type: 'income', isReconciled: true, source: 'Bridge', aiConfidence: 0.99 },
+  { id: '10', date: '2026-01-03', description: 'Abonnement Slack', amount: -89, category: 'Logiciels', type: 'expense', isReconciled: true, source: 'Bridge', aiConfidence: 0.97 },
 ];
 
 export const forecasts: Forecast[] = [

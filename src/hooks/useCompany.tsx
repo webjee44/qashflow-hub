@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { toast } from 'sonner';
@@ -15,7 +15,6 @@ export interface Company {
   bridge_user_uuid: string | null;
   created_at: string;
   updated_at: string;
-  has_pennylane_key?: boolean; // Computed from company_has_secret function
 }
 
 interface CompanyContextType {
@@ -23,8 +22,8 @@ interface CompanyContextType {
   setCurrentCompany: (company: Company | null) => void;
   companies: Company[];
   isLoading: boolean;
-  createCompany: (data: { name: string; initial_balance?: number; pennylane_api_key?: string; is_default?: boolean }) => Promise<Company>;
-  updateCompany: (id: string, data: { name?: string; initial_balance?: number; is_default?: boolean; pennylane_api_key?: string }) => Promise<void>;
+  createCompany: (data: { name: string; initial_balance?: number; is_default?: boolean }) => Promise<Company>;
+  updateCompany: (id: string, data: { name?: string; initial_balance?: number; is_default?: boolean }) => Promise<void>;
   deleteCompany: (id: string) => Promise<void>;
   refetch: () => void;
 }
@@ -38,7 +37,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const [currentCompany, setCurrentCompanyState] = useState<Company | null>(null);
 
-  // Fetch companies with secret check
+  // Fetch companies
   const { data: companies = [], isLoading, refetch } = useQuery({
     queryKey: ['companies', user?.id],
     queryFn: async () => {
@@ -52,21 +51,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
       
       if (error) throw error;
 
-      // Check if each company has a Pennylane API key configured
-      const companiesWithSecretStatus = await Promise.all(
-        (data || []).map(async (company) => {
-          const { data: hasSecret } = await supabase.rpc('company_has_secret', {
-            p_company_id: company.id,
-            p_secret_type: 'pennylane_api_key'
-          });
-          return {
-            ...company,
-            has_pennylane_key: hasSecret || false
-          } as Company;
-        })
-      );
-      
-      return companiesWithSecretStatus;
+      return (data || []) as Company[];
     },
     enabled: !!user?.id,
   });
@@ -118,8 +103,8 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Create company with optional API key
-  const createCompany = async (data: { name: string; initial_balance?: number; pennylane_api_key?: string; is_default?: boolean }): Promise<Company> => {
+  // Create company
+  const createCompany = async (data: { name: string; initial_balance?: number; is_default?: boolean }): Promise<Company> => {
     if (!user?.id) throw new Error('Non authentifié');
 
     // If this is the first company or is_default is true, make it default
@@ -146,35 +131,19 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
 
     if (error) throw error;
 
-    // If API key provided, store it in company_secrets
-    if (data.pennylane_api_key) {
-      const { error: secretError } = await supabase
-        .from('company_secrets')
-        .insert({
-          company_id: newCompany.id,
-          secret_type: 'pennylane_api_key',
-          encrypted_value: data.pennylane_api_key,
-        });
-
-      if (secretError) {
-        console.error('Error storing API key:', secretError);
-        // Don't fail the company creation, just log the error
-      }
-    }
-
     await refetch();
     
     // Auto-select if first company
     if (companies.length === 0) {
-      setCurrentCompany({ ...newCompany, has_pennylane_key: !!data.pennylane_api_key } as Company);
+      setCurrentCompany(newCompany as Company);
     }
 
     toast.success('Société créée avec succès');
-    return { ...newCompany, has_pennylane_key: !!data.pennylane_api_key } as Company;
+    return newCompany as Company;
   };
 
   // Update company
-  const updateCompany = async (id: string, data: { name?: string; initial_balance?: number; is_default?: boolean; pennylane_api_key?: string }) => {
+  const updateCompany = async (id: string, data: { name?: string; initial_balance?: number; is_default?: boolean }) => {
     if (!user?.id) throw new Error('Non authentifié');
 
     // If setting as default, unset other defaults
@@ -199,33 +168,6 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
         .eq('id', id);
 
       if (error) throw error;
-    }
-
-    // Handle API key update if provided
-    if (data.pennylane_api_key !== undefined) {
-      if (data.pennylane_api_key) {
-        // Upsert the secret (insert or update)
-        const { error: secretError } = await supabase
-          .from('company_secrets')
-          .upsert({
-            company_id: id,
-            secret_type: 'pennylane_api_key',
-            encrypted_value: data.pennylane_api_key,
-          }, {
-            onConflict: 'company_id,secret_type'
-          });
-
-        if (secretError) {
-          console.error('Error updating API key:', secretError);
-        }
-      } else {
-        // Delete the secret if empty string provided
-        await supabase
-          .from('company_secrets')
-          .delete()
-          .eq('company_id', id)
-          .eq('secret_type', 'pennylane_api_key');
-      }
     }
 
     await refetch();

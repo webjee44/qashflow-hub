@@ -95,13 +95,13 @@ export function useDashboardStats() {
           .filter(t => t.type === 'expense')
           .reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
 
-        // Current balance: use real bank balance from Pennylane if available, otherwise calculate from transactions
+        // Current balance: use real bank balance from Bridge if available, otherwise calculate from transactions
         let currentBalance: number;
         
         if (currentCompany?.bank_balance !== null && currentCompany?.bank_balance !== undefined) {
-          // Use real bank balance from Pennylane trial balance
+          // Use real bank balance from Bridge
           currentBalance = Number(currentCompany.bank_balance);
-          console.log('Using real bank balance from Pennylane:', currentBalance);
+          console.log('Using real bank balance from Bridge:', currentBalance);
         } else {
           // Fallback: calculate from initial balance + transactions
           const initialBalance = currentCompany?.initial_balance || 0;
