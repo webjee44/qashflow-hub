@@ -13,6 +13,8 @@ export interface BPSettings {
   customer_payment_delay: number;
   supplier_payment_delay: number;
   projection_months: number;
+  tax_regime: string;
+  is_pme: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -22,6 +24,8 @@ const DEFAULT_SETTINGS = {
   customer_payment_delay: 30,
   supplier_payment_delay: 30,
   projection_months: 24,
+  tax_regime: 'is',
+  is_pme: true,
 };
 
 export function useBPSettings() {
