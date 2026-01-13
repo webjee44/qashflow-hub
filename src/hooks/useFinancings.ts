@@ -5,6 +5,7 @@ import { useCompany } from '@/hooks/useCompany';
 import { toast } from 'sonner';
 import { calculateLoanPayment, getLoanScheduleEntry } from '@/lib/french-rates';
 import { parseISO, differenceInMonths, isBefore, isAfter, startOfMonth, endOfMonth, addMonths } from 'date-fns';
+import { useCallback, useMemo } from 'react';
 
 export interface Financing {
   id: string;
@@ -120,55 +121,55 @@ export function useFinancings() {
   });
 
   // Helper: check if financing is active in a given month
-  const isActiveInMonth = (financing: Financing, month: Date): boolean => {
+  const isActiveInMonth = useCallback((financing: Financing, month: Date): boolean => {
     const startDate = parseISO(financing.start_date);
     const endDate = financing.end_date ? parseISO(financing.end_date) : addMonths(startDate, financing.duration_months);
     const monthStart = startOfMonth(month);
     const monthEnd = endOfMonth(month);
     
     return !isAfter(startDate, monthEnd) && !isBefore(endDate, monthStart);
-  };
+  }, []);
 
   // Helper: get month index for a financing (0-based)
-  const getMonthIndex = (financing: Financing, month: Date): number => {
+  const getMonthIndex = useCallback((financing: Financing, month: Date): number => {
     const startDate = parseISO(financing.start_date);
     return differenceInMonths(startOfMonth(month), startOfMonth(startDate));
-  };
+  }, []);
 
   // Get total monthly lease payments for a given month
-  const getMonthlyLeasePayments = (month: Date): number => {
+  const getMonthlyLeasePayments = useCallback((month: Date): number => {
     return financings
       .filter(f => f.financing_type === 'lease' && isActiveInMonth(f, month))
       .reduce((sum, f) => sum + Number(f.monthly_payment), 0);
-  };
+  }, [financings, isActiveInMonth]);
 
   // Get total monthly loan payments (capital + interest) for a given month
-  const getMonthlyLoanPayments = (month: Date): number => {
+  const getMonthlyLoanPayments = useCallback((month: Date): number => {
     return financings
       .filter(f => f.financing_type === 'loan' && isActiveInMonth(f, month))
       .reduce((sum, f) => sum + Number(f.monthly_payment), 0);
-  };
+  }, [financings, isActiveInMonth]);
 
   // Get monthly interest expense (for P&L) for a given month
-  const getMonthlyInterestExpense = (month: Date): number => {
+  const getMonthlyInterestExpense = useCallback((month: Date): number => {
     return financings
       .filter(f => f.financing_type === 'loan' && isActiveInMonth(f, month))
       .reduce((sum, f) => {
-        const monthIndex = getMonthIndex(f, month);
-        if (monthIndex < 0 || monthIndex >= f.duration_months) return sum;
+        const monthIdx = getMonthIndex(f, month);
+        if (monthIdx < 0 || monthIdx >= f.duration_months) return sum;
         
         const entry = getLoanScheduleEntry(
           Number(f.amount),
           Number(f.interest_rate),
           f.duration_months,
-          monthIndex
+          monthIdx
         );
         return sum + entry.interest;
       }, 0);
-  };
+  }, [financings, isActiveInMonth, getMonthIndex]);
 
   // Get loan disbursements (cash inflow when loan is granted) for a given month
-  const getLoanDisbursements = (month: Date): number => {
+  const getLoanDisbursements = useCallback((month: Date): number => {
     const monthStart = startOfMonth(month);
     
     return financings
@@ -178,28 +179,28 @@ export function useFinancings() {
         return startDate.getTime() === monthStart.getTime();
       })
       .reduce((sum, f) => sum + Number(f.amount), 0);
-  };
+  }, [financings]);
 
   // Get capital repayments only (for cash flow detail) for a given month
-  const getLoanCapitalRepayments = (month: Date): number => {
+  const getLoanCapitalRepayments = useCallback((month: Date): number => {
     return financings
       .filter(f => f.financing_type === 'loan' && isActiveInMonth(f, month))
       .reduce((sum, f) => {
-        const monthIndex = getMonthIndex(f, month);
-        if (monthIndex < 0 || monthIndex >= f.duration_months) return sum;
+        const monthIdx = getMonthIndex(f, month);
+        if (monthIdx < 0 || monthIdx >= f.duration_months) return sum;
         
         const entry = getLoanScheduleEntry(
           Number(f.amount),
           Number(f.interest_rate),
           f.duration_months,
-          monthIndex
+          monthIdx
         );
         return sum + entry.capital;
       }, 0);
-  };
+  }, [financings, isActiveInMonth, getMonthIndex]);
 
   // Get total outstanding loan balance
-  const getTotalOutstandingLoans = (atDate: Date = new Date()): number => {
+  const getTotalOutstandingLoans = useCallback((atDate: Date = new Date()): number => {
     return financings
       .filter(f => f.financing_type === 'loan')
       .reduce((sum, f) => {
@@ -209,8 +210,8 @@ export function useFinancings() {
           return sum + Number(f.amount);
         }
         
-        const monthIndex = differenceInMonths(startOfMonth(atDate), startOfMonth(startDate));
-        if (monthIndex >= f.duration_months) {
+        const monthIdx = differenceInMonths(startOfMonth(atDate), startOfMonth(startDate));
+        if (monthIdx >= f.duration_months) {
           // Loan fully repaid
           return sum;
         }
@@ -219,16 +220,16 @@ export function useFinancings() {
           Number(f.amount),
           Number(f.interest_rate),
           f.duration_months,
-          monthIndex
+          monthIdx
         );
         return sum + entry.remaining;
       }, 0);
-  };
+  }, [financings]);
 
   // Get total monthly payments (all financings)
-  const getTotalMonthlyPayments = (): number => {
+  const getTotalMonthlyPayments = useCallback((): number => {
     return financings.reduce((sum, f) => sum + Number(f.monthly_payment), 0);
-  };
+  }, [financings]);
 
   return {
     financings,
