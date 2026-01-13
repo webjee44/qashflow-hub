@@ -21,6 +21,7 @@ import NotFound from "./pages/NotFound";
 import BPDashboard from "./pages/BusinessPlan/Dashboard";
 import RevenueAssumptions from "./pages/BusinessPlan/RevenueAssumptions";
 import Expenses from "./pages/BusinessPlan/Expenses";
+import Investments from "./pages/BusinessPlan/Investments";
 import ProfitLoss from "./pages/BusinessPlan/ProfitLoss";
 import CashFlow from "./pages/BusinessPlan/CashFlow";
 import Scenarios from "./pages/BusinessPlan/Scenarios";
@@ -57,6 +58,7 @@ const App = () => (
                   <Route path="/bp" element={<BPDashboard />} />
                   <Route path="/bp/revenus" element={<RevenueAssumptions />} />
                   <Route path="/bp/charges" element={<Expenses />} />
+                  <Route path="/bp/investissements" element={<Investments />} />
                   <Route path="/bp/pnl" element={<ProfitLoss />} />
                   <Route path="/bp/tresorerie" element={<CashFlow />} />
                   <Route path="/bp/scenarios" element={<Scenarios />} />
