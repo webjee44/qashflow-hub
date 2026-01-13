@@ -81,6 +81,25 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     }
   }, [companies, currentCompany]);
 
+  // Keep currentCompany in sync when companies are refetched/updated
+  useEffect(() => {
+    if (!currentCompany || companies.length === 0) return;
+    const latest = companies.find(c => c.id === currentCompany.id);
+    if (!latest) return;
+
+    // Update when server data changed (e.g. bank_balance after sync)
+    if (
+      latest.updated_at !== currentCompany.updated_at ||
+      latest.bank_balance !== currentCompany.bank_balance ||
+      latest.bank_balance_updated_at !== currentCompany.bank_balance_updated_at ||
+      latest.initial_balance !== currentCompany.initial_balance ||
+      latest.name !== currentCompany.name ||
+      latest.is_default !== currentCompany.is_default
+    ) {
+      setCurrentCompanyState(latest);
+    }
+  }, [companies, currentCompany]);
+
   // Clear company when user logs out
   useEffect(() => {
     if (!user) {
