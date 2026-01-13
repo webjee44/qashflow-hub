@@ -203,3 +203,82 @@ export function calculateMonthlyDepreciation(
   // Simplifié: première année taux dégressif, puis amorti mensuellement
   return (purchaseAmount * degressiveRate) / 12;
 }
+
+// ============= LOAN & LEASE CALCULATIONS =============
+
+export interface LoanPaymentInfo {
+  monthlyPayment: number;
+  totalInterest: number;
+  totalCost: number;
+}
+
+/**
+ * Calculate monthly loan payment using standard amortization formula
+ */
+export function calculateLoanPayment(
+  principal: number,
+  annualRatePercent: number,
+  durationMonths: number
+): LoanPaymentInfo {
+  if (principal <= 0 || durationMonths <= 0) {
+    return { monthlyPayment: 0, totalInterest: 0, totalCost: 0 };
+  }
+  
+  const monthlyRate = annualRatePercent / 100 / 12;
+  
+  if (monthlyRate === 0) {
+    const monthlyPayment = principal / durationMonths;
+    return { monthlyPayment, totalInterest: 0, totalCost: principal };
+  }
+  
+  const monthlyPayment = principal * (monthlyRate * Math.pow(1 + monthlyRate, durationMonths)) 
+                         / (Math.pow(1 + monthlyRate, durationMonths) - 1);
+  const totalCost = monthlyPayment * durationMonths;
+  const totalInterest = totalCost - principal;
+  
+  return { monthlyPayment, totalInterest, totalCost };
+}
+
+export interface LoanScheduleEntry {
+  interest: number;
+  capital: number;
+  remaining: number;
+}
+
+/**
+ * Get loan amortization schedule entry for a specific month
+ * @param monthIndex 0-based month index from loan start
+ */
+export function getLoanScheduleEntry(
+  principal: number,
+  annualRatePercent: number,
+  durationMonths: number,
+  monthIndex: number
+): LoanScheduleEntry {
+  if (monthIndex < 0 || monthIndex >= durationMonths || principal <= 0) {
+    return { interest: 0, capital: 0, remaining: 0 };
+  }
+  
+  const monthlyRate = annualRatePercent / 100 / 12;
+  const { monthlyPayment } = calculateLoanPayment(principal, annualRatePercent, durationMonths);
+  
+  // Calculate remaining principal at start of this month
+  let remaining = principal;
+  for (let i = 0; i < monthIndex; i++) {
+    const interest = remaining * monthlyRate;
+    const capitalPaid = monthlyPayment - interest;
+    remaining -= capitalPaid;
+  }
+  
+  const interest = remaining * monthlyRate;
+  const capital = monthlyPayment - interest;
+  const newRemaining = Math.max(0, remaining - capital);
+  
+  return { interest, capital, remaining: newRemaining };
+}
+
+// Financing types
+export const FINANCING_TYPES = [
+  { value: 'loan', label: 'Emprunt bancaire' },
+  { value: 'lease', label: 'Leasing (LOA/LLD)' },
+] as const;

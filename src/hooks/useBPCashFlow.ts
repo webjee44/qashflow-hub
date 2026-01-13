@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useProfitLoss } from './useProfitLoss';
 import { useBPSettings } from './useBPSettings';
+import { useFinancings } from './useFinancings';
 
 export interface CashFlowData {
   months: Date[];
@@ -10,13 +11,23 @@ export interface CashFlowData {
   balance: number[];
   minBalance: number;
   monthsWithNegativeBalance: number;
+  // New detailed breakdowns
+  loanDisbursements: number[];
+  loanPayments: number[];
+  leasePayments: number[];
 }
 
 export function useBPCashFlow() {
   const { data: plData, isLoading: plLoading } = useProfitLoss();
   const { settings, isLoading: settingsLoading } = useBPSettings();
+  const { 
+    getLoanDisbursements, 
+    getMonthlyLoanPayments, 
+    getMonthlyLeasePayments,
+    isLoading: financingsLoading 
+  } = useFinancings();
 
-  const isLoading = plLoading || settingsLoading;
+  const isLoading = plLoading || settingsLoading || financingsLoading;
 
   const data = useMemo<CashFlowData>(() => {
     // Flatten all months from all years
@@ -44,20 +55,30 @@ export function useBPCashFlow() {
       }
     });
 
+    // Calculate financing flows for each month
+    const loanDisbursements = months.map(month => getLoanDisbursements(month));
+    const loanPayments = months.map(month => getMonthlyLoanPayments(month));
+    const leasePayments = months.map(month => getMonthlyLeasePayments(month));
+
     // Apply payment delays
-    // Inflows = revenue shifted by customer delay
+    // Inflows = revenue shifted by customer delay + loan disbursements
     const inflows = months.map((_, i) => {
       const sourceIndex = i - customerDelay;
-      return sourceIndex >= 0 ? monthlyRevenue[sourceIndex] : 0;
+      const revenue = sourceIndex >= 0 ? monthlyRevenue[sourceIndex] : 0;
+      const loans = loanDisbursements[i] || 0;
+      return revenue + loans;
     });
 
-    // Outflows = expenses shifted by supplier delay
+    // Outflows = expenses shifted by supplier delay + financing payments
     const outflows = months.map((_, i) => {
       const sourceIndex = i - supplierDelay;
+      let expenses = 0;
       if (sourceIndex >= 0) {
-        return monthlyFixedExpenses[sourceIndex] + monthlyPersonnelCosts[sourceIndex];
+        expenses = monthlyFixedExpenses[sourceIndex] + monthlyPersonnelCosts[sourceIndex];
       }
-      return 0;
+      // Add financing payments (not delayed - they're contractual)
+      const financing = (loanPayments[i] || 0) + (leasePayments[i] || 0);
+      return expenses + financing;
     });
 
     // Net flow for each month
@@ -72,7 +93,7 @@ export function useBPCashFlow() {
     });
 
     // Stats
-    const minBalance = Math.min(...balance);
+    const minBalance = balance.length > 0 ? Math.min(...balance) : 0;
     const monthsWithNegativeBalance = balance.filter(b => b < 0).length;
 
     return {
@@ -83,8 +104,11 @@ export function useBPCashFlow() {
       balance,
       minBalance,
       monthsWithNegativeBalance,
+      loanDisbursements,
+      loanPayments,
+      leasePayments,
     };
-  }, [plData, settings]);
+  }, [plData, settings, getLoanDisbursements, getMonthlyLoanPayments, getMonthlyLeasePayments]);
 
   // Helper: check if cash flow is healthy
   const isHealthy = (): boolean => {

@@ -130,6 +130,68 @@ export type Database = {
           },
         ]
       }
+      bp_financings: {
+        Row: {
+          amount: number
+          company_id: string | null
+          created_at: string | null
+          duration_months: number | null
+          end_date: string | null
+          financing_type: string
+          id: string
+          interest_rate: number | null
+          investment_id: string | null
+          monthly_payment: number | null
+          name: string
+          notes: string | null
+          start_date: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          amount?: number
+          company_id?: string | null
+          created_at?: string | null
+          duration_months?: number | null
+          end_date?: string | null
+          financing_type?: string
+          id?: string
+          interest_rate?: number | null
+          investment_id?: string | null
+          monthly_payment?: number | null
+          name: string
+          notes?: string | null
+          start_date?: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          company_id?: string | null
+          created_at?: string | null
+          duration_months?: number | null
+          end_date?: string | null
+          financing_type?: string
+          id?: string
+          interest_rate?: number | null
+          investment_id?: string | null
+          monthly_payment?: number | null
+          name?: string
+          notes?: string | null
+          start_date?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bp_financings_investment_id_fkey"
+            columns: ["investment_id"]
+            isOneToOne: false
+            referencedRelation: "bp_investments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bp_fixed_expenses: {
         Row: {
           category: string | null
