@@ -5,6 +5,7 @@ import { useVariableExpenses } from './useVariableExpenses';
 import { usePersonnel } from './usePersonnel';
 import { useDirectors } from './useDirectors';
 import { useInvestments } from './useInvestments';
+import { useFinancings } from './useFinancings';
 import { useBPSettings } from './useBPSettings';
 import { startOfMonth, addMonths, isWithinInterval, startOfDay } from 'date-fns';
 import { calculateIS, TVA_RATES_FR } from '@/lib/french-rates';
@@ -34,8 +35,10 @@ export interface PLData {
     personnelCosts: number[];
     directorsCosts: number[];
     depreciation: number[];
+    leaseExpenses: number[];
     ebitda: number[];
     operatingResult: number[];
+    financialResult: number[];
     netResultBeforeTax: number[];
     corporateTax: number[];
     netResult: number[];
@@ -47,8 +50,10 @@ export interface PLData {
     personnelCosts: number;
     directorsCosts: number;
     depreciation: number;
+    leaseExpenses: number;
     ebitda: number;
     operatingResult: number;
+    financialResult: number;
     netResultBeforeTax: number;
     corporateTax: number;
     netResult: number;
@@ -69,9 +74,10 @@ export function useProfitLoss() {
   const { personnel, getBreakdownForMonth, isLoading: personnelLoading } = usePersonnel();
   const { directors, getBreakdownForMonth: getDirectorsBreakdown, isLoading: directorsLoading } = useDirectors();
   const { getDepreciationForMonth, isLoading: investmentsLoading } = useInvestments();
+  const { getMonthlyLeasePayments, getMonthlyInterestExpense, isLoading: financingsLoading } = useFinancings();
   const { settings, getFiscalYears, isLoading: settingsLoading } = useBPSettings();
 
-  const isLoading = revenueLoading || expensesLoading || variableExpensesLoading || personnelLoading || directorsLoading || investmentsLoading || settingsLoading;
+  const isLoading = revenueLoading || expensesLoading || variableExpensesLoading || personnelLoading || directorsLoading || investmentsLoading || financingsLoading || settingsLoading;
 
   const data = useMemo<PLData>(() => {
     // Get fiscal years from settings
@@ -213,9 +219,15 @@ export function useProfitLoss() {
       rows.push({ label: 'Dotations aux amortissements', type: 'item', values: depreciationValues, isExpense: true });
     }
 
+    // Loyers de crédit-bail (leasing)
+    const leaseExpenseValues = calculateYearlyValues(month => getMonthlyLeasePayments(month));
+    if (leaseExpenseValues.some(v => v > 0)) {
+      rows.push({ label: 'Loyers de crédit-bail', type: 'item', values: leaseExpenseValues, isExpense: true });
+    }
+
     // Total charges d'exploitation
     const totalExpenseValues = years.map((_, i) => 
-      variableExpenseValues[i] + fixedExpenseValues[i] + personnelValues[i] + directorTotalValues[i] + depreciationValues[i]
+      variableExpenseValues[i] + fixedExpenseValues[i] + personnelValues[i] + directorTotalValues[i] + depreciationValues[i] + leaseExpenseValues[i]
     );
     rows.push({ label: 'Total charges d\'exploitation', type: 'subtotal', values: totalExpenseValues, isExpense: true });
 
@@ -231,9 +243,9 @@ export function useProfitLoss() {
     const vaValues = years.map((_, i) => grossMarginValues[i] - fixedExpenseValues[i]);
     rows.push({ label: 'VALEUR AJOUTÉE', type: 'sig', values: vaValues });
 
-    // EBE = VA - Charges de personnel - Rémunération dirigeants
+    // EBE = VA - Charges de personnel - Rémunération dirigeants - Loyers crédit-bail
     const ebeValues = years.map((_, i) => 
-      vaValues[i] - personnelValues[i] - directorTotalValues[i]
+      vaValues[i] - personnelValues[i] - directorTotalValues[i] - leaseExpenseValues[i]
     );
     rows.push({ label: 'EXCÉDENT BRUT D\'EXPLOITATION (EBE)', type: 'sig', values: ebeValues });
 
@@ -241,9 +253,9 @@ export function useProfitLoss() {
     const operatingResultValues = years.map((_, i) => ebeValues[i] - depreciationValues[i]);
     rows.push({ label: 'RÉSULTAT D\'EXPLOITATION', type: 'sig', values: operatingResultValues });
 
-    // Résultat financier (simplifié: 0 pour l'instant)
-    const financialResultValues = years.map(() => 0);
-    rows.push({ label: 'Résultat financier', type: 'item', values: financialResultValues });
+    // Résultat financier = -intérêts d'emprunts
+    const financialResultValues = calculateYearlyValues(month => -getMonthlyInterestExpense(month));
+    rows.push({ label: 'Résultat financier', type: 'item', values: financialResultValues, isExpense: financialResultValues.some(v => v < 0) });
 
     // RCAI = Résultat d'exploitation + Résultat financier
     const rcaiValues = years.map((_, i) => operatingResultValues[i] + financialResultValues[i]);
@@ -317,8 +329,10 @@ export function useProfitLoss() {
       personnelCosts: sumAll(personnelValues),
       directorsCosts: sumAll(directorTotalValues),
       depreciation: sumAll(depreciationValues),
+      leaseExpenses: sumAll(leaseExpenseValues),
       ebitda: sumAll(ebeValues),
       operatingResult: sumAll(operatingResultValues),
+      financialResult: sumAll(financialResultValues),
       netResultBeforeTax: sumAll(rcaiValues),
       corporateTax: sumAll(isValues),
       netResult: sumAll(netResultValues),
@@ -336,8 +350,10 @@ export function useProfitLoss() {
         personnelCosts: personnelValues,
         directorsCosts: directorTotalValues,
         depreciation: depreciationValues,
+        leaseExpenses: leaseExpenseValues,
         ebitda: ebeValues,
         operatingResult: operatingResultValues,
+        financialResult: financialResultValues,
         netResultBeforeTax: rcaiValues,
         corporateTax: isValues,
         netResult: netResultValues,
@@ -349,7 +365,7 @@ export function useProfitLoss() {
         balance: tvaBalanceValues,
       },
     };
-  }, [streams, expenses, allExpenses, variableExpenses, personnel, directors, settings, getForecast, getExpensesTotal, calculateVariableExpenseForMonth, getBreakdownForMonth, getDirectorsBreakdown, getDepreciationForMonth, getFiscalYears]);
+  }, [streams, expenses, allExpenses, variableExpenses, personnel, directors, settings, getForecast, getExpensesTotal, calculateVariableExpenseForMonth, getBreakdownForMonth, getDirectorsBreakdown, getDepreciationForMonth, getMonthlyLeasePayments, getMonthlyInterestExpense, getFiscalYears]);
 
   // Helper: get break-even year
   const getBreakEvenYear = (): number | null => {

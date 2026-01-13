@@ -1,19 +1,25 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, Package } from 'lucide-react';
+import { Plus, Package, Landmark } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { InvestmentTable } from '@/components/businessplan/InvestmentTable';
 import { InvestmentDialog } from '@/components/businessplan/InvestmentDialog';
+import { FinancingTable } from '@/components/businessplan/FinancingTable';
+import { FinancingDialog } from '@/components/businessplan/FinancingDialog';
 import { useInvestments, Investment } from '@/hooks/useInvestments';
+import { useFinancings, Financing } from '@/hooks/useFinancings';
 
 export default function Investments() {
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [investmentDialogOpen, setInvestmentDialogOpen] = useState(false);
   const [selectedInvestment, setSelectedInvestment] = useState<Investment | null>(null);
+  const [financingDialogOpen, setFinancingDialogOpen] = useState(false);
+  const [selectedFinancing, setSelectedFinancing] = useState<Financing | null>(null);
 
   const { investments, createInvestment, updateInvestment, getTotalGrossValue, getTotalAccumulatedDepreciation } = useInvestments();
+  const { financings, createFinancing, updateFinancing, getTotalOutstandingLoans, getTotalMonthlyPayments } = useFinancings();
 
-  const handleSave = (data: Partial<Investment>) => {
+  const handleSaveInvestment = (data: Partial<Investment>) => {
     if (data.id) {
       updateInvestment.mutate(data as Investment & { id: string });
     } else {
@@ -21,14 +27,29 @@ export default function Investments() {
     }
   };
 
-  const handleEdit = (investment: Investment) => {
+  const handleEditInvestment = (investment: Investment) => {
     setSelectedInvestment(investment);
-    setDialogOpen(true);
+    setInvestmentDialogOpen(true);
+  };
+
+  const handleSaveFinancing = (data: Partial<Financing>) => {
+    if (data.id) {
+      updateFinancing.mutate(data as Financing);
+    } else {
+      createFinancing.mutate(data);
+    }
+  };
+
+  const handleEditFinancing = (financing: Financing) => {
+    setSelectedFinancing(financing);
+    setFinancingDialogOpen(true);
   };
 
   const totalGross = getTotalGrossValue();
   const totalDepreciation = getTotalAccumulatedDepreciation(new Date());
   const totalNetValue = totalGross - totalDepreciation;
+  const totalOutstanding = getTotalOutstandingLoans();
+  const totalMonthlyPayments = getTotalMonthlyPayments();
 
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(value);
@@ -37,27 +58,40 @@ export default function Investments() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Investissements</h1>
-          <p className="text-muted-foreground mt-1">Gérez vos immobilisations et suivez les amortissements</p>
+          <h1 className="text-3xl font-bold text-foreground">Investissements & Financements</h1>
+          <p className="text-muted-foreground mt-1">Gérez vos immobilisations, emprunts et leasings</p>
         </div>
-        <Button 
-          className="gap-2"
-          onClick={() => {
-            setSelectedInvestment(null);
-            setDialogOpen(true);
-          }}
-        >
-          <Plus className="h-4 w-4" />
-          Nouvel investissement
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            variant="outline"
+            className="gap-2"
+            onClick={() => {
+              setSelectedFinancing(null);
+              setFinancingDialogOpen(true);
+            }}
+          >
+            <Landmark className="h-4 w-4" />
+            Nouveau financement
+          </Button>
+          <Button 
+            className="gap-2"
+            onClick={() => {
+              setSelectedInvestment(null);
+              setInvestmentDialogOpen(true);
+            }}
+          >
+            <Plus className="h-4 w-4" />
+            Nouvel investissement
+          </Button>
+        </div>
       </div>
 
       {/* Summary cards */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-5">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
           <Card>
             <CardContent className="pt-6">
-              <p className="text-sm text-muted-foreground">Valeur brute totale</p>
+              <p className="text-sm text-muted-foreground">Valeur brute</p>
               <p className="text-2xl font-bold">{formatCurrency(totalGross)}</p>
             </CardContent>
           </Card>
@@ -65,7 +99,7 @@ export default function Investments() {
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
           <Card>
             <CardContent className="pt-6">
-              <p className="text-sm text-muted-foreground">Amortissements cumulés</p>
+              <p className="text-sm text-muted-foreground">Amortissements</p>
               <p className="text-2xl font-bold text-destructive">{formatCurrency(totalDepreciation)}</p>
             </CardContent>
           </Card>
@@ -73,8 +107,24 @@ export default function Investments() {
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
           <Card>
             <CardContent className="pt-6">
-              <p className="text-sm text-muted-foreground">Valeur nette comptable</p>
+              <p className="text-sm text-muted-foreground">VNC totale</p>
               <p className="text-2xl font-bold text-primary">{formatCurrency(totalNetValue)}</p>
+            </CardContent>
+          </Card>
+        </motion.div>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
+          <Card>
+            <CardContent className="pt-6">
+              <p className="text-sm text-muted-foreground">Encours emprunts</p>
+              <p className="text-2xl font-bold">{formatCurrency(totalOutstanding)}</p>
+            </CardContent>
+          </Card>
+        </motion.div>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
+          <Card>
+            <CardContent className="pt-6">
+              <p className="text-sm text-muted-foreground">Mensualités</p>
+              <p className="text-2xl font-bold">{formatCurrency(totalMonthlyPayments)}/mois</p>
             </CardContent>
           </Card>
         </motion.div>
@@ -96,17 +146,46 @@ export default function Investments() {
                 </div>
               </div>
             ) : (
-              <InvestmentTable onEdit={handleEdit} />
+              <InvestmentTable onEdit={handleEditInvestment} />
+            )}
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      {/* Financings table */}
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
+        <Card>
+          <CardHeader>
+            <CardTitle>Financements en cours</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {financings.length === 0 ? (
+              <div className="h-[200px] flex items-center justify-center">
+                <div className="text-center text-muted-foreground">
+                  <Landmark className="h-16 w-16 mx-auto mb-4 opacity-20" />
+                  <p className="text-lg font-medium">Aucun financement</p>
+                  <p className="text-sm">Emprunts bancaires, crédits-bail, leasing...</p>
+                </div>
+              </div>
+            ) : (
+              <FinancingTable onEdit={handleEditFinancing} />
             )}
           </CardContent>
         </Card>
       </motion.div>
 
       <InvestmentDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
+        open={investmentDialogOpen}
+        onOpenChange={setInvestmentDialogOpen}
         investment={selectedInvestment}
-        onSave={handleSave}
+        onSave={handleSaveInvestment}
+      />
+
+      <FinancingDialog
+        open={financingDialogOpen}
+        onOpenChange={setFinancingDialogOpen}
+        financing={selectedFinancing}
+        onSave={handleSaveFinancing}
       />
     </div>
   );
