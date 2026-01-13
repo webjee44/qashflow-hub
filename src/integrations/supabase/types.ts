@@ -505,6 +505,63 @@ export type Database = {
           },
         ]
       }
+      bp_variable_expenses: {
+        Row: {
+          calculation_type: string | null
+          category: string | null
+          company_id: string | null
+          created_at: string | null
+          end_date: string | null
+          id: string
+          is_vat_deductible: boolean | null
+          linked_revenue_stream_id: string | null
+          name: string
+          notes: string | null
+          percentage: number | null
+          start_date: string
+          unit_cost: number | null
+          updated_at: string | null
+          user_id: string
+          vat_rate: number | null
+        }
+        Insert: {
+          calculation_type?: string | null
+          category?: string | null
+          company_id?: string | null
+          created_at?: string | null
+          end_date?: string | null
+          id?: string
+          is_vat_deductible?: boolean | null
+          linked_revenue_stream_id?: string | null
+          name: string
+          notes?: string | null
+          percentage?: number | null
+          start_date?: string
+          unit_cost?: number | null
+          updated_at?: string | null
+          user_id: string
+          vat_rate?: number | null
+        }
+        Update: {
+          calculation_type?: string | null
+          category?: string | null
+          company_id?: string | null
+          created_at?: string | null
+          end_date?: string | null
+          id?: string
+          is_vat_deductible?: boolean | null
+          linked_revenue_stream_id?: string | null
+          name?: string
+          notes?: string | null
+          percentage?: number | null
+          start_date?: string
+          unit_cost?: number | null
+          updated_at?: string | null
+          user_id?: string
+          vat_rate?: number | null
+        }
+        Relationships: []
+      }
       categories: {
         Row: {
           color: string

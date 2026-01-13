@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, Building2, Users } from 'lucide-react';
+import { Plus, Building2, Users, Percent } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -8,6 +8,7 @@ import { FixedExpenseTable } from '@/components/businessplan/FixedExpenseTable';
 import { FixedExpenseDialog } from '@/components/businessplan/FixedExpenseDialog';
 import { PersonnelTable } from '@/components/businessplan/PersonnelTable';
 import { PersonnelDialog } from '@/components/businessplan/PersonnelDialog';
+import { VariableExpenseTable } from '@/components/businessplan/VariableExpenseTable';
 import { useFixedExpenses, FixedExpense } from '@/hooks/useFixedExpenses';
 import { usePersonnel, Personnel } from '@/hooks/usePersonnel';
 
@@ -51,7 +52,7 @@ export default function Expenses() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Charges & Personnel</h1>
-          <p className="text-muted-foreground mt-1">Gérez vos charges fixes et votre masse salariale</p>
+          <p className="text-muted-foreground mt-1">Gérez vos charges fixes, variables et votre masse salariale</p>
         </div>
       </div>
 
@@ -60,6 +61,10 @@ export default function Expenses() {
           <TabsTrigger value="fixed" className="gap-2">
             <Building2 className="h-4 w-4" />
             Charges fixes
+          </TabsTrigger>
+          <TabsTrigger value="variable" className="gap-2">
+            <Percent className="h-4 w-4" />
+            Charges variables
           </TabsTrigger>
           <TabsTrigger value="personnel" className="gap-2">
             <Users className="h-4 w-4" />
@@ -101,6 +106,15 @@ export default function Expenses() {
                 )}
               </CardContent>
             </Card>
+          </motion.div>
+        </TabsContent>
+
+        <TabsContent value="variable">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <VariableExpenseTable />
           </motion.div>
         </TabsContent>
 
