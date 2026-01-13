@@ -15,6 +15,10 @@ export interface BPSettings {
   projection_months: number;
   tax_regime: string;
   is_pme: boolean;
+  fiscal_year_start_month: number;
+  fiscal_year_start_day: number;
+  bp_start_date: string | null;
+  bp_years: number;
   created_at: string;
   updated_at: string;
 }
@@ -26,6 +30,10 @@ const DEFAULT_SETTINGS = {
   projection_months: 24,
   tax_regime: 'is',
   is_pme: true,
+  fiscal_year_start_month: 1,
+  fiscal_year_start_day: 1,
+  bp_start_date: null,
+  bp_years: 3,
 };
 
 export function useBPSettings() {
@@ -122,9 +130,45 @@ export function useBPSettings() {
     updated_at: '',
   };
 
+  // Helper to get fiscal year dates
+  const getFiscalYears = () => {
+    const startDate = effectiveSettings.bp_start_date 
+      ? new Date(effectiveSettings.bp_start_date) 
+      : new Date();
+    const startMonth = effectiveSettings.fiscal_year_start_month;
+    const startDay = effectiveSettings.fiscal_year_start_day;
+    const numYears = effectiveSettings.bp_years;
+
+    const years: { start: Date; end: Date; label: string }[] = [];
+
+    // Find the first fiscal year that contains or follows bp_start_date
+    let fiscalYearStart = new Date(startDate.getFullYear(), startMonth - 1, startDay);
+    if (fiscalYearStart > startDate) {
+      fiscalYearStart = new Date(startDate.getFullYear() - 1, startMonth - 1, startDay);
+    }
+
+    for (let i = 0; i < numYears; i++) {
+      const yearStart = new Date(fiscalYearStart);
+      yearStart.setFullYear(yearStart.getFullYear() + i);
+      
+      const yearEnd = new Date(yearStart);
+      yearEnd.setFullYear(yearEnd.getFullYear() + 1);
+      yearEnd.setDate(yearEnd.getDate() - 1);
+
+      years.push({
+        start: yearStart,
+        end: yearEnd,
+        label: `Année ${i + 1}`,
+      });
+    }
+
+    return years;
+  };
+
   return {
     settings: effectiveSettings,
     isLoading,
     updateSettings,
+    getFiscalYears,
   };
 }

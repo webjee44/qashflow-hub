@@ -457,9 +457,13 @@ export type Database = {
       }
       bp_settings: {
         Row: {
+          bp_start_date: string | null
+          bp_years: number | null
           company_id: string | null
           created_at: string | null
           customer_payment_delay: number | null
+          fiscal_year_start_day: number | null
+          fiscal_year_start_month: number | null
           id: string
           initial_cash: number | null
           is_pme: boolean | null
@@ -470,9 +474,13 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          bp_start_date?: string | null
+          bp_years?: number | null
           company_id?: string | null
           created_at?: string | null
           customer_payment_delay?: number | null
+          fiscal_year_start_day?: number | null
+          fiscal_year_start_month?: number | null
           id?: string
           initial_cash?: number | null
           is_pme?: boolean | null
@@ -483,9 +491,13 @@ export type Database = {
           user_id: string
         }
         Update: {
+          bp_start_date?: string | null
+          bp_years?: number | null
           company_id?: string | null
           created_at?: string | null
           customer_payment_delay?: number | null
+          fiscal_year_start_day?: number | null
+          fiscal_year_start_month?: number | null
           id?: string
           initial_cash?: number | null
           is_pme?: boolean | null

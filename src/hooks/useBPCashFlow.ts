@@ -19,23 +19,43 @@ export function useBPCashFlow() {
   const isLoading = plLoading || settingsLoading;
 
   const data = useMemo<CashFlowData>(() => {
-    const months = plData.months;
+    // Flatten all months from all years
+    const months = plData.years.flatMap(year => year.months);
     const customerDelay = Math.round((settings.customer_payment_delay || 30) / 30); // Convert days to months
     const supplierDelay = Math.round((settings.supplier_payment_delay || 30) / 30);
     const initialCash = Number(settings.initial_cash) || 0;
+
+    // Get monthly values from yearly totals (distribute evenly for cash flow purposes)
+    const monthlyRevenue: number[] = [];
+    const monthlyFixedExpenses: number[] = [];
+    const monthlyPersonnelCosts: number[] = [];
+
+    plData.years.forEach((year, yearIndex) => {
+      const monthCount = year.months.length;
+      const yearRevenue = plData.totals.revenue[yearIndex] || 0;
+      const yearFixed = plData.totals.fixedExpenses[yearIndex] || 0;
+      const yearPersonnel = plData.totals.personnelCosts[yearIndex] || 0;
+
+      // Distribute yearly values evenly across months
+      for (let i = 0; i < monthCount; i++) {
+        monthlyRevenue.push(yearRevenue / monthCount);
+        monthlyFixedExpenses.push(yearFixed / monthCount);
+        monthlyPersonnelCosts.push(yearPersonnel / monthCount);
+      }
+    });
 
     // Apply payment delays
     // Inflows = revenue shifted by customer delay
     const inflows = months.map((_, i) => {
       const sourceIndex = i - customerDelay;
-      return sourceIndex >= 0 ? plData.totals.revenue[sourceIndex] : 0;
+      return sourceIndex >= 0 ? monthlyRevenue[sourceIndex] : 0;
     });
 
     // Outflows = expenses shifted by supplier delay
     const outflows = months.map((_, i) => {
       const sourceIndex = i - supplierDelay;
       if (sourceIndex >= 0) {
-        return plData.totals.fixedExpenses[sourceIndex] + plData.totals.personnelCosts[sourceIndex];
+        return monthlyFixedExpenses[sourceIndex] + monthlyPersonnelCosts[sourceIndex];
       }
       return 0;
     });

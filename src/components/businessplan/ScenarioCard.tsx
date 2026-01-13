@@ -22,8 +22,9 @@ const ICONS: Record<string, React.ReactNode> = {
 export function ScenarioCard({ scenario, onEdit, onDelete }: ScenarioCardProps) {
   const { data } = useProfitLoss();
   
-  const baseRevenue = data.annualSummary.revenue;
-  const baseExpenses = data.annualSummary.fixedExpenses + data.annualSummary.personnelCosts;
+  // Use first year data for scenario comparison
+  const baseRevenue = data.totals.revenue[0] || 0;
+  const baseExpenses = (data.totals.fixedExpenses[0] || 0) + (data.totals.personnelCosts[0] || 0);
   
   const projectedRevenue = baseRevenue * Number(scenario.revenue_multiplier);
   const projectedExpenses = baseExpenses * Number(scenario.expense_multiplier);

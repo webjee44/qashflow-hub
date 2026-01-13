@@ -1,9 +1,10 @@
 import { motion } from 'framer-motion';
 import { Header } from '@/components/layout/Header';
 import { CompanyList } from '@/components/settings/CompanyList';
+import { BPSettingsCard } from '@/components/settings/BPSettingsCard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Building2, User, Shield } from 'lucide-react';
+import { Building2, User, Shield, TrendingUp } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
 export default function Settings() {
@@ -24,6 +25,10 @@ export default function Settings() {
               <Building2 className="w-4 h-4" />
               Sociétés
             </TabsTrigger>
+            <TabsTrigger value="businessplan" className="gap-2">
+              <TrendingUp className="w-4 h-4" />
+              Business Plan
+            </TabsTrigger>
             <TabsTrigger value="profile" className="gap-2">
               <User className="w-4 h-4" />
               Profil
@@ -36,6 +41,10 @@ export default function Settings() {
 
           <TabsContent value="companies">
             <CompanyList />
+          </TabsContent>
+
+          <TabsContent value="businessplan">
+            <BPSettingsCard />
           </TabsContent>
 
           <TabsContent value="profile">
