@@ -632,7 +632,7 @@ export function TransactionsView() {
           <div className="p-12 text-center">
             <p className="text-muted-foreground">Aucune transaction trouvée</p>
             <p className="text-sm text-muted-foreground mt-2">
-              Cliquez sur "Synchroniser Pennylane" pour importer vos transactions
+              Synchronisez votre compte bancaire pour importer vos transactions
             </p>
           </div>
         ) : (
