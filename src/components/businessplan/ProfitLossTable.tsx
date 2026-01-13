@@ -60,29 +60,45 @@ export function ProfitLossTable() {
     );
   }
 
-  const displayMonths = data.months.slice(0, 12);
-  const totalRevenue = data.annualSummary.revenue;
+  const totalRevenue = data.grandTotal.revenue;
+
+  // Format year label with dates
+  const formatYearLabel = (year: typeof data.years[0], index: number) => {
+    const startStr = format(year.start, 'MMM yyyy', { locale: fr });
+    const endStr = format(year.end, 'MMM yyyy', { locale: fr });
+    return `Année ${index + 1}\n(${startStr} - ${endStr})`;
+  };
 
   return (
     <div className="overflow-x-auto">
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="sticky left-0 bg-background z-10 min-w-[250px]">Libellé</TableHead>
-            {displayMonths.map((month, i) => (
-              <TableHead key={i} className="text-center min-w-[90px]">
-                {format(month, 'MMM yy', { locale: fr })}
+            <TableHead className="sticky left-0 bg-background z-10 min-w-[280px]">Libellé</TableHead>
+            {data.years.map((year, i) => (
+              <TableHead key={i} className="text-center min-w-[140px]">
+                <div className="flex flex-col">
+                  <span className="font-semibold">Année {i + 1}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {format(year.start, 'MMM yy', { locale: fr })} - {format(year.end, 'MMM yy', { locale: fr })}
+                  </span>
+                </div>
               </TableHead>
             ))}
-            <TableHead className="text-center min-w-[110px] bg-muted/50">Année 1</TableHead>
-            <TableHead className="text-center min-w-[70px] bg-muted/50">%CA</TableHead>
+            <TableHead className="text-center min-w-[140px] bg-primary/10">
+              <div className="flex flex-col">
+                <span className="font-semibold">Total</span>
+                <span className="text-xs text-muted-foreground">{data.years.length} ans</span>
+              </div>
+            </TableHead>
+            <TableHead className="text-center min-w-[80px] bg-muted/50">%CA</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {data.rows.map((row, rowIndex) => {
-            const annualValue = row.values.slice(0, 12).reduce((a, b) => a + b, 0);
+            const totalValue = row.values.reduce((a, b) => a + b, 0);
             const percentOfRevenue = totalRevenue > 0 && row.type !== 'header' 
-              ? (annualValue / totalRevenue) * 100 
+              ? (totalValue / totalRevenue) * 100 
               : null;
 
             return (
@@ -98,13 +114,13 @@ export function ProfitLossTable() {
                 )}>
                   {row.label}
                 </TableCell>
-                {displayMonths.map((_, monthIndex) => {
-                  const value = row.values[monthIndex] || 0;
+                {data.years.map((_, yearIndex) => {
+                  const value = row.values[yearIndex] || 0;
                   return (
                     <TableCell 
-                      key={monthIndex} 
+                      key={yearIndex} 
                       className={cn(
-                        "text-center text-sm",
+                        "text-center",
                         getValueClasses(row, value)
                       )}
                     >
@@ -113,22 +129,22 @@ export function ProfitLossTable() {
                   );
                 })}
                 <TableCell className={cn(
-                  "text-center font-semibold",
+                  "text-center font-bold",
                   row.type === 'total' ? "bg-primary/20" : 
-                  row.type === 'sig' ? "bg-primary/10" : "bg-muted/50",
-                  getValueClasses(row, annualValue)
+                  row.type === 'sig' ? "bg-primary/10" : "bg-primary/5",
+                  getValueClasses(row, totalValue)
                 )}>
-                  {row.type === 'header' ? '' : formatCurrency(annualValue)}
+                  {row.type === 'header' ? '' : formatCurrency(totalValue)}
                 </TableCell>
                 <TableCell className={cn(
-                  "text-center text-xs",
+                  "text-center text-sm",
                   row.type === 'total' ? "bg-primary/20" : 
                   row.type === 'sig' ? "bg-primary/10" : "bg-muted/50",
                   row.isExpense && percentOfRevenue && percentOfRevenue !== 0 ? "text-destructive" : "",
                   !row.isExpense && percentOfRevenue && percentOfRevenue > 0 ? "text-success" : ""
                 )}>
                   {row.type === 'header' || percentOfRevenue === null ? '' : 
-                    `${percentOfRevenue >= 0 ? '' : ''}${percentOfRevenue.toFixed(1)}%`}
+                    `${percentOfRevenue.toFixed(1)}%`}
                 </TableCell>
               </TableRow>
             );
