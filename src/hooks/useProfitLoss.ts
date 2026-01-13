@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useRevenueStreams } from './useRevenueStreams';
 import { useFixedExpenses } from './useFixedExpenses';
+import { useVariableExpenses } from './useVariableExpenses';
 import { usePersonnel } from './usePersonnel';
 import { useDirectors } from './useDirectors';
 import { useInvestments } from './useInvestments';
@@ -22,6 +23,7 @@ export interface PLData {
   totals: {
     revenue: number[];
     fixedExpenses: number[];
+    variableExpenses: number[];
     personnelCosts: number[];
     directorsCosts: number[];
     depreciation: number[];
@@ -34,6 +36,7 @@ export interface PLData {
   annualSummary: {
     revenue: number;
     fixedExpenses: number;
+    variableExpenses: number;
     personnelCosts: number;
     directorsCosts: number;
     depreciation: number;
@@ -55,12 +58,13 @@ export interface PLData {
 export function useProfitLoss() {
   const { streams, getForecast, isLoading: revenueLoading } = useRevenueStreams();
   const { expenses, getTotalForMonth: getExpensesTotal, isLoading: expensesLoading, expenses: allExpenses } = useFixedExpenses();
+  const { expenses: variableExpenses, calculateVariableExpenseForMonth, isLoading: variableExpensesLoading } = useVariableExpenses();
   const { personnel, getBreakdownForMonth, isLoading: personnelLoading } = usePersonnel();
   const { directors, getBreakdownForMonth: getDirectorsBreakdown, isLoading: directorsLoading } = useDirectors();
   const { getDepreciationForMonth, isLoading: investmentsLoading } = useInvestments();
   const { settings, isLoading: settingsLoading } = useBPSettings();
 
-  const isLoading = revenueLoading || expensesLoading || personnelLoading || directorsLoading || investmentsLoading || settingsLoading;
+  const isLoading = revenueLoading || expensesLoading || variableExpensesLoading || personnelLoading || directorsLoading || investmentsLoading || settingsLoading;
 
   const data = useMemo<PLData>(() => {
     const months: Date[] = [];
@@ -98,7 +102,46 @@ export function useProfitLoss() {
     // ═══════════════════════════════════════════════════════════════
     rows.push({ label: 'CHARGES D\'EXPLOITATION', type: 'header', values: [], isExpense: true });
 
-    // Achats et charges externes
+    // Charges variables (coûts proportionnels au CA)
+    const variableExpenseValues = months.map((month, monthIndex) => {
+      // Build revenue by stream for this month
+      const revenueByStream = new Map<string | null, { amount: number; units: number }>();
+      streams.forEach(stream => {
+        const amount = getForecast(stream.id, month);
+        // For simplicity, we estimate units from the forecast data or default to 1
+        revenueByStream.set(stream.id, { amount, units: 1 });
+      });
+      
+      return variableExpenses.reduce((total, expense) => {
+        return total + calculateVariableExpenseForMonth(expense, month, revenueByStream);
+      }, 0);
+    });
+
+    if (variableExpenses.length > 0) {
+      rows.push({ label: 'Charges variables', type: 'header', values: [], isExpense: true, indent: 1 });
+      
+      variableExpenses.forEach(expense => {
+        const values = months.map((month) => {
+          const revenueByStream = new Map<string | null, { amount: number; units: number }>();
+          streams.forEach(stream => {
+            const amount = getForecast(stream.id, month);
+            revenueByStream.set(stream.id, { amount, units: 1 });
+          });
+          return calculateVariableExpenseForMonth(expense, month, revenueByStream);
+        });
+        rows.push({
+          label: expense.name,
+          type: 'item',
+          values,
+          isExpense: true,
+          indent: 2,
+        });
+      });
+      
+      rows.push({ label: 'Total charges variables', type: 'subtotal', values: variableExpenseValues, isExpense: true });
+    }
+
+    // Achats et charges externes (fixes)
     rows.push({ label: 'Achats et charges externes', type: 'header', values: [], isExpense: true, indent: 1 });
     
     expenses.forEach(expense => {
@@ -119,7 +162,7 @@ export function useProfitLoss() {
     });
 
     const fixedExpenseValues = months.map(month => getExpensesTotal(month));
-    rows.push({ label: 'Total charges externes', type: 'subtotal', values: fixedExpenseValues, isExpense: true });
+    rows.push({ label: 'Total charges fixes', type: 'subtotal', values: fixedExpenseValues, isExpense: true });
 
     // Charges de personnel
     rows.push({ label: 'Charges de personnel', type: 'header', values: [], isExpense: true, indent: 1 });
@@ -153,7 +196,7 @@ export function useProfitLoss() {
 
     // Total charges d'exploitation
     const totalExpenseValues = months.map((_, i) => 
-      fixedExpenseValues[i] + personnelValues[i] + directorTotalValues[i] + depreciationValues[i]
+      variableExpenseValues[i] + fixedExpenseValues[i] + personnelValues[i] + directorTotalValues[i] + depreciationValues[i]
     );
     rows.push({ label: 'Total charges d\'exploitation', type: 'subtotal', values: totalExpenseValues, isExpense: true });
 
@@ -161,8 +204,12 @@ export function useProfitLoss() {
     // SOLDES INTERMÉDIAIRES DE GESTION (SIG)
     // ═══════════════════════════════════════════════════════════════
 
-    // Valeur Ajoutée = CA - Achats et charges externes
-    const vaValues = months.map((_, i) => revenueValues[i] - fixedExpenseValues[i]);
+    // Marge brute = CA - Charges variables
+    const grossMarginValues = months.map((_, i) => revenueValues[i] - variableExpenseValues[i]);
+    rows.push({ label: 'MARGE BRUTE', type: 'sig', values: grossMarginValues });
+
+    // Valeur Ajoutée = Marge brute - Charges fixes
+    const vaValues = months.map((_, i) => grossMarginValues[i] - fixedExpenseValues[i]);
     rows.push({ label: 'VALEUR AJOUTÉE', type: 'sig', values: vaValues });
 
     // EBE = VA - Charges de personnel - Rémunération dirigeants
@@ -212,8 +259,9 @@ export function useProfitLoss() {
       }, 0);
     });
 
-    const tvaDeductibleValues = months.map(month => {
-      return allExpenses.reduce((sum, expense) => {
+    const tvaDeductibleValues = months.map((month, monthIndex) => {
+      // Fixed expenses TVA
+      const fixedTva = allExpenses.reduce((sum, expense) => {
         const startDate = startOfMonth(new Date(expense.start_date));
         const endDate = expense.end_date ? startOfMonth(new Date(expense.end_date)) : null;
         const monthStart = startOfMonth(month);
@@ -224,6 +272,22 @@ export function useProfitLoss() {
         const isDeductible = (expense as any).is_vat_deductible !== false;
         return sum + (isDeductible ? Number(expense.monthly_amount) * vatRate : 0);
       }, 0);
+
+      // Variable expenses TVA
+      const variableTva = variableExpenses.reduce((sum, expense) => {
+        if (!expense.is_vat_deductible) return sum;
+        
+        const revenueByStream = new Map<string | null, { amount: number; units: number }>();
+        streams.forEach(stream => {
+          const amount = getForecast(stream.id, month);
+          revenueByStream.set(stream.id, { amount, units: 1 });
+        });
+        
+        const expenseAmount = calculateVariableExpenseForMonth(expense, month, revenueByStream);
+        return sum + (expenseAmount * expense.vat_rate);
+      }, 0);
+
+      return fixedTva + variableTva;
     });
 
     const tvaBalanceValues = months.map((_, i) => tvaCollectedValues[i] - tvaDeductibleValues[i]);
@@ -231,10 +295,12 @@ export function useProfitLoss() {
     // Annual summary
     const sum12 = (arr: number[]) => arr.slice(0, 12).reduce((a, b) => a + b, 0);
     const totalRevenue = sum12(revenueValues);
+    const totalVariableExpenses = sum12(variableExpenseValues);
     
     const annualSummary = {
       revenue: totalRevenue,
       fixedExpenses: sum12(fixedExpenseValues),
+      variableExpenses: totalVariableExpenses,
       personnelCosts: sum12(personnelValues),
       directorsCosts: sum12(directorTotalValues),
       depreciation: sum12(depreciationValues),
@@ -243,7 +309,7 @@ export function useProfitLoss() {
       netResultBeforeTax: sum12(rcaiValues),
       corporateTax: sum12(isValues),
       netResult: sum12(netResultValues),
-      grossMarginPercent: totalRevenue > 0 ? (sum12(vaValues) / totalRevenue) * 100 : 0,
+      grossMarginPercent: totalRevenue > 0 ? ((totalRevenue - totalVariableExpenses) / totalRevenue) * 100 : 0,
       ebitdaMarginPercent: totalRevenue > 0 ? (sum12(ebeValues) / totalRevenue) * 100 : 0,
     };
 
@@ -253,6 +319,7 @@ export function useProfitLoss() {
       totals: {
         revenue: revenueValues,
         fixedExpenses: fixedExpenseValues,
+        variableExpenses: variableExpenseValues,
         personnelCosts: personnelValues,
         directorsCosts: directorTotalValues,
         depreciation: depreciationValues,
@@ -269,7 +336,7 @@ export function useProfitLoss() {
         balance: tvaBalanceValues,
       },
     };
-  }, [streams, expenses, allExpenses, personnel, directors, settings, getForecast, getExpensesTotal, getBreakdownForMonth, getDirectorsBreakdown, getDepreciationForMonth]);
+  }, [streams, expenses, allExpenses, variableExpenses, personnel, directors, settings, getForecast, getExpensesTotal, calculateVariableExpenseForMonth, getBreakdownForMonth, getDirectorsBreakdown, getDepreciationForMonth]);
 
   // Helper: get break-even month
   const getBreakEvenMonth = (): number | null => {
