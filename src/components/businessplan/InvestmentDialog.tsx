@@ -108,7 +108,7 @@ export function InvestmentDialog({ open, onOpenChange, investment, onSave }: Inv
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="z-[200]">
+                <SelectContent>
                   {INVESTMENT_CATEGORIES.map(cat => (
                     <SelectItem key={cat.value} value={cat.value}>
                       {cat.label}
@@ -158,7 +158,7 @@ export function InvestmentDialog({ open, onOpenChange, investment, onSave }: Inv
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="z-[200]">
+              <SelectContent>
                 <SelectItem value="linear">Linéaire</SelectItem>
                 <SelectItem value="degressive">Dégressif</SelectItem>
               </SelectContent>
