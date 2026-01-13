@@ -4,6 +4,7 @@ import { BalanceChart } from '@/components/dashboard/BalanceChart';
 import { TransactionList } from '@/components/dashboard/TransactionList';
 import { CategoryBreakdown } from '@/components/dashboard/CategoryBreakdown';
 import { QuickActions } from '@/components/dashboard/QuickActions';
+import { BankAccounts } from '@/components/dashboard/BankAccounts';
 import { Wallet, TrendingUp, TrendingDown, Calendar } from 'lucide-react';
 import { useDashboardStats } from '@/hooks/useDashboardStats';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -87,7 +88,8 @@ export default function Dashboard() {
 
       {/* Bottom Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 space-y-6">
+          <BankAccounts />
           <TransactionList />
         </div>
         <div className="space-y-6">
