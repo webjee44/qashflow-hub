@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Building2, Plus, Pencil, Trash2, Star, Key, ShieldCheck, ShieldX } from 'lucide-react';
+import { Building2, Plus, Pencil, Trash2, Star, ShieldCheck, ShieldX, Landmark, Loader2, ExternalLink } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { useCompany } from '@/hooks/useCompany';
+import { useCompany, Company } from '@/hooks/useCompany';
 import { CompanyDialog } from './CompanyDialog';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,12 +20,13 @@ import {
 } from '@/components/ui/alert-dialog';
 
 export function CompanyList() {
-  const { companies, isLoading, deleteCompany, updateCompany } = useCompany();
+  const { companies, isLoading, deleteCompany, updateCompany, refetch } = useCompany();
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingCompany, setEditingCompany] = useState<typeof companies[0] | null>(null);
+  const [editingCompany, setEditingCompany] = useState<Company | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [connectingBridge, setConnectingBridge] = useState<string | null>(null);
 
-  const handleEdit = (company: typeof companies[0]) => {
+  const handleEdit = (company: Company) => {
     setEditingCompany(company);
     setDialogOpen(true);
   };
@@ -40,8 +43,109 @@ export function CompanyList() {
     }
   };
 
-  const handleSetDefault = async (company: typeof companies[0]) => {
+  const handleSetDefault = async (company: Company) => {
     await updateCompany(company.id, { ...company, is_default: true });
+  };
+
+  const handleConnectBridge = async (company: Company) => {
+    setConnectingBridge(company.id);
+    
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error('Vous devez être connecté');
+        return;
+      }
+
+      // Check if company already has a Bridge user, if not create one
+      let bridgeUserUuid = (company as any).bridge_user_uuid;
+      
+      if (!bridgeUserUuid) {
+        // Create Bridge user
+        const { data: createData, error: createError } = await supabase.functions.invoke('bridge-sync', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+          body: { action: 'create-user' },
+        });
+
+        if (createError || !createData?.success) {
+          toast.error(createData?.error || 'Erreur lors de la création de l\'utilisateur Bridge');
+          return;
+        }
+
+        bridgeUserUuid = createData.user.uuid;
+        
+        // Save the Bridge user UUID to the company
+        await supabase
+          .from('companies')
+          .update({ bridge_user_uuid: bridgeUserUuid })
+          .eq('id', company.id);
+      }
+
+      // Create Connect session
+      const { data: connectData, error: connectError } = await supabase.functions.invoke('bridge-sync', {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+        body: { 
+          action: 'create-connect-session',
+          bridge_user_uuid: bridgeUserUuid,
+        },
+      });
+
+      if (connectError || !connectData?.success) {
+        toast.error(connectData?.error || 'Erreur lors de la création de la session Bridge');
+        return;
+      }
+
+      // Open Bridge Connect in a new window
+      window.open(connectData.connect_url, '_blank', 'width=600,height=800');
+      toast.success('Fenêtre Bridge Connect ouverte. Connectez votre banque puis revenez ici.');
+      
+      await refetch();
+    } catch (error) {
+      console.error('Bridge connect error:', error);
+      toast.error('Erreur lors de la connexion Bridge');
+    } finally {
+      setConnectingBridge(null);
+    }
+  };
+
+  const handleSyncBridgeAccounts = async (company: Company) => {
+    const bridgeUserUuid = (company as any).bridge_user_uuid;
+    if (!bridgeUserUuid) {
+      toast.error('Connectez d\'abord Bridge pour cette société');
+      return;
+    }
+
+    setConnectingBridge(company.id);
+    
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error('Vous devez être connecté');
+        return;
+      }
+
+      const { data, error } = await supabase.functions.invoke('bridge-sync', {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+        body: { 
+          action: 'get-accounts',
+          bridge_user_uuid: bridgeUserUuid,
+          company_id: company.id,
+        },
+      });
+
+      if (error || !data?.success) {
+        toast.error(data?.error || 'Erreur lors de la synchronisation Bridge');
+        return;
+      }
+
+      toast.success(`${data.accounts_count} comptes synchronisés. Solde total: ${data.total_balance.toLocaleString('fr-FR')}€`);
+      await refetch();
+    } catch (error) {
+      console.error('Bridge sync error:', error);
+      toast.error('Erreur lors de la synchronisation Bridge');
+    } finally {
+      setConnectingBridge(null);
+    }
   };
 
   if (isLoading) {
@@ -113,27 +217,67 @@ export function CompanyList() {
                           </Badge>
                         )}
                       </div>
-                      <div className="flex items-center gap-2 mt-1">
+                      <div className="flex items-center gap-3 mt-1 flex-wrap">
                         {company.has_pennylane_key ? (
-                          <>
+                          <div className="flex items-center gap-1">
                             <ShieldCheck className="w-3 h-3 text-green-500" />
-                            <span className="text-sm text-muted-foreground">
-                              Clé API configurée
-                            </span>
-                          </>
+                            <span className="text-sm text-muted-foreground">Pennylane</span>
+                          </div>
                         ) : (
-                          <>
+                          <div className="flex items-center gap-1">
                             <ShieldX className="w-3 h-3 text-muted-foreground" />
-                            <span className="text-sm text-muted-foreground">
-                              Aucune clé API
-                            </span>
-                          </>
+                            <span className="text-sm text-muted-foreground">Pennylane</span>
+                          </div>
+                        )}
+                        {(company as any).bridge_user_uuid ? (
+                          <div className="flex items-center gap-1">
+                            <Landmark className="w-3 h-3 text-blue-500" />
+                            <span className="text-sm text-muted-foreground">Bridge connecté</span>
+                          </div>
+                        ) : null}
+                        {company.bank_balance !== null && company.bank_balance !== undefined && (
+                          <Badge variant="outline" className="text-xs font-normal">
+                            Solde: {Number(company.bank_balance).toLocaleString('fr-FR')}€
+                          </Badge>
                         )}
                       </div>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-2">
+                    {/* Bridge Connect/Sync button */}
+                    {(company as any).bridge_user_uuid ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleSyncBridgeAccounts(company)}
+                        disabled={connectingBridge === company.id}
+                        className="gap-1.5"
+                      >
+                        {connectingBridge === company.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Landmark className="w-4 h-4" />
+                        )}
+                        Sync Bridge
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleConnectBridge(company)}
+                        disabled={connectingBridge === company.id}
+                        className="gap-1.5"
+                      >
+                        {connectingBridge === company.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Landmark className="w-4 h-4" />
+                        )}
+                        Connecter Bridge
+                      </Button>
+                    )}
+                    
                     {!company.is_default && (
                       <Button
                         variant="ghost"
