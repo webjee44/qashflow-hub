@@ -12,7 +12,7 @@ export interface Financing {
   user_id: string;
   company_id: string | null;
   investment_id: string | null;
-  financing_type: 'loan' | 'lease';
+  financing_type: 'loan' | 'lease' | 'current_account';
   name: string;
   amount: number;
   interest_rate: number;
