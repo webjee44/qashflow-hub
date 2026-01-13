@@ -14,7 +14,8 @@ import {
   FileSpreadsheet,
   DollarSign,
   Building2,
-  GitBranch
+  GitBranch,
+  Package
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
@@ -41,6 +42,7 @@ const businessPlanNavItems: NavItem[] = [
   { icon: LayoutDashboard, label: 'Dashboard', href: '/bp' },
   { icon: DollarSign, label: 'Revenus', href: '/bp/revenus' },
   { icon: Building2, label: 'Charges', href: '/bp/charges' },
+  { icon: Package, label: 'Investissements', href: '/bp/investissements' },
   { icon: FileSpreadsheet, label: 'Compte de résultat', href: '/bp/pnl' },
   { icon: Wallet, label: 'Trésorerie', href: '/bp/tresorerie' },
   { icon: GitBranch, label: 'Scénarios', href: '/bp/scenarios' },
