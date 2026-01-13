@@ -227,13 +227,8 @@ Deno.serve(async (req) => {
         .eq('id', userId)
         .single()
 
-      // Create Connect session - Bridge API requires specific fields
-      const connectBody = {
-        user_uuid: bridgeUserUuid,
-        prefill_email: claimsData.claims.email || undefined,
-      }
-
-      console.log('Creating Connect session with body:', JSON.stringify(connectBody))
+      // Create Connect session - Bridge API requires Authorization header
+      console.log('Creating Connect session for user:', bridgeUserUuid)
 
       const connectResponse = await fetch(`${BRIDGE_API_URL}/aggregation/connect-sessions`, {
         method: 'POST',
@@ -242,8 +237,9 @@ Deno.serve(async (req) => {
           'Bridge-Version': BRIDGE_VERSION,
           'Client-Id': bridgeClientId,
           'Client-Secret': bridgeClientSecret,
+          'Authorization': `Bearer ${accessToken}`,
         },
-        body: JSON.stringify(connectBody),
+        body: JSON.stringify({}),
       })
 
       if (!connectResponse.ok) {
