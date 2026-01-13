@@ -105,6 +105,7 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
               <SelectContent>
                 <SelectItem value="fixed">Montant fixe mensuel</SelectItem>
                 <SelectItem value="units">Unités × Prix unitaire</SelectItem>
+                <SelectItem value="subscription">Abonnements SaaS (MRR)</SelectItem>
                 <SelectItem value="growth">Croissance progressive</SelectItem>
               </SelectContent>
             </Select>
