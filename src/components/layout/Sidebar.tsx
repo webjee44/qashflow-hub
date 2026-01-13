@@ -43,7 +43,9 @@ const businessPlanNavItems: NavItem[] = [
   { icon: DollarSign, label: 'Revenus', href: '/bp/revenus' },
   { icon: Building2, label: 'Charges', href: '/bp/charges' },
   { icon: Package, label: 'Investissements', href: '/bp/investissements' },
+  { icon: Package, label: 'Stocks', href: '/bp/stocks' },
   { icon: FileSpreadsheet, label: 'Compte de résultat', href: '/bp/pnl' },
+  { icon: Wallet, label: 'Bilan', href: '/bp/bilan' },
   { icon: Wallet, label: 'Trésorerie', href: '/bp/tresorerie' },
   { icon: GitBranch, label: 'Scénarios', href: '/bp/scenarios' },
 ];

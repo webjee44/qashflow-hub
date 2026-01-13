@@ -21,7 +21,7 @@ interface FinancingDialogProps {
 export function FinancingDialog({ open, onOpenChange, financing, onSave }: FinancingDialogProps) {
   const { investments } = useInvestments();
   
-  const [financingType, setFinancingType] = useState<'loan' | 'lease'>('loan');
+  const [financingType, setFinancingType] = useState<'loan' | 'lease' | 'current_account'>('loan');
   const [name, setName] = useState('');
   const [investmentId, setInvestmentId] = useState<string>('none');
   const [amount, setAmount] = useState('');
@@ -127,7 +127,7 @@ export function FinancingDialog({ open, onOpenChange, financing, onSave }: Finan
           {/* Financing Type Selector */}
           <div className="grid gap-2">
             <Label>Type de financement</Label>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button
                 type="button"
                 variant={financingType === 'loan' ? 'default' : 'outline'}
@@ -135,7 +135,7 @@ export function FinancingDialog({ open, onOpenChange, financing, onSave }: Finan
                 onClick={() => setFinancingType('loan')}
               >
                 <Landmark className="h-4 w-4" />
-                Emprunt bancaire
+                Emprunt
               </Button>
               <Button
                 type="button"
@@ -144,7 +144,16 @@ export function FinancingDialog({ open, onOpenChange, financing, onSave }: Finan
                 onClick={() => setFinancingType('lease')}
               >
                 <FileText className="h-4 w-4" />
-                Leasing (LOA/LLD)
+                Leasing
+              </Button>
+              <Button
+                type="button"
+                variant={financingType === 'current_account' ? 'default' : 'outline'}
+                className="flex-1 gap-2"
+                onClick={() => setFinancingType('current_account')}
+              >
+                <Landmark className="h-4 w-4" />
+                Compte courant
               </Button>
             </div>
           </div>

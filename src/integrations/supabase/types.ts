@@ -141,6 +141,7 @@ export type Database = {
           id: string
           interest_rate: number | null
           investment_id: string | null
+          is_blocked: boolean | null
           monthly_payment: number | null
           name: string
           notes: string | null
@@ -158,6 +159,7 @@ export type Database = {
           id?: string
           interest_rate?: number | null
           investment_id?: string | null
+          is_blocked?: boolean | null
           monthly_payment?: number | null
           name: string
           notes?: string | null
@@ -175,6 +177,7 @@ export type Database = {
           id?: string
           interest_rate?: number | null
           investment_id?: string | null
+          is_blocked?: boolean | null
           monthly_payment?: number | null
           name?: string
           notes?: string | null
@@ -419,6 +422,7 @@ export type Database = {
       }
       bp_revenue_streams: {
         Row: {
+          bad_debt_rate: number | null
           churn_rate: number | null
           color: string | null
           company_id: string | null
@@ -436,6 +440,7 @@ export type Database = {
           vat_rate: number | null
         }
         Insert: {
+          bad_debt_rate?: number | null
           churn_rate?: number | null
           color?: string | null
           company_id?: string | null
@@ -453,6 +458,7 @@ export type Database = {
           vat_rate?: number | null
         }
         Update: {
+          bad_debt_rate?: number | null
           churn_rate?: number | null
           color?: string | null
           company_id?: string | null
@@ -590,6 +596,48 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      bp_stocks: {
+        Row: {
+          company_id: string | null
+          created_at: string | null
+          final_stock: number | null
+          fiscal_year: number
+          id: string
+          initial_stock: number | null
+          name: string
+          notes: string | null
+          purchase_amount: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          company_id?: string | null
+          created_at?: string | null
+          final_stock?: number | null
+          fiscal_year?: number
+          id?: string
+          initial_stock?: number | null
+          name: string
+          notes?: string | null
+          purchase_amount?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          company_id?: string | null
+          created_at?: string | null
+          final_stock?: number | null
+          fiscal_year?: number
+          id?: string
+          initial_stock?: number | null
+          name?: string
+          notes?: string | null
+          purchase_amount?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
       }
       bp_variable_expenses: {
         Row: {
