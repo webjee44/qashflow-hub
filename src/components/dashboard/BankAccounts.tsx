@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Landmark, RefreshCw, Loader2, Building2 } from 'lucide-react';
+import { Landmark, RefreshCw, Loader2, Building2, ArrowDownToLine } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -34,6 +34,7 @@ export function BankAccounts() {
   const [totalBalance, setTotalBalance] = useState(0);
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [syncingTransactions, setSyncingTransactions] = useState(false);
   const [lastSync, setLastSync] = useState<string | null>(null);
 
   const bridgeUserUuid = (currentCompany as any)?.bridge_user_uuid;
@@ -83,6 +84,38 @@ export function BankAccounts() {
     }
   };
 
+  const handleSyncTransactions = async () => {
+    setSyncingTransactions(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error('Vous devez être connecté');
+        return;
+      }
+
+      const { data, error } = await supabase.functions.invoke('bridge-sync', {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+        body: {
+          action: 'sync-transactions',
+          bridge_user_uuid: bridgeUserUuid,
+          company_id: currentCompany?.id,
+        },
+      });
+
+      if (error || !data?.success) {
+        toast.error(data?.error || 'Erreur de synchronisation');
+        return;
+      }
+
+      toast.success(`${data.inserted} nouvelles transactions importées, ${data.updated} mises à jour`);
+    } catch (error) {
+      console.error('Error syncing transactions:', error);
+      toast.error('Erreur de synchronisation des transactions');
+    } finally {
+      setSyncingTransactions(false);
+    }
+  };
+
   useEffect(() => {
     if (bridgeUserUuid) {
       fetchAccounts();
@@ -126,20 +159,35 @@ export function BankAccounts() {
           <Landmark className="w-5 h-5" />
           Comptes bancaires
         </CardTitle>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleSync}
-          disabled={syncing || loading}
-          className="gap-2"
-        >
-          {syncing ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            <RefreshCw className="w-4 h-4" />
-          )}
-          Actualiser
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleSyncTransactions}
+            disabled={syncingTransactions || loading}
+            className="gap-2"
+          >
+            {syncingTransactions ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <ArrowDownToLine className="w-4 h-4" />
+            )}
+            Importer
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleSync}
+            disabled={syncing || loading}
+            className="gap-2"
+          >
+            {syncing ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <RefreshCw className="w-4 h-4" />
+            )}
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
         {loading && accounts.length === 0 ? (

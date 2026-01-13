@@ -33,6 +33,27 @@ interface BridgeUser {
   external_user_id: string
 }
 
+interface BridgeTransaction {
+  id: number
+  clean_description: string
+  bank_description: string
+  amount: number
+  date: string
+  updated_at: string
+  currency_code: string
+  is_deleted: boolean
+  category_id: number | null
+  account_id: number
+  is_future: boolean
+}
+
+interface BridgeTransactionsResponse {
+  resources: BridgeTransaction[]
+  pagination: {
+    next_uri: string | null
+  }
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -377,6 +398,148 @@ Deno.serve(async (req) => {
           accounts: accountDetails,
           total_balance: totalBalance,
           accounts_count: allAccounts.length
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    if (action === 'sync-transactions') {
+      // Sync transactions from Bridge to our database
+      if (!bridgeUserUuid || !companyId) {
+        return new Response(
+          JSON.stringify({ error: 'bridge_user_uuid et company_id requis' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      // First get auth token
+      const authResponse = await fetch(`${BRIDGE_API_URL}/aggregation/authorization/token`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Bridge-Version': BRIDGE_VERSION,
+          'Client-Id': bridgeClientId,
+          'Client-Secret': bridgeClientSecret,
+        },
+        body: JSON.stringify({
+          user_uuid: bridgeUserUuid,
+        }),
+      })
+
+      if (!authResponse.ok) {
+        const errorText = await authResponse.text()
+        console.error('Bridge auth error:', authResponse.status, errorText)
+        return new Response(
+          JSON.stringify({ error: `Erreur Bridge auth: ${errorText}` }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      const authData = await authResponse.json()
+      const accessToken = authData.access_token
+
+      // Fetch transactions from Bridge (last 90 days)
+      const sinceDate = new Date()
+      sinceDate.setDate(sinceDate.getDate() - 90)
+      const sinceDateStr = sinceDate.toISOString().split('T')[0]
+
+      let allTransactions: BridgeTransaction[] = []
+      let nextUri: string | null = `/v3/aggregation/transactions?limit=100&since=${sinceDateStr}`
+
+      while (nextUri) {
+        const transactionsUrl = nextUri.startsWith('http') 
+          ? nextUri 
+          : `${BRIDGE_API_URL.replace('/v3', '')}${nextUri}`
+        
+        console.log('Fetching Bridge transactions:', transactionsUrl)
+        
+        const transactionsResponse = await fetch(transactionsUrl, {
+          method: 'GET',
+          headers: {
+            'Bridge-Version': BRIDGE_VERSION,
+            'Client-Id': bridgeClientId,
+            'Client-Secret': bridgeClientSecret,
+            'Authorization': `Bearer ${accessToken}`,
+          },
+        })
+
+        if (!transactionsResponse.ok) {
+          const errorText = await transactionsResponse.text()
+          console.error('Bridge transactions error:', transactionsResponse.status, errorText)
+          break
+        }
+
+        const transactionsData: BridgeTransactionsResponse = await transactionsResponse.json()
+        
+        // Filter out deleted and future transactions
+        const validTransactions = (transactionsData.resources || []).filter(
+          t => !t.is_deleted && !t.is_future
+        )
+        allTransactions = [...allTransactions, ...validTransactions]
+        
+        nextUri = transactionsData.pagination?.next_uri || null
+      }
+
+      console.log(`Fetched ${allTransactions.length} Bridge transactions`)
+
+      // Prepare transactions for upsert
+      let insertedCount = 0
+      let updatedCount = 0
+
+      for (const bridgeTx of allTransactions) {
+        const bridgeId = `bridge_${bridgeTx.id}`
+        
+        // Check if transaction already exists
+        const { data: existing } = await supabaseAdmin
+          .from('transactions')
+          .select('id')
+          .eq('pennylane_id', bridgeId)
+          .eq('company_id', companyId)
+          .single()
+
+        const transactionData = {
+          user_id: userId,
+          company_id: companyId,
+          pennylane_id: bridgeId,
+          description: bridgeTx.clean_description || bridgeTx.bank_description,
+          amount: Math.abs(bridgeTx.amount),
+          type: bridgeTx.amount >= 0 ? 'income' : 'expense',
+          date: bridgeTx.date,
+          source: 'bridge',
+          is_reconciled: false,
+        }
+
+        if (existing) {
+          // Update existing transaction
+          const { error: updateError } = await supabaseAdmin
+            .from('transactions')
+            .update({
+              description: transactionData.description,
+              amount: transactionData.amount,
+              type: transactionData.type,
+              date: transactionData.date,
+            })
+            .eq('id', existing.id)
+
+          if (!updateError) updatedCount++
+        } else {
+          // Insert new transaction
+          const { error: insertError } = await supabaseAdmin
+            .from('transactions')
+            .insert(transactionData)
+
+          if (!insertError) insertedCount++
+        }
+      }
+
+      console.log(`Inserted ${insertedCount}, updated ${updatedCount} transactions`)
+
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          transactions_count: allTransactions.length,
+          inserted: insertedCount,
+          updated: updatedCount,
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
