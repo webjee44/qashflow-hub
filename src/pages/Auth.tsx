@@ -317,7 +317,9 @@ export default function Auth() {
                   <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                   <Input
                     id="fullName"
+                    name="name"
                     type="text"
+                    autoComplete="name"
                     placeholder="Jean Dupont"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
@@ -334,7 +336,9 @@ export default function Auth() {
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                   <Input
                     id="email"
+                    name="email"
                     type="email"
+                    autoComplete={mode === 'signup' ? 'email' : 'username'}
                     placeholder="vous@entreprise.com"
                     value={email}
                     onChange={(e) => {
@@ -359,7 +363,9 @@ export default function Auth() {
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                   <Input
                     id="password"
+                    name="password"
                     type={showPassword ? 'text' : 'password'}
+                    autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => {
@@ -389,7 +395,9 @@ export default function Auth() {
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                   <Input
                     id="confirmPassword"
+                    name="confirmPassword"
                     type={showPassword ? 'text' : 'password'}
+                    autoComplete="new-password"
                     placeholder="••••••••"
                     value={confirmPassword}
                     onChange={(e) => {
