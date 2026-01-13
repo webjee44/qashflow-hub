@@ -96,8 +96,24 @@ export function CompanyList() {
       }
 
       // Open Bridge Connect in a new window
-      window.open(connectData.connect_url, '_blank', 'width=600,height=800');
-      toast.success('Fenêtre Bridge Connect ouverte. Connectez votre banque puis revenez ici.');
+      const popup = window.open(connectData.connect_url, '_blank', 'width=600,height=800');
+      
+      if (!popup) {
+        // Popup blocked - show URL to user
+        toast.error('Popup bloquée. Cliquez sur le lien pour ouvrir Bridge Connect.', {
+          description: 'Autorisez les popups pour ce site',
+          action: {
+            label: 'Ouvrir Bridge',
+            onClick: () => window.open(connectData.connect_url, '_blank'),
+          },
+          duration: 10000,
+        });
+      } else {
+        toast.success('Fenêtre Bridge Connect ouverte !', {
+          description: '1. Sélectionnez votre banque\n2. Connectez-vous avec vos identifiants\n3. Revenez ici et cliquez "Sync Bridge"',
+          duration: 15000,
+        });
+      }
       
       await refetch();
     } catch (error) {
