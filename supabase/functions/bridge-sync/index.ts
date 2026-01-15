@@ -300,10 +300,15 @@ Deno.serve(async (req) => {
 
       // 2. Get accounts and balances
       let allAccounts: BridgeAccount[] = []
-      let nextUri: string | null = `${BRIDGE_API_URL}/aggregation/accounts?limit=100`
+      let accountsNextUri: string | null = `${BRIDGE_API_URL}/aggregation/accounts?limit=100`
       
-      while (nextUri) {
-        const accountsResponse = await fetch(nextUri, {
+      while (accountsNextUri) {
+        // Handle relative URLs from pagination
+        const accountsUrl = accountsNextUri.startsWith('http') 
+          ? accountsNextUri 
+          : `https://api.bridgeapi.io${accountsNextUri}`
+        
+        const accountsResponse = await fetch(accountsUrl, {
           headers: {
             'Authorization': `Bearer ${accessToken}`,
             'Bridge-Version': BRIDGE_VERSION,
@@ -324,7 +329,7 @@ Deno.serve(async (req) => {
         const accountsData: BridgeAccountsResponse = await accountsResponse.json()
         const activeAccounts = (accountsData.resources || []).filter(a => a.data_access !== 'disabled')
         allAccounts = [...allAccounts, ...activeAccounts]
-        nextUri = accountsData.pagination?.next_uri || null
+        accountsNextUri = accountsData.pagination?.next_uri || null
       }
 
       console.info(`Fetched ${allAccounts.length} Bridge accounts`)
@@ -353,10 +358,15 @@ Deno.serve(async (req) => {
       const sinceDateStr = sinceDate.toISOString().split('T')[0]
 
       let allTransactions: BridgeTransaction[] = []
-      nextUri = `${BRIDGE_API_URL}/aggregation/transactions?limit=100&since=${sinceDateStr}`
+      let transactionsNextUri: string | null = `${BRIDGE_API_URL}/aggregation/transactions?limit=100&since=${sinceDateStr}`
       
-      while (nextUri) {
-        const transactionsResponse = await fetch(nextUri, {
+      while (transactionsNextUri) {
+        // Handle relative URLs from pagination
+        const transactionsUrl = transactionsNextUri.startsWith('http') 
+          ? transactionsNextUri 
+          : `https://api.bridgeapi.io${transactionsNextUri}`
+        
+        const transactionsResponse = await fetch(transactionsUrl, {
           headers: {
             'Authorization': `Bearer ${accessToken}`,
             'Bridge-Version': BRIDGE_VERSION,
@@ -379,7 +389,7 @@ Deno.serve(async (req) => {
           !t.is_deleted && new Date(t.date) <= new Date()
         )
         allTransactions = [...allTransactions, ...validTransactions]
-        nextUri = transactionsData.pagination?.next_uri || null
+        transactionsNextUri = transactionsData.pagination?.next_uri || null
       }
 
       console.info(`Fetched ${allTransactions.length} Bridge transactions`)
