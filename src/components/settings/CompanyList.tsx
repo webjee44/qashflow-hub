@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Building2, Plus, Pencil, Trash2, Star, Landmark, Loader2, ArrowDownToLine } from 'lucide-react';
+import { Building2, Plus, Pencil, Trash2, Star, Landmark, Loader2, RefreshCw } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -24,8 +24,7 @@ export function CompanyList() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCompany, setEditingCompany] = useState<Company | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-  const [connectingBridge, setConnectingBridge] = useState<string | null>(null);
-  const [syncingTransactions, setSyncingTransactions] = useState<string | null>(null);
+  const [syncingBridge, setSyncingBridge] = useState<string | null>(null);
 
   const handleEdit = (company: Company) => {
     setEditingCompany(company);
@@ -49,7 +48,7 @@ export function CompanyList() {
   };
 
   const handleConnectBridge = async (company: Company) => {
-    setConnectingBridge(company.id);
+    setSyncingBridge(company.id);
     
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -100,7 +99,6 @@ export function CompanyList() {
       const popup = window.open(connectData.connect_url, '_blank', 'width=600,height=800');
       
       if (!popup) {
-        // Popup blocked - show URL to user
         toast.error('Popup bloquée. Cliquez sur le lien pour ouvrir Bridge Connect.', {
           description: 'Autorisez les popups pour ce site',
           action: {
@@ -121,18 +119,18 @@ export function CompanyList() {
       console.error('Bridge connect error:', error);
       toast.error('Erreur lors de la connexion Bridge');
     } finally {
-      setConnectingBridge(null);
+      setSyncingBridge(null);
     }
   };
 
-  const handleSyncBridgeAccounts = async (company: Company) => {
+  const handleFullSync = async (company: Company) => {
     const bridgeUserUuid = company.bridge_user_uuid;
     if (!bridgeUserUuid) {
       toast.error('Connectez d\'abord Bridge pour cette société');
       return;
     }
 
-    setConnectingBridge(company.id);
+    setSyncingBridge(company.id);
     
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -144,7 +142,7 @@ export function CompanyList() {
       const { data, error } = await supabase.functions.invoke('bridge-sync', {
         headers: { Authorization: `Bearer ${session.access_token}` },
         body: { 
-          action: 'get-accounts',
+          action: 'full-sync',
           bridge_user_uuid: bridgeUserUuid,
           company_id: company.id,
         },
@@ -155,52 +153,15 @@ export function CompanyList() {
         return;
       }
 
-      toast.success(`${data.accounts_count} comptes synchronisés. Solde total: ${data.total_balance.toLocaleString('fr-FR')}€`);
+      const balance = data.totalBalance?.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' }) || '0 €';
+      toast.success(`${data.accounts} comptes • ${balance} • ${data.inserted} nouvelles transactions, ${data.updated} mises à jour`);
+      
       await refetch();
     } catch (error) {
-      console.error('Bridge sync error:', error);
+      console.error('Full sync error:', error);
       toast.error('Erreur lors de la synchronisation Bridge');
     } finally {
-      setConnectingBridge(null);
-    }
-  };
-
-  const handleSyncTransactions = async (company: Company) => {
-    const bridgeUserUuid = company.bridge_user_uuid;
-    if (!bridgeUserUuid) {
-      toast.error('Connectez d\'abord Bridge pour cette société');
-      return;
-    }
-
-    setSyncingTransactions(company.id);
-    
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        toast.error('Vous devez être connecté');
-        return;
-      }
-
-      const { data, error } = await supabase.functions.invoke('bridge-sync', {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-        body: { 
-          action: 'sync-transactions',
-          bridge_user_uuid: bridgeUserUuid,
-          company_id: company.id,
-        },
-      });
-
-      if (error || !data?.success) {
-        toast.error(data?.error || 'Erreur lors de la synchronisation des transactions');
-        return;
-      }
-
-      toast.success(`${data.inserted} nouvelles transactions importées, ${data.updated} mises à jour`);
-    } catch (error) {
-      console.error('Transaction sync error:', error);
-      toast.error('Erreur lors de la synchronisation des transactions');
-    } finally {
-      setSyncingTransactions(null);
+      setSyncingBridge(null);
     }
   };
 
@@ -297,10 +258,10 @@ export function CompanyList() {
                           variant="outline"
                           size="sm"
                           onClick={() => handleConnectBridge(company)}
-                          disabled={connectingBridge === company.id}
+                          disabled={syncingBridge === company.id}
                           className="gap-1.5"
                         >
-                          {connectingBridge === company.id ? (
+                          {syncingBridge === company.id ? (
                             <Loader2 className="w-4 h-4 animate-spin" />
                           ) : (
                             <Plus className="w-4 h-4" />
@@ -308,32 +269,18 @@ export function CompanyList() {
                           Ajouter banque
                         </Button>
                         <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleSyncBridgeAccounts(company)}
-                          disabled={connectingBridge === company.id || syncingTransactions === company.id}
-                          className="gap-1.5"
-                        >
-                          {connectingBridge === company.id ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                          ) : (
-                            <Landmark className="w-4 h-4" />
-                          )}
-                          Sync comptes
-                        </Button>
-                        <Button
                           variant="default"
                           size="sm"
-                          onClick={() => handleSyncTransactions(company)}
-                          disabled={syncingTransactions === company.id || connectingBridge === company.id}
+                          onClick={() => handleFullSync(company)}
+                          disabled={syncingBridge === company.id}
                           className="gap-1.5"
                         >
-                          {syncingTransactions === company.id ? (
+                          {syncingBridge === company.id ? (
                             <Loader2 className="w-4 h-4 animate-spin" />
                           ) : (
-                            <ArrowDownToLine className="w-4 h-4" />
+                            <RefreshCw className="w-4 h-4" />
                           )}
-                          Importer transactions
+                          Sync Bridge
                         </Button>
                       </>
                     ) : (
@@ -341,10 +288,10 @@ export function CompanyList() {
                         variant="outline"
                         size="sm"
                         onClick={() => handleConnectBridge(company)}
-                        disabled={connectingBridge === company.id}
+                        disabled={syncingBridge === company.id}
                         className="gap-1.5"
                       >
-                        {connectingBridge === company.id ? (
+                        {syncingBridge === company.id ? (
                           <Loader2 className="w-4 h-4 animate-spin" />
                         ) : (
                           <Landmark className="w-4 h-4" />

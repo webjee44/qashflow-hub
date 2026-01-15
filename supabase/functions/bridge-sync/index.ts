@@ -9,7 +9,7 @@ const BRIDGE_API_URL = 'https://api.bridgeapi.io/v3'
 const BRIDGE_VERSION = '2025-01-15'
 
 interface BridgeAccount {
-  id: string
+  id: number
   name: string
   balance: number
   currency_code: string
@@ -37,6 +37,7 @@ interface BridgeTransaction {
   id: number
   clean_description: string
   bank_description: string
+  raw_description?: string
   amount: number
   date: string
   updated_at: string
@@ -118,13 +119,13 @@ Deno.serve(async (req) => {
     }
 
     const userId = claimsData.claims.sub as string
-    console.log('User authenticated:', userId)
-    console.log('Action:', action)
+    console.info('User authenticated:', userId)
+    console.info('Action:', action)
 
     // Handle different actions
     if (action === 'create-user') {
       // Create a Bridge user
-      console.log('Creating Bridge user...')
+      console.info('Creating Bridge user...')
       
       const createUserResponse = await fetch(`${BRIDGE_API_URL}/aggregation/users`, {
         method: 'POST',
@@ -149,19 +150,15 @@ Deno.serve(async (req) => {
       }
 
       const bridgeUser: BridgeUser = await createUserResponse.json()
-      console.log('Bridge user created:', bridgeUser.uuid)
+      console.info('Bridge user created:', bridgeUser.uuid)
 
       return new Response(
-        JSON.stringify({ 
-          success: true, 
-          user: bridgeUser 
-        }),
+        JSON.stringify({ success: true, user: bridgeUser }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
     if (action === 'get-auth-token') {
-      // Get authentication token for a Bridge user
       if (!bridgeUserUuid) {
         return new Response(
           JSON.stringify({ error: 'bridge_user_uuid requis' }),
@@ -169,7 +166,7 @@ Deno.serve(async (req) => {
         )
       }
 
-      console.log('Getting Bridge auth token for user:', bridgeUserUuid)
+      console.info('Getting Bridge auth token for user:', bridgeUserUuid)
 
       const authResponse = await fetch(`${BRIDGE_API_URL}/aggregation/authorization/token`, {
         method: 'POST',
@@ -179,9 +176,7 @@ Deno.serve(async (req) => {
           'Client-Id': bridgeClientId,
           'Client-Secret': bridgeClientSecret,
         },
-        body: JSON.stringify({
-          user_uuid: bridgeUserUuid,
-        }),
+        body: JSON.stringify({ user_uuid: bridgeUserUuid }),
       })
 
       if (!authResponse.ok) {
@@ -194,20 +189,15 @@ Deno.serve(async (req) => {
       }
 
       const authData = await authResponse.json()
-      console.log('Bridge auth token obtained')
+      console.info('Bridge auth token obtained')
 
       return new Response(
-        JSON.stringify({ 
-          success: true, 
-          access_token: authData.access_token,
-          expires_at: authData.expires_at
-        }),
+        JSON.stringify({ success: true, access_token: authData.access_token, expires_at: authData.expires_at }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
     if (action === 'create-connect-session') {
-      // Create a Bridge Connect session to let user connect their bank
       if (!bridgeUserUuid) {
         return new Response(
           JSON.stringify({ error: 'bridge_user_uuid requis' }),
@@ -224,9 +214,7 @@ Deno.serve(async (req) => {
           'Client-Id': bridgeClientId,
           'Client-Secret': bridgeClientSecret,
         },
-        body: JSON.stringify({
-          user_uuid: bridgeUserUuid,
-        }),
+        body: JSON.stringify({ user_uuid: bridgeUserUuid }),
       })
 
       if (!authResponse.ok) {
@@ -241,16 +229,9 @@ Deno.serve(async (req) => {
       const authData = await authResponse.json()
       const accessToken = authData.access_token
 
-      // Get user email for Connect session
-      const { data: profile } = await supabaseAdmin
-        .from('profiles')
-        .select('full_name')
-        .eq('id', userId)
-        .single()
-
-      // Create Connect session - Bridge API requires user_email
+      // Create Connect session
       const userEmail = claimsData.claims.email as string
-      console.log('Creating Connect session for user:', bridgeUserUuid, 'email:', userEmail)
+      console.info('Creating Connect session for user:', bridgeUserUuid, 'email:', userEmail)
 
       const connectResponse = await fetch(`${BRIDGE_API_URL}/aggregation/connect-sessions`, {
         method: 'POST',
@@ -261,9 +242,7 @@ Deno.serve(async (req) => {
           'Client-Secret': bridgeClientSecret,
           'Authorization': `Bearer ${accessToken}`,
         },
-        body: JSON.stringify({
-          user_email: userEmail,
-        }),
+        body: JSON.stringify({ user_email: userEmail }),
       })
 
       if (!connectResponse.ok) {
@@ -276,135 +255,16 @@ Deno.serve(async (req) => {
       }
 
       const connectData = await connectResponse.json()
-      console.log('Bridge Connect session created')
+      console.info('Bridge Connect session created')
 
       return new Response(
-        JSON.stringify({ 
-          success: true, 
-          connect_url: connectData.url
-        }),
+        JSON.stringify({ success: true, connect_url: connectData.url }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    if (action === 'get-accounts') {
-      // Get all accounts and balances for a Bridge user
-      if (!bridgeUserUuid) {
-        return new Response(
-          JSON.stringify({ error: 'bridge_user_uuid requis' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
-      }
-
-      // First get auth token
-      const authResponse = await fetch(`${BRIDGE_API_URL}/aggregation/authorization/token`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Bridge-Version': BRIDGE_VERSION,
-          'Client-Id': bridgeClientId,
-          'Client-Secret': bridgeClientSecret,
-        },
-        body: JSON.stringify({
-          user_uuid: bridgeUserUuid,
-        }),
-      })
-
-      if (!authResponse.ok) {
-        const errorText = await authResponse.text()
-        console.error('Bridge auth error:', authResponse.status, errorText)
-        return new Response(
-          JSON.stringify({ error: `Erreur Bridge auth: ${errorText}` }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
-      }
-
-      const authData = await authResponse.json()
-      const accessToken = authData.access_token
-
-      // Fetch all accounts
-      let allAccounts: BridgeAccount[] = []
-      let nextUri: string | null = '/v3/aggregation/accounts?limit=100'
-
-      while (nextUri) {
-        const accountsUrl = nextUri.startsWith('http') ? nextUri : `${BRIDGE_API_URL.replace('/v3', '')}${nextUri}`
-        
-        console.log('Fetching Bridge accounts:', accountsUrl)
-        
-        const accountsResponse = await fetch(accountsUrl, {
-          method: 'GET',
-          headers: {
-            'Bridge-Version': BRIDGE_VERSION,
-            'Client-Id': bridgeClientId,
-            'Client-Secret': bridgeClientSecret,
-            'Authorization': `Bearer ${accessToken}`,
-          },
-        })
-
-        if (!accountsResponse.ok) {
-          const errorText = await accountsResponse.text()
-          console.error('Bridge accounts error:', accountsResponse.status, errorText)
-          break
-        }
-
-        const accountsData: BridgeAccountsResponse = await accountsResponse.json()
-        
-        // Filter out disabled accounts
-        const activeAccounts = (accountsData.resources || []).filter(a => a.data_access !== 'disabled')
-        allAccounts = [...allAccounts, ...activeAccounts]
-        
-        nextUri = accountsData.pagination?.next_uri || null
-      }
-
-      console.log(`Fetched ${allAccounts.length} Bridge accounts`)
-
-      // Calculate total balance
-      let totalBalance = 0
-      const accountDetails = allAccounts.map(account => {
-        totalBalance += account.balance
-        console.log(`Account ${account.name}: ${account.balance.toLocaleString('fr-FR')}€`)
-        return {
-          id: account.id,
-          name: account.name,
-          balance: account.balance,
-          iban: account.iban,
-          type: account.type,
-          updated_at: account.updated_at,
-        }
-      })
-
-      console.log(`Total balance: ${totalBalance.toLocaleString('fr-FR')}€`)
-
-      // Update company with the bank balance if companyId provided
-      if (companyId) {
-        const { error: updateError } = await supabaseAdmin
-          .from('companies')
-          .update({
-            bank_balance: totalBalance,
-            bank_balance_updated_at: new Date().toISOString(),
-          })
-          .eq('id', companyId)
-
-        if (updateError) {
-          console.error('Error updating company balance:', updateError)
-        } else {
-          console.log('Company balance updated successfully')
-        }
-      }
-
-      return new Response(
-        JSON.stringify({ 
-          success: true, 
-          accounts: accountDetails,
-          total_balance: totalBalance,
-          accounts_count: allAccounts.length
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    if (action === 'sync-transactions') {
-      // Sync transactions from Bridge to our database
+    // Full sync: accounts + transactions in one call
+    if (action === 'full-sync') {
       if (!bridgeUserUuid || !companyId) {
         return new Response(
           JSON.stringify({ error: 'bridge_user_uuid et company_id requis' }),
@@ -412,25 +272,25 @@ Deno.serve(async (req) => {
         )
       }
 
-      // First get auth token
+      console.info('Starting full sync for Bridge user:', bridgeUserUuid)
+      
+      // 1. Get auth token
       const authResponse = await fetch(`${BRIDGE_API_URL}/aggregation/authorization/token`, {
         method: 'POST',
-        headers: {
+        headers: { 
           'Content-Type': 'application/json',
           'Bridge-Version': BRIDGE_VERSION,
           'Client-Id': bridgeClientId,
           'Client-Secret': bridgeClientSecret,
         },
-        body: JSON.stringify({
-          user_uuid: bridgeUserUuid,
-        }),
+        body: JSON.stringify({ user_uuid: bridgeUserUuid }),
       })
 
       if (!authResponse.ok) {
         const errorText = await authResponse.text()
-        console.error('Bridge auth error:', authResponse.status, errorText)
+        console.error('Bridge auth token error:', errorText)
         return new Response(
-          JSON.stringify({ error: `Erreur Bridge auth: ${errorText}` }),
+          JSON.stringify({ success: false, error: 'Failed to get Bridge auth token' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
@@ -438,108 +298,157 @@ Deno.serve(async (req) => {
       const authData = await authResponse.json()
       const accessToken = authData.access_token
 
-      // Fetch transactions from Bridge (last 90 days)
+      // 2. Get accounts and balances
+      let allAccounts: BridgeAccount[] = []
+      let nextUri: string | null = `${BRIDGE_API_URL}/aggregation/accounts?limit=100`
+      
+      while (nextUri) {
+        const accountsResponse = await fetch(nextUri, {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Bridge-Version': BRIDGE_VERSION,
+            'Client-Id': bridgeClientId,
+            'Client-Secret': bridgeClientSecret,
+          },
+        })
+
+        if (!accountsResponse.ok) {
+          const errorText = await accountsResponse.text()
+          console.error('Bridge accounts error:', errorText)
+          return new Response(
+            JSON.stringify({ success: false, error: 'Failed to fetch Bridge accounts' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+
+        const accountsData: BridgeAccountsResponse = await accountsResponse.json()
+        const activeAccounts = (accountsData.resources || []).filter(a => a.data_access !== 'disabled')
+        allAccounts = [...allAccounts, ...activeAccounts]
+        nextUri = accountsData.pagination?.next_uri || null
+      }
+
+      console.info(`Fetched ${allAccounts.length} Bridge accounts`)
+      
+      const totalBalance = allAccounts.reduce((sum, account) => sum + account.balance, 0)
+      console.info(`Total balance: ${totalBalance.toLocaleString('fr-FR')}€`)
+
+      // Update company balance
+      const { error: updateError } = await supabaseAdmin
+        .from('companies')
+        .update({ 
+          bank_balance: totalBalance,
+          bank_balance_updated_at: new Date().toISOString()
+        })
+        .eq('id', companyId)
+      
+      if (updateError) {
+        console.error('Failed to update company balance:', updateError)
+      } else {
+        console.info('Company balance updated successfully')
+      }
+
+      // 3. Get transactions (last 90 days)
       const sinceDate = new Date()
       sinceDate.setDate(sinceDate.getDate() - 90)
       const sinceDateStr = sinceDate.toISOString().split('T')[0]
 
       let allTransactions: BridgeTransaction[] = []
-      let nextUri: string | null = `/v3/aggregation/transactions?limit=100&since=${sinceDateStr}`
-
+      nextUri = `${BRIDGE_API_URL}/aggregation/transactions?limit=100&since=${sinceDateStr}`
+      
       while (nextUri) {
-        const transactionsUrl = nextUri.startsWith('http') 
-          ? nextUri 
-          : `${BRIDGE_API_URL.replace('/v3', '')}${nextUri}`
-        
-        console.log('Fetching Bridge transactions:', transactionsUrl)
-        
-        const transactionsResponse = await fetch(transactionsUrl, {
-          method: 'GET',
+        const transactionsResponse = await fetch(nextUri, {
           headers: {
+            'Authorization': `Bearer ${accessToken}`,
             'Bridge-Version': BRIDGE_VERSION,
             'Client-Id': bridgeClientId,
             'Client-Secret': bridgeClientSecret,
-            'Authorization': `Bearer ${accessToken}`,
           },
         })
 
         if (!transactionsResponse.ok) {
           const errorText = await transactionsResponse.text()
-          console.error('Bridge transactions error:', transactionsResponse.status, errorText)
-          break
+          console.error('Bridge transactions error:', errorText)
+          return new Response(
+            JSON.stringify({ success: false, error: 'Failed to fetch Bridge transactions' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
         }
 
         const transactionsData: BridgeTransactionsResponse = await transactionsResponse.json()
-        
-        // Filter out deleted and future transactions
-        const validTransactions = (transactionsData.resources || []).filter(
-          t => !t.is_deleted && !t.is_future
+        const validTransactions = (transactionsData.resources || []).filter(t => 
+          !t.is_deleted && new Date(t.date) <= new Date()
         )
         allTransactions = [...allTransactions, ...validTransactions]
-        
         nextUri = transactionsData.pagination?.next_uri || null
       }
 
-      console.log(`Fetched ${allTransactions.length} Bridge transactions`)
+      console.info(`Fetched ${allTransactions.length} Bridge transactions`)
 
-      // Prepare transactions for upsert
+      // Build account name map
+      const accountNameMap: Record<number, string> = {}
+      for (const account of allAccounts) {
+        accountNameMap[account.id] = account.name
+      }
+
+      // Upsert transactions
       let insertedCount = 0
       let updatedCount = 0
 
-      for (const bridgeTx of allTransactions) {
-        const bridgeId = `bridge_${bridgeTx.id}`
-        
-        // Check if transaction already exists
+      for (const transaction of allTransactions) {
+        const transactionType = transaction.amount >= 0 ? 'income' : 'expense'
+        const accountName = accountNameMap[transaction.account_id] || null
+        const description = transaction.clean_description || transaction.bank_description || transaction.raw_description || 'Transaction Bridge'
+
         const { data: existing } = await supabaseAdmin
           .from('transactions')
           .select('id')
-          .eq('pennylane_id', bridgeId)
-          .eq('company_id', companyId)
-          .single()
-
-        const transactionData = {
-          user_id: userId,
-          company_id: companyId,
-          pennylane_id: bridgeId,
-          description: bridgeTx.clean_description || bridgeTx.bank_description,
-          amount: Math.abs(bridgeTx.amount),
-          type: bridgeTx.amount >= 0 ? 'income' : 'expense',
-          date: bridgeTx.date,
-          source: 'bridge',
-          is_reconciled: false,
-        }
+          .eq('pennylane_id', `bridge_${transaction.id}`)
+          .maybeSingle()
 
         if (existing) {
-          // Update existing transaction
-          const { error: updateError } = await supabaseAdmin
+          const { error } = await supabaseAdmin
             .from('transactions')
             .update({
-              description: transactionData.description,
-              amount: transactionData.amount,
-              type: transactionData.type,
-              date: transactionData.date,
+              amount: Math.abs(transaction.amount),
+              description: description,
+              date: transaction.date,
+              type: transactionType,
+              bank_account_name: accountName,
+              source: 'bridge',
+              updated_at: new Date().toISOString(),
             })
             .eq('id', existing.id)
-
-          if (!updateError) updatedCount++
+          
+          if (!error) updatedCount++
         } else {
-          // Insert new transaction
-          const { error: insertError } = await supabaseAdmin
+          const { error } = await supabaseAdmin
             .from('transactions')
-            .insert(transactionData)
-
-          if (!insertError) insertedCount++
+            .insert({
+              user_id: userId,
+              company_id: companyId,
+              pennylane_id: `bridge_${transaction.id}`,
+              amount: Math.abs(transaction.amount),
+              description: description,
+              date: transaction.date,
+              type: transactionType,
+              bank_account_name: accountName,
+              source: 'bridge',
+              is_reconciled: false,
+            })
+          
+          if (!error) insertedCount++
         }
       }
 
-      console.log(`Inserted ${insertedCount}, updated ${updatedCount} transactions`)
+      console.info(`Full sync complete: ${allAccounts.length} accounts, ${insertedCount} new, ${updatedCount} updated transactions`)
 
       return new Response(
         JSON.stringify({ 
           success: true, 
-          transactions_count: allTransactions.length,
-          inserted: insertedCount,
-          updated: updatedCount,
+          accounts: allAccounts.length,
+          totalBalance,
+          inserted: insertedCount, 
+          updated: updatedCount 
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
