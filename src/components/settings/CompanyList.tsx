@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Building2, Plus, Pencil, Trash2, Star, Landmark, Loader2 } from 'lucide-react';
+import { Building2, Plus, Pencil, Trash2, Star, Landmark, Loader2, ArrowDownToLine } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -25,6 +25,7 @@ export function CompanyList() {
   const [editingCompany, setEditingCompany] = useState<Company | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [connectingBridge, setConnectingBridge] = useState<string | null>(null);
+  const [syncingTransactions, setSyncingTransactions] = useState<string | null>(null);
 
   const handleEdit = (company: Company) => {
     setEditingCompany(company);
@@ -164,6 +165,45 @@ export function CompanyList() {
     }
   };
 
+  const handleSyncTransactions = async (company: Company) => {
+    const bridgeUserUuid = company.bridge_user_uuid;
+    if (!bridgeUserUuid) {
+      toast.error('Connectez d\'abord Bridge pour cette société');
+      return;
+    }
+
+    setSyncingTransactions(company.id);
+    
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error('Vous devez être connecté');
+        return;
+      }
+
+      const { data, error } = await supabase.functions.invoke('bridge-sync', {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+        body: { 
+          action: 'sync-transactions',
+          bridge_user_uuid: bridgeUserUuid,
+          company_id: company.id,
+        },
+      });
+
+      if (error || !data?.success) {
+        toast.error(data?.error || 'Erreur lors de la synchronisation des transactions');
+        return;
+      }
+
+      toast.success(`${data.inserted} nouvelles transactions importées, ${data.updated} mises à jour`);
+    } catch (error) {
+      console.error('Transaction sync error:', error);
+      toast.error('Erreur lors de la synchronisation des transactions');
+    } finally {
+      setSyncingTransactions(null);
+    }
+  };
+
   if (isLoading) {
     return (
       <Card className="bg-card border-border">
@@ -271,7 +311,7 @@ export function CompanyList() {
                           variant="outline"
                           size="sm"
                           onClick={() => handleSyncBridgeAccounts(company)}
-                          disabled={connectingBridge === company.id}
+                          disabled={connectingBridge === company.id || syncingTransactions === company.id}
                           className="gap-1.5"
                         >
                           {connectingBridge === company.id ? (
@@ -279,7 +319,21 @@ export function CompanyList() {
                           ) : (
                             <Landmark className="w-4 h-4" />
                           )}
-                          Sync Bridge
+                          Sync comptes
+                        </Button>
+                        <Button
+                          variant="default"
+                          size="sm"
+                          onClick={() => handleSyncTransactions(company)}
+                          disabled={syncingTransactions === company.id || connectingBridge === company.id}
+                          className="gap-1.5"
+                        >
+                          {syncingTransactions === company.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <ArrowDownToLine className="w-4 h-4" />
+                          )}
+                          Importer transactions
                         </Button>
                       </>
                     ) : (
