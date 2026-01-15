@@ -33,29 +33,56 @@ export default function Auth() {
 
   // Handle password reset flow - check for recovery session
   useEffect(() => {
-    const checkResetSession = async () => {
+    const handleAuthFlow = async () => {
       const modeParam = searchParams.get('mode');
       
-      // If we have mode=reset, check if there's an active session from the reset link
+      // Listen for the PASSWORD_RECOVERY event from the URL hash
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+        console.log('Auth event:', event, 'Session:', !!session);
+        
+        if (event === 'PASSWORD_RECOVERY') {
+          // User clicked the reset link - show reset form
+          setMode('reset');
+          setIsCheckingSession(false);
+        } else if (event === 'SIGNED_IN' && modeParam === 'reset') {
+          // User already has a session from the reset link
+          setMode('reset');
+          setIsCheckingSession(false);
+        }
+      });
+      
+      // Also check if we already have a session (for page refreshes after reset link click)
       if (modeParam === 'reset') {
+        // Give Supabase a moment to process the URL hash
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
-          // User has a valid session from the reset link
           setMode('reset');
         } else {
-          // No valid session - the link may have expired
-          toast({
-            title: 'Lien expiré',
-            description: 'Le lien de réinitialisation a expiré. Veuillez en demander un nouveau.',
-            variant: 'destructive',
-          });
-          setMode('forgot');
+          // Check if we have a hash fragment (recovery token in URL)
+          const hashParams = new URLSearchParams(window.location.hash.substring(1));
+          const accessToken = hashParams.get('access_token');
+          const type = hashParams.get('type');
+          
+          if (!accessToken && type !== 'recovery') {
+            // No token and no session - link expired
+            toast({
+              title: 'Lien expiré',
+              description: 'Le lien de réinitialisation a expiré. Veuillez en demander un nouveau.',
+              variant: 'destructive',
+            });
+            setMode('forgot');
+          }
         }
       }
+      
       setIsCheckingSession(false);
+      
+      return () => subscription.unsubscribe();
     };
 
-    checkResetSession();
+    handleAuthFlow();
   }, [searchParams, toast]);
 
   useEffect(() => {
