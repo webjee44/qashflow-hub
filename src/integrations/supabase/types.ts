@@ -1469,6 +1469,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      assign_superadmin_role: {
+        Args: { user_email: string }
+        Returns: undefined
+      }
       company_has_secret: {
         Args: { p_company_id: string; p_secret_type?: string }
         Returns: boolean
@@ -1499,7 +1503,7 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "owner" | "admin" | "member" | "viewer"
+      app_role: "owner" | "admin" | "member" | "viewer" | "superadmin"
       transaction_type: "income" | "expense"
     }
     CompositeTypes: {
@@ -1628,7 +1632,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["owner", "admin", "member", "viewer"],
+      app_role: ["owner", "admin", "member", "viewer", "superadmin"],
       transaction_type: ["income", "expense"],
     },
   },
