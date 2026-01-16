@@ -97,9 +97,37 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
   }, [user]);
 
   const setCurrentCompany = (company: Company | null) => {
+    const previousCompanyId = currentCompany?.id;
     setCurrentCompanyState(company);
+    
     if (company) {
       localStorage.setItem(STORAGE_KEY, company.id);
+      
+      // Invalidate all company-specific data when switching companies
+      if (previousCompanyId && previousCompanyId !== company.id) {
+        // Invalidate treasury/forecast data
+        queryClient.invalidateQueries({ queryKey: ['transactions'] });
+        queryClient.invalidateQueries({ queryKey: ['forecasts'] });
+        queryClient.invalidateQueries({ queryKey: ['categories'] });
+        queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
+        queryClient.invalidateQueries({ queryKey: ['automationRules'] });
+        
+        // Invalidate Business Plan data
+        queryClient.invalidateQueries({ queryKey: ['bp-settings'] });
+        queryClient.invalidateQueries({ queryKey: ['bp-revenue-streams'] });
+        queryClient.invalidateQueries({ queryKey: ['bp-revenue-forecasts'] });
+        queryClient.invalidateQueries({ queryKey: ['bp-fixed-expenses'] });
+        queryClient.invalidateQueries({ queryKey: ['bp-variable-expenses'] });
+        queryClient.invalidateQueries({ queryKey: ['bp-personnel'] });
+        queryClient.invalidateQueries({ queryKey: ['bp-directors'] });
+        queryClient.invalidateQueries({ queryKey: ['bp-investments'] });
+        queryClient.invalidateQueries({ queryKey: ['bp-financings'] });
+        queryClient.invalidateQueries({ queryKey: ['bp-stocks'] });
+        queryClient.invalidateQueries({ queryKey: ['bp-scenarios'] });
+        queryClient.invalidateQueries({ queryKey: ['bp-notes'] });
+        
+        toast.info(`Contexte changé vers ${company.name}`);
+      }
     } else {
       localStorage.removeItem(STORAGE_KEY);
     }
