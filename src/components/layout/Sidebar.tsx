@@ -195,27 +195,32 @@ export function Sidebar() {
           "mx-4 mb-4 rounded-xl bg-muted/50 border border-border",
           isCollapsed ? "p-2" : "p-4"
         )}>
-          {!isCollapsed && (
+          {!isCollapsed ? (
             <>
               <p className="text-sm font-medium text-foreground truncate">{user.email}</p>
-              <div className="flex items-center gap-2 mt-1 mb-3">
-                <div className="w-2 h-2 rounded-full bg-success animate-pulse-soft" />
-                <span className="text-xs text-muted-foreground">Connecté</span>
+              <div className="flex items-center justify-between mt-1">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-success animate-pulse-soft" />
+                  <span className="text-xs text-muted-foreground">Connecté</span>
+                </div>
+                <button
+                  onClick={handleSignOut}
+                  className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                  title="Se déconnecter"
+                >
+                  <LogOut className="h-4 w-4" />
+                </button>
               </div>
             </>
+          ) : (
+            <button
+              onClick={handleSignOut}
+              className="w-full flex justify-center p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+              title="Se déconnecter"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
           )}
-          <Button
-            variant="ghost"
-            size={isCollapsed ? "icon" : "sm"}
-            onClick={handleSignOut}
-            className={cn(
-              "text-muted-foreground hover:text-destructive hover:bg-destructive/10",
-              !isCollapsed && "w-full justify-start gap-2"
-            )}
-          >
-            <LogOut className="h-4 w-4" />
-            {!isCollapsed && <span>Se déconnecter</span>}
-          </Button>
         </div>
       )}
     </motion.aside>
