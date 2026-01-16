@@ -473,11 +473,8 @@ export default function Landing() {
         <div className="max-w-7xl mx-auto">
           <div className="grid md:grid-cols-4 gap-8">
             <div>
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-8 h-8 bg-gradient-to-br from-primary to-primary/60 rounded-lg flex items-center justify-center">
-                  <PiggyBank className="w-5 h-5 text-primary-foreground" />
-                </div>
-                <span className="text-xl font-bold">qashflow</span>
+              <div className="flex items-center mb-4">
+                <img src={logo} alt="Qashflow" className="h-8" />
               </div>
               <p className="text-muted-foreground text-sm">
                 La solution tout-en-un pour piloter votre trésorerie et planifier votre croissance.
