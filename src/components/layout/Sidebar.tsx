@@ -13,12 +13,14 @@ import {
   DollarSign,
   Building2,
   GitBranch,
-  Package
+  Package,
+  LogOut
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useAppMode } from '@/hooks/useAppMode';
+import { Button } from '@/components/ui/button';
 import logo from '@/assets/logo.png';
 
 
@@ -56,11 +58,16 @@ const bottomNavItems: NavItem[] = [
 
 export function Sidebar() {
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const { mode, setMode, isBusinessPlan } = useAppMode();
   const location = useLocation();
   const navigate = useNavigate();
   const currentPath = location.pathname;
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/auth');
+  };
   
   const navItems = isBusinessPlan ? businessPlanNavItems : treasuryNavItems;
 
@@ -183,13 +190,32 @@ export function Sidebar() {
       </div>
 
       {/* User Info */}
-      {!isCollapsed && user && (
-        <div className="p-4 mx-4 mb-4 rounded-xl bg-muted/50 border border-border">
-          <p className="text-sm font-medium text-foreground truncate">{user.email}</p>
-          <div className="flex items-center gap-2 mt-1">
-            <div className="w-2 h-2 rounded-full bg-success animate-pulse-soft" />
-            <span className="text-xs text-muted-foreground">Connecté</span>
-          </div>
+      {user && (
+        <div className={cn(
+          "mx-4 mb-4 rounded-xl bg-muted/50 border border-border",
+          isCollapsed ? "p-2" : "p-4"
+        )}>
+          {!isCollapsed && (
+            <>
+              <p className="text-sm font-medium text-foreground truncate">{user.email}</p>
+              <div className="flex items-center gap-2 mt-1 mb-3">
+                <div className="w-2 h-2 rounded-full bg-success animate-pulse-soft" />
+                <span className="text-xs text-muted-foreground">Connecté</span>
+              </div>
+            </>
+          )}
+          <Button
+            variant="ghost"
+            size={isCollapsed ? "icon" : "sm"}
+            onClick={handleSignOut}
+            className={cn(
+              "text-muted-foreground hover:text-destructive hover:bg-destructive/10",
+              !isCollapsed && "w-full justify-start gap-2"
+            )}
+          >
+            <LogOut className="h-4 w-4" />
+            {!isCollapsed && <span>Se déconnecter</span>}
+          </Button>
         </div>
       )}
     </motion.aside>
