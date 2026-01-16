@@ -6,9 +6,10 @@ import { OrganizationCard } from '@/components/settings/OrganizationCard';
 import { OrganizationMembersCard } from '@/components/settings/OrganizationMembersCard';
 import { AuditLogsCard } from '@/components/settings/AuditLogsCard';
 import { TrashCard } from '@/components/settings/TrashCard';
+import { DataExportsCard } from '@/components/settings/DataExportsCard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Building2, User, Shield, TrendingUp, Users, History, Trash2 } from 'lucide-react';
+import { Building2, User, Shield, TrendingUp, Users, History, Trash2, HardDrive } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
 export default function Settings() {
@@ -49,6 +50,10 @@ export default function Settings() {
               <Trash2 className="w-4 h-4" />
               Corbeille
             </TabsTrigger>
+            <TabsTrigger value="exports" className="gap-2">
+              <HardDrive className="w-4 h-4" />
+              Sauvegardes
+            </TabsTrigger>
             <TabsTrigger value="profile" className="gap-2">
               <User className="w-4 h-4" />
               Profil
@@ -81,6 +86,10 @@ export default function Settings() {
 
           <TabsContent value="trash">
             <TrashCard />
+          </TabsContent>
+
+          <TabsContent value="exports">
+            <DataExportsCard />
           </TabsContent>
 
           <TabsContent value="profile">

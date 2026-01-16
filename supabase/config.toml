@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.export-data]
 verify_jwt = false
+
+[functions.scheduled-export]
+verify_jwt = false
