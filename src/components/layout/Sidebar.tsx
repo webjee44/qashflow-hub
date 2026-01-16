@@ -92,8 +92,8 @@ export function Sidebar() {
               src={logo} 
               alt="Qashflow" 
               className={cn(
-                "h-8 object-contain",
-                isCollapsed ? "w-10" : "w-auto max-w-[140px]"
+                "object-contain",
+                isCollapsed ? "h-8 w-10" : "h-10 w-auto max-w-[160px]"
               )}
             />
           </motion.div>
