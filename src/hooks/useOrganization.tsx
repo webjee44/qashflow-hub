@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { toast } from 'sonner';
 
-type AppRole = 'owner' | 'admin' | 'member' | 'viewer';
+type AppRole = 'owner' | 'admin' | 'member' | 'viewer' | 'superadmin';
 
 interface Organization {
   id: string;
