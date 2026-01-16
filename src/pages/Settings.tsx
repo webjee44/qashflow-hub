@@ -17,7 +17,7 @@ export default function Settings() {
 
   return (
     <div className="min-h-screen">
-      <Header title="Paramètres" subtitle="Gérez vos sociétés et préférences" />
+      <PageHeader title="Paramètres" subtitle="Gérez vos sociétés et préférences" />
 
       <motion.div
         initial={{ opacity: 0, y: 20 }}
