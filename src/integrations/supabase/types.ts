@@ -14,6 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      audit_logs: {
+        Row: {
+          action: string
+          created_at: string
+          id: string
+          metadata: Json | null
+          new_data: Json | null
+          old_data: Json | null
+          organization_id: string | null
+          record_id: string
+          table_name: string
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          new_data?: Json | null
+          old_data?: Json | null
+          organization_id?: string | null
+          record_id: string
+          table_name: string
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          new_data?: Json | null
+          old_data?: Json | null
+          organization_id?: string | null
+          record_id?: string
+          table_name?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       automation_rules: {
         Row: {
           action_type: string
@@ -810,6 +849,7 @@ export type Database = {
           bank_balance_updated_at: string | null
           bridge_user_uuid: string | null
           created_at: string | null
+          deleted_at: string | null
           id: string
           initial_balance: number
           is_default: boolean | null
@@ -823,6 +863,7 @@ export type Database = {
           bank_balance_updated_at?: string | null
           bridge_user_uuid?: string | null
           created_at?: string | null
+          deleted_at?: string | null
           id?: string
           initial_balance?: number
           is_default?: boolean | null
@@ -836,6 +877,7 @@ export type Database = {
           bank_balance_updated_at?: string | null
           bridge_user_uuid?: string | null
           created_at?: string | null
+          deleted_at?: string | null
           id?: string
           initial_balance?: number
           is_default?: boolean | null
@@ -986,6 +1028,7 @@ export type Database = {
       organizations: {
         Row: {
           created_at: string
+          deleted_at: string | null
           id: string
           max_companies: number
           max_members: number
@@ -1002,6 +1045,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          deleted_at?: string | null
           id?: string
           max_companies?: number
           max_members?: number
@@ -1018,6 +1062,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          deleted_at?: string | null
           id?: string
           max_companies?: number
           max_members?: number
@@ -1114,6 +1159,7 @@ export type Database = {
           company_id: string | null
           created_at: string
           date: string
+          deleted_at: string | null
           description: string
           id: string
           is_reconciled: boolean
@@ -1131,6 +1177,7 @@ export type Database = {
           company_id?: string | null
           created_at?: string
           date: string
+          deleted_at?: string | null
           description: string
           id?: string
           is_reconciled?: boolean
@@ -1148,6 +1195,7 @@ export type Database = {
           company_id?: string | null
           created_at?: string
           date?: string
+          deleted_at?: string | null
           description?: string
           id?: string
           is_reconciled?: boolean
