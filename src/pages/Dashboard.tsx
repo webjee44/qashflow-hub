@@ -5,6 +5,7 @@ import { TransactionList } from '@/components/dashboard/TransactionList';
 import { CategoryBreakdown } from '@/components/dashboard/CategoryBreakdown';
 import { QuickActions } from '@/components/dashboard/QuickActions';
 import { BankAccounts } from '@/components/dashboard/BankAccounts';
+import { OnboardingTour } from '@/components/onboarding/OnboardingTour';
 import { Wallet, TrendingUp, TrendingDown, Calendar } from 'lucide-react';
 import { useDashboardStats } from '@/hooks/useDashboardStats';
 import { useBridgeAutoSync } from '@/hooks/useBridgeAutoSync';
@@ -37,42 +38,51 @@ export default function Dashboard() {
   const currentMonth = format(new Date(), 'MMM', { locale: fr });
 
   return (
-    <div className="space-y-8">
-      <PageHeader 
-        title="Tableau de bord" 
-        subtitle="Bienvenue ! Voici un aperçu de votre trésorerie." 
-      />
+    <>
+      <OnboardingTour />
+      <div className="space-y-8" data-tour="dashboard">
+        <PageHeader 
+          title="Tableau de bord" 
+          subtitle="Bienvenue ! Voici un aperçu de votre trésorerie." 
+        />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {loading ? (
-          <>
-            <Skeleton className="h-36 rounded-2xl" />
-            <Skeleton className="h-36 rounded-2xl" />
-            <Skeleton className="h-36 rounded-2xl" />
-            <Skeleton className="h-36 rounded-2xl" />
-          </>
-        ) : (
-          <>
-            <StatCard title="Solde actuel" value={formatCurrency(currentBalance)} icon={Wallet} variant="primary" delay={0} />
-            <StatCard title={`Encaissements (${currentMonth})`} value={formatCurrency(monthlyIncome)} change={incomeChange} icon={TrendingUp} variant="success" delay={0.05} />
-            <StatCard title={`Décaissements (${currentMonth})`} value={formatCurrency(monthlyExpense)} change={expenseChange} icon={TrendingDown} delay={0.1} />
-            <StatCard title="Prévision à 90 jours" value={formatCurrency(forecast90Days)} icon={Calendar} delay={0.15} />
-          </>
-        )}
-      </div>
-
-      <BalanceChart />
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-          <BankAccounts />
-          <TransactionList />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {loading ? (
+            <>
+              <Skeleton className="h-36 rounded-2xl" />
+              <Skeleton className="h-36 rounded-2xl" />
+              <Skeleton className="h-36 rounded-2xl" />
+              <Skeleton className="h-36 rounded-2xl" />
+            </>
+          ) : (
+            <>
+              <div data-tour="balance">
+                <StatCard title="Solde actuel" value={formatCurrency(currentBalance)} icon={Wallet} variant="primary" delay={0} />
+              </div>
+              <StatCard title={`Encaissements (${currentMonth})`} value={formatCurrency(monthlyIncome)} change={incomeChange} icon={TrendingUp} variant="success" delay={0.05} />
+              <StatCard title={`Décaissements (${currentMonth})`} value={formatCurrency(monthlyExpense)} change={expenseChange} icon={TrendingDown} delay={0.1} />
+              <StatCard title="Prévision à 90 jours" value={formatCurrency(forecast90Days)} icon={Calendar} delay={0.15} />
+            </>
+          )}
         </div>
-        <div className="space-y-6">
-          <CategoryBreakdown />
-          <QuickActions />
+
+        <div data-tour="chart">
+          <BalanceChart />
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 space-y-6">
+            <BankAccounts />
+            <div data-tour="transactions">
+              <TransactionList />
+            </div>
+          </div>
+          <div className="space-y-6">
+            <CategoryBreakdown />
+            <QuickActions />
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
