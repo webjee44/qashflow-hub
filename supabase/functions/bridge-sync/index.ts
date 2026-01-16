@@ -547,6 +547,108 @@ Deno.serve(async (req) => {
       )
     }
 
+    // Get Bridge categories used in transactions
+    if (action === 'get-transaction-categories') {
+      if (!bridgeUserUuid) {
+        return new Response(
+          JSON.stringify({ error: 'bridge_user_uuid requis' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      console.info('Fetching Bridge transaction categories...')
+      
+      // Get auth token
+      const authResponse = await fetch(`${BRIDGE_API_URL}/aggregation/authorization/token`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Bridge-Version': BRIDGE_VERSION,
+          'Client-Id': bridgeClientId,
+          'Client-Secret': bridgeClientSecret,
+        },
+        body: JSON.stringify({ user_uuid: bridgeUserUuid }),
+      })
+
+      if (!authResponse.ok) {
+        const errorText = await authResponse.text()
+        console.error('Bridge auth token error:', errorText)
+        return new Response(
+          JSON.stringify({ success: false, error: 'Failed to get Bridge auth token' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      const authData = await authResponse.json()
+      const accessToken = authData.access_token
+
+      // Get transactions to analyze category_ids
+      const sinceDate = new Date()
+      sinceDate.setDate(sinceDate.getDate() - 90)
+      const sinceDateStr = sinceDate.toISOString().split('T')[0]
+
+      let allTransactions: BridgeTransaction[] = []
+      let transactionsNextUri: string | null = `${BRIDGE_API_URL}/aggregation/transactions?limit=100&since=${sinceDateStr}`
+      
+      while (transactionsNextUri) {
+        const transactionsUrl = transactionsNextUri.startsWith('http') 
+          ? transactionsNextUri 
+          : `https://api.bridgeapi.io${transactionsNextUri}`
+        
+        const transactionsResponse = await fetch(transactionsUrl, {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Bridge-Version': BRIDGE_VERSION,
+            'Client-Id': bridgeClientId,
+            'Client-Secret': bridgeClientSecret,
+          },
+        })
+
+        if (!transactionsResponse.ok) break
+
+        const transactionsData: BridgeTransactionsResponse = await transactionsResponse.json()
+        allTransactions = [...allTransactions, ...(transactionsData.resources || [])]
+        transactionsNextUri = transactionsData.pagination?.next_uri || null
+      }
+
+      // Analyze category_ids
+      const categoryStats: Record<number, { count: number; examples: string[] }> = {}
+      
+      for (const tx of allTransactions) {
+        if (tx.category_id !== null) {
+          if (!categoryStats[tx.category_id]) {
+            categoryStats[tx.category_id] = { count: 0, examples: [] }
+          }
+          categoryStats[tx.category_id].count++
+          if (categoryStats[tx.category_id].examples.length < 3) {
+            categoryStats[tx.category_id].examples.push(
+              tx.clean_description || tx.bank_description || 'N/A'
+            )
+          }
+        }
+      }
+
+      // Sort by count
+      const sortedCategories = Object.entries(categoryStats)
+        .map(([id, data]) => ({ 
+          bridge_category_id: parseInt(id), 
+          count: data.count, 
+          examples: data.examples 
+        }))
+        .sort((a, b) => b.count - a.count)
+
+      console.info(`Found ${sortedCategories.length} unique Bridge categories`)
+
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          total_transactions: allTransactions.length,
+          categories: sortedCategories
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
     // Full sync: accounts + transactions in one call
     if (action === 'full-sync') {
       if (!bridgeUserUuid || !companyId) {
