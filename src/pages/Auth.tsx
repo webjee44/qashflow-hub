@@ -87,7 +87,7 @@ export default function Auth() {
 
   useEffect(() => {
     if (user && mode !== 'reset' && !isCheckingSession) {
-      navigate('/');
+      navigate('/dashboard');
     }
   }, [user, navigate, mode, isCheckingSession]);
 
@@ -202,7 +202,7 @@ export default function Auth() {
             title: 'Mot de passe mis à jour',
             description: 'Vous pouvez maintenant vous connecter avec votre nouveau mot de passe.',
           });
-          navigate('/');
+          navigate('/dashboard');
         }
       }
     } finally {

@@ -31,7 +31,7 @@ interface NavItem {
 }
 
 const treasuryNavItems: NavItem[] = [
-  { icon: LayoutDashboard, label: 'Tableau de bord', href: '/' },
+  { icon: LayoutDashboard, label: 'Tableau de bord', href: '/dashboard' },
   { icon: ArrowLeftRight, label: 'Transactions', href: '/transactions' },
   { icon: TrendingUp, label: 'Prévisions', href: '/previsions' },
   { icon: Tags, label: 'Catégories', href: '/categories' },
@@ -69,7 +69,7 @@ export function Sidebar() {
     const newMode = checked ? 'business-plan' : 'treasury';
     setMode(newMode);
     // Navigate to the default route of the new mode
-    navigate(checked ? '/bp' : '/');
+    navigate(checked ? '/bp' : '/dashboard');
   };
 
   return (
