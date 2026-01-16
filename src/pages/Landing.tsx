@@ -120,7 +120,7 @@ export default function Landing() {
 
   const handleGetStarted = async () => {
     if (user) {
-      navigate('/');
+      navigate('/dashboard');
       return;
     }
 
@@ -159,7 +159,7 @@ export default function Landing() {
             </div>
             <div className="flex items-center gap-4">
               {user ? (
-                <Button onClick={() => navigate('/')}>
+                <Button onClick={() => navigate('/dashboard')}>
                   Accéder à l'app
                   <ArrowRight className="w-4 h-4 ml-2" />
                 </Button>
