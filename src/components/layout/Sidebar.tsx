@@ -39,7 +39,7 @@ const treasuryNavItems: NavItem[] = [
 ];
 
 const businessPlanNavItems: NavItem[] = [
-  { icon: LayoutDashboard, label: 'Dashboard', href: '/bp' },
+  { icon: LayoutDashboard, label: 'Vue d\'ensemble', href: '/bp' },
   { icon: DollarSign, label: 'Revenus', href: '/bp/revenus' },
   { icon: Building2, label: 'Charges', href: '/bp/charges' },
   { icon: Package, label: 'Investissements', href: '/bp/investissements' },
