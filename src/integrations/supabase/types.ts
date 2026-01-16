@@ -1303,29 +1303,41 @@ export type Database = {
       profiles: {
         Row: {
           avatar_url: string | null
+          bp_enabled: boolean | null
           company_name: string | null
           created_at: string
           full_name: string | null
           id: string
+          onboarding_completed: boolean | null
+          onboarding_step: number | null
           pennylane_api_key: string | null
+          phone: string | null
           updated_at: string
         }
         Insert: {
           avatar_url?: string | null
+          bp_enabled?: boolean | null
           company_name?: string | null
           created_at?: string
           full_name?: string | null
           id: string
+          onboarding_completed?: boolean | null
+          onboarding_step?: number | null
           pennylane_api_key?: string | null
+          phone?: string | null
           updated_at?: string
         }
         Update: {
           avatar_url?: string | null
+          bp_enabled?: boolean | null
           company_name?: string | null
           created_at?: string
           full_name?: string | null
           id?: string
+          onboarding_completed?: boolean | null
+          onboarding_step?: number | null
           pennylane_api_key?: string | null
+          phone?: string | null
           updated_at?: string
         }
         Relationships: []

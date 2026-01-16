@@ -9,15 +9,17 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useCompany } from '@/hooks/useCompany';
+import { useOnboarding } from '@/hooks/useOnboarding';
 import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
 import { ModeToggle } from './ModeToggle';
 
 export function AppHeader() {
   const { currentCompany, companies, setCurrentCompany, isLoading } = useCompany();
+  const { bpEnabled } = useOnboarding();
 
   return (
-    <header className="sticky top-0 z-40 h-16 bg-card/95 backdrop-blur border-b border-border px-6 flex items-center justify-between">
+    <header className="sticky top-0 z-40 h-16 bg-card/95 backdrop-blur border-b border-border px-6 flex items-center justify-between" data-tour="company-selector">
       {/* Left: Company Switcher */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -77,8 +79,14 @@ export function AppHeader() {
         </DropdownMenuContent>
       </DropdownMenu>
 
-      {/* Center: Mode Toggle */}
-      <ModeToggle />
+      {/* Center: Mode Toggle - Only shown if BP is enabled */}
+      {bpEnabled ? (
+        <ModeToggle />
+      ) : (
+        <div className="text-sm font-medium text-muted-foreground">
+          Trésorerie
+        </div>
+      )}
 
       {/* Right: Notifications */}
       <Button variant="ghost" size="icon" className="relative">

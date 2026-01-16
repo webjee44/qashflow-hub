@@ -10,6 +10,7 @@ import { AppModeProvider } from "@/hooks/useAppMode";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { SuperAdminRoute } from "@/components/superadmin/SuperAdminRoute";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { OnboardingTour } from "@/components/onboarding/OnboardingTour";
 import Landing from "./pages/Landing";
 import Dashboard from "./pages/Dashboard";
 import Transactions from "./pages/Transactions";
@@ -18,6 +19,9 @@ import TreasurySettings from "./pages/TreasurySettings";
 import Settings from "./pages/Settings";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
+import Start from "./pages/Start";
+import StartVerify from "./pages/StartVerify";
+import StartWelcome from "./pages/StartWelcome";
 
 // Business Plan pages
 import BPDashboard from "./pages/BusinessPlan/Dashboard";
@@ -50,9 +54,16 @@ const App = () => (
             <Toaster />
             <Sonner />
             <BrowserRouter>
+              <OnboardingTour />
               <Routes>
                 <Route path="/" element={<Landing />} />
                 <Route path="/auth" element={<Auth />} />
+                
+                {/* Onboarding routes */}
+                <Route path="/start" element={<Start />} />
+                <Route path="/start/verify" element={<StartVerify />} />
+                <Route path="/start/welcome" element={<StartWelcome />} />
+                
                 <Route 
                   element={
                     <ProtectedRoute>
@@ -88,7 +99,6 @@ const App = () => (
                 <Route path="/superadmin/analytics" element={<SuperAdminRoute><SuperAdminAnalytics /></SuperAdminRoute>} />
                 
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-                <Route path="*" element={<NotFound />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </BrowserRouter>
