@@ -343,6 +343,44 @@ export type Database = {
           },
         ]
       }
+      bp_notes: {
+        Row: {
+          company_id: string | null
+          content: string | null
+          created_at: string | null
+          id: string
+          section: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          company_id?: string | null
+          content?: string | null
+          created_at?: string | null
+          id?: string
+          section: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          company_id?: string | null
+          content?: string | null
+          created_at?: string | null
+          id?: string
+          section?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bp_notes_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bp_personnel: {
         Row: {
           company_id: string | null

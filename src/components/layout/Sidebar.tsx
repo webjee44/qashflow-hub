@@ -47,6 +47,7 @@ const businessPlanNavItems: NavItem[] = [
   { icon: FileSpreadsheet, label: 'Compte de résultat', href: '/bp/pnl' },
   { icon: Wallet, label: 'Bilan', href: '/bp/bilan' },
   { icon: Wallet, label: 'Trésorerie', href: '/bp/tresorerie' },
+  { icon: Wallet, label: 'Plan de financement', href: '/bp/financement' },
   { icon: GitBranch, label: 'Scénarios', href: '/bp/scenarios' },
 ];
 

@@ -23,3 +23,6 @@ verify_jwt = false
 
 [functions.cleanup-trash]
 verify_jwt = false
+
+[functions.generate-bp-pdf]
+verify_jwt = false
