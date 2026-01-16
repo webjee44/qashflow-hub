@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { CompanyList } from '@/components/settings/CompanyList';
 import { OrganizationCard } from '@/components/settings/OrganizationCard';
@@ -13,7 +14,13 @@ import { useOnboarding } from '@/hooks/useOnboarding';
 
 export default function Settings() {
   const { user } = useAuth();
-  const { startTour, isCompleted, bpEnabled, toggleBP } = useOnboarding();
+  const { isCompleted, bpEnabled, toggleBP } = useOnboarding();
+  const navigate = useNavigate();
+
+  const handleStartTour = () => {
+    localStorage.setItem('show-onboarding-tour', 'true');
+    navigate('/previsions');
+  };
 
   return (
     <div className="min-h-screen">
@@ -105,7 +112,7 @@ export default function Settings() {
                 </CardHeader>
                 <CardContent>
                   <Button 
-                    onClick={startTour}
+                    onClick={handleStartTour}
                     variant="outline"
                     className="gap-2"
                   >
