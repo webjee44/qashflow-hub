@@ -263,6 +263,95 @@ Deno.serve(async (req) => {
       )
     }
 
+    // Get accounts only (for dashboard display)
+    if (action === 'get-accounts') {
+      if (!bridgeUserUuid) {
+        return new Response(
+          JSON.stringify({ error: 'bridge_user_uuid requis' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      // Get auth token
+      const authResponse = await fetch(`${BRIDGE_API_URL}/aggregation/authorization/token`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Bridge-Version': BRIDGE_VERSION,
+          'Client-Id': bridgeClientId,
+          'Client-Secret': bridgeClientSecret,
+        },
+        body: JSON.stringify({ user_uuid: bridgeUserUuid }),
+      })
+
+      if (!authResponse.ok) {
+        const errorText = await authResponse.text()
+        console.error('Bridge auth token error:', errorText)
+        return new Response(
+          JSON.stringify({ success: false, error: 'Failed to get Bridge auth token' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      const authData = await authResponse.json()
+      const accessToken = authData.access_token
+
+      // Get accounts
+      let allAccounts: BridgeAccount[] = []
+      let accountsNextUri: string | null = `${BRIDGE_API_URL}/aggregation/accounts?limit=100`
+      
+      while (accountsNextUri) {
+        const accountsUrl = accountsNextUri.startsWith('http') 
+          ? accountsNextUri 
+          : `https://api.bridgeapi.io${accountsNextUri}`
+        
+        const accountsResponse = await fetch(accountsUrl, {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Bridge-Version': BRIDGE_VERSION,
+            'Client-Id': bridgeClientId,
+            'Client-Secret': bridgeClientSecret,
+          },
+        })
+
+        if (!accountsResponse.ok) {
+          const errorText = await accountsResponse.text()
+          console.error('Bridge accounts error:', errorText)
+          return new Response(
+            JSON.stringify({ success: false, error: 'Failed to fetch Bridge accounts' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+
+        const accountsData: BridgeAccountsResponse = await accountsResponse.json()
+        const activeAccounts = (accountsData.resources || []).filter(a => a.data_access !== 'disabled')
+        allAccounts = [...allAccounts, ...activeAccounts]
+        accountsNextUri = accountsData.pagination?.next_uri || null
+      }
+
+      const totalBalance = allAccounts.reduce((sum, account) => sum + account.balance, 0)
+
+      // Update company balance if company_id provided
+      if (companyId) {
+        await supabaseAdmin
+          .from('companies')
+          .update({ 
+            bank_balance: totalBalance,
+            bank_balance_updated_at: new Date().toISOString()
+          })
+          .eq('id', companyId)
+      }
+
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          accounts: allAccounts,
+          totalBalance
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
     // Full sync: accounts + transactions in one call
     if (action === 'full-sync') {
       if (!bridgeUserUuid || !companyId) {
