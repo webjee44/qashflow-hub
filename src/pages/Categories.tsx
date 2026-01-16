@@ -129,7 +129,7 @@ export default function Categories() {
   return (
     <div className="space-y-8">
       <div className="flex items-start justify-between gap-4">
-        <Header 
+        <PageHeader 
           title="Catégories" 
           subtitle="Gérez vos catégories pour la classification automatique par IA" 
         />
