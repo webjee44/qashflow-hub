@@ -29,6 +29,7 @@ import CashFlow from "./pages/BusinessPlan/CashFlow";
 import Scenarios from "./pages/BusinessPlan/Scenarios";
 import Stocks from "./pages/BusinessPlan/Stocks";
 import BalanceSheet from "./pages/BusinessPlan/BalanceSheet";
+import FundingPlan from "./pages/BusinessPlan/FundingPlan";
 
 const queryClient = new QueryClient();
 
@@ -70,6 +71,7 @@ const App = () => (
                   <Route path="/bp/scenarios" element={<Scenarios />} />
                   <Route path="/bp/stocks" element={<Stocks />} />
                   <Route path="/bp/bilan" element={<BalanceSheet />} />
+                  <Route path="/bp/financement" element={<FundingPlan />} />
                 </Route>
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
