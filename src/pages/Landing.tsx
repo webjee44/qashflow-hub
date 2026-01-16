@@ -62,62 +62,34 @@ const features = [
 
 const plans = [
   {
-    name: 'Free',
+    name: 'Essai gratuit',
     price: '0',
-    description: 'Pour démarrer et tester',
+    description: 'Testez pendant 14 jours',
     features: [
-      '1 société',
-      '100 transactions/mois',
-      'Business Plan basique',
-      'Support email',
+      '1 société incluse',
+      'Comptes bancaires illimités',
+      'Toutes les fonctionnalités',
+      'Business Plan complet',
+      'Catégorisation IA',
     ],
     cta: 'Commencer gratuitement',
     popular: false,
   },
   {
-    name: 'Starter',
-    price: '19',
-    description: 'Pour les TPE/PME',
+    name: 'Par société',
+    price: '49',
+    description: 'Tarif unique et simple',
     features: [
-      '3 sociétés',
-      '1 000 transactions/mois',
+      'Comptes bancaires illimités',
+      'Transactions illimitées',
       'Business Plan complet',
       'Catégorisation IA',
-      'Export PDF',
+      'Export PDF professionnel',
+      'Multi-utilisateurs',
       'Support prioritaire',
     ],
-    cta: 'Essai gratuit 14 jours',
+    cta: 'Démarrer maintenant',
     popular: true,
-  },
-  {
-    name: 'Pro',
-    price: '49',
-    description: 'Pour les équipes',
-    features: [
-      '10 sociétés',
-      'Transactions illimitées',
-      'Multi-utilisateurs (5)',
-      'API access',
-      'Intégrations avancées',
-      'Support dédié',
-    ],
-    cta: 'Essai gratuit 14 jours',
-    popular: false,
-  },
-  {
-    name: 'Enterprise',
-    price: 'Sur devis',
-    description: 'Pour les grandes entreprises',
-    features: [
-      'Sociétés illimitées',
-      'Utilisateurs illimités',
-      'SSO / SAML',
-      'SLA garanti',
-      'Onboarding dédié',
-      'Account manager',
-    ],
-    cta: 'Nous contacter',
-    popular: false,
   },
 ];
 
@@ -352,14 +324,14 @@ export default function Landing() {
             className="text-center mb-16"
           >
             <h2 className="text-3xl sm:text-4xl font-bold mb-4">
-              Des tarifs simples et transparents
+              Un tarif unique et transparent
             </h2>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Choisissez le plan adapté à votre entreprise. Évoluez quand vous voulez.
+              49€ par société, comptes bancaires illimités. C'est tout.
             </p>
           </motion.div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid md:grid-cols-2 gap-6 max-w-3xl mx-auto">
             {plans.map((plan, i) => (
               <motion.div
                 key={i}
@@ -380,15 +352,10 @@ export default function Landing() {
                     <CardTitle className="text-xl">{plan.name}</CardTitle>
                     <CardDescription>{plan.description}</CardDescription>
                     <div className="mt-4">
-                      <span className="text-4xl font-bold">
-                        {plan.price === 'Sur devis' ? '' : plan.price + '€'}
+                      <span className="text-4xl font-bold">{plan.price}€</span>
+                      <span className="text-muted-foreground">
+                        {plan.price === '0' ? ' pendant 14 jours' : '/mois/société'}
                       </span>
-                      {plan.price !== 'Sur devis' && (
-                        <span className="text-muted-foreground">/mois</span>
-                      )}
-                      {plan.price === 'Sur devis' && (
-                        <span className="text-2xl font-bold">{plan.price}</span>
-                      )}
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
