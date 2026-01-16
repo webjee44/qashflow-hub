@@ -8,6 +8,7 @@ import { CompanyProvider } from "@/hooks/useCompany";
 import { OrganizationProvider } from "@/hooks/useOrganization";
 import { AppModeProvider } from "@/hooks/useAppMode";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
+import { SuperAdminRoute } from "@/components/superadmin/SuperAdminRoute";
 import { AppLayout } from "@/components/layout/AppLayout";
 import Landing from "./pages/Landing";
 import Dashboard from "./pages/Dashboard";
@@ -30,6 +31,13 @@ import Scenarios from "./pages/BusinessPlan/Scenarios";
 import Stocks from "./pages/BusinessPlan/Stocks";
 import BalanceSheet from "./pages/BusinessPlan/BalanceSheet";
 import FundingPlan from "./pages/BusinessPlan/FundingPlan";
+
+// Super Admin pages
+import SuperAdminDashboard from "./pages/SuperAdmin/Dashboard";
+import SuperAdminOrganizations from "./pages/SuperAdmin/Organizations";
+import SuperAdminOrganizationDetail from "./pages/SuperAdmin/OrganizationDetail";
+import SuperAdminSubscriptions from "./pages/SuperAdmin/Subscriptions";
+import SuperAdminAnalytics from "./pages/SuperAdmin/Analytics";
 
 const queryClient = new QueryClient();
 
@@ -73,7 +81,16 @@ const App = () => (
                   <Route path="/bp/bilan" element={<BalanceSheet />} />
                   <Route path="/bp/financement" element={<FundingPlan />} />
                 </Route>
+                
+                {/* Super Admin routes */}
+                <Route path="/superadmin" element={<SuperAdminRoute><SuperAdminDashboard /></SuperAdminRoute>} />
+                <Route path="/superadmin/organizations" element={<SuperAdminRoute><SuperAdminOrganizations /></SuperAdminRoute>} />
+                <Route path="/superadmin/organizations/:id" element={<SuperAdminRoute><SuperAdminOrganizationDetail /></SuperAdminRoute>} />
+                <Route path="/superadmin/subscriptions" element={<SuperAdminRoute><SuperAdminSubscriptions /></SuperAdminRoute>} />
+                <Route path="/superadmin/analytics" element={<SuperAdminRoute><SuperAdminAnalytics /></SuperAdminRoute>} />
+                
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                <Route path="*" element={<NotFound />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </BrowserRouter>

@@ -1478,6 +1478,33 @@ export type Database = {
         Returns: boolean
       }
       generate_org_slug: { Args: { org_name: string }; Returns: string }
+      get_superadmin_global_stats: {
+        Args: never
+        Returns: {
+          total_business_plans: number
+          total_companies: number
+          total_organizations: number
+          total_transactions: number
+          total_users: number
+        }[]
+      }
+      get_superadmin_org_stats: {
+        Args: never
+        Returns: {
+          bp_count: number
+          company_count: number
+          created_at: string
+          max_companies: number
+          max_members: number
+          member_count: number
+          name: string
+          organization_id: string
+          owner_id: string
+          plan: string
+          slug: string
+          subscription_status: string
+        }[]
+      }
       has_org_role: {
         Args: {
           _org_id: string
@@ -1501,6 +1528,7 @@ export type Database = {
         Args: { _org_id: string; _user_id: string }
         Returns: boolean
       }
+      is_superadmin: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
       app_role: "owner" | "admin" | "member" | "viewer" | "superadmin"
