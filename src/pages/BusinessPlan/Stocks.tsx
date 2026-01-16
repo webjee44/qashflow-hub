@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Plus, Package, TrendingDown, RotateCw, Calendar } from 'lucide-react';
 import { StockTable } from '@/components/businessplan/StockTable';
 import { StockDialog } from '@/components/businessplan/StockDialog';
+import { SectionNotes } from '@/components/businessplan/SectionNotes';
+import { BPExportDialog } from '@/components/businessplan/BPExportDialog';
 import { useStocks, Stock } from '@/hooks/useStocks';
 import { useBPSettings } from '@/hooks/useBPSettings';
 
@@ -64,10 +66,13 @@ export default function Stocks() {
             Stocks de marchandises et matières premières
           </p>
         </div>
-        <Button onClick={() => setDialogOpen(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Nouveau stock
-        </Button>
+        <div className="flex gap-2">
+          <BPExportDialog />
+          <Button onClick={() => setDialogOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Nouveau stock
+          </Button>
+        </div>
       </div>
 
       {/* KPIs */}
@@ -129,6 +134,12 @@ export default function Stocks() {
           </CardContent>
         </Card>
       </motion.div>
+
+      <SectionNotes 
+        section="stocks" 
+        title="Notes sur les stocks"
+        placeholder="Documentez votre politique de stock, rotation cible, délais d'approvisionnement..."
+      />
 
       <StockDialog
         open={dialogOpen}

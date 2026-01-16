@@ -26,7 +26,8 @@ export type BPSection =
   | 'cash_flow'
   | 'scenarios'
   | 'ratios'
-  | 'funding_plan';
+  | 'funding_plan'
+  | 'stocks';
 
 export function useBPNotes() {
   const { currentCompany } = useCompany();

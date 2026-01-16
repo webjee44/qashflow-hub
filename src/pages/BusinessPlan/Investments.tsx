@@ -7,6 +7,8 @@ import { InvestmentTable } from '@/components/businessplan/InvestmentTable';
 import { InvestmentDialog } from '@/components/businessplan/InvestmentDialog';
 import { FinancingTable } from '@/components/businessplan/FinancingTable';
 import { FinancingDialog } from '@/components/businessplan/FinancingDialog';
+import { SectionNotes } from '@/components/businessplan/SectionNotes';
+import { BPExportDialog } from '@/components/businessplan/BPExportDialog';
 import { useInvestments, Investment } from '@/hooks/useInvestments';
 import { useFinancings, Financing } from '@/hooks/useFinancings';
 
@@ -62,6 +64,7 @@ export default function Investments() {
           <p className="text-muted-foreground mt-1">Gérez vos immobilisations, emprunts et leasings</p>
         </div>
         <div className="flex gap-2">
+          <BPExportDialog />
           <Button 
             variant="outline"
             className="gap-2"
@@ -173,6 +176,12 @@ export default function Investments() {
           </CardContent>
         </Card>
       </motion.div>
+
+      <SectionNotes 
+        section="investments" 
+        title="Notes sur les investissements"
+        placeholder="Documentez vos projets d'investissement, modes de financement envisagés..."
+      />
 
       <InvestmentDialog
         open={investmentDialogOpen}
