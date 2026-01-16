@@ -32,8 +32,8 @@ interface NavItem {
 }
 
 const treasuryNavItems: NavItem[] = [
-  { icon: TrendingUp, label: 'Prévisions', href: '/previsions' },
   { icon: LayoutDashboard, label: 'Tableau de bord', href: '/dashboard' },
+  { icon: TrendingUp, label: 'Prévisions', href: '/previsions' },
   { icon: ArrowLeftRight, label: 'Transactions', href: '/transactions' },
   { icon: Settings, label: 'Réglages', href: '/reglages-tresorerie' },
 ];
