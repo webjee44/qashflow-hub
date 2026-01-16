@@ -31,11 +31,10 @@ interface NavItem {
 }
 
 const treasuryNavItems: NavItem[] = [
+  { icon: TrendingUp, label: 'Prévisions', href: '/previsions' },
   { icon: LayoutDashboard, label: 'Tableau de bord', href: '/dashboard' },
   { icon: ArrowLeftRight, label: 'Transactions', href: '/transactions' },
-  { icon: TrendingUp, label: 'Prévisions', href: '/previsions' },
-  { icon: Tags, label: 'Catégories', href: '/categories' },
-  { icon: Zap, label: 'Automatisations', href: '/automatisations' },
+  { icon: Settings, label: 'Réglages', href: '/reglages-tresorerie' },
 ];
 
 const businessPlanNavItems: NavItem[] = [
@@ -70,7 +69,7 @@ export function Sidebar() {
     const newMode = checked ? 'business-plan' : 'treasury';
     setMode(newMode);
     // Navigate to the default route of the new mode
-    navigate(checked ? '/bp' : '/dashboard');
+    navigate(checked ? '/bp' : '/previsions');
   };
 
   return (

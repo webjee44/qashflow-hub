@@ -14,8 +14,7 @@ import Landing from "./pages/Landing";
 import Dashboard from "./pages/Dashboard";
 import Transactions from "./pages/Transactions";
 import Forecasts from "./pages/Forecasts";
-import Automations from "./pages/Automations";
-import Categories from "./pages/Categories";
+import TreasurySettings from "./pages/TreasurySettings";
 import Settings from "./pages/Settings";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
@@ -65,8 +64,7 @@ const App = () => (
                   <Route path="/dashboard" element={<Dashboard />} />
                   <Route path="/transactions" element={<Transactions />} />
                   <Route path="/previsions" element={<Forecasts />} />
-                  <Route path="/categories" element={<Categories />} />
-                  <Route path="/automatisations" element={<Automations />} />
+                  <Route path="/reglages-tresorerie" element={<TreasurySettings />} />
                   <Route path="/parametres" element={<Settings />} />
                   
                   {/* Business Plan routes */}
