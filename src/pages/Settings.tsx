@@ -5,9 +5,10 @@ import { BPSettingsCard } from '@/components/settings/BPSettingsCard';
 import { OrganizationCard } from '@/components/settings/OrganizationCard';
 import { OrganizationMembersCard } from '@/components/settings/OrganizationMembersCard';
 import { AuditLogsCard } from '@/components/settings/AuditLogsCard';
+import { TrashCard } from '@/components/settings/TrashCard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Building2, User, Shield, TrendingUp, Users, History } from 'lucide-react';
+import { Building2, User, Shield, TrendingUp, Users, History, Trash2 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
 export default function Settings() {
@@ -44,6 +45,10 @@ export default function Settings() {
               <History className="w-4 h-4" />
               Audit
             </TabsTrigger>
+            <TabsTrigger value="trash" className="gap-2">
+              <Trash2 className="w-4 h-4" />
+              Corbeille
+            </TabsTrigger>
             <TabsTrigger value="profile" className="gap-2">
               <User className="w-4 h-4" />
               Profil
@@ -72,6 +77,10 @@ export default function Settings() {
 
           <TabsContent value="audit">
             <AuditLogsCard />
+          </TabsContent>
+
+          <TabsContent value="trash">
+            <TrashCard />
           </TabsContent>
 
           <TabsContent value="profile">
