@@ -5,13 +5,15 @@ import { OrganizationCard } from '@/components/settings/OrganizationCard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { Building2, User, Play } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { Building2, User, Play, TrendingUp } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useOnboarding } from '@/hooks/useOnboarding';
 
 export default function Settings() {
   const { user } = useAuth();
-  const { startTour, isCompleted } = useOnboarding();
+  const { startTour, isCompleted, bpEnabled, toggleBP } = useOnboarding();
 
   return (
     <div className="min-h-screen">
@@ -61,6 +63,31 @@ export default function Settings() {
                   <div>
                     <label className="text-sm font-medium text-muted-foreground">ID utilisateur</label>
                     <p className="text-foreground text-sm font-mono">{user?.id}</p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Module Business Plan */}
+              <Card className="bg-card border-border">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <TrendingUp className="h-5 w-5 text-primary" />
+                    Module Business Plan
+                  </CardTitle>
+                  <CardDescription>
+                    Activez le module Business Plan pour créer des prévisionnels financiers complets.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="bp-toggle" className="text-sm">
+                      Activer le module Business Plan
+                    </Label>
+                    <Switch
+                      id="bp-toggle"
+                      checked={bpEnabled}
+                      onCheckedChange={toggleBP}
+                    />
                   </div>
                 </CardContent>
               </Card>
