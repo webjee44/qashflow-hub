@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Eye, EyeOff, Mail, Lock, Building2, ArrowRight, Loader2 } from 'lucide-react';
 import { z } from 'zod';
+import logo from '@/assets/logo.png';
 
 const emailSchema = z.string().email('Email invalide');
 const passwordSchema = z.string().min(6, 'Le mot de passe doit contenir au moins 6 caractères');
@@ -97,14 +98,8 @@ export default function SignUp() {
           transition={{ duration: 0.6 }}
           className="max-w-md text-primary-foreground"
         >
-          <div className="flex items-center gap-3 mb-8">
-            <div className="w-14 h-14 rounded-2xl bg-primary-foreground/20 flex items-center justify-center backdrop-blur-sm">
-              <span className="text-2xl font-bold">Q</span>
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold">qashflow</h1>
-              <p className="text-sm opacity-80">Pilotez votre trésorerie</p>
-            </div>
+          <div className="mb-8">
+            <img src={logo} alt="Qashflow" className="h-10" />
           </div>
           
           <h2 className="text-4xl font-bold leading-tight mb-6">
@@ -142,14 +137,8 @@ export default function SignUp() {
           className="w-full max-w-md"
         >
           {/* Mobile Logo */}
-          <div className="lg:hidden flex items-center gap-3 mb-8 justify-center">
-            <div className="w-12 h-12 rounded-xl gradient-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-xl">Q</span>
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-foreground">qashflow</h1>
-              <p className="text-xs text-muted-foreground">Pilotez votre trésorerie</p>
-            </div>
+          <div className="lg:hidden flex justify-center mb-8">
+            <img src={logo} alt="Qashflow" className="h-9" />
           </div>
 
           <div className="text-center mb-8">
