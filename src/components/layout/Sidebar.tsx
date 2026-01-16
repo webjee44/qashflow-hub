@@ -91,11 +91,11 @@ export function Sidebar() {
             transition={{ delay: 0.1 }}
           >
             <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center shadow-lg">
-              <span className="text-primary-foreground font-bold text-lg">P</span>
+              <span className="text-primary-foreground font-bold text-lg">Q</span>
             </div>
             {!isCollapsed && (
               <div>
-                <h1 className="font-bold text-foreground text-lg">PennyFlow</h1>
+                <h1 className="font-bold text-foreground text-lg">qashflow</h1>
                 <p className="text-xs text-muted-foreground">
                   {isBusinessPlan ? 'Business Plan' : 'Trésorerie'}
                 </p>
