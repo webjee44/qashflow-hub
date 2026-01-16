@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,9 +17,9 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { useTrash } from '@/hooks/useTrash';
-import { format, formatDistanceToNow } from 'date-fns';
+import { format, formatDistanceToNow, differenceInDays } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { Trash2, RotateCcw, Building2, ArrowLeftRight, Loader2 } from 'lucide-react';
+import { Trash2, RotateCcw, Building2, ArrowLeftRight, Loader2, Clock, AlertTriangle } from 'lucide-react';
 
 export function TrashCard() {
   const {
@@ -42,6 +43,13 @@ export function TrashCard() {
     }).format(amount);
   };
 
+  const getDaysRemaining = (deletedAt: string) => {
+    const deletedDate = new Date(deletedAt);
+    const expirationDate = new Date(deletedDate);
+    expirationDate.setDate(expirationDate.getDate() + 30);
+    return differenceInDays(expirationDate, new Date());
+  };
+
   const totalItems = deletedCompanies.length + deletedTransactions.length;
 
   return (
@@ -58,6 +66,15 @@ export function TrashCard() {
             </CardDescription>
           </div>
         </div>
+        
+        {totalItems > 0 && (
+          <Alert className="border-amber-500/50 bg-amber-500/10">
+            <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+            <AlertDescription className="text-amber-700 dark:text-amber-300">
+              Les éléments sont automatiquement supprimés définitivement après 30 jours dans la corbeille.
+            </AlertDescription>
+          </Alert>
+        )}
       </CardHeader>
       <CardContent>
         <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -95,6 +112,12 @@ export function TrashCard() {
                         <div className="flex items-center gap-2 mb-1">
                           <Building2 className="h-4 w-4 text-muted-foreground" />
                           <span className="font-medium truncate">{company.name}</span>
+                          {getDaysRemaining(company.deleted_at) <= 7 && (
+                            <Badge variant="destructive" className="text-xs gap-1">
+                              <AlertTriangle className="h-3 w-3" />
+                              {getDaysRemaining(company.deleted_at)} j restants
+                            </Badge>
+                          )}
                         </div>
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
                           <span>Solde initial: {formatCurrency(company.initial_balance)}</span>
@@ -105,6 +128,10 @@ export function TrashCard() {
                               addSuffix: true,
                               locale: fr,
                             })}
+                          </span>
+                          <span>•</span>
+                          <span className="text-amber-600 dark:text-amber-400">
+                            Suppression auto dans {getDaysRemaining(company.deleted_at)} jours
                           </span>
                         </div>
                       </div>
@@ -183,8 +210,14 @@ export function TrashCard() {
                             {transaction.type === 'income' ? 'Revenu' : 'Dépense'}
                           </Badge>
                           <span className="font-medium truncate">{transaction.description}</span>
+                          {getDaysRemaining(transaction.deleted_at) <= 7 && (
+                            <Badge variant="destructive" className="text-xs gap-1">
+                              <AlertTriangle className="h-3 w-3" />
+                              {getDaysRemaining(transaction.deleted_at)} j restants
+                            </Badge>
+                          )}
                         </div>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
                           <span
                             className={
                               transaction.type === 'income'
@@ -204,6 +237,10 @@ export function TrashCard() {
                               addSuffix: true,
                               locale: fr,
                             })}
+                          </span>
+                          <span>•</span>
+                          <span className="text-amber-600 dark:text-amber-400">
+                            Suppression auto dans {getDaysRemaining(transaction.deleted_at)} jours
                           </span>
                         </div>
                       </div>
