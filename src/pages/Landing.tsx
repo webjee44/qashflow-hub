@@ -25,6 +25,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import logo from '@/assets/logo.png';
+import screenshotDashboard from '@/assets/screenshot-dashboard.png';
+import screenshotBusinessPlan from '@/assets/screenshot-businessplan.png';
 
 const emailSchema = z.string().email('Email invalide');
 
@@ -224,7 +226,7 @@ export default function Landing() {
             </p>
           </motion.div>
 
-          {/* Hero Image/Dashboard Preview */}
+          {/* App Screenshots Gallery */}
           <motion.div
             initial={{ opacity: 0, y: 40 }}
             animate={{ opacity: 1, y: 0 }}
@@ -232,37 +234,41 @@ export default function Landing() {
             className="mt-16 relative"
           >
             <div className="bg-gradient-to-b from-primary/20 to-transparent absolute inset-0 rounded-2xl blur-3xl -z-10" />
-            <div className="bg-card border border-border rounded-2xl shadow-2xl overflow-hidden">
+            
+            {/* Main Screenshot - Treasury Dashboard */}
+            <div className="bg-card border border-border rounded-2xl shadow-2xl overflow-hidden mb-8">
               <div className="bg-muted/50 px-4 py-3 border-b border-border flex items-center gap-2">
                 <div className="w-3 h-3 rounded-full bg-red-500" />
                 <div className="w-3 h-3 rounded-full bg-yellow-500" />
                 <div className="w-3 h-3 rounded-full bg-green-500" />
+                <span className="ml-3 text-sm text-muted-foreground font-medium">Trésorerie</span>
               </div>
-              <div className="p-8 bg-gradient-to-br from-card to-muted/30">
-                <div className="grid grid-cols-4 gap-4 mb-6">
-                  {[
-                    { label: 'Solde actuel', value: '47 850 €', change: '+12%', icon: Wallet },
-                    { label: 'Revenus du mois', value: '23 400 €', change: '+8%', icon: TrendingUp },
-                    { label: 'Dépenses du mois', value: '18 200 €', change: '-3%', icon: BarChart3 },
-                    { label: 'Prévision 90j', value: '52 100 €', change: '+15%', icon: LineChart },
-                  ].map((stat, i) => (
-                    <div key={i} className="bg-background/80 rounded-lg p-4 border border-border">
-                      <div className="flex items-center gap-2 mb-2">
-                        <stat.icon className="w-4 h-4 text-primary" />
-                        <span className="text-sm text-muted-foreground">{stat.label}</span>
-                      </div>
-                      <div className="text-2xl font-bold">{stat.value}</div>
-                      <div className={`text-sm ${stat.change.startsWith('+') ? 'text-green-500' : 'text-red-500'}`}>
-                        {stat.change} vs mois dernier
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <div className="h-48 bg-gradient-to-r from-primary/10 via-primary/20 to-primary/10 rounded-lg flex items-center justify-center">
-                  <BarChart3 className="w-24 h-24 text-primary/30" />
-                </div>
-              </div>
+              <img 
+                src={screenshotDashboard} 
+                alt="Dashboard Trésorerie qashflow" 
+                className="w-full h-auto"
+              />
             </div>
+
+            {/* Secondary Screenshot - Business Plan */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.4 }}
+              className="bg-card border border-border rounded-2xl shadow-2xl overflow-hidden"
+            >
+              <div className="bg-muted/50 px-4 py-3 border-b border-border flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-red-500" />
+                <div className="w-3 h-3 rounded-full bg-yellow-500" />
+                <div className="w-3 h-3 rounded-full bg-green-500" />
+                <span className="ml-3 text-sm text-muted-foreground font-medium">Prévisions</span>
+              </div>
+              <img 
+                src={screenshotBusinessPlan} 
+                alt="Business Plan qashflow" 
+                className="w-full h-auto"
+              />
+            </motion.div>
           </motion.div>
         </div>
       </section>
