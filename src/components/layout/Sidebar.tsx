@@ -94,7 +94,7 @@ export function Sidebar() {
               alt="Qashflow" 
               className={cn(
                 "object-contain",
-                isCollapsed ? "h-9 w-10" : "h-12 w-auto max-w-[180px]"
+                isCollapsed ? "h-10 w-12" : "h-14 w-auto max-w-[200px]"
               )}
             />
           </motion.div>
