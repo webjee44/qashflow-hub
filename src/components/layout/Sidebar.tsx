@@ -19,6 +19,7 @@ import { cn } from '@/lib/utils';
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useAppMode } from '@/hooks/useAppMode';
+import logo from '@/assets/logo.png';
 
 
 interface NavItem {
@@ -81,19 +82,21 @@ export function Sidebar() {
     >
       {/* Logo */}
       <div className="p-6 border-b border-border flex items-center justify-between">
-        <Link to="/" className="flex items-center gap-3">
+        <Link to="/" className="flex items-center">
           <motion.div 
-            className="flex items-center gap-3"
+            className="flex items-center"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.1 }}
           >
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg">
-              <span className="text-white font-bold text-lg">Q</span>
-            </div>
-            {!isCollapsed && (
-              <span className="font-bold text-foreground text-xl tracking-tight">ashflow</span>
-            )}
+            <img 
+              src={logo} 
+              alt="Qashflow" 
+              className={cn(
+                "object-contain",
+                isCollapsed ? "h-9 w-10" : "h-12 w-auto max-w-[180px]"
+              )}
+            />
           </motion.div>
         </Link>
         <button
