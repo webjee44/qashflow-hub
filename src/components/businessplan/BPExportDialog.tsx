@@ -68,17 +68,19 @@ export function BPExportDialog({ trigger }: BPExportDialogProps) {
 
       if (error) throw error;
 
-      if (data?.pdfUrl) {
-        // Download the PDF
-        window.open(data.pdfUrl, '_blank');
+      if (data?.pdf) {
+        // Handle data URI PDF from jsPDF
+        const link = document.createElement('a');
+        link.href = data.pdf;
+        link.download = data.filename || `business-plan-${new Date().toISOString().split('T')[0]}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
         toast.success('Business Plan exporté avec succès');
         setOpen(false);
-      } else if (data?.pdfBase64) {
-        // Handle base64 PDF
-        const link = document.createElement('a');
-        link.href = `data:application/pdf;base64,${data.pdfBase64}`;
-        link.download = `business-plan-${new Date().toISOString().split('T')[0]}.pdf`;
-        link.click();
+      } else if (data?.pdfUrl) {
+        // Handle URL-based PDF
+        window.open(data.pdfUrl, '_blank');
         toast.success('Business Plan exporté avec succès');
         setOpen(false);
       } else {
