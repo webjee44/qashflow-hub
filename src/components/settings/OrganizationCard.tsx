@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useOrganization } from '@/hooks/useOrganization';
-import { Building2, Crown, Calendar, Users, CreditCard, Edit2, Save, X } from 'lucide-react';
+import { Building2, Crown, Calendar, CreditCard, Edit2, Save, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
@@ -40,9 +40,8 @@ export const OrganizationCard = () => {
 
   const getPlanBadgeVariant = (plan: string) => {
     switch (plan) {
-      case 'enterprise': return 'default';
-      case 'pro': return 'default';
-      case 'starter': return 'secondary';
+      case 'paid': return 'default';
+      case 'trial': return 'secondary';
       default: return 'outline';
     }
   };
@@ -142,7 +141,25 @@ export const OrganizationCard = () => {
           )}
         </div>
 
-        {/* Organization Info Grid */}
+        {/* Pricing Info */}
+        <div className="p-4 rounded-lg bg-muted/50 border border-border">
+          <div className="flex items-center gap-3 mb-3">
+            <CreditCard className="h-5 w-5 text-primary" />
+            <div>
+              <p className="font-medium">Tarification</p>
+              <p className="text-sm text-muted-foreground">49€ / mois / société</p>
+            </div>
+          </div>
+          <ul className="text-sm text-muted-foreground space-y-1 ml-8">
+            <li>✓ Comptes bancaires illimités</li>
+            <li>✓ Transactions illimitées</li>
+            <li>✓ Business Plan complet</li>
+            <li>✓ Catégorisation IA</li>
+            <li>✓ Export PDF professionnel</li>
+          </ul>
+        </div>
+
+        {/* Organization Stats */}
         <div className="grid grid-cols-2 gap-4">
           <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
             <Crown className="h-5 w-5 text-amber-500" />
@@ -153,26 +170,10 @@ export const OrganizationCard = () => {
           </div>
           
           <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-            <Users className="h-5 w-5 text-blue-500" />
-            <div>
-              <p className="text-sm text-muted-foreground">Membres max</p>
-              <p className="font-medium">{currentOrganization.max_members}</p>
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
             <Building2 className="h-5 w-5 text-green-500" />
             <div>
-              <p className="text-sm text-muted-foreground">Sociétés max</p>
+              <p className="text-sm text-muted-foreground">Sociétés actives</p>
               <p className="font-medium">{currentOrganization.max_companies}</p>
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-            <CreditCard className="h-5 w-5 text-purple-500" />
-            <div>
-              <p className="text-sm text-muted-foreground">Transactions/mois</p>
-              <p className="font-medium">{currentOrganization.max_transactions_per_month}</p>
             </div>
           </div>
         </div>
