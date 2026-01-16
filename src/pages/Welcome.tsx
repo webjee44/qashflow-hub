@@ -1,8 +1,9 @@
+import { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
-import { useEffect } from 'react';
+import confetti from 'canvas-confetti';
 import logo from '@/assets/logo.png';
 
 export default function Welcome() {
@@ -12,7 +13,46 @@ export default function Welcome() {
   useEffect(() => {
     if (!user) {
       navigate('/sign-in');
+      return;
     }
+
+    // Launch confetti celebration
+    const duration = 3000;
+    const end = Date.now() + duration;
+
+    const colors = ['#6366f1', '#8b5cf6', '#a855f7', '#22c55e', '#3b82f6'];
+
+    const frame = () => {
+      confetti({
+        particleCount: 3,
+        angle: 60,
+        spread: 55,
+        origin: { x: 0, y: 0.7 },
+        colors: colors,
+      });
+      confetti({
+        particleCount: 3,
+        angle: 120,
+        spread: 55,
+        origin: { x: 1, y: 0.7 },
+        colors: colors,
+      });
+
+      if (Date.now() < end) {
+        requestAnimationFrame(frame);
+      }
+    };
+
+    // Initial burst
+    confetti({
+      particleCount: 100,
+      spread: 70,
+      origin: { y: 0.6 },
+      colors: colors,
+    });
+
+    // Side cannons
+    frame();
   }, [user, navigate]);
 
   const handleStart = () => {
