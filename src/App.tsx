@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { CompanyProvider } from "@/hooks/useCompany";
+import { OrganizationProvider } from "@/hooks/useOrganization";
 import { AppModeProvider } from "@/hooks/useAppMode";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -31,11 +32,12 @@ import BalanceSheet from "./pages/BusinessPlan/BalanceSheet";
 const queryClient = new QueryClient();
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
+<QueryClientProvider client={queryClient}>
     <AuthProvider>
-      <CompanyProvider>
-        <AppModeProvider>
-          <TooltipProvider>
+      <OrganizationProvider>
+        <CompanyProvider>
+          <AppModeProvider>
+            <TooltipProvider>
             <Toaster />
             <Sonner />
             <BrowserRouter>
@@ -71,9 +73,10 @@ const App = () => (
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </BrowserRouter>
-          </TooltipProvider>
-        </AppModeProvider>
-      </CompanyProvider>
+            </TooltipProvider>
+          </AppModeProvider>
+        </CompanyProvider>
+      </OrganizationProvider>
     </AuthProvider>
   </QueryClientProvider>
 );
