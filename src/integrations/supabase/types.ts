@@ -118,6 +118,7 @@ export type Database = {
       }
       bp_directors: {
         Row: {
+          business_plan_id: string | null
           charges_rate: number | null
           company_id: string | null
           created_at: string | null
@@ -132,6 +133,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          business_plan_id?: string | null
           charges_rate?: number | null
           company_id?: string | null
           created_at?: string | null
@@ -146,6 +148,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          business_plan_id?: string | null
           charges_rate?: number | null
           company_id?: string | null
           created_at?: string | null
@@ -161,6 +164,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "bp_directors_business_plan_id_fkey"
+            columns: ["business_plan_id"]
+            isOneToOne: false
+            referencedRelation: "business_plans"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "bp_directors_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
@@ -172,6 +182,7 @@ export type Database = {
       bp_financings: {
         Row: {
           amount: number
+          business_plan_id: string | null
           company_id: string | null
           created_at: string | null
           duration_months: number | null
@@ -190,6 +201,7 @@ export type Database = {
         }
         Insert: {
           amount?: number
+          business_plan_id?: string | null
           company_id?: string | null
           created_at?: string | null
           duration_months?: number | null
@@ -208,6 +220,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          business_plan_id?: string | null
           company_id?: string | null
           created_at?: string | null
           duration_months?: number | null
@@ -226,6 +239,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "bp_financings_business_plan_id_fkey"
+            columns: ["business_plan_id"]
+            isOneToOne: false
+            referencedRelation: "business_plans"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "bp_financings_investment_id_fkey"
             columns: ["investment_id"]
             isOneToOne: false
@@ -236,6 +256,7 @@ export type Database = {
       }
       bp_fixed_expenses: {
         Row: {
+          business_plan_id: string | null
           category: string | null
           company_id: string | null
           created_at: string | null
@@ -251,6 +272,7 @@ export type Database = {
           vat_rate: number | null
         }
         Insert: {
+          business_plan_id?: string | null
           category?: string | null
           company_id?: string | null
           created_at?: string | null
@@ -266,6 +288,7 @@ export type Database = {
           vat_rate?: number | null
         }
         Update: {
+          business_plan_id?: string | null
           category?: string | null
           company_id?: string | null
           created_at?: string | null
@@ -282,6 +305,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "bp_fixed_expenses_business_plan_id_fkey"
+            columns: ["business_plan_id"]
+            isOneToOne: false
+            referencedRelation: "business_plans"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "bp_fixed_expenses_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
@@ -292,6 +322,7 @@ export type Database = {
       }
       bp_investments: {
         Row: {
+          business_plan_id: string | null
           category: string | null
           company_id: string | null
           created_at: string | null
@@ -306,6 +337,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          business_plan_id?: string | null
           category?: string | null
           company_id?: string | null
           created_at?: string | null
@@ -320,6 +352,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          business_plan_id?: string | null
           category?: string | null
           company_id?: string | null
           created_at?: string | null
@@ -335,6 +368,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "bp_investments_business_plan_id_fkey"
+            columns: ["business_plan_id"]
+            isOneToOne: false
+            referencedRelation: "business_plans"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "bp_investments_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
@@ -345,6 +385,7 @@ export type Database = {
       }
       bp_notes: {
         Row: {
+          business_plan_id: string | null
           company_id: string | null
           content: string | null
           created_at: string | null
@@ -354,6 +395,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          business_plan_id?: string | null
           company_id?: string | null
           content?: string | null
           created_at?: string | null
@@ -363,6 +405,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          business_plan_id?: string | null
           company_id?: string | null
           content?: string | null
           created_at?: string | null
@@ -372,6 +415,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "bp_notes_business_plan_id_fkey"
+            columns: ["business_plan_id"]
+            isOneToOne: false
+            referencedRelation: "business_plans"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "bp_notes_company_id_fkey"
             columns: ["company_id"]
@@ -383,6 +433,7 @@ export type Database = {
       }
       bp_personnel: {
         Row: {
+          business_plan_id: string | null
           company_id: string | null
           company_size: string | null
           contract_type: string | null
@@ -399,6 +450,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          business_plan_id?: string | null
           company_id?: string | null
           company_size?: string | null
           contract_type?: string | null
@@ -415,6 +467,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          business_plan_id?: string | null
           company_id?: string | null
           company_size?: string | null
           contract_type?: string | null
@@ -432,6 +485,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "bp_personnel_business_plan_id_fkey"
+            columns: ["business_plan_id"]
+            isOneToOne: false
+            referencedRelation: "business_plans"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "bp_personnel_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
@@ -443,6 +503,7 @@ export type Database = {
       bp_revenue_forecasts: {
         Row: {
           amount: number | null
+          business_plan_id: string | null
           company_id: string | null
           created_at: string | null
           id: string
@@ -456,6 +517,7 @@ export type Database = {
         }
         Insert: {
           amount?: number | null
+          business_plan_id?: string | null
           company_id?: string | null
           created_at?: string | null
           id?: string
@@ -469,6 +531,7 @@ export type Database = {
         }
         Update: {
           amount?: number | null
+          business_plan_id?: string | null
           company_id?: string | null
           created_at?: string | null
           id?: string
@@ -481,6 +544,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "bp_revenue_forecasts_business_plan_id_fkey"
+            columns: ["business_plan_id"]
+            isOneToOne: false
+            referencedRelation: "business_plans"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "bp_revenue_forecasts_company_id_fkey"
             columns: ["company_id"]
@@ -500,6 +570,7 @@ export type Database = {
       bp_revenue_streams: {
         Row: {
           bad_debt_rate: number | null
+          business_plan_id: string | null
           churn_rate: number | null
           color: string | null
           company_id: string | null
@@ -518,6 +589,7 @@ export type Database = {
         }
         Insert: {
           bad_debt_rate?: number | null
+          business_plan_id?: string | null
           churn_rate?: number | null
           color?: string | null
           company_id?: string | null
@@ -536,6 +608,7 @@ export type Database = {
         }
         Update: {
           bad_debt_rate?: number | null
+          business_plan_id?: string | null
           churn_rate?: number | null
           color?: string | null
           company_id?: string | null
@@ -554,6 +627,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "bp_revenue_streams_business_plan_id_fkey"
+            columns: ["business_plan_id"]
+            isOneToOne: false
+            referencedRelation: "business_plans"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "bp_revenue_streams_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
@@ -564,6 +644,7 @@ export type Database = {
       }
       bp_scenarios: {
         Row: {
+          business_plan_id: string | null
           color: string | null
           company_id: string | null
           created_at: string | null
@@ -577,6 +658,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          business_plan_id?: string | null
           color?: string | null
           company_id?: string | null
           created_at?: string | null
@@ -590,6 +672,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          business_plan_id?: string | null
           color?: string | null
           company_id?: string | null
           created_at?: string | null
@@ -603,6 +686,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "bp_scenarios_business_plan_id_fkey"
+            columns: ["business_plan_id"]
+            isOneToOne: false
+            referencedRelation: "business_plans"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "bp_scenarios_company_id_fkey"
             columns: ["company_id"]
@@ -676,6 +766,7 @@ export type Database = {
       }
       bp_stocks: {
         Row: {
+          business_plan_id: string | null
           company_id: string | null
           created_at: string | null
           final_stock: number | null
@@ -689,6 +780,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          business_plan_id?: string | null
           company_id?: string | null
           created_at?: string | null
           final_stock?: number | null
@@ -702,6 +794,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          business_plan_id?: string | null
           company_id?: string | null
           created_at?: string | null
           final_stock?: number | null
@@ -714,10 +807,19 @@ export type Database = {
           updated_at?: string | null
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "bp_stocks_business_plan_id_fkey"
+            columns: ["business_plan_id"]
+            isOneToOne: false
+            referencedRelation: "business_plans"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       bp_variable_expenses: {
         Row: {
+          business_plan_id: string | null
           calculation_type: string | null
           category: string | null
           company_id: string | null
@@ -736,6 +838,7 @@ export type Database = {
           vat_rate: number | null
         }
         Insert: {
+          business_plan_id?: string | null
           calculation_type?: string | null
           category?: string | null
           company_id?: string | null
@@ -754,6 +857,7 @@ export type Database = {
           vat_rate?: number | null
         }
         Update: {
+          business_plan_id?: string | null
           calculation_type?: string | null
           category?: string | null
           company_id?: string | null
@@ -771,7 +875,86 @@ export type Database = {
           user_id?: string
           vat_rate?: number | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "bp_variable_expenses_business_plan_id_fkey"
+            columns: ["business_plan_id"]
+            isOneToOne: false
+            referencedRelation: "business_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      business_plans: {
+        Row: {
+          bp_start_date: string | null
+          bp_years: number | null
+          company_id: string | null
+          created_at: string | null
+          customer_payment_delay: number | null
+          description: string | null
+          finalized_at: string | null
+          fiscal_year_start_day: number | null
+          fiscal_year_start_month: number | null
+          id: string
+          initial_cash: number | null
+          is_pme: boolean | null
+          name: string
+          status: string
+          supplier_payment_delay: number | null
+          tax_regime: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          bp_start_date?: string | null
+          bp_years?: number | null
+          company_id?: string | null
+          created_at?: string | null
+          customer_payment_delay?: number | null
+          description?: string | null
+          finalized_at?: string | null
+          fiscal_year_start_day?: number | null
+          fiscal_year_start_month?: number | null
+          id?: string
+          initial_cash?: number | null
+          is_pme?: boolean | null
+          name: string
+          status?: string
+          supplier_payment_delay?: number | null
+          tax_regime?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          bp_start_date?: string | null
+          bp_years?: number | null
+          company_id?: string | null
+          created_at?: string | null
+          customer_payment_delay?: number | null
+          description?: string | null
+          finalized_at?: string | null
+          fiscal_year_start_day?: number | null
+          fiscal_year_start_month?: number | null
+          id?: string
+          initial_cash?: number | null
+          is_pme?: boolean | null
+          name?: string
+          status?: string
+          supplier_payment_delay?: number | null
+          tax_regime?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "business_plans_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       categories: {
         Row: {
