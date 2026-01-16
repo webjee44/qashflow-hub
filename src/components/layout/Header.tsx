@@ -12,6 +12,7 @@ import {
 import { useCompany } from '@/hooks/useCompany';
 import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
+import { ModeToggle } from './ModeToggle';
 
 interface HeaderProps {
   title: string;
@@ -98,6 +99,9 @@ export function Header({ title, subtitle }: HeaderProps) {
       </div>
 
       <div className="flex items-center gap-4">
+        {/* Mode Toggle */}
+        <ModeToggle />
+
         {/* Notifications */}
         <Button variant="ghost" size="icon" className="relative">
           <Bell className="w-5 h-5" />
