@@ -1,15 +1,21 @@
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Settings, Download, Scale, TrendingUp, PiggyBank, Wallet } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Settings, Scale, TrendingUp, PiggyBank, Wallet } from 'lucide-react';
 import { BalanceSheetTable } from '@/components/businessplan/BalanceSheetTable';
 import { BFRChart } from '@/components/businessplan/BFRChart';
+import { RatiosCard } from '@/components/businessplan/RatiosCard';
+import { SectionNotes } from '@/components/businessplan/SectionNotes';
+import { BPExportDialog } from '@/components/businessplan/BPExportDialog';
 import { useBalanceSheet } from '@/hooks/useBalanceSheet';
 import { useBPSettings } from '@/hooks/useBPSettings';
 
 export default function BalanceSheet() {
   const { data, getDebtToEquityRatio, getSolvencyRatio, isLoading } = useBalanceSheet();
   const { settings } = useBPSettings();
+  const [selectedYear, setSelectedYear] = useState(0);
 
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(value);
@@ -60,10 +66,7 @@ export default function BalanceSheet() {
             <Settings className="h-4 w-4 mr-2" />
             Paramètres
           </Button>
-          <Button variant="outline" size="sm">
-            <Download className="h-4 w-4 mr-2" />
-            Exporter
-          </Button>
+          <BPExportDialog />
         </div>
       </div>
 
@@ -91,6 +94,26 @@ export default function BalanceSheet() {
         ))}
       </div>
 
+      {/* Year selector */}
+      <div className="flex items-center gap-4">
+        <span className="text-sm font-medium text-muted-foreground">Analyser l'année :</span>
+        <Select value={selectedYear.toString()} onValueChange={(v) => setSelectedYear(parseInt(v))}>
+          <SelectTrigger className="w-[150px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {data.years.map((_, index) => (
+              <SelectItem key={index} value={index.toString()}>
+                Année {index + 1}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Ratios Card */}
+      <RatiosCard yearIndex={selectedYear} />
+
       {/* BFR Chart */}
       <BFRChart />
 
@@ -109,6 +132,12 @@ export default function BalanceSheet() {
           </CardContent>
         </Card>
       </motion.div>
+
+      <SectionNotes 
+        section="balance_sheet" 
+        title="Notes sur le bilan"
+        placeholder="Documentez vos hypothèses de structure financière, politique d'investissement..."
+      />
     </div>
   );
 }

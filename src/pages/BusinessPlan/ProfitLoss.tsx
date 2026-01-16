@@ -1,8 +1,14 @@
+import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Download, Settings } from 'lucide-react';
+import { Settings } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ProfitLossTable } from '@/components/businessplan/ProfitLossTable';
+import { RatiosCard } from '@/components/businessplan/RatiosCard';
+import { BreakEvenChart } from '@/components/businessplan/BreakEvenChart';
+import { SectionNotes } from '@/components/businessplan/SectionNotes';
+import { BPExportDialog } from '@/components/businessplan/BPExportDialog';
 import { useProfitLoss } from '@/hooks/useProfitLoss';
 import { useBPSettings } from '@/hooks/useBPSettings';
 import { Link } from 'react-router-dom';
@@ -12,6 +18,7 @@ import { fr } from 'date-fns/locale';
 export default function ProfitLoss() {
   const { data } = useProfitLoss();
   const { settings } = useBPSettings();
+  const [selectedYear, setSelectedYear] = useState(0);
 
   const formatCurrency = (value: number) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(value);
 
@@ -38,10 +45,7 @@ export default function ProfitLoss() {
               <Settings className="h-4 w-4" />
             </Button>
           </Link>
-          <Button variant="outline" className="gap-2">
-            <Download className="h-4 w-4" />
-            Exporter
-          </Button>
+          <BPExportDialog />
         </div>
       </div>
 
@@ -77,6 +81,29 @@ export default function ProfitLoss() {
         </Card>
       </div>
 
+      {/* Year selector for charts */}
+      <div className="flex items-center gap-4">
+        <span className="text-sm font-medium text-muted-foreground">Analyser l'année :</span>
+        <Select value={selectedYear.toString()} onValueChange={(v) => setSelectedYear(parseInt(v))}>
+          <SelectTrigger className="w-[150px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {data.years.map((_, index) => (
+              <SelectItem key={index} value={index.toString()}>
+                Année {index + 1}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Ratios and Break-even */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <RatiosCard yearIndex={selectedYear} />
+        <BreakEvenChart yearIndex={selectedYear} />
+      </div>
+
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
         <Card>
           <CardHeader>
@@ -87,6 +114,12 @@ export default function ProfitLoss() {
           </CardContent>
         </Card>
       </motion.div>
+
+      <SectionNotes 
+        section="pnl" 
+        title="Notes sur le compte de résultat"
+        placeholder="Documentez vos hypothèses de marge, saisonnalité, ou événements exceptionnels..."
+      />
     </div>
   );
 }

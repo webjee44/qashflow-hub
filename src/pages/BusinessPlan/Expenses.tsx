@@ -9,6 +9,8 @@ import { FixedExpenseDialog } from '@/components/businessplan/FixedExpenseDialog
 import { PersonnelTable } from '@/components/businessplan/PersonnelTable';
 import { PersonnelDialog } from '@/components/businessplan/PersonnelDialog';
 import { VariableExpenseTable } from '@/components/businessplan/VariableExpenseTable';
+import { SectionNotes } from '@/components/businessplan/SectionNotes';
+import { BPExportDialog } from '@/components/businessplan/BPExportDialog';
 import { useFixedExpenses, FixedExpense } from '@/hooks/useFixedExpenses';
 import { usePersonnel, Personnel } from '@/hooks/usePersonnel';
 
@@ -54,6 +56,7 @@ export default function Expenses() {
           <h1 className="text-3xl font-bold text-foreground">Charges & Personnel</h1>
           <p className="text-muted-foreground mt-1">Gérez vos charges fixes, variables et votre masse salariale</p>
         </div>
+        <BPExportDialog />
       </div>
 
       <Tabs defaultValue="fixed" className="space-y-4">
@@ -155,6 +158,12 @@ export default function Expenses() {
           </motion.div>
         </TabsContent>
       </Tabs>
+
+      <SectionNotes 
+        section="expenses" 
+        title="Notes sur les charges"
+        placeholder="Documentez vos hypothèses de charges, évolutions prévues, négociations en cours..."
+      />
 
       <FixedExpenseDialog
         open={expenseDialogOpen}
