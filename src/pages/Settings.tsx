@@ -4,12 +4,12 @@ import { CompanyList } from '@/components/settings/CompanyList';
 import { BPSettingsCard } from '@/components/settings/BPSettingsCard';
 import { OrganizationCard } from '@/components/settings/OrganizationCard';
 
-import { AuditLogsCard } from '@/components/settings/AuditLogsCard';
+
 import { TrashCard } from '@/components/settings/TrashCard';
 import { DataExportsCard } from '@/components/settings/DataExportsCard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Building2, User, Shield, TrendingUp, History, Trash2, HardDrive } from 'lucide-react';
+import { Building2, User, Shield, TrendingUp, Trash2, HardDrive } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
 export default function Settings() {
@@ -37,10 +37,6 @@ export default function Settings() {
             <TabsTrigger value="businessplan" className="gap-2">
               <TrendingUp className="w-4 h-4" />
               Business Plan
-            </TabsTrigger>
-            <TabsTrigger value="audit" className="gap-2">
-              <History className="w-4 h-4" />
-              Audit
             </TabsTrigger>
             <TabsTrigger value="trash" className="gap-2">
               <Trash2 className="w-4 h-4" />
@@ -72,9 +68,6 @@ export default function Settings() {
             <BPSettingsCard />
           </TabsContent>
 
-          <TabsContent value="audit">
-            <AuditLogsCard />
-          </TabsContent>
 
           <TabsContent value="trash">
             <TrashCard />
