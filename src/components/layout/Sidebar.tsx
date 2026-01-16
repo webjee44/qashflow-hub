@@ -81,8 +81,8 @@ export function Sidebar() {
       )}
     >
       {/* Logo */}
-      <div className="p-6 border-b border-border flex items-center justify-between">
-        <Link to="/" className="flex items-center">
+      <div className="px-4 py-4 border-b border-border flex items-center justify-between">
+        <Link to="/" className="flex items-center flex-1 min-w-0">
           <motion.div 
             className="flex items-center"
             initial={{ opacity: 0 }}
@@ -94,14 +94,14 @@ export function Sidebar() {
               alt="Qashflow" 
               className={cn(
                 "object-contain",
-                isCollapsed ? "h-12 w-14" : "h-20 w-auto max-w-[220px]"
+                isCollapsed ? "h-10" : "h-16"
               )}
             />
           </motion.div>
         </Link>
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}
-          className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+          className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground shrink-0"
         >
           {isCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
         </button>
