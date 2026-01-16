@@ -122,9 +122,14 @@ export function useOnboarding(): UseOnboardingReturn {
         setCurrentStep(data.onboarding_step ?? 0);
         setBpEnabled(data.bp_enabled ?? false);
 
-        // Auto-start tour if not completed
-        if (!data.onboarding_completed) {
+        // Check if we should show tour (from welcome page click or not completed)
+        const shouldShowTour = localStorage.getItem('show-onboarding-tour') === 'true';
+        if (shouldShowTour) {
+          localStorage.removeItem('show-onboarding-tour');
           setIsActive(true);
+          setCurrentStep(0);
+        } else if (!data.onboarding_completed) {
+          // Don't auto-start anymore - let the welcome page handle it
         }
       }
     }
