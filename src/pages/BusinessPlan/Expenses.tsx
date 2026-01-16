@@ -13,6 +13,7 @@ import { SectionNotes } from '@/components/businessplan/SectionNotes';
 import { BPExportDialog } from '@/components/businessplan/BPExportDialog';
 import { useFixedExpenses, FixedExpense } from '@/hooks/useFixedExpenses';
 import { usePersonnel, Personnel } from '@/hooks/usePersonnel';
+import { PageHeader } from '@/components/layout/PageHeader';
 
 export default function Expenses() {
   const [expenseDialogOpen, setExpenseDialogOpen] = useState(false);
@@ -51,13 +52,11 @@ export default function Expenses() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Charges & Personnel</h1>
-          <p className="text-muted-foreground mt-1">Gérez vos charges fixes, variables et votre masse salariale</p>
-        </div>
-        <BPExportDialog />
-      </div>
+      <PageHeader
+        title="Charges & Personnel"
+        subtitle="Gérez vos charges fixes, variables et votre masse salariale"
+        actions={<BPExportDialog />}
+      />
 
       <Tabs defaultValue="fixed" className="space-y-4">
         <TabsList>

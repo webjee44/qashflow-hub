@@ -10,6 +10,7 @@ import { SectionNotes } from '@/components/businessplan/SectionNotes';
 import { BPExportDialog } from '@/components/businessplan/BPExportDialog';
 import { useBPCashFlow } from '@/hooks/useBPCashFlow';
 import { useBPSettings } from '@/hooks/useBPSettings';
+import { PageHeader } from '@/components/layout/PageHeader';
 
 export default function CashFlow() {
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -20,19 +21,19 @@ export default function CashFlow() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Trésorerie Prévisionnelle</h1>
-          <p className="text-muted-foreground mt-1">Projection du cash-flow basée sur le Business Plan</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" className="gap-2" onClick={() => setSettingsOpen(true)}>
-            <Settings className="h-4 w-4" />
-            Paramètres
-          </Button>
-          <BPExportDialog />
-        </div>
-      </div>
+      <PageHeader
+        title="Trésorerie Prévisionnelle"
+        subtitle="Projection du cash-flow basée sur le Business Plan"
+        actions={
+          <div className="flex gap-2">
+            <Button variant="outline" className="gap-2" onClick={() => setSettingsOpen(true)}>
+              <Settings className="h-4 w-4" />
+              Paramètres
+            </Button>
+            <BPExportDialog />
+          </div>
+        }
+      />
 
       {!isHealthy() && (
         <Alert variant="destructive">

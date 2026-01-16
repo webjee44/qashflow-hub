@@ -13,13 +13,15 @@ import { useCompany } from '@/hooks/useCompany';
 import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
 import { ModeToggle } from './ModeToggle';
+import { ReactNode } from 'react';
 
-interface HeaderProps {
+interface PageHeaderProps {
   title: string;
   subtitle?: string;
+  actions?: ReactNode;
 }
 
-export function Header({ title, subtitle }: HeaderProps) {
+export function PageHeader({ title, subtitle, actions }: PageHeaderProps) {
   const { currentCompany, companies, setCurrentCompany, isLoading } = useCompany();
 
   return (
@@ -99,6 +101,9 @@ export function Header({ title, subtitle }: HeaderProps) {
       </div>
 
       <div className="flex items-center gap-4">
+        {/* Page specific actions */}
+        {actions}
+        
         {/* Mode Toggle */}
         <ModeToggle />
 

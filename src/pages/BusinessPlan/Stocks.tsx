@@ -9,6 +9,7 @@ import { SectionNotes } from '@/components/businessplan/SectionNotes';
 import { BPExportDialog } from '@/components/businessplan/BPExportDialog';
 import { useStocks, Stock } from '@/hooks/useStocks';
 import { useBPSettings } from '@/hooks/useBPSettings';
+import { PageHeader } from '@/components/layout/PageHeader';
 
 export default function Stocks() {
   const { stocks, createStock, getStockVariation, getStockValueAtEnd, getStockRotationRate, getStockDays, isLoading } = useStocks();
@@ -59,21 +60,19 @@ export default function Stocks() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-start">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Gestion des Stocks</h1>
-          <p className="text-muted-foreground mt-1">
-            Stocks de marchandises et matières premières
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <BPExportDialog />
-          <Button onClick={() => setDialogOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Nouveau stock
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="Gestion des Stocks"
+        subtitle="Stocks de marchandises et matières premières"
+        actions={
+          <div className="flex gap-2">
+            <BPExportDialog />
+            <Button onClick={() => setDialogOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Nouveau stock
+            </Button>
+          </div>
+        }
+      />
 
       {/* KPIs */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

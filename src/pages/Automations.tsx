@@ -1,4 +1,4 @@
-import { Header } from '@/components/layout/Header';
+import { PageHeader } from '@/components/layout/PageHeader';
 import { AutomationRules } from '@/components/automations/AutomationRules';
 
 export default function Automations() {

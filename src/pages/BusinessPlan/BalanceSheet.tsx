@@ -11,6 +11,7 @@ import { SectionNotes } from '@/components/businessplan/SectionNotes';
 import { BPExportDialog } from '@/components/businessplan/BPExportDialog';
 import { useBalanceSheet } from '@/hooks/useBalanceSheet';
 import { useBPSettings } from '@/hooks/useBPSettings';
+import { PageHeader } from '@/components/layout/PageHeader';
 
 export default function BalanceSheet() {
   const { data, getDebtToEquityRatio, getSolvencyRatio, isLoading } = useBalanceSheet();
@@ -54,21 +55,19 @@ export default function BalanceSheet() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-start">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Bilan Prévisionnel</h1>
-          <p className="text-muted-foreground mt-1">
-            Structure financière sur {settings.bp_years} ans
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm">
-            <Settings className="h-4 w-4 mr-2" />
-            Paramètres
-          </Button>
-          <BPExportDialog />
-        </div>
-      </div>
+      <PageHeader
+        title="Bilan Prévisionnel"
+        subtitle={`Structure financière sur ${settings.bp_years} ans`}
+        actions={
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm">
+              <Settings className="h-4 w-4 mr-2" />
+              Paramètres
+            </Button>
+            <BPExportDialog />
+          </div>
+        }
+      />
 
       {/* KPIs */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

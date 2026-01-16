@@ -1,9 +1,13 @@
 import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useAppModeSync } from '@/hooks/useAppMode';
 
 export function AppLayout() {
   const location = useLocation();
+  
+  // Auto-sync mode with current route
+  useAppModeSync();
 
   return (
     <div className="min-h-screen bg-background overflow-visible">

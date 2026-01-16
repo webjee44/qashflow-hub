@@ -8,6 +8,7 @@ import { RevenueStreamDialog } from '@/components/businessplan/RevenueStreamDial
 import { RevenueTable } from '@/components/businessplan/RevenueTable';
 import { SectionNotes } from '@/components/businessplan/SectionNotes';
 import { BPExportDialog } from '@/components/businessplan/BPExportDialog';
+import { PageHeader } from '@/components/layout/PageHeader';
 
 export default function RevenueAssumptions() {
   const { streams, createStream, updateStream, isLoading } = useRevenueStreams();
@@ -34,19 +35,19 @@ export default function RevenueAssumptions() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Hypothèses de Revenus</h1>
-          <p className="text-muted-foreground mt-1">Définissez vos flux de revenus et projections</p>
-        </div>
-        <div className="flex gap-2">
-          <BPExportDialog />
-          <Button className="gap-2" onClick={handleNewStream}>
-            <Plus className="h-4 w-4" />
-            Ajouter un flux
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="Hypothèses de Revenus"
+        subtitle="Définissez vos flux de revenus et projections"
+        actions={
+          <div className="flex gap-2">
+            <BPExportDialog />
+            <Button className="gap-2" onClick={handleNewStream}>
+              <Plus className="h-4 w-4" />
+              Ajouter un flux
+            </Button>
+          </div>
+        }
+      />
 
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
         <Card>

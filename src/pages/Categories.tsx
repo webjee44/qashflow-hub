@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Header } from '@/components/layout/Header';
+import { PageHeader } from '@/components/layout/PageHeader';
 import { useCategories, Category } from '@/hooks/useCategories';
 import { CategoryTable } from '@/components/categories/CategoryTable';
 import { CategoryDialog } from '@/components/categories/CategoryDialog';

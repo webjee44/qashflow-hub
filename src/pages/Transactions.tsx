@@ -1,10 +1,10 @@
-import { Header } from '@/components/layout/Header';
+import { PageHeader } from '@/components/layout/PageHeader';
 import { TransactionsView } from '@/components/transactions/TransactionsView';
 
 export default function Transactions() {
   return (
     <div className="space-y-8">
-      <Header 
+      <PageHeader 
         title="Transactions" 
         subtitle="Toutes vos opérations synchronisées depuis Bridge" 
       />
