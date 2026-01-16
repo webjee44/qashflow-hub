@@ -3,13 +3,13 @@ import { Header } from '@/components/layout/Header';
 import { CompanyList } from '@/components/settings/CompanyList';
 import { BPSettingsCard } from '@/components/settings/BPSettingsCard';
 import { OrganizationCard } from '@/components/settings/OrganizationCard';
-import { OrganizationMembersCard } from '@/components/settings/OrganizationMembersCard';
+
 import { AuditLogsCard } from '@/components/settings/AuditLogsCard';
 import { TrashCard } from '@/components/settings/TrashCard';
 import { DataExportsCard } from '@/components/settings/DataExportsCard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Building2, User, Shield, TrendingUp, Users, History, Trash2, HardDrive } from 'lucide-react';
+import { Building2, User, Shield, TrendingUp, History, Trash2, HardDrive } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
 export default function Settings() {
@@ -29,10 +29,6 @@ export default function Settings() {
             <TabsTrigger value="organization" className="gap-2">
               <Building2 className="w-4 h-4" />
               Organisation
-            </TabsTrigger>
-            <TabsTrigger value="team" className="gap-2">
-              <Users className="w-4 h-4" />
-              Équipe
             </TabsTrigger>
             <TabsTrigger value="companies" className="gap-2">
               <Building2 className="w-4 h-4" />
@@ -66,10 +62,6 @@ export default function Settings() {
 
           <TabsContent value="organization">
             <OrganizationCard />
-          </TabsContent>
-
-          <TabsContent value="team">
-            <OrganizationMembersCard />
           </TabsContent>
 
           <TabsContent value="companies">
