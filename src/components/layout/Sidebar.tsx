@@ -107,34 +107,15 @@ export function Sidebar() {
         </button>
       </div>
 
-      {/* Mode Toggle */}
-      {!isCollapsed && (
-        <div className="px-4 py-3 border-b border-border">
-          <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-muted/50">
-            <button
-              onClick={() => handleModeChange(false)}
-              className={cn(
-                "flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-xs font-medium transition-all",
-                !isBusinessPlan 
-                  ? "bg-primary text-primary-foreground shadow-sm" 
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              <Wallet className="h-3.5 w-3.5" />
-              Tréso
-            </button>
-            <button
-              onClick={() => handleModeChange(true)}
-              className={cn(
-                "flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-xs font-medium transition-all",
-                isBusinessPlan 
-                  ? "bg-primary text-primary-foreground shadow-sm" 
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              <FileSpreadsheet className="h-3.5 w-3.5" />
-              BP
-            </button>
+      {/* Mode indicator (collapsed shows current mode icon) */}
+      {isCollapsed && (
+        <div className="px-2 py-3 border-b border-border flex justify-center">
+          <div className="p-2 rounded-lg bg-primary/10">
+            {isBusinessPlan ? (
+              <FileSpreadsheet className="h-5 w-5 text-primary" />
+            ) : (
+              <Wallet className="h-5 w-5 text-primary" />
+            )}
           </div>
         </div>
       )}
