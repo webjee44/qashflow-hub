@@ -1,6 +1,7 @@
 import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { AppHeader } from './AppHeader';
+import { AppBreadcrumb } from './AppBreadcrumb';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAppModeSync } from '@/hooks/useAppMode';
 
@@ -16,6 +17,7 @@ export function AppLayout() {
       
       <div className="ml-64 min-h-screen flex flex-col">
         <AppHeader />
+        <AppBreadcrumb />
         
         <main className="flex-1 p-8 overflow-visible">
           <AnimatePresence mode="wait">
