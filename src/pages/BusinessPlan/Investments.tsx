@@ -11,6 +11,7 @@ import { SectionNotes } from '@/components/businessplan/SectionNotes';
 import { BPExportDialog } from '@/components/businessplan/BPExportDialog';
 import { useInvestments, Investment } from '@/hooks/useInvestments';
 import { useFinancings, Financing } from '@/hooks/useFinancings';
+import { PageHeader } from '@/components/layout/PageHeader';
 
 export default function Investments() {
   const [investmentDialogOpen, setInvestmentDialogOpen] = useState(false);
@@ -58,36 +59,36 @@ export default function Investments() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Investissements & Financements</h1>
-          <p className="text-muted-foreground mt-1">Gérez vos immobilisations, emprunts et leasings</p>
-        </div>
-        <div className="flex gap-2">
-          <BPExportDialog />
-          <Button 
-            variant="outline"
-            className="gap-2"
-            onClick={() => {
-              setSelectedFinancing(null);
-              setFinancingDialogOpen(true);
-            }}
-          >
-            <Landmark className="h-4 w-4" />
-            Nouveau financement
-          </Button>
-          <Button 
-            className="gap-2"
-            onClick={() => {
-              setSelectedInvestment(null);
-              setInvestmentDialogOpen(true);
-            }}
-          >
-            <Plus className="h-4 w-4" />
-            Nouvel investissement
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="Investissements & Financements"
+        subtitle="Gérez vos immobilisations, emprunts et leasings"
+        actions={
+          <div className="flex gap-2">
+            <BPExportDialog />
+            <Button 
+              variant="outline"
+              className="gap-2"
+              onClick={() => {
+                setSelectedFinancing(null);
+                setFinancingDialogOpen(true);
+              }}
+            >
+              <Landmark className="h-4 w-4" />
+              Nouveau financement
+            </Button>
+            <Button 
+              className="gap-2"
+              onClick={() => {
+                setSelectedInvestment(null);
+                setInvestmentDialogOpen(true);
+              }}
+            >
+              <Plus className="h-4 w-4" />
+              Nouvel investissement
+            </Button>
+          </div>
+        }
+      />
 
       {/* Summary cards */}
       <div className="grid gap-4 md:grid-cols-5">

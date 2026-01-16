@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Plus } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Plus, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useScenarios } from '@/hooks/useScenarios';
 import { useProfitLoss } from '@/hooks/useProfitLoss';
@@ -10,7 +9,7 @@ import { ScenarioDialog } from '@/components/businessplan/ScenarioDialog';
 import { ScenarioComparisonChart } from '@/components/businessplan/ScenarioComparisonChart';
 import { BPExportDialog } from '@/components/businessplan/BPExportDialog';
 import { SectionNotes } from '@/components/businessplan/SectionNotes';
-import { Download } from 'lucide-react';
+import { PageHeader } from '@/components/layout/PageHeader';
 
 export default function Scenarios() {
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -36,26 +35,26 @@ export default function Scenarios() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Scénarios</h1>
-          <p className="text-muted-foreground mt-1">Comparez différentes hypothèses de croissance</p>
-        </div>
-        <div className="flex gap-2">
-          <BPExportDialog 
-            trigger={
-              <Button variant="outline" className="gap-2">
-                <Download className="h-4 w-4" />
-                Exporter
-              </Button>
-            }
-          />
-          <Button className="gap-2" onClick={() => setDialogOpen(true)}>
-            <Plus className="h-4 w-4" />
-            Nouveau scénario
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="Scénarios"
+        subtitle="Comparez différentes hypothèses de croissance"
+        actions={
+          <div className="flex gap-2">
+            <BPExportDialog 
+              trigger={
+                <Button variant="outline" className="gap-2">
+                  <Download className="h-4 w-4" />
+                  Exporter
+                </Button>
+              }
+            />
+            <Button className="gap-2" onClick={() => setDialogOpen(true)}>
+              <Plus className="h-4 w-4" />
+              Nouveau scénario
+            </Button>
+          </div>
+        }
+      />
 
       {/* Scenario Cards */}
       <div className="grid gap-4 md:grid-cols-3">

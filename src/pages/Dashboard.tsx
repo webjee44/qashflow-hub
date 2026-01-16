@@ -1,4 +1,4 @@
-import { Header } from '@/components/layout/Header';
+import { PageHeader } from '@/components/layout/PageHeader';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { BalanceChart } from '@/components/dashboard/BalanceChart';
 import { TransactionList } from '@/components/dashboard/TransactionList';
@@ -32,19 +32,17 @@ export default function Dashboard() {
     loading 
   } = useDashboardStats();
 
-  // Auto-sync Bridge on first load if connected
   useBridgeAutoSync();
 
   const currentMonth = format(new Date(), 'MMM', { locale: fr });
 
   return (
     <div className="space-y-8">
-      <Header 
+      <PageHeader 
         title="Tableau de bord" 
         subtitle="Bienvenue ! Voici un aperçu de votre trésorerie." 
       />
 
-      {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {loading ? (
           <>
@@ -55,42 +53,16 @@ export default function Dashboard() {
           </>
         ) : (
           <>
-            <StatCard
-              title="Solde actuel"
-              value={formatCurrency(currentBalance)}
-              icon={Wallet}
-              variant="primary"
-              delay={0}
-            />
-            <StatCard
-              title={`Encaissements (${currentMonth})`}
-              value={formatCurrency(monthlyIncome)}
-              change={incomeChange}
-              icon={TrendingUp}
-              variant="success"
-              delay={0.05}
-            />
-            <StatCard
-              title={`Décaissements (${currentMonth})`}
-              value={formatCurrency(monthlyExpense)}
-              change={expenseChange}
-              icon={TrendingDown}
-              delay={0.1}
-            />
-            <StatCard
-              title="Prévision à 90 jours"
-              value={formatCurrency(forecast90Days)}
-              icon={Calendar}
-              delay={0.15}
-            />
+            <StatCard title="Solde actuel" value={formatCurrency(currentBalance)} icon={Wallet} variant="primary" delay={0} />
+            <StatCard title={`Encaissements (${currentMonth})`} value={formatCurrency(monthlyIncome)} change={incomeChange} icon={TrendingUp} variant="success" delay={0.05} />
+            <StatCard title={`Décaissements (${currentMonth})`} value={formatCurrency(monthlyExpense)} change={expenseChange} icon={TrendingDown} delay={0.1} />
+            <StatCard title="Prévision à 90 jours" value={formatCurrency(forecast90Days)} icon={Calendar} delay={0.15} />
           </>
         )}
       </div>
 
-      {/* Main Chart */}
       <BalanceChart />
 
-      {/* Bottom Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           <BankAccounts />

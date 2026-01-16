@@ -12,6 +12,7 @@ import { fr } from 'date-fns/locale';
 import { RatiosCard } from '@/components/businessplan/RatiosCard';
 import { BreakEvenChart } from '@/components/businessplan/BreakEvenChart';
 import { BPExportDialog } from '@/components/businessplan/BPExportDialog';
+import { PageHeader } from '@/components/layout/PageHeader';
 
 export default function BPDashboard() {
   const { settings, isLoading: settingsLoading } = useBPSettings();
@@ -39,17 +40,11 @@ export default function BPDashboard() {
 
   return (
     <div className="space-y-8">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Business Plan</h1>
-          <p className="text-muted-foreground mt-1">
-            {currentCompany?.name || 'Sélectionnez une société'}
-          </p>
-        </div>
-        {hasBPData && (
-          <BPExportDialog />
-        )}
-      </div>
+      <PageHeader
+        title="Prévisions"
+        subtitle={currentCompany?.name || 'Sélectionnez une société'}
+        actions={hasBPData ? <BPExportDialog /> : undefined}
+      />
 
       {hasBPData ? (
         <>

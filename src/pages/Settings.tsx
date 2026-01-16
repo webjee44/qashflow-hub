@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Header } from '@/components/layout/Header';
+import { PageHeader } from '@/components/layout/PageHeader';
 import { CompanyList } from '@/components/settings/CompanyList';
 import { BPSettingsCard } from '@/components/settings/BPSettingsCard';
 import { OrganizationCard } from '@/components/settings/OrganizationCard';

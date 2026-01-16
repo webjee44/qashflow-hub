@@ -11,6 +11,7 @@ import { SectionNotes } from '@/components/businessplan/SectionNotes';
 import { BPExportDialog } from '@/components/businessplan/BPExportDialog';
 import { useProfitLoss } from '@/hooks/useProfitLoss';
 import { useBPSettings } from '@/hooks/useBPSettings';
+import { PageHeader } from '@/components/layout/PageHeader';
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -32,22 +33,20 @@ export default function ProfitLoss() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Compte de Résultat</h1>
-          <p className="text-muted-foreground mt-1">
-            P&L prévisionnel sur {settings.bp_years} ans • {fiscalYearLabel()}
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Link to="/settings">
-            <Button variant="ghost" size="icon" title="Configurer les dates">
-              <Settings className="h-4 w-4" />
-            </Button>
-          </Link>
-          <BPExportDialog />
-        </div>
-      </div>
+      <PageHeader
+        title="Compte de Résultat"
+        subtitle={`P&L prévisionnel sur ${settings.bp_years} ans • ${fiscalYearLabel()}`}
+        actions={
+          <div className="flex gap-2">
+            <Link to="/settings">
+              <Button variant="ghost" size="icon" title="Configurer les dates">
+                <Settings className="h-4 w-4" />
+              </Button>
+            </Link>
+            <BPExportDialog />
+          </div>
+        }
+      />
 
       {/* Summary cards */}
       <div className="grid gap-4 md:grid-cols-4">

@@ -1,4 +1,4 @@
-import { Header } from '@/components/layout/Header';
+import { PageHeader } from '@/components/layout/PageHeader';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tags, Zap } from 'lucide-react';
 import { useState } from 'react';
@@ -119,7 +119,7 @@ export default function TreasurySettings() {
 
   return (
     <div className="space-y-8">
-      <Header 
+      <PageHeader 
         title="Réglages Trésorerie" 
         subtitle="Configurez vos catégories et règles d'automatisation" 
       />
