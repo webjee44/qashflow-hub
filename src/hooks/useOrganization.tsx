@@ -1,0 +1,261 @@
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from './useAuth';
+import { toast } from 'sonner';
+
+type AppRole = 'owner' | 'admin' | 'member' | 'viewer';
+
+interface Organization {
+  id: string;
+  name: string;
+  slug: string;
+  owner_id: string | null;
+  plan: string;
+  subscription_status: string;
+  trial_ends_at: string | null;
+  max_companies: number;
+  max_members: number;
+  max_transactions_per_month: number;
+  created_at: string;
+  updated_at: string;
+}
+
+interface OrganizationMember {
+  id: string;
+  organization_id: string;
+  user_id: string;
+  role: AppRole;
+  invited_email: string | null;
+  joined_at: string | null;
+  created_at: string;
+}
+
+interface OrganizationContextType {
+  currentOrganization: Organization | null;
+  organizations: Organization[];
+  members: OrganizationMember[];
+  userRole: AppRole | null;
+  loading: boolean;
+  setCurrentOrganization: (org: Organization) => void;
+  updateOrganization: (id: string, updates: Partial<Organization>) => Promise<void>;
+  inviteMember: (email: string, role: AppRole) => Promise<void>;
+  removeMember: (memberId: string) => Promise<void>;
+  updateMemberRole: (memberId: string, role: AppRole) => Promise<void>;
+  refetch: () => Promise<void>;
+  isOwner: boolean;
+  isAdmin: boolean;
+  canManageMembers: boolean;
+}
+
+const OrganizationContext = createContext<OrganizationContextType | undefined>(undefined);
+
+export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
+  const { user } = useAuth();
+  const [currentOrganization, setCurrentOrganizationState] = useState<Organization | null>(null);
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
+  const [members, setMembers] = useState<OrganizationMember[]>([]);
+  const [userRole, setUserRole] = useState<AppRole | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const fetchOrganizations = async () => {
+    if (!user) {
+      setOrganizations([]);
+      setCurrentOrganizationState(null);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      // Fetch organizations where user is a member
+      const { data: membershipData, error: membershipError } = await supabase
+        .from('organization_members')
+        .select('organization_id, role')
+        .eq('user_id', user.id);
+
+      if (membershipError) throw membershipError;
+
+      if (!membershipData || membershipData.length === 0) {
+        setOrganizations([]);
+        setCurrentOrganizationState(null);
+        setLoading(false);
+        return;
+      }
+
+      const orgIds = membershipData.map(m => m.organization_id);
+      
+      const { data: orgsData, error: orgsError } = await supabase
+        .from('organizations')
+        .select('*')
+        .in('id', orgIds);
+
+      if (orgsError) throw orgsError;
+
+      setOrganizations(orgsData || []);
+
+      // Set current organization from localStorage or first one
+      const savedOrgId = localStorage.getItem('currentOrganizationId');
+      const savedOrg = orgsData?.find(o => o.id === savedOrgId);
+      const orgToSet = savedOrg || orgsData?.[0] || null;
+      
+      if (orgToSet) {
+        setCurrentOrganizationState(orgToSet);
+        const membership = membershipData.find(m => m.organization_id === orgToSet.id);
+        setUserRole(membership?.role as AppRole || null);
+      }
+    } catch (error) {
+      console.error('Error fetching organizations:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchMembers = async () => {
+    if (!currentOrganization) {
+      setMembers([]);
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('organization_members')
+        .select('*')
+        .eq('organization_id', currentOrganization.id);
+
+      if (error) throw error;
+      setMembers(data || []);
+    } catch (error) {
+      console.error('Error fetching members:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchOrganizations();
+  }, [user]);
+
+  useEffect(() => {
+    fetchMembers();
+  }, [currentOrganization]);
+
+  const setCurrentOrganization = (org: Organization) => {
+    setCurrentOrganizationState(org);
+    localStorage.setItem('currentOrganizationId', org.id);
+    
+    // Update user role for this org
+    const membership = members.find(m => m.organization_id === org.id && m.user_id === user?.id);
+    setUserRole(membership?.role as AppRole || null);
+  };
+
+  const updateOrganization = async (id: string, updates: Partial<Organization>) => {
+    try {
+      const { error } = await supabase
+        .from('organizations')
+        .update(updates)
+        .eq('id', id);
+
+      if (error) throw error;
+      
+      toast.success('Organisation mise à jour');
+      await fetchOrganizations();
+    } catch (error) {
+      console.error('Error updating organization:', error);
+      toast.error('Erreur lors de la mise à jour');
+      throw error;
+    }
+  };
+
+  const inviteMember = async (email: string, role: AppRole) => {
+    if (!currentOrganization) return;
+
+    try {
+      const { error } = await supabase
+        .from('organization_members')
+        .insert({
+          organization_id: currentOrganization.id,
+          user_id: user?.id, // Temporary - will be updated when user accepts
+          role,
+          invited_email: email,
+          invited_at: new Date().toISOString(),
+        });
+
+      if (error) throw error;
+      
+      toast.success(`Invitation envoyée à ${email}`);
+      await fetchMembers();
+    } catch (error) {
+      console.error('Error inviting member:', error);
+      toast.error('Erreur lors de l\'invitation');
+      throw error;
+    }
+  };
+
+  const removeMember = async (memberId: string) => {
+    try {
+      const { error } = await supabase
+        .from('organization_members')
+        .delete()
+        .eq('id', memberId);
+
+      if (error) throw error;
+      
+      toast.success('Membre supprimé');
+      await fetchMembers();
+    } catch (error) {
+      console.error('Error removing member:', error);
+      toast.error('Erreur lors de la suppression');
+      throw error;
+    }
+  };
+
+  const updateMemberRole = async (memberId: string, role: AppRole) => {
+    try {
+      const { error } = await supabase
+        .from('organization_members')
+        .update({ role })
+        .eq('id', memberId);
+
+      if (error) throw error;
+      
+      toast.success('Rôle mis à jour');
+      await fetchMembers();
+    } catch (error) {
+      console.error('Error updating member role:', error);
+      toast.error('Erreur lors de la mise à jour');
+      throw error;
+    }
+  };
+
+  const isOwner = userRole === 'owner';
+  const isAdmin = userRole === 'owner' || userRole === 'admin';
+  const canManageMembers = isAdmin;
+
+  return (
+    <OrganizationContext.Provider
+      value={{
+        currentOrganization,
+        organizations,
+        members,
+        userRole,
+        loading,
+        setCurrentOrganization,
+        updateOrganization,
+        inviteMember,
+        removeMember,
+        updateMemberRole,
+        refetch: fetchOrganizations,
+        isOwner,
+        isAdmin,
+        canManageMembers,
+      }}
+    >
+      {children}
+    </OrganizationContext.Provider>
+  );
+};
+
+export const useOrganization = () => {
+  const context = useContext(OrganizationContext);
+  if (!context) {
+    throw new Error('useOrganization must be used within an OrganizationProvider');
+  }
+  return context;
+};
