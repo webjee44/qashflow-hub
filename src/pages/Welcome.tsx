@@ -58,7 +58,7 @@ export default function Welcome() {
   const handleStart = () => {
     // Store flag to trigger tour on dashboard
     localStorage.setItem('show-onboarding-tour', 'true');
-    navigate('/dashboard');
+    navigate('/previsions');
   };
 
   return (
