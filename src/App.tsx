@@ -43,7 +43,7 @@ const App = () => (
             <Sonner />
             <BrowserRouter>
               <Routes>
-                <Route path="/landing" element={<Landing />} />
+                <Route path="/" element={<Landing />} />
                 <Route path="/auth" element={<Auth />} />
                 <Route 
                   element={
@@ -53,7 +53,7 @@ const App = () => (
                   }
                 >
                   {/* Treasury routes */}
-                  <Route path="/" element={<Dashboard />} />
+                  <Route path="/dashboard" element={<Dashboard />} />
                   <Route path="/transactions" element={<Transactions />} />
                   <Route path="/previsions" element={<Forecasts />} />
                   <Route path="/categories" element={<Categories />} />
