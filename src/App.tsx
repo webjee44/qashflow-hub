@@ -20,6 +20,7 @@ import Settings from "./pages/Settings";
 import Auth from "./pages/Auth";
 import SignIn from "./pages/SignIn";
 import SignUp from "./pages/SignUp";
+import Welcome from "./pages/Welcome";
 import NotFound from "./pages/NotFound";
 import Start from "./pages/Start";
 import StartVerify from "./pages/StartVerify";
@@ -62,6 +63,7 @@ const App = () => (
                 <Route path="/auth" element={<Auth />} />
                 <Route path="/sign-in" element={<SignIn />} />
                 <Route path="/sign-up" element={<SignUp />} />
+                <Route path="/welcome" element={<Welcome />} />
                 
                 {/* Onboarding routes */}
                 <Route path="/start" element={<Start />} />

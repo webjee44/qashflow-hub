@@ -33,11 +33,6 @@ export default function SignUp() {
     }
   }, [searchParams]);
 
-  useEffect(() => {
-    if (user) {
-      navigate('/dashboard');
-    }
-  }, [user, navigate]);
 
   const validateForm = () => {
     const newErrors: { email?: string; password?: string } = {};
@@ -84,6 +79,8 @@ export default function SignUp() {
           title: 'Compte créé',
           description: 'Votre compte a été créé avec succès !',
         });
+        // Redirect to welcome page after successful signup
+        navigate('/welcome');
       }
     } finally {
       setIsLoading(false);
