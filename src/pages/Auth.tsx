@@ -149,7 +149,7 @@ export default function Auth() {
         } else {
           toast({
             title: 'Connexion réussie',
-            description: 'Bienvenue sur PennyFlow !',
+            description: 'Bienvenue sur qashflow !',
           });
         }
       } else if (mode === 'signup') {
@@ -257,11 +257,11 @@ export default function Auth() {
         >
           <div className="flex items-center gap-3 mb-8">
             <div className="w-14 h-14 rounded-2xl bg-primary-foreground/20 flex items-center justify-center backdrop-blur-sm">
-              <span className="text-2xl font-bold">P</span>
+              <span className="text-2xl font-bold">Q</span>
             </div>
             <div>
-              <h1 className="text-2xl font-bold">PennyFlow</h1>
-              <p className="text-sm opacity-80">Trésorerie simplifiée</p>
+              <h1 className="text-2xl font-bold">qashflow</h1>
+              <p className="text-sm opacity-80">Pilotez votre trésorerie</p>
             </div>
           </div>
           
@@ -270,11 +270,11 @@ export default function Auth() {
           </h2>
           
           <p className="text-lg opacity-90 mb-8">
-            Le logiciel de pilotage de trésorerie connecté à Pennylane qui vous donne une vision claire et fiable sur 12 mois.
+            La solution tout-en-un pour piloter votre trésorerie et créer des business plans professionnels.
           </p>
           
           <div className="space-y-4">
-            {['Vision sur 12 mois glissants', 'Catégorisation IA automatique', 'Synchronisation Pennylane'].map((feature, i) => (
+            {['Synchronisation bancaire automatique', 'Catégorisation IA intelligente', 'Business Plan multi-scénarios'].map((feature, i) => (
               <motion.div
                 key={feature}
                 initial={{ opacity: 0, x: -20 }}
@@ -302,11 +302,11 @@ export default function Auth() {
           {/* Mobile Logo */}
           <div className="lg:hidden flex items-center gap-3 mb-8 justify-center">
             <div className="w-12 h-12 rounded-xl gradient-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-xl">P</span>
+              <span className="text-primary-foreground font-bold text-xl">Q</span>
             </div>
             <div>
-              <h1 className="text-xl font-bold text-foreground">PennyFlow</h1>
-              <p className="text-xs text-muted-foreground">Trésorerie simplifiée</p>
+              <h1 className="text-xl font-bold text-foreground">qashflow</h1>
+              <p className="text-xs text-muted-foreground">Pilotez votre trésorerie</p>
             </div>
           </div>
 
