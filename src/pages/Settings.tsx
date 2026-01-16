@@ -1,5 +1,6 @@
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { CompanyList } from '@/components/settings/CompanyList';
 import { OrganizationCard } from '@/components/settings/OrganizationCard';
@@ -12,10 +13,32 @@ import { Building2, User, Play, TrendingUp } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useOnboarding } from '@/hooks/useOnboarding';
 
+const VALID_TABS = ['organization', 'companies', 'profile'] as const;
+type TabValue = typeof VALID_TABS[number];
+
 export default function Settings() {
   const { user } = useAuth();
   const { isCompleted, bpEnabled, toggleBP } = useOnboarding();
   const navigate = useNavigate();
+  const location = useLocation();
+  
+  // Get tab from URL hash
+  const getTabFromHash = (): TabValue => {
+    const hash = location.hash.replace('#', '');
+    return VALID_TABS.includes(hash as TabValue) ? (hash as TabValue) : 'organization';
+  };
+  
+  const [activeTab, setActiveTab] = useState<TabValue>(getTabFromHash);
+
+  // Sync tab with URL hash
+  useEffect(() => {
+    setActiveTab(getTabFromHash());
+  }, [location.hash]);
+
+  const handleTabChange = (value: string) => {
+    setActiveTab(value as TabValue);
+    navigate(`/parametres#${value}`, { replace: true });
+  };
 
   const handleStartTour = () => {
     localStorage.setItem('show-onboarding-tour', 'true');
@@ -31,7 +54,7 @@ export default function Settings() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
       >
-        <Tabs defaultValue="organization" className="space-y-6">
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
           <TabsList className="bg-card border border-border">
             <TabsTrigger value="organization" className="gap-2">
               <Building2 className="w-4 h-4" />
