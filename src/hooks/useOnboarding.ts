@@ -96,6 +96,7 @@ interface UseOnboardingReturn {
   isCompleted: boolean;
   bpEnabled: boolean;
   enableBP: () => Promise<void>;
+  toggleBP: (enabled: boolean) => Promise<void>;
 }
 
 export function useOnboarding(): UseOnboardingReturn {
@@ -190,6 +191,17 @@ export function useOnboarding(): UseOnboardingReturn {
     setBpEnabled(true);
   }, [user]);
 
+  const toggleBP = useCallback(async (enabled: boolean) => {
+    if (!user) return;
+
+    await supabase
+      .from('profiles')
+      .update({ bp_enabled: enabled })
+      .eq('id', user.id);
+
+    setBpEnabled(enabled);
+  }, [user]);
+
   return {
     isActive,
     currentStep,
@@ -203,5 +215,6 @@ export function useOnboarding(): UseOnboardingReturn {
     isCompleted,
     bpEnabled,
     enableBP,
+    toggleBP,
   };
 }
