@@ -5,11 +5,9 @@ import {
   ArrowLeftRight, 
   TrendingUp, 
   Settings,
-  Zap,
   HelpCircle,
   ChevronLeft,
   ChevronRight,
-  Tags,
   Wallet,
   FileSpreadsheet,
   DollarSign,
@@ -21,7 +19,7 @@ import { cn } from '@/lib/utils';
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useAppMode } from '@/hooks/useAppMode';
-import { Switch } from '@/components/ui/switch';
+import logo from '@/assets/logo.png';
 
 interface NavItem {
   icon: React.ElementType;
@@ -85,22 +83,19 @@ export function Sidebar() {
       <div className="p-6 border-b border-border flex items-center justify-between">
         <Link to="/" className="flex items-center gap-3">
           <motion.div 
-            className="flex items-center gap-3"
+            className="flex items-center"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.1 }}
           >
-            <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center shadow-lg">
-              <span className="text-primary-foreground font-bold text-lg">Q</span>
-            </div>
-            {!isCollapsed && (
-              <div>
-                <h1 className="font-bold text-foreground text-lg">qashflow</h1>
-                <p className="text-xs text-muted-foreground">
-                  {isBusinessPlan ? 'Business Plan' : 'Trésorerie'}
-                </p>
-              </div>
-            )}
+            <img 
+              src={logo} 
+              alt="Qashflow" 
+              className={cn(
+                "h-8 object-contain",
+                isCollapsed ? "w-10" : "w-auto max-w-[140px]"
+              )}
+            />
           </motion.div>
         </Link>
         <button
