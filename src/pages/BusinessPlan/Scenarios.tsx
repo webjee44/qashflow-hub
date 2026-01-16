@@ -68,7 +68,6 @@ export default function Scenarios() {
           >
             <ScenarioCard
               scenario={scenario}
-              projectedResult={formatCurrency(getTotalForScenario(scenario.id).result)}
               onEdit={() => {}}
               onDelete={() => deleteScenario.mutate(scenario.id)}
             />
