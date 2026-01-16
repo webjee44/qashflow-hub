@@ -86,7 +86,8 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
       const { data: orgsData, error: orgsError } = await supabase
         .from('organizations')
         .select('*')
-        .in('id', orgIds);
+        .in('id', orgIds)
+        .is('deleted_at', null); // Filter out soft-deleted organizations
 
       if (orgsError) throw orgsError;
 

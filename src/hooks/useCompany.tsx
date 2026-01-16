@@ -25,6 +25,7 @@ interface CompanyContextType {
   createCompany: (data: { name: string; initial_balance?: number; is_default?: boolean }) => Promise<Company>;
   updateCompany: (id: string, data: { name?: string; initial_balance?: number; is_default?: boolean }) => Promise<void>;
   deleteCompany: (id: string) => Promise<void>;
+  restoreCompany: (id: string) => Promise<void>;
   refetch: () => void;
 }
 
@@ -46,6 +47,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
       const { data, error } = await supabase
         .from('companies')
         .select('*')
+        .is('deleted_at', null) // Filter out soft-deleted companies
         .order('is_default', { ascending: false })
         .order('created_at', { ascending: true });
       
@@ -183,14 +185,13 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     toast.success('Société mise à jour');
   };
 
-  // Delete company
+  // Soft delete company (set deleted_at instead of hard delete)
   const deleteCompany = async (id: string) => {
     if (!user?.id) throw new Error('Non authentifié');
 
-    // Secrets are deleted automatically via CASCADE
     const { error } = await supabase
       .from('companies')
-      .delete()
+      .update({ deleted_at: new Date().toISOString() })
       .eq('id', id);
 
     if (error) throw error;
@@ -206,6 +207,21 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     toast.success('Société supprimée');
   };
 
+  // Restore a soft-deleted company
+  const restoreCompany = async (id: string) => {
+    if (!user?.id) throw new Error('Non authentifié');
+
+    const { error } = await supabase
+      .from('companies')
+      .update({ deleted_at: null })
+      .eq('id', id);
+
+    if (error) throw error;
+
+    await refetch();
+    toast.success('Société restaurée');
+  };
+
   return (
     <CompanyContext.Provider
       value={{
@@ -216,6 +232,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
         createCompany,
         updateCompany,
         deleteCompany,
+        restoreCompany,
         refetch,
       }}
     >
