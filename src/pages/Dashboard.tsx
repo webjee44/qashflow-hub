@@ -7,6 +7,7 @@ import { QuickActions } from '@/components/dashboard/QuickActions';
 import { BankAccounts } from '@/components/dashboard/BankAccounts';
 import { Wallet, TrendingUp, TrendingDown, Calendar } from 'lucide-react';
 import { useDashboardStats } from '@/hooks/useDashboardStats';
+import { useBridgeAutoSync } from '@/hooks/useBridgeAutoSync';
 import { Skeleton } from '@/components/ui/skeleton';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -30,6 +31,9 @@ export default function Dashboard() {
     expenseChange,
     loading 
   } = useDashboardStats();
+
+  // Auto-sync Bridge on first load if connected
+  useBridgeAutoSync();
 
   const currentMonth = format(new Date(), 'MMM', { locale: fr });
 
