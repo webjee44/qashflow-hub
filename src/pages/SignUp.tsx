@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Eye, EyeOff, Mail, Lock, User, ArrowRight, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, Building2, ArrowRight, Loader2 } from 'lucide-react';
 import { z } from 'zod';
 
 const emailSchema = z.string().email('Email invalide');
@@ -16,7 +16,7 @@ export default function SignUp() {
   const [searchParams] = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [fullName, setFullName] = useState('');
+  const [companyName, setCompanyName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
@@ -59,7 +59,7 @@ export default function SignUp() {
     setIsLoading(true);
     
     try {
-      const { error } = await signUp(email, password, fullName);
+      const { error } = await signUp(email, password, companyName);
       if (error) {
         if (error.message.includes('User already registered')) {
           toast({
@@ -163,17 +163,17 @@ export default function SignUp() {
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-2">
-              <Label htmlFor="fullName">Nom complet</Label>
+              <Label htmlFor="companyName">Nom de la société</Label>
               <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                 <Input
-                  id="fullName"
-                  name="name"
+                  id="companyName"
+                  name="organization"
                   type="text"
-                  autoComplete="name"
-                  placeholder="Jean Dupont"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
+                  autoComplete="organization"
+                  placeholder="Ma Société SAS"
+                  value={companyName}
+                  onChange={(e) => setCompanyName(e.target.value)}
                   className="pl-10"
                 />
               </div>
