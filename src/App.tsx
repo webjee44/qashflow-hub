@@ -18,6 +18,8 @@ import Forecasts from "./pages/Forecasts";
 import TreasurySettings from "./pages/TreasurySettings";
 import Settings from "./pages/Settings";
 import Auth from "./pages/Auth";
+import SignIn from "./pages/SignIn";
+import SignUp from "./pages/SignUp";
 import NotFound from "./pages/NotFound";
 import Start from "./pages/Start";
 import StartVerify from "./pages/StartVerify";
@@ -58,6 +60,8 @@ const App = () => (
               <Routes>
                 <Route path="/" element={<Landing />} />
                 <Route path="/auth" element={<Auth />} />
+                <Route path="/sign-in" element={<SignIn />} />
+                <Route path="/sign-up" element={<SignUp />} />
                 
                 {/* Onboarding routes */}
                 <Route path="/start" element={<Start />} />

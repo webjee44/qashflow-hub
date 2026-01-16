@@ -127,13 +127,13 @@ export default function Landing() {
     }
 
     if (!email) {
-      navigate('/auth');
+      navigate('/sign-up');
       return;
     }
 
     try {
       emailSchema.parse(email);
-      navigate(`/auth?email=${encodeURIComponent(email)}`);
+      navigate(`/sign-up?email=${encodeURIComponent(email)}`);
     } catch {
       toast.error('Veuillez entrer un email valide');
     }
@@ -167,10 +167,10 @@ export default function Landing() {
                 </Button>
               ) : (
                 <>
-                  <Button variant="ghost" onClick={() => navigate('/auth')}>
+                  <Button variant="ghost" onClick={() => navigate('/sign-in')}>
                     Connexion
                   </Button>
-                  <Button onClick={() => navigate('/auth?mode=signup')}>
+                  <Button onClick={() => navigate('/sign-up')}>
                     Essai gratuit
                   </Button>
                 </>
@@ -374,7 +374,7 @@ export default function Landing() {
                     <Button 
                       className="w-full" 
                       variant={plan.popular ? 'default' : 'outline'}
-                      onClick={() => navigate('/auth?mode=signup')}
+                      onClick={() => navigate('/sign-up')}
                     >
                       {plan.cta}
                     </Button>
@@ -454,7 +454,7 @@ export default function Landing() {
                   <Button 
                     size="lg" 
                     variant="secondary"
-                    onClick={() => navigate('/auth?mode=signup')}
+                    onClick={() => navigate('/sign-up')}
                   >
                     Démarrer gratuitement
                     <ArrowRight className="w-4 h-4 ml-2" />
