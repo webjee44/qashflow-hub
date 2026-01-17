@@ -141,23 +141,29 @@ export default function Landing() {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* SEO - Hidden H1 for crawlers */}
+      <h1 className="sr-only">Qashflow - Logiciel de gestion de trésorerie et business plan pour PME et startups</h1>
+      
       {/* Navbar */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-lg border-b border-border">
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-lg border-b border-border" aria-label="Navigation principale">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center">
-              <img src={logo} alt="Qashflow" className="h-9" />
+              <img src={logo} alt="Qashflow - Gestion de trésorerie" className="h-9" />
             </div>
             <div className="hidden md:flex items-center gap-8">
-              <a href="#features" className="text-muted-foreground hover:text-foreground transition-colors">
+              <Link to="/fonctionnalites" className="text-muted-foreground hover:text-foreground transition-colors">
                 Fonctionnalités
-              </a>
-              <a href="#pricing" className="text-muted-foreground hover:text-foreground transition-colors">
+              </Link>
+              <Link to="/tarifs" className="text-muted-foreground hover:text-foreground transition-colors">
                 Tarifs
-              </a>
-              <a href="#testimonials" className="text-muted-foreground hover:text-foreground transition-colors">
-                Témoignages
-              </a>
+              </Link>
+              <Link to="/a-propos" className="text-muted-foreground hover:text-foreground transition-colors">
+                À propos
+              </Link>
+              <Link to="/contact" className="text-muted-foreground hover:text-foreground transition-colors">
+                Contact
+              </Link>
             </div>
             <div className="flex items-center gap-4">
               {user ? (
@@ -191,20 +197,20 @@ export default function Landing() {
           >
             <Badge variant="secondary" className="mb-6">
               <Sparkles className="w-3 h-3 mr-1" />
-              Nouveau : Catégorisation IA incluse
+              Qashflow : Catégorisation IA incluse
             </Badge>
             
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6">
-              Pilotez votre trésorerie
+            <h2 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6">
+              Qashflow, pilotez votre
               <br />
               <span className="bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-                avec intelligence
+                trésorerie avec intelligence
               </span>
-            </h1>
+            </h2>
             
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-8">
-              Synchronisez vos banques, anticipez votre cash-flow et créez des business plans 
-              professionnels. Tout en un seul outil.
+              <strong>Qashflow</strong> synchronise vos banques, anticipe votre cash-flow et crée des business plans 
+              professionnels. Le logiciel de gestion de trésorerie conçu pour les PME et startups françaises.
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 max-w-md mx-auto">
@@ -475,47 +481,44 @@ export default function Landing() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-border py-12 px-4 sm:px-6 lg:px-8">
+      <footer className="border-t border-border py-12 px-4 sm:px-6 lg:px-8" role="contentinfo">
         <div className="max-w-7xl mx-auto">
           <div className="grid md:grid-cols-4 gap-8">
             <div>
               <div className="flex items-center mb-4">
-                <img src={logo} alt="Qashflow" className="h-8" />
+                <img src={logo} alt="Qashflow - Logiciel de gestion de trésorerie" className="h-8" />
               </div>
               <p className="text-muted-foreground text-sm">
-                La solution tout-en-un pour piloter votre trésorerie et planifier votre croissance.
+                Qashflow, la solution tout-en-un pour piloter votre trésorerie et planifier votre croissance.
               </p>
             </div>
             <div>
               <h4 className="font-semibold mb-4">Produit</h4>
               <ul className="space-y-2 text-sm text-muted-foreground">
-                <li><a href="#features" className="hover:text-foreground">Fonctionnalités</a></li>
-                <li><a href="#pricing" className="hover:text-foreground">Tarifs</a></li>
-                <li><a href="#" className="hover:text-foreground">Intégrations</a></li>
-                <li><a href="#" className="hover:text-foreground">API</a></li>
+                <li><Link to="/fonctionnalites" className="hover:text-foreground">Fonctionnalités</Link></li>
+                <li><Link to="/tarifs" className="hover:text-foreground">Tarifs</Link></li>
+                <li><Link to="/fonctionnalites#synchronisation-bancaire" className="hover:text-foreground">Synchronisation bancaire</Link></li>
+                <li><Link to="/fonctionnalites#business-plan" className="hover:text-foreground">Business Plan</Link></li>
               </ul>
             </div>
             <div>
-              <h4 className="font-semibold mb-4">Ressources</h4>
+              <h4 className="font-semibold mb-4">Entreprise</h4>
               <ul className="space-y-2 text-sm text-muted-foreground">
-                <li><a href="#" className="hover:text-foreground">Documentation</a></li>
-                <li><a href="#" className="hover:text-foreground">Blog</a></li>
-                <li><a href="#" className="hover:text-foreground">Guides</a></li>
-                <li><a href="#" className="hover:text-foreground">Support</a></li>
+                <li><Link to="/a-propos" className="hover:text-foreground">À propos de Qashflow</Link></li>
+                <li><Link to="/contact" className="hover:text-foreground">Contact</Link></li>
+                <li><a href="mailto:support@qashflow.fr" className="hover:text-foreground">Support</a></li>
               </ul>
             </div>
             <div>
               <h4 className="font-semibold mb-4">Légal</h4>
               <ul className="space-y-2 text-sm text-muted-foreground">
-                <li><a href="#" className="hover:text-foreground">Mentions légales</a></li>
-                <li><a href="#" className="hover:text-foreground">CGU</a></li>
-                <li><a href="#" className="hover:text-foreground">Confidentialité</a></li>
-                <li><a href="#" className="hover:text-foreground">Cookies</a></li>
+                <li><Link to="/mentions-legales" className="hover:text-foreground">Mentions légales</Link></li>
+                <li><Link to="/confidentialite" className="hover:text-foreground">Confidentialité</Link></li>
               </ul>
             </div>
           </div>
           <div className="border-t border-border mt-12 pt-8 text-center text-sm text-muted-foreground">
-            © {new Date().getFullYear()} qashflow. Tous droits réservés.
+            © {new Date().getFullYear()} Qashflow - Logiciel de gestion de trésorerie. Tous droits réservés.
           </div>
         </div>
       </footer>
