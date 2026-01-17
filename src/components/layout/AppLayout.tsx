@@ -3,15 +3,40 @@ import { Sidebar } from './Sidebar';
 import { AppHeader } from './AppHeader';
 import { AppBreadcrumb } from './AppBreadcrumb';
 import { TrialExpiredBlocker } from './TrialExpiredBlocker';
-import { ChatBubble } from '@/components/chat/ChatBubble';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAppModeSync } from '@/hooks/useAppMode';
+import { useEffect } from 'react';
+
+// Widget de support externe
+const SUPPORT_WIDGET_ID = 'qashflow-support'; // Remplacer par votre ID Widget
 
 export function AppLayout() {
   const location = useLocation();
   
   // Auto-sync mode with current route
   useAppModeSync();
+
+  // Charger le widget de support externe
+  useEffect(() => {
+    // Éviter les doublons
+    if (document.getElementById('support-widget-script')) return;
+    
+    const script = document.createElement('script');
+    script.id = 'support-widget-script';
+    script.src = 'https://vqejzddudqixhuqcqeqy.supabase.co/functions/v1/widget';
+    script.async = true;
+    script.setAttribute('data-api-key', SUPPORT_WIDGET_ID);
+    script.setAttribute('data-color', '#6366f1'); // Primary color
+    script.setAttribute('data-position', 'bottom-right');
+    document.head.appendChild(script);
+
+    return () => {
+      const existingScript = document.getElementById('support-widget-script');
+      if (existingScript) {
+        existingScript.remove();
+      }
+    };
+  }, []);
 
   return (
     <div className="min-h-screen bg-background overflow-visible">
@@ -37,9 +62,6 @@ export function AppLayout() {
           </AnimatePresence>
         </main>
       </div>
-      
-      {/* Chat flottant */}
-      <ChatBubble />
     </div>
   );
 }
