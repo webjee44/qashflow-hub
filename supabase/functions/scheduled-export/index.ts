@@ -155,7 +155,82 @@ Deno.serve(async (req) => {
             .select('*')
             .in('company_id', companyIds);
           exportData.bp_directors = bpDirectors;
+
+          // bp_notes
+          const { data: bpNotes } = await supabase
+            .from('bp_notes')
+            .select('*')
+            .in('company_id', companyIds);
+          exportData.bp_notes = bpNotes;
+
+          // bp_revenue_forecasts
+          const { data: bpRevenueForecasts } = await supabase
+            .from('bp_revenue_forecasts')
+            .select('*')
+            .in('company_id', companyIds);
+          exportData.bp_revenue_forecasts = bpRevenueForecasts;
+
+          // bp_scenarios
+          const { data: bpScenarios } = await supabase
+            .from('bp_scenarios')
+            .select('*')
+            .in('company_id', companyIds);
+          exportData.bp_scenarios = bpScenarios;
+
+          // bp_stocks
+          const { data: bpStocks } = await supabase
+            .from('bp_stocks')
+            .select('*')
+            .in('company_id', companyIds);
+          exportData.bp_stocks = bpStocks;
+
+          // business_plans
+          const { data: businessPlans } = await supabase
+            .from('business_plans')
+            .select('*')
+            .in('company_id', companyIds);
+          exportData.business_plans = businessPlans;
+
+          // category_forecasts
+          const { data: categoryForecasts } = await supabase
+            .from('category_forecasts')
+            .select('*')
+            .in('company_id', companyIds);
+          exportData.category_forecasts = categoryForecasts;
+
+          // automation_rules
+          const { data: automationRules } = await supabase
+            .from('automation_rules')
+            .select('*')
+            .in('company_id', companyIds);
+          exportData.automation_rules = automationRules;
         }
+
+        // Get member user IDs for profiles and user_roles
+        const memberUserIds = membersData?.map(m => m.user_id) || [];
+        
+        if (memberUserIds.length > 0) {
+          // profiles (pour les membres de l'org)
+          const { data: profilesData } = await supabase
+            .from('profiles')
+            .select('id, full_name, company_name, phone, avatar_url, onboarding_completed, onboarding_step, bp_enabled, created_at, updated_at')
+            .in('id', memberUserIds);
+          exportData.profiles = profilesData;
+
+          // user_roles
+          const { data: userRolesData } = await supabase
+            .from('user_roles')
+            .select('*')
+            .in('user_id', memberUserIds);
+          exportData.user_roles = userRolesData;
+        }
+
+        // subscription_usage
+        const { data: subscriptionUsage } = await supabase
+          .from('subscription_usage')
+          .select('*')
+          .eq('organization_id', org.id);
+        exportData.subscription_usage = subscriptionUsage;
 
         // Add record counts
         exportData.record_counts = Object.fromEntries(
