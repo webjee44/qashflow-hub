@@ -3,17 +3,17 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowRight, Check, CreditCard, Building2, Sparkles } from 'lucide-react';
+import { Check, Sparkles, Calendar, Shield, Zap, HeadphonesIcon } from 'lucide-react';
 import { SEOHead, generateBreadcrumbSchema, generateFAQSchema } from '@/components/seo/SEOHead';
-import { useSubscription, PLANS, PlanKey } from '@/hooks/useSubscription';
+import { useSubscription, PLANS } from '@/hooks/useSubscription';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import logo from '@/assets/logo.png';
 
 const faqs = [
   {
-    question: 'Combien coûte qashflow ?',
-    answer: 'qashflow propose un plan Pro à 29€/mois et un plan Business à 79€/mois. Un essai gratuit de 14 jours est disponible sans carte bancaire.',
+    question: 'Comment fonctionne l\'essai gratuit de 30 jours ?',
+    answer: 'Vous pouvez utiliser toutes les fonctionnalités Pro pendant 30 jours sans engagement. Aucune carte bancaire n\'est requise pour commencer. À la fin de l\'essai, vous pouvez choisir de continuer avec l\'abonnement Pro.',
   },
   {
     question: 'Puis-je annuler mon abonnement à tout moment ?',
@@ -21,26 +21,30 @@ const faqs = [
   },
   {
     question: 'Y a-t-il une limite sur le nombre de transactions ?',
-    answer: 'Non, tous les plans payants incluent des transactions illimitées. Vous pouvez synchroniser autant de comptes bancaires que nécessaire.',
+    answer: 'Non, le plan Pro inclut des transactions illimitées. Vous pouvez synchroniser autant de comptes bancaires que nécessaire.',
   },
   {
     question: 'Les données sont-elles sécurisées ?',
     answer: 'Oui, vos données sont chiffrées avec le standard AES-256 et hébergées en France. Nous sommes conformes au RGPD.',
+  },
+  {
+    question: 'Que se passe-t-il à la fin de l\'essai gratuit ?',
+    answer: 'À la fin des 30 jours d\'essai, votre abonnement passera automatiquement au plan Pro à 49€/mois. Vous recevrez un rappel avant la fin de l\'essai.',
   },
 ];
 
 export default function Tarifs() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { plan: currentPlan, createCheckout, checkoutLoading } = useSubscription();
+  const { plan: currentPlan, subscribed, is_trialing, createCheckout, checkoutLoading } = useSubscription();
 
-  const handleSelectPlan = async (planKey: PlanKey) => {
+  const handleStartTrial = async () => {
     if (!user) {
       navigate('/sign-up');
       return;
     }
 
-    const plan = PLANS[planKey];
+    const plan = PLANS.pro;
     if (!plan.priceId) {
       navigate('/dashboard');
       return;
@@ -61,12 +65,14 @@ export default function Tarifs() {
 
   const faqSchema = generateFAQSchema(faqs);
 
+  const isCurrentlySubscribed = subscribed || is_trialing;
+
   return (
     <div className="min-h-screen bg-background">
       <SEOHead
-        title="Tarifs"
-        description="Découvrez les tarifs de qashflow : essai gratuit 14 jours, Plan Pro à 29€/mois, Plan Business à 79€/mois. Sans engagement."
-        keywords="tarifs gestion trésorerie, prix logiciel comptabilité, abonnement business plan, PME startup"
+        title="Tarifs - Plan Pro à 49€/mois avec 30 jours d'essai gratuit"
+        description="Essayez qashflow gratuitement pendant 30 jours. Plan Pro à 49€/mois : sociétés illimitées, Business Plan complet, catégorisation IA. Sans engagement."
+        keywords="tarifs gestion trésorerie, prix logiciel comptabilité, abonnement business plan, PME startup, essai gratuit"
       />
       
       {/* JSON-LD */}
@@ -120,80 +126,140 @@ export default function Tarifs() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
           >
-            <Badge variant="secondary" className="mb-6">
-              <Sparkles className="w-3 h-3 mr-1" />
-              14 jours d'essai gratuit
+            <Badge variant="secondary" className="mb-6 px-4 py-2">
+              <Sparkles className="w-4 h-4 mr-2" />
+              30 jours d'essai gratuit • Sans carte bancaire
             </Badge>
             
-            <h1 className="text-4xl sm:text-5xl font-bold tracking-tight mb-6">
-              Des tarifs simples et
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6">
+              Un seul plan,
               <br />
               <span className="bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-                transparents
+                toutes les fonctionnalités
               </span>
             </h1>
             
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Choisissez le plan adapté à vos besoins. Pas de frais cachés, 
-              annulation possible à tout moment.
+            <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-8">
+              Pas de plans complexes ni de fonctionnalités cachées. 
+              Accédez à tout ce dont vous avez besoin pour gérer votre trésorerie.
             </p>
           </motion.div>
         </div>
       </section>
 
-      {/* Pricing Cards */}
-      <section className="py-16 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-5xl mx-auto">
-          <div className="grid md:grid-cols-3 gap-8">
-            {(Object.entries(PLANS) as [PlanKey, typeof PLANS[PlanKey]][]).map(([key, plan], i) => {
-              const isCurrentPlan = user && currentPlan === key;
-              const isPopular = key === 'pro';
+      {/* Pricing Card */}
+      <section className="py-8 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-xl mx-auto">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+          >
+            <Card className="border-primary shadow-2xl shadow-primary/20 relative overflow-hidden">
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary to-primary/60" />
               
-              return (
-                <motion.div
-                  key={key}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: i * 0.1 }}
+              <CardHeader className="text-center pb-4 pt-8">
+                <div className="flex justify-center mb-4">
+                  <Badge className="bg-primary text-primary-foreground px-4 py-1">
+                    <Calendar className="w-3 h-3 mr-2" />
+                    30 jours gratuits
+                  </Badge>
+                </div>
+                <CardTitle className="text-3xl">Plan Pro</CardTitle>
+                <CardDescription className="text-base">
+                  Tout ce dont vous avez besoin pour votre entreprise
+                </CardDescription>
+                <div className="mt-6">
+                  <span className="text-5xl font-bold">{PLANS.pro.price}€</span>
+                  <span className="text-muted-foreground text-lg">/mois</span>
+                </div>
+                <p className="text-sm text-muted-foreground mt-2">
+                  après la période d'essai de 30 jours
+                </p>
+              </CardHeader>
+              
+              <CardContent className="space-y-6 pb-8">
+                <ul className="space-y-4">
+                  {PLANS.pro.features.map((feature, j) => (
+                    <li key={j} className="flex items-center gap-3">
+                      <div className="flex-shrink-0 w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center">
+                        <Check className="w-3 h-3 text-primary" />
+                      </div>
+                      <span>{feature}</span>
+                    </li>
+                  ))}
+                </ul>
+                
+                <Button 
+                  className="w-full h-12 text-lg" 
+                  size="lg"
+                  onClick={handleStartTrial}
+                  disabled={isCurrentlySubscribed || checkoutLoading}
                 >
-                  <Card className={`h-full relative ${isPopular ? 'border-primary shadow-lg shadow-primary/20' : ''}`}>
-                    {isPopular && (
-                      <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                        <Badge className="bg-primary text-primary-foreground">
-                          Plus populaire
-                        </Badge>
-                      </div>
-                    )}
-                    <CardHeader className="text-center pb-2">
-                      <CardTitle className="text-xl">{plan.name}</CardTitle>
-                      <div className="mt-4">
-                        <span className="text-4xl font-bold">{plan.price}€</span>
-                        <span className="text-muted-foreground">/mois</span>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <ul className="space-y-3">
-                        {plan.features.map((feature, j) => (
-                          <li key={j} className="flex items-center gap-2 text-sm">
-                            <Check className="w-4 h-4 text-primary flex-shrink-0" />
-                            {feature}
-                          </li>
-                        ))}
-                      </ul>
-                      <Button 
-                        className="w-full" 
-                        variant={isPopular ? 'default' : 'outline'}
-                        onClick={() => handleSelectPlan(key)}
-                        disabled={isCurrentPlan || checkoutLoading}
-                      >
-                        {isCurrentPlan ? 'Plan actuel' : key === 'free' ? 'Commencer' : 'Choisir ce plan'}
-                      </Button>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              );
-            })}
+                  {isCurrentlySubscribed 
+                    ? 'Vous êtes déjà abonné' 
+                    : 'Commencer l\'essai gratuit'}
+                </Button>
+                
+                <p className="text-center text-sm text-muted-foreground">
+                  Sans engagement • Annulable à tout moment
+                </p>
+              </CardContent>
+            </Card>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* Trust Badges */}
+      <section className="py-16 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-4xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              className="text-center"
+            >
+              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                <Shield className="w-6 h-6 text-primary" />
+              </div>
+              <h3 className="font-semibold mb-2">Données sécurisées</h3>
+              <p className="text-sm text-muted-foreground">
+                Chiffrement AES-256, hébergement en France, conforme RGPD
+              </p>
+            </motion.div>
+            
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.1 }}
+              className="text-center"
+            >
+              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                <Zap className="w-6 h-6 text-primary" />
+              </div>
+              <h3 className="font-semibold mb-2">Mise en place rapide</h3>
+              <p className="text-sm text-muted-foreground">
+                Connectez vos comptes bancaires en quelques minutes
+              </p>
+            </motion.div>
+            
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.2 }}
+              className="text-center"
+            >
+              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                <HeadphonesIcon className="w-6 h-6 text-primary" />
+              </div>
+              <h3 className="font-semibold mb-2">Support prioritaire</h3>
+              <p className="text-sm text-muted-foreground">
+                Une équipe dédiée pour répondre à vos questions
+              </p>
+            </motion.div>
           </div>
         </div>
       </section>
@@ -209,7 +275,7 @@ export default function Tarifs() {
           >
             <h2 className="text-3xl font-bold mb-4">Questions fréquentes</h2>
             <p className="text-muted-foreground">
-              Tout ce que vous devez savoir sur nos tarifs.
+              Tout ce que vous devez savoir sur notre offre.
             </p>
           </motion.div>
 
@@ -233,6 +299,25 @@ export default function Tarifs() {
               </motion.div>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* CTA */}
+      <section className="py-20 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-3xl mx-auto text-center">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+          >
+            <h2 className="text-3xl font-bold mb-4">Prêt à simplifier votre gestion ?</h2>
+            <p className="text-muted-foreground mb-8">
+              Rejoignez les entrepreneurs qui ont choisi qashflow pour piloter leur trésorerie.
+            </p>
+            <Button size="lg" className="h-12 px-8" onClick={handleStartTrial} disabled={isCurrentlySubscribed || checkoutLoading}>
+              Commencer l'essai gratuit
+            </Button>
+          </motion.div>
         </div>
       </section>
 

@@ -6,15 +6,15 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useOrganization } from '@/hooks/useOrganization';
-import { useSubscription, PLANS, PlanKey } from '@/hooks/useSubscription';
-import { Building2, Crown, Calendar, CreditCard, Edit2, Save, X, Loader2, ExternalLink, Check } from 'lucide-react';
-import { format } from 'date-fns';
+import { useSubscription, PLANS } from '@/hooks/useSubscription';
+import { Building2, Crown, Calendar, CreditCard, Edit2, Save, X, Loader2, ExternalLink, Check, Sparkles } from 'lucide-react';
+import { format, differenceInDays } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { toast } from 'sonner';
 
 export const OrganizationCard = () => {
   const { currentOrganization, loading, updateOrganization, isOwner } = useOrganization();
-  const { plan, subscribed, subscription_end, checkoutLoading, createCheckout, openCustomerPortal } = useSubscription();
+  const { plan, subscribed, subscription_end, is_trialing, trial_end, checkoutLoading, createCheckout, openCustomerPortal } = useSubscription();
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState('');
   const [saving, setSaving] = useState(false);
@@ -41,8 +41,8 @@ export const OrganizationCard = () => {
     setName('');
   };
 
-  const handleUpgrade = async (planKey: PlanKey) => {
-    const planConfig = PLANS[planKey];
+  const handleStartSubscription = async () => {
+    const planConfig = PLANS.pro;
     if (!planConfig.priceId) return;
     
     try {
@@ -62,22 +62,20 @@ export const OrganizationCard = () => {
     }
   };
 
-  const getPlanBadgeVariant = (planName: string) => {
-    switch (planName) {
-      case 'business': return 'default';
-      case 'pro': return 'secondary';
-      default: return 'outline';
+  const getStatusBadge = () => {
+    if (is_trialing) {
+      return <Badge variant="secondary">Essai gratuit</Badge>;
     }
+    if (subscribed) {
+      return <Badge variant="default">Actif</Badge>;
+    }
+    return <Badge variant="outline">Inactif</Badge>;
   };
 
-  const getStatusBadgeVariant = (status: string) => {
-    switch (status) {
-      case 'active': return 'default';
-      case 'trialing': return 'secondary';
-      case 'past_due': return 'destructive';
-      case 'canceled': return 'outline';
-      default: return 'outline';
-    }
+  const getTrialDaysRemaining = () => {
+    if (!trial_end) return null;
+    const days = differenceInDays(new Date(trial_end), new Date());
+    return days > 0 ? days : 0;
   };
 
   if (loading) {
@@ -109,6 +107,8 @@ export const OrganizationCard = () => {
     );
   }
 
+  const trialDaysRemaining = getTrialDaysRemaining();
+
   return (
     <Card>
       <CardHeader>
@@ -118,15 +118,8 @@ export const OrganizationCard = () => {
             <CardTitle>Organisation</CardTitle>
           </div>
           <div className="flex items-center gap-2">
-            <Badge variant={getPlanBadgeVariant(plan)}>
-              {plan.toUpperCase()}
-            </Badge>
-            <Badge variant={getStatusBadgeVariant(currentOrganization.subscription_status)}>
-              {currentOrganization.subscription_status === 'trialing' ? 'Essai' : 
-               currentOrganization.subscription_status === 'active' ? 'Actif' :
-               currentOrganization.subscription_status === 'past_due' ? 'Impayé' : 
-               currentOrganization.subscription_status}
-            </Badge>
+            <Badge variant="secondary">PRO</Badge>
+            {getStatusBadge()}
           </div>
         </div>
         <CardDescription>
@@ -165,97 +158,83 @@ export const OrganizationCard = () => {
           )}
         </div>
 
-        {/* Plans */}
-        <div className="space-y-4">
-          <Label>Plans disponibles</Label>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {(Object.entries(PLANS) as [PlanKey, typeof PLANS[PlanKey]][]).map(([key, planConfig]) => {
-              const isCurrentPlan = plan === key;
-              return (
-                <div
-                  key={key}
-                  className={`p-4 rounded-lg border transition-all ${
-                    isCurrentPlan 
-                      ? 'border-primary bg-primary/5 ring-2 ring-primary' 
-                      : 'border-border hover:border-primary/50'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="font-semibold">{planConfig.name}</h3>
-                    {isCurrentPlan && (
-                      <Badge variant="default" className="text-xs">
-                        <Check className="w-3 h-3 mr-1" />
-                        Actuel
-                      </Badge>
-                    )}
-                  </div>
-                  <div className="text-2xl font-bold mb-3">
-                    {planConfig.price}€
-                    <span className="text-sm font-normal text-muted-foreground">/mois</span>
-                  </div>
-                  <ul className="space-y-1 text-sm text-muted-foreground mb-4">
-                    {planConfig.features.slice(0, 4).map((feature, i) => (
-                      <li key={i} className="flex items-center gap-2">
-                        <span className="text-green-500">✓</span>
-                        {feature}
-                      </li>
-                    ))}
-                    {planConfig.features.length > 4 && (
-                      <li className="text-xs text-muted-foreground">
-                        +{planConfig.features.length - 4} autres fonctionnalités
-                      </li>
-                    )}
-                  </ul>
-                  {!isCurrentPlan && planConfig.priceId && (
-                    <Button 
-                      className="w-full" 
-                      variant={key === 'business' ? 'default' : 'outline'}
-                      onClick={() => handleUpgrade(key)}
-                      disabled={checkoutLoading}
-                    >
-                      {checkoutLoading ? (
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      ) : (
-                        <CreditCard className="h-4 w-4 mr-2" />
-                      )}
-                      {plan === 'free' ? 'Choisir' : 'Changer'}
-                    </Button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Subscription Management */}
-        {subscribed && (
-          <div className="p-4 rounded-lg bg-muted/50 border border-border space-y-3">
+        {/* Trial Status */}
+        {is_trialing && trialDaysRemaining !== null && (
+          <div className="p-4 rounded-lg bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20">
             <div className="flex items-center gap-3">
-              <CreditCard className="h-5 w-5 text-primary" />
-              <div>
-                <p className="font-medium">Gestion de l'abonnement</p>
-                {subscription_end && (
-                  <p className="text-sm text-muted-foreground">
-                    Prochain renouvellement : {format(new Date(subscription_end), 'dd MMMM yyyy', { locale: fr })}
-                  </p>
-                )}
+              <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
+                <Sparkles className="h-5 w-5 text-primary" />
+              </div>
+              <div className="flex-1">
+                <p className="font-semibold text-primary">
+                  {trialDaysRemaining} jour{trialDaysRemaining > 1 ? 's' : ''} restant{trialDaysRemaining > 1 ? 's' : ''} dans votre essai
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Votre essai gratuit se termine le {trial_end && format(new Date(trial_end), 'dd MMMM yyyy', { locale: fr })}
+                </p>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Plan Card */}
+        <div className="p-4 rounded-lg border bg-muted/30">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="font-semibold text-lg">Plan Pro</h3>
+              <p className="text-muted-foreground text-sm">Accès complet à toutes les fonctionnalités</p>
+            </div>
+            <div className="text-right">
+              <div className="text-2xl font-bold">{PLANS.pro.price}€</div>
+              <div className="text-sm text-muted-foreground">/mois</div>
+            </div>
+          </div>
+          
+          <ul className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-4">
+            {PLANS.pro.features.slice(0, 6).map((feature, i) => (
+              <li key={i} className="flex items-center gap-2 text-sm">
+                <Check className="w-4 h-4 text-primary flex-shrink-0" />
+                {feature}
+              </li>
+            ))}
+          </ul>
+
+          {!subscribed && !is_trialing ? (
             <Button 
-              variant="outline" 
-              className="w-full"
-              onClick={handleManageSubscription}
+              className="w-full" 
+              onClick={handleStartSubscription}
               disabled={checkoutLoading}
             >
               {checkoutLoading ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               ) : (
-                <ExternalLink className="h-4 w-4 mr-2" />
+                <CreditCard className="h-4 w-4 mr-2" />
               )}
-              Gérer mon abonnement
+              Commencer l'essai gratuit de 30 jours
             </Button>
-          </div>
-        )}
+          ) : (
+            <div className="space-y-3">
+              {subscription_end && !is_trialing && (
+                <p className="text-sm text-muted-foreground text-center">
+                  Prochain renouvellement : {format(new Date(subscription_end), 'dd MMMM yyyy', { locale: fr })}
+                </p>
+              )}
+              <Button 
+                variant="outline" 
+                className="w-full"
+                onClick={handleManageSubscription}
+                disabled={checkoutLoading}
+              >
+                {checkoutLoading ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                )}
+                Gérer mon abonnement
+              </Button>
+            </div>
+          )}
+        </div>
 
         {/* Organization Stats */}
         <div className="grid grid-cols-2 gap-4">
@@ -271,25 +250,10 @@ export const OrganizationCard = () => {
             <Building2 className="h-5 w-5 text-green-500" />
             <div>
               <p className="text-sm text-muted-foreground">Sociétés actives</p>
-              <p className="font-medium">{currentOrganization.max_companies}</p>
+              <p className="font-medium">Illimitées</p>
             </div>
           </div>
         </div>
-
-        {/* Trial End Date */}
-        {currentOrganization.subscription_status === 'trialing' && currentOrganization.trial_ends_at && (
-          <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
-            <Calendar className="h-5 w-5 text-amber-500" />
-            <div>
-              <p className="text-sm font-medium text-amber-700 dark:text-amber-400">
-                Période d'essai
-              </p>
-              <p className="text-sm text-muted-foreground">
-                Expire le {format(new Date(currentOrganization.trial_ends_at), 'dd MMMM yyyy', { locale: fr })}
-              </p>
-            </div>
-          </div>
-        )}
       </CardContent>
     </Card>
   );
