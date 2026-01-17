@@ -1,9 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { Settings, TrendingUp, Receipt, Building2, Wallet, FileCheck, ChevronLeft, ChevronRight, ArrowLeft } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
+import { Settings, TrendingUp, Receipt, Building2, Wallet, FileCheck, ChevronLeft, ChevronRight, ArrowLeft, CheckCircle2 } from 'lucide-react';
 import { useBusinessPlans, BusinessPlan } from '@/hooks/useBusinessPlans';
+import { useBPRevenueStreams } from '@/hooks/useBPRevenueStreams';
+import { useBPFixedExpenses } from '@/hooks/useBPFixedExpenses';
+import { useBPPersonnel } from '@/hooks/useBPPersonnel';
+import { useBPInvestments } from '@/hooks/useBPInvestments';
+import { useBPFinancings } from '@/hooks/useBPFinancings';
 import { BPWizardStep1Settings } from '@/components/businessplan/wizard/BPWizardStep1Settings';
 import { BPWizardStep2Revenue } from '@/components/businessplan/wizard/BPWizardStep2Revenue';
 import { BPWizardStep3Expenses } from '@/components/businessplan/wizard/BPWizardStep3Expenses';
@@ -34,8 +40,39 @@ export default function BPEditor() {
   const [activeTab, setActiveTab] = useState(initialTab);
   const [currentBP, setCurrentBP] = useState<BusinessPlan | null>(null);
   const { businessPlans, isLoading, finalizeBusinessPlan } = useBusinessPlans();
+  
+  // Load data for progress calculation
+  const { streams } = useBPRevenueStreams(currentBP?.id);
+  const { expenses } = useBPFixedExpenses(currentBP?.id);
+  const { personnel } = useBPPersonnel(currentBP?.id);
+  const { investments } = useBPInvestments(currentBP?.id);
+  const { financings } = useBPFinancings(currentBP?.id);
 
   const isEditMode = !!businessPlanIdParam;
+
+  // Calculate completion percentage
+  const completionData = useMemo(() => {
+    const sections = [
+      { name: 'Paramètres', done: !!currentBP?.name, weight: 20 },
+      { name: 'Revenus', done: streams.length > 0, weight: 25 },
+      { name: 'Charges', done: expenses.length > 0 || personnel.length > 0, weight: 25 },
+      { name: 'Investissements', done: investments.length > 0, weight: 15 },
+      { name: 'Financement', done: financings.length > 0, weight: 15 },
+    ];
+    
+    const completedWeight = sections
+      .filter(s => s.done)
+      .reduce((sum, s) => sum + s.weight, 0);
+    
+    const completedCount = sections.filter(s => s.done).length;
+    
+    return {
+      sections,
+      percentage: completedWeight,
+      completedCount,
+      totalCount: sections.length,
+    };
+  }, [currentBP, streams, expenses, personnel, investments, financings]);
 
   // Load existing BP if editing
   useEffect(() => {
@@ -97,6 +134,47 @@ export default function BPEditor() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)]">
+      {/* Progress Bar */}
+      {currentBP && (
+        <div className="px-6 py-3 border-b bg-background">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium">Progression</span>
+              {completionData.percentage === 100 && (
+                <CheckCircle2 className="h-4 w-4 text-green-600" />
+              )}
+            </div>
+            <span className="text-sm text-muted-foreground">
+              {completionData.completedCount}/{completionData.totalCount} sections • {completionData.percentage}%
+            </span>
+          </div>
+          <div className="relative">
+            <Progress value={completionData.percentage} className="h-2" />
+            <div className="absolute top-0 left-0 w-full h-full flex">
+              {completionData.sections.map((section, i) => (
+                <div
+                  key={i}
+                  className="h-full border-r border-background/50 last:border-r-0"
+                  style={{ width: `${section.weight}%` }}
+                  title={`${section.name}: ${section.done ? '✓' : '○'}`}
+                />
+              ))}
+            </div>
+          </div>
+          <div className="flex justify-between mt-1">
+            {completionData.sections.map((section, i) => (
+              <div 
+                key={i} 
+                className={`text-[10px] ${section.done ? 'text-primary font-medium' : 'text-muted-foreground'}`}
+                style={{ width: `${section.weight}%` }}
+              >
+                {section.done ? '✓' : '○'}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b bg-muted/30">
         <div className="flex items-center gap-4">
