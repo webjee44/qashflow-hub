@@ -759,6 +759,8 @@ export type Database = {
           initial_cash: number | null
           is_pme: boolean | null
           projection_months: number | null
+          show_financing: boolean | null
+          show_stocks: boolean | null
           supplier_payment_delay: number | null
           tax_regime: string | null
           updated_at: string | null
@@ -776,6 +778,8 @@ export type Database = {
           initial_cash?: number | null
           is_pme?: boolean | null
           projection_months?: number | null
+          show_financing?: boolean | null
+          show_stocks?: boolean | null
           supplier_payment_delay?: number | null
           tax_regime?: string | null
           updated_at?: string | null
@@ -793,6 +797,8 @@ export type Database = {
           initial_cash?: number | null
           is_pme?: boolean | null
           projection_months?: number | null
+          show_financing?: boolean | null
+          show_stocks?: boolean | null
           supplier_payment_delay?: number | null
           tax_regime?: string | null
           updated_at?: string | null

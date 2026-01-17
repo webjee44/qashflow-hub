@@ -18,9 +18,10 @@ import {
   SlidersHorizontal
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useAppMode } from '@/hooks/useAppMode';
+import { useBPSettings } from '@/hooks/useBPSettings';
 import { Button } from '@/components/ui/button';
 import { BPSettingsDialog } from '@/components/businessplan/BPSettingsDialog';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -32,6 +33,7 @@ interface NavItem {
   label: string;
   href: string;
   badge?: string;
+  key?: string;
 }
 
 const treasuryNavItems: NavItem[] = [
@@ -45,11 +47,11 @@ const businessPlanNavItems: NavItem[] = [
   { icon: DollarSign, label: 'Revenus', href: '/bp/revenus' },
   { icon: Building2, label: 'Charges', href: '/bp/charges' },
   { icon: Package, label: 'Investissements', href: '/bp/investissements' },
-  { icon: Package, label: 'Stocks', href: '/bp/stocks' },
+  { icon: Package, label: 'Stocks', href: '/bp/stocks', key: 'stocks' },
   { icon: FileSpreadsheet, label: 'Compte de résultat', href: '/bp/pnl' },
   { icon: Wallet, label: 'Bilan', href: '/bp/bilan' },
   { icon: Wallet, label: 'Trésorerie', href: '/bp/tresorerie' },
-  { icon: Wallet, label: 'Plan de financement', href: '/bp/financement' },
+  { icon: Wallet, label: 'Plan de financement', href: '/bp/financement', key: 'financing' },
   { icon: GitBranch, label: 'Scénarios', href: '/bp/scenarios' },
   { icon: LayoutDashboard, label: 'Synthèse', href: '/bp/synthese' },
 ];
@@ -64,6 +66,7 @@ export function Sidebar() {
   const [bpSettingsOpen, setBpSettingsOpen] = useState(false);
   const { user, signOut } = useAuth();
   const { mode, setMode, isBusinessPlan } = useAppMode();
+  const { settings } = useBPSettings();
   const location = useLocation();
   const navigate = useNavigate();
   const currentPath = location.pathname;
@@ -73,7 +76,16 @@ export function Sidebar() {
     navigate('/auth');
   };
   
-  const navItems = isBusinessPlan ? businessPlanNavItems : treasuryNavItems;
+  // Filter nav items based on settings
+  const navItems = useMemo(() => {
+    if (!isBusinessPlan) return treasuryNavItems;
+    
+    return businessPlanNavItems.filter(item => {
+      if (item.key === 'stocks' && !settings.show_stocks) return false;
+      if (item.key === 'financing' && !settings.show_financing) return false;
+      return true;
+    });
+  }, [isBusinessPlan, settings.show_stocks, settings.show_financing]);
 
   const handleModeChange = (checked: boolean) => {
     const newMode = checked ? 'business-plan' : 'treasury';
