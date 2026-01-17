@@ -10,6 +10,7 @@ import { AppModeProvider } from "@/hooks/useAppMode";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { SuperAdminRoute } from "@/components/superadmin/SuperAdminRoute";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { BPLayout } from "@/components/layout/BPLayout";
 import { OnboardingTour } from "@/components/onboarding/OnboardingTour";
 import Landing from "./pages/Landing";
 import Fonctionnalites from "./pages/Fonctionnalites";
@@ -97,7 +98,16 @@ const App = () => (
                   <Route path="/reglages-tresorerie" element={<TreasurySettings />} />
                   <Route path="/parametres" element={<Settings />} />
                   
-                  {/* Business Plan routes */}
+                </Route>
+                
+                {/* Business Plan routes - Separate layout without sidebar */}
+                <Route 
+                  element={
+                    <ProtectedRoute>
+                      <BPLayout />
+                    </ProtectedRoute>
+                  }
+                >
                   <Route path="/bp" element={<BPDashboard />} />
                   <Route path="/bp/editor/new" element={<BPEditor />} />
                   <Route path="/bp/editor/:id" element={<BPEditor />} />

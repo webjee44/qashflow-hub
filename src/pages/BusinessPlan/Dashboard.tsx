@@ -75,7 +75,7 @@ export default function BPDashboard() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 p-6 lg:p-8">
       <PageHeader
         title="Business Plans"
         subtitle={currentCompany?.name || 'Sélectionnez une société'}
