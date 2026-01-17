@@ -42,21 +42,16 @@ export function useChat() {
     setIsLoading(true);
     
     try {
-      const { data, error } = await supabase.functions.invoke('chat-proxy', {
-        method: 'GET',
-        body: undefined,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      // Use fetch directly for GET with query params
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+      
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat-proxy?visitor_id=${visitorId}`,
+        `${supabaseUrl}/functions/v1/chat-proxy?visitor_id=${encodeURIComponent(visitorId)}`,
         {
           method: 'GET',
           headers: {
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            'Authorization': `Bearer ${supabaseKey}`,
+            'Content-Type': 'application/json',
           },
         }
       );
