@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { CompanyProvider } from "@/hooks/useCompany";
 import { OrganizationProvider } from "@/hooks/useOrganization";
@@ -34,7 +34,7 @@ import StartWelcome from "./pages/StartWelcome";
 
 // Business Plan pages
 import BPDashboard from "./pages/BusinessPlan/Dashboard";
-import BPEditor from "./pages/BusinessPlan/Editor";
+
 import RevenueAssumptions from "./pages/BusinessPlan/RevenueAssumptions";
 import Expenses from "./pages/BusinessPlan/Expenses";
 import Investments from "./pages/BusinessPlan/Investments";
@@ -97,10 +97,9 @@ const App = () => (
                   <Route path="/reglages-tresorerie" element={<TreasurySettings />} />
                   <Route path="/parametres" element={<Settings />} />
                   
-                  {/* Business Plan routes - Same sidebar as treasury */}
-                  <Route path="/bp" element={<BPDashboard />} />
-                  <Route path="/bp/editor/new" element={<BPEditor />} />
-                  <Route path="/bp/editor/:id" element={<BPEditor />} />
+                  {/* Business Plan routes - Mono-BP architecture */}
+                  <Route path="/bp" element={<Navigate to="/bp/revenus" replace />} />
+                  <Route path="/bp/synthese" element={<BPDashboard />} />
                   <Route path="/bp/revenus" element={<RevenueAssumptions />} />
                   <Route path="/bp/charges" element={<Expenses />} />
                   <Route path="/bp/investissements" element={<Investments />} />
