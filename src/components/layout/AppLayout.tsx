@@ -8,8 +8,9 @@ import { useAppModeSync } from '@/hooks/useAppMode';
 import { useAuth } from '@/hooks/useAuth';
 import { useEffect } from 'react';
 
-// Widget de support externe
-const SUPPORT_WIDGET_ID = 'qashflow-support'; // Remplacer par votre ID Widget
+// Widget de support - clé API publishable
+const SUPPORT_WIDGET_API_KEY = 'qashflow-support'; // TODO: Remplacer par votre clé API réelle
+const SUPPORT_WIDGET_COLOR = '#3b82f6';
 
 export function AppLayout() {
   const location = useLocation();
@@ -30,8 +31,8 @@ export function AppLayout() {
     script.id = 'support-widget-script';
     script.src = 'https://vqejzddudqixhuqcqeqy.supabase.co/functions/v1/widget';
     script.async = true;
-    script.setAttribute('data-api-key', SUPPORT_WIDGET_ID);
-    script.setAttribute('data-color', '#6366f1'); // Primary color
+    script.setAttribute('data-api-key', SUPPORT_WIDGET_API_KEY);
+    script.setAttribute('data-color', SUPPORT_WIDGET_COLOR);
     script.setAttribute('data-position', 'bottom-right');
     
     // Pré-remplir l'email si l'utilisateur est connecté
