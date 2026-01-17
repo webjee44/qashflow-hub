@@ -27,21 +27,25 @@ export default function BPEditor() {
   const [searchParams] = useSearchParams();
   const initialTab = searchParams.get('tab') || 'settings';
   
+  // 'new' means creating a new BP, otherwise it's an existing BP id
+  const isNewMode = id === 'new';
+  const businessPlanIdParam = isNewMode ? undefined : id;
+  
   const [activeTab, setActiveTab] = useState(initialTab);
   const [currentBP, setCurrentBP] = useState<BusinessPlan | null>(null);
   const { businessPlans, isLoading, finalizeBusinessPlan } = useBusinessPlans();
 
-  const isEditMode = !!id;
+  const isEditMode = !!businessPlanIdParam;
 
   // Load existing BP if editing
   useEffect(() => {
-    if (id && businessPlans.length > 0) {
-      const bp = businessPlans.find(b => b.id === id);
+    if (businessPlanIdParam && businessPlans.length > 0) {
+      const bp = businessPlans.find(b => b.id === businessPlanIdParam);
       if (bp) {
         setCurrentBP(bp);
       }
     }
-  }, [id, businessPlans]);
+  }, [businessPlanIdParam, businessPlans]);
 
   const currentTabIndex = TABS.findIndex(t => t.id === activeTab);
   const canGoNext = currentTabIndex < TABS.length - 1;
@@ -101,7 +105,7 @@ export default function BPEditor() {
           </Button>
           <div>
             <h2 className="text-xl font-semibold">
-              {isEditMode ? currentBP?.name || 'Business Plan' : 'Nouveau Business Plan'}
+              {!currentBP ? 'Nouveau Business Plan' : currentBP.name || 'Business Plan'}
             </h2>
             <p className="text-sm text-muted-foreground">
               {currentBP?.status === 'draft' ? 'Brouillon' : currentBP?.status === 'finalized' ? 'Finalisé' : 'Étape ' + (currentTabIndex + 1) + ' sur ' + TABS.length}
