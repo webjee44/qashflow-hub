@@ -38,24 +38,14 @@ export default function Tarifs() {
   const { user } = useAuth();
   const { plan: currentPlan, subscribed, is_trialing, createCheckout, checkoutLoading } = useSubscription();
 
-  const handleStartTrial = async () => {
+  const handleStartTrial = () => {
     if (!user) {
       navigate('/sign-up');
       return;
     }
-
-    const plan = PLANS.pro;
-    if (!plan.priceId) {
-      navigate('/dashboard');
-      return;
-    }
-
-    try {
-      await createCheckout(plan.priceId);
-      toast.success('Redirection vers la page de paiement...');
-    } catch (error) {
-      toast.error('Erreur lors de la création du checkout');
-    }
+    // User is logged in, redirect to dashboard - they already have trial
+    navigate('/dashboard');
+    toast.success('Bienvenue ! Votre essai gratuit de 30 jours est actif.');
   };
 
   const breadcrumbSchema = generateBreadcrumbSchema([

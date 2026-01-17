@@ -14,7 +14,7 @@ import { toast } from 'sonner';
 
 export const OrganizationCard = () => {
   const { currentOrganization, loading, updateOrganization, isOwner } = useOrganization();
-  const { plan, subscribed, subscription_end, is_trialing, trial_end, checkoutLoading, createCheckout, openCustomerPortal } = useSubscription();
+  const { subscribed, subscription_end, checkoutLoading, createCheckout, openCustomerPortal } = useSubscription();
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState('');
   const [saving, setSaving] = useState(false);
@@ -63,20 +63,30 @@ export const OrganizationCard = () => {
   };
 
   const getStatusBadge = () => {
-    if (is_trialing) {
-      return <Badge variant="secondary">Essai gratuit</Badge>;
-    }
     if (subscribed) {
       return <Badge variant="default">Actif</Badge>;
+    }
+    if (currentOrganization?.subscription_status === 'trialing') {
+      const trialEnded = currentOrganization.trial_ends_at 
+        ? new Date(currentOrganization.trial_ends_at) < new Date()
+        : false;
+      if (trialEnded) {
+        return <Badge variant="destructive">Essai expiré</Badge>;
+      }
+      return <Badge variant="secondary">Essai gratuit</Badge>;
     }
     return <Badge variant="outline">Inactif</Badge>;
   };
 
   const getTrialDaysRemaining = () => {
-    if (!trial_end) return null;
-    const days = differenceInDays(new Date(trial_end), new Date());
+    if (!currentOrganization?.trial_ends_at) return null;
+    const days = differenceInDays(new Date(currentOrganization.trial_ends_at), new Date());
     return days > 0 ? days : 0;
   };
+
+  const isInTrial = currentOrganization?.subscription_status === 'trialing' && 
+    currentOrganization?.trial_ends_at && 
+    new Date(currentOrganization.trial_ends_at) > new Date();
 
   if (loading) {
     return (
@@ -159,7 +169,7 @@ export const OrganizationCard = () => {
         </div>
 
         {/* Trial Status */}
-        {is_trialing && trialDaysRemaining !== null && (
+        {isInTrial && trialDaysRemaining !== null && (
           <div className="p-4 rounded-lg bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
@@ -167,10 +177,10 @@ export const OrganizationCard = () => {
               </div>
               <div className="flex-1">
                 <p className="font-semibold text-primary">
-                  {trialDaysRemaining} jour{trialDaysRemaining > 1 ? 's' : ''} restant{trialDaysRemaining > 1 ? 's' : ''} dans votre essai
+                  {trialDaysRemaining} jour{trialDaysRemaining > 1 ? 's' : ''} restant{trialDaysRemaining > 1 ? 's' : ''} dans votre essai gratuit
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  Votre essai gratuit se termine le {trial_end && format(new Date(trial_end), 'dd MMMM yyyy', { locale: fr })}
+                  Votre essai se termine le {format(new Date(currentOrganization.trial_ends_at!), 'dd MMMM yyyy', { locale: fr })}
                 </p>
               </div>
             </div>
@@ -199,7 +209,7 @@ export const OrganizationCard = () => {
             ))}
           </ul>
 
-          {!subscribed && !is_trialing ? (
+          {!subscribed ? (
             <Button 
               className="w-full" 
               onClick={handleStartSubscription}
@@ -210,11 +220,11 @@ export const OrganizationCard = () => {
               ) : (
                 <CreditCard className="h-4 w-4 mr-2" />
               )}
-              Commencer l'essai gratuit de 30 jours
+              {isInTrial ? 'Passer au plan payant' : 'S\'abonner maintenant'}
             </Button>
           ) : (
             <div className="space-y-3">
-              {subscription_end && !is_trialing && (
+              {subscription_end && (
                 <p className="text-sm text-muted-foreground text-center">
                   Prochain renouvellement : {format(new Date(subscription_end), 'dd MMMM yyyy', { locale: fr })}
                 </p>
