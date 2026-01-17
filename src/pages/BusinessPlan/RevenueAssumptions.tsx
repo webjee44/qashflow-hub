@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, TrendingUp } from 'lucide-react';
+import { Plus, TrendingUp, Settings } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useRevenueStreams, RevenueStream } from '@/hooks/useRevenueStreams';
@@ -8,11 +8,14 @@ import { RevenueStreamDialog } from '@/components/businessplan/RevenueStreamDial
 import { RevenueTable } from '@/components/businessplan/RevenueTable';
 import { SectionNotes } from '@/components/businessplan/SectionNotes';
 import { BPExportDialog } from '@/components/businessplan/BPExportDialog';
+import { BPSettingsDialog } from '@/components/businessplan/BPSettingsDialog';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 export default function RevenueAssumptions() {
   const { streams, createStream, updateStream, isLoading } = useRevenueStreams();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [editingStream, setEditingStream] = useState<RevenueStream | null>(null);
 
   const handleSave = async (data: Partial<RevenueStream>) => {
@@ -40,6 +43,14 @@ export default function RevenueAssumptions() {
         subtitle="Définissez vos flux de revenus et projections"
         actions={
           <div className="flex gap-2">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="outline" size="icon" onClick={() => setSettingsOpen(true)}>
+                  <Settings className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Paramètres du Business Plan</TooltipContent>
+            </Tooltip>
             <BPExportDialog />
             <Button className="gap-2" onClick={handleNewStream}>
               <Plus className="h-4 w-4" />
@@ -85,6 +96,11 @@ export default function RevenueAssumptions() {
         onOpenChange={setDialogOpen}
         stream={editingStream}
         onSave={handleSave}
+      />
+
+      <BPSettingsDialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
       />
     </div>
   );
