@@ -26,3 +26,6 @@ verify_jwt = false
 
 [functions.customer-portal]
 verify_jwt = false
+
+[functions.backup-service]
+verify_jwt = false
