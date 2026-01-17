@@ -4,52 +4,29 @@ import { useAuth } from './useAuth';
 
 interface SubscriptionStatus {
   subscribed: boolean;
-  plan: 'free' | 'pro' | 'business';
+  plan: 'none' | 'pro';
   product_id: string | null;
   subscription_end: string | null;
+  is_trialing: boolean;
+  trial_end: string | null;
 }
 
-// Plan configuration with Stripe IDs
+// Plan configuration with Stripe IDs - Single Pro plan at 49€/month with 30-day trial
 export const PLANS = {
-  free: {
-    name: 'Free',
-    price: 0,
-    priceId: null,
-    productId: null,
-    features: [
-      '1 société',
-      '100 transactions/mois',
-      'Catégories de base',
-    ],
-  },
   pro: {
     name: 'Pro',
-    price: 29,
-    priceId: 'price_1SqeK9Itjz0ztyfFiBU2gXpL',
-    productId: 'prod_ToGrLMehzyLMjc',
+    price: 49,
+    priceId: 'price_1SqebAItjz0ztyfFUOsYxcW5',
+    productId: 'prod_ToH9Su89hO20pL',
+    trialDays: 30,
     features: [
-      '3 sociétés',
+      'Sociétés illimitées',
+      'Comptes bancaires illimités',
       'Transactions illimitées',
       'Business Plan complet',
       'Catégorisation IA',
-      'Export PDF',
-      'Support prioritaire',
-    ],
-  },
-  business: {
-    name: 'Business',
-    price: 79,
-    priceId: 'price_1SqeKLItjz0ztyfFDSxug6W2',
-    productId: 'prod_ToGsnU6MxpqA02',
-    features: [
-      'Sociétés illimitées',
-      'Transactions illimitées',
-      'Business Plan complet',
-      'Catégorisation IA avancée',
       'Export PDF & Excel',
-      'Multi-utilisateurs',
-      'API Access',
-      'Support dédié',
+      'Support prioritaire',
     ],
   },
 };
@@ -60,9 +37,11 @@ export const useSubscription = () => {
   const { user } = useAuth();
   const [subscriptionStatus, setSubscriptionStatus] = useState<SubscriptionStatus>({
     subscribed: false,
-    plan: 'free',
+    plan: 'none',
     product_id: null,
     subscription_end: null,
+    is_trialing: false,
+    trial_end: null,
   });
   const [loading, setLoading] = useState(true);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
@@ -71,9 +50,11 @@ export const useSubscription = () => {
     if (!user) {
       setSubscriptionStatus({
         subscribed: false,
-        plan: 'free',
+        plan: 'none',
         product_id: null,
         subscription_end: null,
+        is_trialing: false,
+        trial_end: null,
       });
       setLoading(false);
       return;
@@ -89,9 +70,11 @@ export const useSubscription = () => {
 
       setSubscriptionStatus({
         subscribed: data.subscribed,
-        plan: data.plan || 'free',
+        plan: data.plan || 'none',
         product_id: data.product_id,
         subscription_end: data.subscription_end,
+        is_trialing: data.is_trialing || false,
+        trial_end: data.trial_end || null,
       });
     } catch (error) {
       console.error('Error checking subscription:', error);

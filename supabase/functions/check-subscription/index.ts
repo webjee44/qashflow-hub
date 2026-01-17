@@ -12,10 +12,9 @@ const logStep = (step: string, details?: any) => {
   console.log(`[CHECK-SUBSCRIPTION] ${step}${detailsStr}`);
 };
 
-// Plan mapping
+// Plan mapping - Single Pro plan
 const PLAN_MAPPING: Record<string, string> = {
-  "prod_ToGrLMehzyLMjc": "pro",
-  "prod_ToGsnU6MxpqA02": "business",
+  "prod_ToH9Su89hO20pL": "pro",
 };
 
 serve(async (req) => {
@@ -56,9 +55,11 @@ serve(async (req) => {
       logStep("No customer found, returning unsubscribed state");
       return new Response(JSON.stringify({ 
         subscribed: false,
-        plan: "free",
+        plan: "none",
         product_id: null,
-        subscription_end: null 
+        subscription_end: null,
+        is_trialing: false,
+        trial_end: null
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 200,
@@ -68,32 +69,56 @@ serve(async (req) => {
     const customerId = customers.data[0].id;
     logStep("Found Stripe customer", { customerId });
 
+    // Check for active or trialing subscriptions
     const subscriptions = await stripe.subscriptions.list({
       customer: customerId,
-      status: "active",
-      limit: 1,
+      status: "all",
+      limit: 10,
     });
-    const hasActiveSub = subscriptions.data.length > 0;
-    let productId = null;
-    let plan = "free";
-    let subscriptionEnd = null;
 
-    if (hasActiveSub) {
-      const subscription = subscriptions.data[0];
-      subscriptionEnd = new Date(subscription.current_period_end * 1000).toISOString();
-      logStep("Active subscription found", { subscriptionId: subscription.id, endDate: subscriptionEnd });
-      productId = subscription.items.data[0].price.product as string;
-      plan = PLAN_MAPPING[productId] || "pro";
-      logStep("Determined subscription plan", { productId, plan });
-    } else {
-      logStep("No active subscription found");
+    // Find active or trialing subscription
+    const activeSubscription = subscriptions.data.find(
+      (sub: { status: string }) => sub.status === 'active' || sub.status === 'trialing'
+    );
+
+    if (!activeSubscription) {
+      logStep("No active or trialing subscription found");
+      return new Response(JSON.stringify({ 
+        subscribed: false,
+        plan: "none",
+        product_id: null,
+        subscription_end: null,
+        is_trialing: false,
+        trial_end: null
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      });
     }
 
+    const isTrialing = activeSubscription.status === 'trialing';
+    const subscriptionEnd = new Date(activeSubscription.current_period_end * 1000).toISOString();
+    const trialEnd = activeSubscription.trial_end 
+      ? new Date(activeSubscription.trial_end * 1000).toISOString() 
+      : null;
+    const productId = activeSubscription.items.data[0].price.product as string;
+    const plan = PLAN_MAPPING[productId] || "pro";
+
+    logStep("Subscription found", { 
+      subscriptionId: activeSubscription.id, 
+      status: activeSubscription.status,
+      isTrialing,
+      plan,
+      productId 
+    });
+
     return new Response(JSON.stringify({
-      subscribed: hasActiveSub,
+      subscribed: true,
       plan,
       product_id: productId,
-      subscription_end: subscriptionEnd
+      subscription_end: subscriptionEnd,
+      is_trialing: isTrialing,
+      trial_end: trialEnd
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
