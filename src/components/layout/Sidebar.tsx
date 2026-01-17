@@ -39,7 +39,6 @@ const treasuryNavItems: NavItem[] = [
 ];
 
 const businessPlanNavItems: NavItem[] = [
-  { icon: LayoutDashboard, label: 'Vue d\'ensemble', href: '/bp' },
   { icon: DollarSign, label: 'Revenus', href: '/bp/revenus' },
   { icon: Building2, label: 'Charges', href: '/bp/charges' },
   { icon: Package, label: 'Investissements', href: '/bp/investissements' },
@@ -49,6 +48,7 @@ const businessPlanNavItems: NavItem[] = [
   { icon: Wallet, label: 'Trésorerie', href: '/bp/tresorerie' },
   { icon: Wallet, label: 'Plan de financement', href: '/bp/financement' },
   { icon: GitBranch, label: 'Scénarios', href: '/bp/scenarios' },
+  { icon: LayoutDashboard, label: 'Synthèse', href: '/bp/synthese' },
 ];
 
 const bottomNavItems: NavItem[] = [
