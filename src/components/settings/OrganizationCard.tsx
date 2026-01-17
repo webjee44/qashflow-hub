@@ -6,12 +6,15 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useOrganization } from '@/hooks/useOrganization';
-import { Building2, Crown, Calendar, CreditCard, Edit2, Save, X } from 'lucide-react';
+import { useSubscription, PLANS, PlanKey } from '@/hooks/useSubscription';
+import { Building2, Crown, Calendar, CreditCard, Edit2, Save, X, Loader2, ExternalLink, Check } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { toast } from 'sonner';
 
 export const OrganizationCard = () => {
   const { currentOrganization, loading, updateOrganization, isOwner } = useOrganization();
+  const { plan, subscribed, subscription_end, checkoutLoading, createCheckout, openCustomerPortal } = useSubscription();
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState('');
   const [saving, setSaving] = useState(false);
@@ -38,10 +41,31 @@ export const OrganizationCard = () => {
     setName('');
   };
 
-  const getPlanBadgeVariant = (plan: string) => {
-    switch (plan) {
-      case 'paid': return 'default';
-      case 'trial': return 'secondary';
+  const handleUpgrade = async (planKey: PlanKey) => {
+    const planConfig = PLANS[planKey];
+    if (!planConfig.priceId) return;
+    
+    try {
+      await createCheckout(planConfig.priceId);
+      toast.success('Redirection vers la page de paiement...');
+    } catch (error) {
+      toast.error('Erreur lors de la création du checkout');
+    }
+  };
+
+  const handleManageSubscription = async () => {
+    try {
+      await openCustomerPortal();
+      toast.success('Redirection vers le portail client...');
+    } catch (error) {
+      toast.error('Erreur lors de l\'ouverture du portail');
+    }
+  };
+
+  const getPlanBadgeVariant = (planName: string) => {
+    switch (planName) {
+      case 'business': return 'default';
+      case 'pro': return 'secondary';
       default: return 'outline';
     }
   };
@@ -94,8 +118,8 @@ export const OrganizationCard = () => {
             <CardTitle>Organisation</CardTitle>
           </div>
           <div className="flex items-center gap-2">
-            <Badge variant={getPlanBadgeVariant(currentOrganization.plan)}>
-              {currentOrganization.plan.toUpperCase()}
+            <Badge variant={getPlanBadgeVariant(plan)}>
+              {plan.toUpperCase()}
             </Badge>
             <Badge variant={getStatusBadgeVariant(currentOrganization.subscription_status)}>
               {currentOrganization.subscription_status === 'trialing' ? 'Essai' : 
@@ -106,7 +130,7 @@ export const OrganizationCard = () => {
           </div>
         </div>
         <CardDescription>
-          Gérez les paramètres de votre organisation
+          Gérez les paramètres de votre organisation et votre abonnement
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -141,23 +165,97 @@ export const OrganizationCard = () => {
           )}
         </div>
 
-        {/* Pricing Info */}
-        <div className="p-4 rounded-lg bg-muted/50 border border-border">
-          <div className="flex items-center gap-3 mb-3">
-            <CreditCard className="h-5 w-5 text-primary" />
-            <div>
-              <p className="font-medium">Tarification</p>
-              <p className="text-sm text-muted-foreground">49€ / mois / société</p>
-            </div>
+        {/* Plans */}
+        <div className="space-y-4">
+          <Label>Plans disponibles</Label>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {(Object.entries(PLANS) as [PlanKey, typeof PLANS[PlanKey]][]).map(([key, planConfig]) => {
+              const isCurrentPlan = plan === key;
+              return (
+                <div
+                  key={key}
+                  className={`p-4 rounded-lg border transition-all ${
+                    isCurrentPlan 
+                      ? 'border-primary bg-primary/5 ring-2 ring-primary' 
+                      : 'border-border hover:border-primary/50'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-semibold">{planConfig.name}</h3>
+                    {isCurrentPlan && (
+                      <Badge variant="default" className="text-xs">
+                        <Check className="w-3 h-3 mr-1" />
+                        Actuel
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="text-2xl font-bold mb-3">
+                    {planConfig.price}€
+                    <span className="text-sm font-normal text-muted-foreground">/mois</span>
+                  </div>
+                  <ul className="space-y-1 text-sm text-muted-foreground mb-4">
+                    {planConfig.features.slice(0, 4).map((feature, i) => (
+                      <li key={i} className="flex items-center gap-2">
+                        <span className="text-green-500">✓</span>
+                        {feature}
+                      </li>
+                    ))}
+                    {planConfig.features.length > 4 && (
+                      <li className="text-xs text-muted-foreground">
+                        +{planConfig.features.length - 4} autres fonctionnalités
+                      </li>
+                    )}
+                  </ul>
+                  {!isCurrentPlan && planConfig.priceId && (
+                    <Button 
+                      className="w-full" 
+                      variant={key === 'business' ? 'default' : 'outline'}
+                      onClick={() => handleUpgrade(key)}
+                      disabled={checkoutLoading}
+                    >
+                      {checkoutLoading ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <CreditCard className="h-4 w-4 mr-2" />
+                      )}
+                      {plan === 'free' ? 'Choisir' : 'Changer'}
+                    </Button>
+                  )}
+                </div>
+              );
+            })}
           </div>
-          <ul className="text-sm text-muted-foreground space-y-1 ml-8">
-            <li>✓ Comptes bancaires illimités</li>
-            <li>✓ Transactions illimitées</li>
-            <li>✓ Business Plan complet</li>
-            <li>✓ Catégorisation IA</li>
-            <li>✓ Export PDF professionnel</li>
-          </ul>
         </div>
+
+        {/* Subscription Management */}
+        {subscribed && (
+          <div className="p-4 rounded-lg bg-muted/50 border border-border space-y-3">
+            <div className="flex items-center gap-3">
+              <CreditCard className="h-5 w-5 text-primary" />
+              <div>
+                <p className="font-medium">Gestion de l'abonnement</p>
+                {subscription_end && (
+                  <p className="text-sm text-muted-foreground">
+                    Prochain renouvellement : {format(new Date(subscription_end), 'dd MMMM yyyy', { locale: fr })}
+                  </p>
+                )}
+              </div>
+            </div>
+            <Button 
+              variant="outline" 
+              className="w-full"
+              onClick={handleManageSubscription}
+              disabled={checkoutLoading}
+            >
+              {checkoutLoading ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <ExternalLink className="h-4 w-4 mr-2" />
+              )}
+              Gérer mon abonnement
+            </Button>
+          </div>
+        )}
 
         {/* Organization Stats */}
         <div className="grid grid-cols-2 gap-4">
@@ -191,14 +289,6 @@ export const OrganizationCard = () => {
               </p>
             </div>
           </div>
-        )}
-
-        {/* Upgrade CTA for free plan */}
-        {currentOrganization.plan === 'free' && (
-          <Button className="w-full" variant="default">
-            <CreditCard className="h-4 w-4 mr-2" />
-            Passer à un plan supérieur
-          </Button>
         )}
       </CardContent>
     </Card>
