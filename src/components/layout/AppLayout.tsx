@@ -9,7 +9,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useEffect } from 'react';
 
 // Widget de support - clé API publishable
-const SUPPORT_WIDGET_API_KEY = 'qashflow-support'; // TODO: Remplacer par votre clé API réelle
+const SUPPORT_WIDGET_API_KEY = '6304a129-c64a-42eb-b298-c04f46b23363';
 const SUPPORT_WIDGET_COLOR = '#3b82f6';
 
 export function AppLayout() {
