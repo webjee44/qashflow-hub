@@ -34,6 +34,20 @@ interface BulkExpenseRow {
   monthly_amount: string;
 }
 
+interface BulkPersonnelRow {
+  position: string;
+  gross_salary: string;
+  contract_type: string;
+}
+
+const CONTRACT_TYPES = [
+  { value: 'cdi', label: 'CDI' },
+  { value: 'cdd', label: 'CDD' },
+  { value: 'stage', label: 'Stage' },
+  { value: 'apprentissage', label: 'Apprentissage' },
+  { value: 'freelance', label: 'Freelance' },
+] as const;
+
 export default function Expenses() {
   const [expenseDialogOpen, setExpenseDialogOpen] = useState(false);
   const [selectedExpense, setSelectedExpense] = useState<FixedExpense | null>(null);
@@ -42,6 +56,9 @@ export default function Expenses() {
   const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
   const [bulkRows, setBulkRows] = useState<BulkExpenseRow[]>([{ name: '', category: '', monthly_amount: '' }]);
   const [isBulkSaving, setIsBulkSaving] = useState(false);
+  const [bulkPersonnelDialogOpen, setBulkPersonnelDialogOpen] = useState(false);
+  const [bulkPersonnelRows, setBulkPersonnelRows] = useState<BulkPersonnelRow[]>([{ position: '', gross_salary: '', contract_type: 'cdi' }]);
+  const [isBulkPersonnelSaving, setIsBulkPersonnelSaving] = useState(false);
 
   const { expenses, createExpense, updateExpense, deleteExpense } = useFixedExpenses();
   const { personnel, createPersonnel, updatePersonnel, deletePersonnel } = usePersonnel();
@@ -89,6 +106,53 @@ export default function Expenses() {
       toast.error("Erreur lors de l'ajout des charges");
     } finally {
       setIsBulkSaving(false);
+    }
+  };
+
+  // Personnel bulk handlers
+  const handleOpenBulkPersonnelDialog = () => {
+    setBulkPersonnelRows([{ position: '', gross_salary: '', contract_type: 'cdi' }]);
+    setBulkPersonnelDialogOpen(true);
+  };
+
+  const handleBulkPersonnelRowChange = (index: number, field: keyof BulkPersonnelRow, value: string) => {
+    setBulkPersonnelRows(prev => prev.map((row, i) => i === index ? { ...row, [field]: value } : row));
+  };
+
+  const handleAddBulkPersonnelRow = () => {
+    if (bulkPersonnelRows.length < 10) {
+      setBulkPersonnelRows(prev => [...prev, { position: '', gross_salary: '', contract_type: 'cdi' }]);
+    }
+  };
+
+  const handleRemoveBulkPersonnelRow = (index: number) => {
+    if (bulkPersonnelRows.length > 1) {
+      setBulkPersonnelRows(prev => prev.filter((_, i) => i !== index));
+    }
+  };
+
+  const handleSubmitBulkPersonnel = async () => {
+    const validRows = bulkPersonnelRows.filter(row => row.position.trim() && row.gross_salary);
+    if (validRows.length === 0) {
+      toast.error('Veuillez remplir au moins une ligne');
+      return;
+    }
+    
+    setIsBulkPersonnelSaving(true);
+    try {
+      for (const row of validRows) {
+        await createPersonnel.mutateAsync({
+          position: row.position.trim(),
+          gross_salary: parseFloat(row.gross_salary) || 0,
+          contract_type: row.contract_type || 'cdi',
+        });
+      }
+      toast.success(`${validRows.length} poste(s) ajouté(s)`);
+      setBulkPersonnelDialogOpen(false);
+    } catch (error) {
+      toast.error("Erreur lors de l'ajout du personnel");
+    } finally {
+      setIsBulkPersonnelSaving(false);
     }
   };
 
@@ -207,17 +271,28 @@ export default function Expenses() {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>Personnel</CardTitle>
-                <Button 
-                  size="sm" 
-                  className="gap-2"
-                  onClick={() => {
-                    setSelectedPersonnel(null);
-                    setPersonnelDialogOpen(true);
-                  }}
-                >
-                  <Plus className="h-4 w-4" />
-                  Ajouter un poste
-                </Button>
+                <div className="flex gap-2">
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    className="gap-2"
+                    onClick={handleOpenBulkPersonnelDialog}
+                  >
+                    <ListPlus className="h-4 w-4" />
+                    Ajout en masse
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    className="gap-2"
+                    onClick={() => {
+                      setSelectedPersonnel(null);
+                      setPersonnelDialogOpen(true);
+                    }}
+                  >
+                    <Plus className="h-4 w-4" />
+                    Ajouter un poste
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
                 {personnel.length === 0 ? (
@@ -313,6 +388,68 @@ export default function Expenses() {
             <Button variant="outline" onClick={() => setBulkDialogOpen(false)}>Annuler</Button>
             <Button onClick={handleSubmitBulk} disabled={isBulkSaving}>
               {isBulkSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Enregistrer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Personnel Dialog */}
+      <Dialog open={bulkPersonnelDialogOpen} onOpenChange={setBulkPersonnelDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Ajout en masse de personnel</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            {bulkPersonnelRows.map((row, index) => (
+              <div key={index} className="flex gap-2 items-center">
+                <Input
+                  placeholder="Intitulé du poste"
+                  value={row.position}
+                  onChange={(e) => handleBulkPersonnelRowChange(index, 'position', e.target.value)}
+                  className="flex-1"
+                />
+                <Select
+                  value={row.contract_type}
+                  onValueChange={(val) => handleBulkPersonnelRowChange(index, 'contract_type', val)}
+                >
+                  <SelectTrigger className="w-[140px]">
+                    <SelectValue placeholder="Contrat" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CONTRACT_TYPES.map(ct => (
+                      <SelectItem key={ct.value} value={ct.value}>{ct.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Input
+                  type="number"
+                  placeholder="Brut €/mois"
+                  value={row.gross_salary}
+                  onChange={(e) => handleBulkPersonnelRowChange(index, 'gross_salary', e.target.value)}
+                  className="w-[120px]"
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => handleRemoveBulkPersonnelRow(index)}
+                  disabled={bulkPersonnelRows.length === 1}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+            {bulkPersonnelRows.length < 10 && (
+              <Button variant="outline" size="sm" onClick={handleAddBulkPersonnelRow} className="gap-2">
+                <Plus className="h-4 w-4" />
+                Ajouter une ligne
+              </Button>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkPersonnelDialogOpen(false)}>Annuler</Button>
+            <Button onClick={handleSubmitBulkPersonnel} disabled={isBulkPersonnelSaving}>
+              {isBulkPersonnelSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Enregistrer
             </Button>
           </DialogFooter>
