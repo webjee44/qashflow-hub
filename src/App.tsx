@@ -12,6 +12,12 @@ import { SuperAdminRoute } from "@/components/superadmin/SuperAdminRoute";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { OnboardingTour } from "@/components/onboarding/OnboardingTour";
 import Landing from "./pages/Landing";
+import Fonctionnalites from "./pages/Fonctionnalites";
+import Tarifs from "./pages/Tarifs";
+import APropos from "./pages/APropos";
+import Contact from "./pages/Contact";
+import MentionsLegales from "./pages/MentionsLegales";
+import Confidentialite from "./pages/Confidentialite";
 import Dashboard from "./pages/Dashboard";
 import Transactions from "./pages/Transactions";
 import Forecasts from "./pages/Forecasts";
@@ -60,6 +66,12 @@ const App = () => (
               <OnboardingTour />
               <Routes>
                 <Route path="/" element={<Landing />} />
+                <Route path="/fonctionnalites" element={<Fonctionnalites />} />
+                <Route path="/tarifs" element={<Tarifs />} />
+                <Route path="/a-propos" element={<APropos />} />
+                <Route path="/contact" element={<Contact />} />
+                <Route path="/mentions-legales" element={<MentionsLegales />} />
+                <Route path="/confidentialite" element={<Confidentialite />} />
                 <Route path="/auth" element={<Auth />} />
                 <Route path="/sign-in" element={<SignIn />} />
                 <Route path="/sign-up" element={<SignUp />} />
