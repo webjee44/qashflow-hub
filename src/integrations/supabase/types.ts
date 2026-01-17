@@ -642,6 +642,50 @@ export type Database = {
           },
         ]
       }
+      bp_scenario_overrides: {
+        Row: {
+          created_at: string
+          id: string
+          item_id: string
+          item_type: string
+          override_type: string
+          override_value: number | null
+          scenario_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          item_id: string
+          item_type: string
+          override_type: string
+          override_value?: number | null
+          scenario_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          item_id?: string
+          item_type?: string
+          override_type?: string
+          override_value?: number | null
+          scenario_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bp_scenario_overrides_scenario_id_fkey"
+            columns: ["scenario_id"]
+            isOneToOne: false
+            referencedRelation: "bp_scenarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bp_scenarios: {
         Row: {
           business_plan_id: string | null
@@ -757,6 +801,44 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "bp_settings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bp_snapshots: {
+        Row: {
+          company_id: string | null
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          snapshot_data: Json
+          user_id: string
+        }
+        Insert: {
+          company_id?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          snapshot_data: Json
+          user_id: string
+        }
+        Update: {
+          company_id?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          snapshot_data?: Json
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bp_snapshots_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
