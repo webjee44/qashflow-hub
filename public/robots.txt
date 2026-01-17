@@ -1,8 +1,13 @@
+# Robots.txt pour Qashflow - Logiciel de gestion de trésorerie
+# https://pennylane-cash-flow-buddy.lovable.app
+
 User-agent: Googlebot
 Allow: /
+Crawl-delay: 1
 
 User-agent: Bingbot
 Allow: /
+Crawl-delay: 1
 
 User-agent: Twitterbot
 Allow: /
@@ -12,3 +17,33 @@ Allow: /
 
 User-agent: *
 Allow: /
+
+# Pages principales indexables
+Allow: /fonctionnalites
+Allow: /tarifs
+Allow: /a-propos
+Allow: /contact
+Allow: /mentions-legales
+Allow: /confidentialite
+
+# Bloquer les pages protégées (app)
+Disallow: /dashboard
+Disallow: /transactions
+Disallow: /previsions
+Disallow: /reglages-tresorerie
+Disallow: /parametres
+Disallow: /bp
+Disallow: /bp/*
+Disallow: /superadmin
+Disallow: /superadmin/*
+
+# Bloquer les pages d'authentification
+Disallow: /auth
+Disallow: /sign-in
+Disallow: /sign-up
+Disallow: /start
+Disallow: /start/*
+Disallow: /welcome
+
+# Sitemap
+Sitemap: https://pennylane-cash-flow-buddy.lovable.app/sitemap.xml
