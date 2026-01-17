@@ -33,7 +33,7 @@ Deno.serve(async (req) => {
 
     console.log(`Found ${organizations?.length || 0} organizations to export`);
 
-    const results: { org_id: string; status: string; file_path?: string; error?: string }[] = [];
+    const results: { org_id: string; status: string; file_path?: string; error?: string; external_backup?: string }[] = [];
 
     for (const org of organizations || []) {
       try {
@@ -203,7 +203,64 @@ Deno.serve(async (req) => {
             },
           });
 
-        results.push({ org_id: org.id, status: 'success', file_path: fileName });
+        // Send to external backup API if configured
+        const backupApiKey = Deno.env.get('BACKUP_API_KEY');
+        let externalBackupStatus = 'skipped';
+        
+        if (backupApiKey) {
+          try {
+            console.log(`Sending backup to external API for org ${org.id}...`);
+            
+            const formData = new FormData();
+            const backupBlob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+            formData.append('file', backupBlob, `${org.slug}-${dateStr}.json`);
+            formData.append('backup_type', 'scheduled');
+            
+            const backupResponse = await fetch(
+              'https://vqejzddudqixhuqcqeqy.supabase.co/functions/v1/backups',
+              {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${backupApiKey}` },
+                body: formData
+              }
+            );
+            
+            if (backupResponse.ok) {
+              const backupResult = await backupResponse.json();
+              console.log(`External backup sent successfully for org ${org.id}:`, backupResult);
+              externalBackupStatus = 'success';
+            } else {
+              const errorText = await backupResponse.text();
+              console.error(`External backup failed for org ${org.id}: ${backupResponse.status} - ${errorText}`);
+              externalBackupStatus = 'failed';
+            }
+          } catch (backupError) {
+            console.error(`External backup error for org ${org.id}:`, backupError);
+            externalBackupStatus = 'error';
+          }
+          
+          // Log external backup result
+          await supabase
+            .from('audit_logs')
+            .insert({
+              table_name: 'EXTERNAL_BACKUP',
+              record_id: org.id,
+              action: 'BACKUP_SENT',
+              organization_id: org.id,
+              new_data: {
+                status: externalBackupStatus,
+                file_name: `${org.slug}-${dateStr}.json`,
+                sent_at: new Date().toISOString(),
+              },
+            });
+        }
+
+        results.push({ 
+          org_id: org.id, 
+          status: 'success', 
+          file_path: fileName,
+          external_backup: externalBackupStatus 
+        });
 
         // Clean up old exports (keep last 4 weeks)
         const { data: existingFiles } = await supabase.storage
