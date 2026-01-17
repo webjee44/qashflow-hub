@@ -1,10 +1,22 @@
 import { useState } from 'react';
-import { Search, Building2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Search, Building2, Eye } from 'lucide-react';
+import { format } from 'date-fns';
+import { fr } from 'date-fns/locale';
 import { SuperAdminLayout } from '@/components/superadmin/SuperAdminLayout';
-import { OrgCard } from '@/components/superadmin/OrgCard';
 import { useSuperAdminOrgStats } from '@/hooks/useSuperAdmin';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import {
   Select,
   SelectContent,
@@ -13,7 +25,21 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
+const planColors: Record<string, string> = {
+  free: 'bg-muted text-muted-foreground',
+  pro: 'bg-primary/10 text-primary',
+  business: 'bg-amber-500/10 text-amber-600',
+};
+
+const statusColors: Record<string, string> = {
+  active: 'bg-green-500/10 text-green-600',
+  trialing: 'bg-blue-500/10 text-blue-600',
+  canceled: 'bg-red-500/10 text-red-600',
+  past_due: 'bg-orange-500/10 text-orange-600',
+};
+
 export default function SuperAdminOrganizations() {
+  const navigate = useNavigate();
   const { data: orgStats, isLoading } = useSuperAdminOrgStats();
   const [search, setSearch] = useState('');
   const [planFilter, setPlanFilter] = useState<string>('all');
@@ -79,11 +105,11 @@ export default function SuperAdminOrganizations() {
           {filteredOrgs.length} organisation{filteredOrgs.length > 1 ? 's' : ''} trouvée{filteredOrgs.length > 1 ? 's' : ''}
         </p>
 
-        {/* Organizations Grid */}
+        {/* Organizations Table */}
         {isLoading ? (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="space-y-2">
             {[...Array(6)].map((_, i) => (
-              <Skeleton key={i} className="h-48" />
+              <Skeleton key={i} className="h-12 w-full" />
             ))}
           </div>
         ) : filteredOrgs.length === 0 ? (
@@ -92,10 +118,59 @@ export default function SuperAdminOrganizations() {
             <p>Aucune organisation trouvée</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {filteredOrgs.map((org) => (
-              <OrgCard key={org.organization_id} organization={org} />
-            ))}
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Organisation</TableHead>
+                  <TableHead>Plan</TableHead>
+                  <TableHead>Statut</TableHead>
+                  <TableHead className="text-center">Membres</TableHead>
+                  <TableHead className="text-center">Entreprises</TableHead>
+                  <TableHead className="text-center">BP</TableHead>
+                  <TableHead>Créée le</TableHead>
+                  <TableHead className="w-[50px]"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredOrgs.map((org) => (
+                  <TableRow key={org.organization_id} className="group">
+                    <TableCell>
+                      <div>
+                        <p className="font-medium">{org.name}</p>
+                        <p className="text-xs text-muted-foreground">{org.slug}</p>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="secondary" className={planColors[org.plan] || ''}>
+                        {org.plan}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="secondary" className={statusColors[org.subscription_status] || ''}>
+                        {org.subscription_status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-center">{org.member_count}</TableCell>
+                    <TableCell className="text-center">{org.company_count}</TableCell>
+                    <TableCell className="text-center">{org.bp_count}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {format(new Date(org.created_at), 'dd MMM yyyy', { locale: fr })}
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => navigate(`/superadmin/organizations/${org.organization_id}`)}
+                      >
+                        <Eye className="w-4 h-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </div>
         )}
       </div>
