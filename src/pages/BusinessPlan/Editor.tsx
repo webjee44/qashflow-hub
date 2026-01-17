@@ -133,7 +133,7 @@ export default function BPEditor() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)]">
+    <div className="flex flex-col min-h-[calc(100vh-4rem)]">
       {/* Progress Bar */}
       {currentBP && (
         <div className="px-6 py-3 border-b bg-background">
