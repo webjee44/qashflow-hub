@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { FileSpreadsheet, ArrowLeft, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { TrialExpiredBlocker } from './TrialExpiredBlocker';
-import { ChatBubble } from '@/components/chat/ChatBubble';
 import { ModeToggle } from './ModeToggle';
 import { useAuth } from '@/hooks/useAuth';
 import logo from '@/assets/logo.png';
@@ -72,9 +71,6 @@ export function BPLayout() {
           </motion.div>
         </AnimatePresence>
       </main>
-      
-      {/* Chat flottant */}
-      <ChatBubble />
     </div>
   );
 }
