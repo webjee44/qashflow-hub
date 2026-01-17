@@ -34,6 +34,7 @@ import StartWelcome from "./pages/StartWelcome";
 
 // Business Plan pages
 import BPDashboard from "./pages/BusinessPlan/Dashboard";
+import BPEditor from "./pages/BusinessPlan/Editor";
 import RevenueAssumptions from "./pages/BusinessPlan/RevenueAssumptions";
 import Expenses from "./pages/BusinessPlan/Expenses";
 import Investments from "./pages/BusinessPlan/Investments";
@@ -98,6 +99,8 @@ const App = () => (
                   
                   {/* Business Plan routes */}
                   <Route path="/bp" element={<BPDashboard />} />
+                  <Route path="/bp/editor/new" element={<BPEditor />} />
+                  <Route path="/bp/editor/:id" element={<BPEditor />} />
                   <Route path="/bp/revenus" element={<RevenueAssumptions />} />
                   <Route path="/bp/charges" element={<Expenses />} />
                   <Route path="/bp/investissements" element={<Investments />} />

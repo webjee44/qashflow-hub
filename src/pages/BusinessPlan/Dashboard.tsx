@@ -1,11 +1,11 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Plus, FileSpreadsheet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useBusinessPlans, BusinessPlan } from '@/hooks/useBusinessPlans';
 import { useCompany } from '@/hooks/useCompany';
 import { BPCard } from '@/components/businessplan/BPCard';
-import { BPWizardDialog } from '@/components/businessplan/BPWizardDialog';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -20,35 +20,26 @@ import {
 } from '@/components/ui/alert-dialog';
 
 export default function BPDashboard() {
+  const navigate = useNavigate();
   const { currentCompany } = useCompany();
   const { businessPlans, isLoading, deleteBusinessPlan, duplicateBusinessPlan } = useBusinessPlans();
   const { toast } = useToast();
 
-  const [wizardOpen, setWizardOpen] = useState(false);
-  const [selectedBP, setSelectedBP] = useState<BusinessPlan | null>(null);
-  const [wizardMode, setWizardMode] = useState<'create' | 'edit'>('create');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [bpToDelete, setBpToDelete] = useState<BusinessPlan | null>(null);
 
   const hasBPs = businessPlans.length > 0;
 
   const handleCreate = () => {
-    setSelectedBP(null);
-    setWizardMode('create');
-    setWizardOpen(true);
+    navigate('/bp/editor/new');
   };
 
   const handleView = (bp: BusinessPlan) => {
-    // For now, open in edit mode to view
-    setSelectedBP(bp);
-    setWizardMode('edit');
-    setWizardOpen(true);
+    navigate(`/bp/editor/${bp.id}`);
   };
 
   const handleEdit = (bp: BusinessPlan) => {
-    setSelectedBP(bp);
-    setWizardMode('edit');
-    setWizardOpen(true);
+    navigate(`/bp/editor/${bp.id}`);
   };
 
   const handleDuplicate = async (bp: BusinessPlan) => {
@@ -69,7 +60,6 @@ export default function BPDashboard() {
   };
 
   const handleDownload = (bp: BusinessPlan) => {
-    // TODO: Implement PDF download
     toast({
       title: 'Export PDF',
       description: 'Fonctionnalité à venir',
@@ -134,14 +124,6 @@ export default function BPDashboard() {
           </Button>
         </motion.div>
       )}
-
-      {/* Wizard Dialog */}
-      <BPWizardDialog
-        open={wizardOpen}
-        onOpenChange={setWizardOpen}
-        businessPlan={selectedBP || undefined}
-        mode={wizardMode}
-      />
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
