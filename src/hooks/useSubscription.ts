@@ -65,6 +65,7 @@ export const useSubscription = () => {
       
       if (error) {
         console.error('Error checking subscription:', error);
+        setLoading(false);
         return;
       }
 

@@ -2,6 +2,7 @@ import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { AppHeader } from './AppHeader';
 import { AppBreadcrumb } from './AppBreadcrumb';
+import { TrialExpiredBlocker } from './TrialExpiredBlocker';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAppModeSync } from '@/hooks/useAppMode';
 
@@ -13,6 +14,7 @@ export function AppLayout() {
 
   return (
     <div className="min-h-screen bg-background overflow-visible">
+      <TrialExpiredBlocker />
       <Sidebar />
       
       <div className="ml-64 min-h-screen flex flex-col">
