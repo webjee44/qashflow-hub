@@ -3,6 +3,7 @@ import { Sidebar } from './Sidebar';
 import { AppHeader } from './AppHeader';
 import { AppBreadcrumb } from './AppBreadcrumb';
 import { TrialExpiredBlocker } from './TrialExpiredBlocker';
+import { ChatBubble } from '@/components/chat/ChatBubble';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAppModeSync } from '@/hooks/useAppMode';
 
@@ -36,6 +37,9 @@ export function AppLayout() {
           </AnimatePresence>
         </main>
       </div>
+      
+      {/* Chat flottant */}
+      <ChatBubble />
     </div>
   );
 }
