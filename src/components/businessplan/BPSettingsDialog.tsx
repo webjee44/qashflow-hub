@@ -5,8 +5,32 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useBPSettings } from '@/hooks/useBPSettings';
-import { Package, Wallet } from 'lucide-react';
+import { Package, Wallet, Calendar } from 'lucide-react';
+
+const MONTHS = [
+  { value: 1, label: 'Janvier' },
+  { value: 2, label: 'Février' },
+  { value: 3, label: 'Mars' },
+  { value: 4, label: 'Avril' },
+  { value: 5, label: 'Mai' },
+  { value: 6, label: 'Juin' },
+  { value: 7, label: 'Juillet' },
+  { value: 8, label: 'Août' },
+  { value: 9, label: 'Septembre' },
+  { value: 10, label: 'Octobre' },
+  { value: 11, label: 'Novembre' },
+  { value: 12, label: 'Décembre' },
+];
+
+const BP_DURATIONS = [
+  { value: 1, label: '1 an' },
+  { value: 2, label: '2 ans' },
+  { value: 3, label: '3 ans' },
+  { value: 4, label: '4 ans' },
+  { value: 5, label: '5 ans' },
+];
 
 interface BPSettingsDialogProps {
   open: boolean;
@@ -15,30 +39,44 @@ interface BPSettingsDialogProps {
 
 export function BPSettingsDialog({ open, onOpenChange }: BPSettingsDialogProps) {
   const { settings, updateSettings } = useBPSettings();
+  const [bpStartDate, setBpStartDate] = useState('');
+  const [bpYears, setBpYears] = useState(3);
+  const [fiscalMonth, setFiscalMonth] = useState(1);
   const [initialCash, setInitialCash] = useState('');
   const [customerDelay, setCustomerDelay] = useState('');
   const [supplierDelay, setSupplierDelay] = useState('');
-  const [projectionMonths, setProjectionMonths] = useState('');
   const [showStocks, setShowStocks] = useState(true);
   const [showFinancing, setShowFinancing] = useState(true);
 
   useEffect(() => {
     if (settings) {
+      setBpStartDate(settings.bp_start_date || new Date().toISOString().split('T')[0]);
+      setBpYears(settings.bp_years || 3);
+      setFiscalMonth(settings.fiscal_year_start_month || 1);
       setInitialCash(settings.initial_cash.toString());
       setCustomerDelay(settings.customer_payment_delay.toString());
       setSupplierDelay(settings.supplier_payment_delay.toString());
-      setProjectionMonths(settings.projection_months.toString());
       setShowStocks(settings.show_stocks ?? true);
       setShowFinancing(settings.show_financing ?? true);
     }
   }, [settings, open]);
 
+  const getFiscalYearDisplay = () => {
+    const startMonth = MONTHS.find(m => m.value === fiscalMonth)?.label || 'Janvier';
+    const endMonthIndex = fiscalMonth === 1 ? 12 : fiscalMonth - 1;
+    const endMonth = MONTHS.find(m => m.value === endMonthIndex)?.label || 'Décembre';
+    return `${startMonth} à ${endMonth}`;
+  };
+
   const handleSave = async () => {
     await updateSettings.mutateAsync({
+      bp_start_date: bpStartDate,
+      bp_years: bpYears,
+      fiscal_year_start_month: fiscalMonth,
+      fiscal_year_start_day: 1,
       initial_cash: parseFloat(initialCash) || 0,
       customer_payment_delay: parseInt(customerDelay) || 30,
       supplier_payment_delay: parseInt(supplierDelay) || 30,
-      projection_months: parseInt(projectionMonths) || 24,
       show_stocks: showStocks,
       show_financing: showFinancing,
     });
@@ -47,11 +85,68 @@ export function BPSettingsDialog({ open, onOpenChange }: BPSettingsDialogProps) 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[500px] max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Paramètres du Business Plan</DialogTitle>
         </DialogHeader>
         <div className="grid gap-4 py-4">
+          {/* Fiscal Year Settings */}
+          <div className="space-y-4">
+            <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <Calendar className="h-4 w-4" />
+              Exercice comptable
+            </h4>
+            
+            <div className="grid gap-2">
+              <Label htmlFor="bpStartDate">Date de début du Business Plan</Label>
+              <Input
+                id="bpStartDate"
+                type="date"
+                value={bpStartDate}
+                onChange={(e) => setBpStartDate(e.target.value)}
+              />
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="bpYears">Durée du BP</Label>
+                <Select value={bpYears.toString()} onValueChange={(v) => setBpYears(parseInt(v))}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {BP_DURATIONS.map((d) => (
+                      <SelectItem key={d.value} value={d.value.toString()}>
+                        {d.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="fiscalMonth">Début d'exercice</Label>
+                <Select value={fiscalMonth.toString()} onValueChange={(v) => setFiscalMonth(parseInt(v))}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MONTHS.map((m) => (
+                      <SelectItem key={m.value} value={m.value.toString()}>
+                        {m.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            
+            <p className="text-xs text-muted-foreground">
+              Exercice fiscal : {getFiscalYearDisplay()}
+            </p>
+          </div>
+
+          <Separator />
+
           {/* Modules Section */}
           <div className="space-y-4">
             <h4 className="text-sm font-medium text-muted-foreground">Modules actifs</h4>
@@ -132,18 +227,6 @@ export function BPSettingsDialog({ open, onOpenChange }: BPSettingsDialogProps) 
                   placeholder="30"
                 />
               </div>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="projectionMonths">Horizon de projection (mois)</Label>
-              <Input
-                id="projectionMonths"
-                type="number"
-                value={projectionMonths}
-                onChange={(e) => setProjectionMonths(e.target.value)}
-                placeholder="24"
-                min="12"
-                max="60"
-              />
             </div>
           </div>
         </div>
