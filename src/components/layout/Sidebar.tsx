@@ -14,13 +14,16 @@ import {
   Building2,
   GitBranch,
   Package,
-  LogOut
+  LogOut,
+  SlidersHorizontal
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useAppMode } from '@/hooks/useAppMode';
 import { Button } from '@/components/ui/button';
+import { BPSettingsDialog } from '@/components/businessplan/BPSettingsDialog';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import logo from '@/assets/logo.png';
 
 
@@ -58,6 +61,7 @@ const bottomNavItems: NavItem[] = [
 
 export function Sidebar() {
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [bpSettingsOpen, setBpSettingsOpen] = useState(false);
   const { user, signOut } = useAuth();
   const { mode, setMode, isBusinessPlan } = useAppMode();
   const location = useLocation();
@@ -114,9 +118,9 @@ export function Sidebar() {
         </button>
       </div>
 
-      {/* Mode indicator (collapsed shows current mode icon) */}
+      {/* Mode indicator + BP Settings (collapsed shows current mode icon) */}
       {isCollapsed && (
-        <div className="px-2 py-3 border-b border-border flex justify-center">
+        <div className="px-2 py-3 border-b border-border flex flex-col items-center gap-2">
           <div className="p-2 rounded-lg bg-primary/10">
             {isBusinessPlan ? (
               <FileSpreadsheet className="h-5 w-5 text-primary" />
@@ -124,6 +128,32 @@ export function Sidebar() {
               <Wallet className="h-5 w-5 text-primary" />
             )}
           </div>
+          {isBusinessPlan && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => setBpSettingsOpen(true)}
+                  className="p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                >
+                  <SlidersHorizontal className="h-4 w-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right">Paramètres du BP</TooltipContent>
+            </Tooltip>
+          )}
+        </div>
+      )}
+
+      {/* BP Settings Button (expanded) */}
+      {!isCollapsed && isBusinessPlan && (
+        <div className="px-4 py-3 border-b border-border">
+          <button
+            onClick={() => setBpSettingsOpen(true)}
+            className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            <SlidersHorizontal size={18} />
+            <span className="text-sm font-medium">Paramètres du BP</span>
+          </button>
         </div>
       )}
 
@@ -220,9 +250,12 @@ export function Sidebar() {
             >
               <LogOut className="h-4 w-4" />
             </button>
-          )}
+        )}
         </div>
       )}
+
+      {/* BP Settings Dialog */}
+      <BPSettingsDialog open={bpSettingsOpen} onOpenChange={setBpSettingsOpen} />
     </motion.aside>
   );
 }
