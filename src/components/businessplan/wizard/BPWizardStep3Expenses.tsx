@@ -5,16 +5,25 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Receipt, Users, Pencil, Trash2, Loader2 } from 'lucide-react';
+import { Plus, Receipt, Users, Pencil, Trash2, Loader2, ListPlus, X } from 'lucide-react';
 import { useBPFixedExpenses, BPFixedExpense, FIXED_EXPENSE_CATEGORIES } from '@/hooks/useBPFixedExpenses';
 import { useBPPersonnel, BPPersonnel } from '@/hooks/useBPPersonnel';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { toast } from 'sonner';
 
 interface BPWizardStep3ExpensesProps {
   businessPlanId?: string;
 }
+
+interface BulkExpenseRow {
+  name: string;
+  category: string;
+  monthly_amount: number;
+}
+
+const emptyBulkRow = (): BulkExpenseRow => ({ name: '', category: 'other', monthly_amount: 0 });
 
 export function BPWizardStep3Expenses({ businessPlanId }: BPWizardStep3ExpensesProps) {
   const [activeTab, setActiveTab] = useState('fixed');
@@ -44,6 +53,11 @@ export function BPWizardStep3Expenses({ businessPlanId }: BPWizardStep3ExpensesP
     vat_rate: 20,
     is_vat_deductible: true,
   });
+
+  // Bulk add state
+  const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
+  const [bulkRows, setBulkRows] = useState<BulkExpenseRow[]>([emptyBulkRow(), emptyBulkRow(), emptyBulkRow()]);
+  const [isBulkSaving, setIsBulkSaving] = useState(false);
 
   const [personnelDialogOpen, setPersonnelDialogOpen] = useState(false);
   const [editingPersonnel, setEditingPersonnel] = useState<BPPersonnel | null>(null);
@@ -105,6 +119,57 @@ export function BPWizardStep3Expenses({ businessPlanId }: BPWizardStep3ExpensesP
       });
     }
     setExpenseDialogOpen(false);
+  };
+
+  // Bulk Add Handlers
+  const handleOpenBulkDialog = () => {
+    setBulkRows([emptyBulkRow(), emptyBulkRow(), emptyBulkRow()]);
+    setBulkDialogOpen(true);
+  };
+
+  const handleBulkRowChange = (index: number, field: keyof BulkExpenseRow, value: string | number) => {
+    const newRows = [...bulkRows];
+    newRows[index] = { ...newRows[index], [field]: value };
+    setBulkRows(newRows);
+  };
+
+  const handleAddBulkRow = () => {
+    if (bulkRows.length < 10) {
+      setBulkRows([...bulkRows, emptyBulkRow()]);
+    }
+  };
+
+  const handleRemoveBulkRow = (index: number) => {
+    if (bulkRows.length > 1) {
+      setBulkRows(bulkRows.filter((_, i) => i !== index));
+    }
+  };
+
+  const handleSubmitBulk = async () => {
+    const validRows = bulkRows.filter(row => row.name.trim() && row.monthly_amount > 0);
+    if (validRows.length === 0) {
+      toast.error('Veuillez remplir au moins une ligne valide');
+      return;
+    }
+
+    setIsBulkSaving(true);
+    try {
+      for (const row of validRows) {
+        await createExpense.mutateAsync({
+          name: row.name,
+          category: row.category,
+          monthly_amount: row.monthly_amount,
+          vat_rate: 0.2,
+          is_vat_deductible: true,
+        });
+      }
+      toast.success(`${validRows.length} charge(s) ajoutée(s)`);
+      setBulkDialogOpen(false);
+    } catch (error) {
+      toast.error('Erreur lors de l\'ajout');
+    } finally {
+      setIsBulkSaving(false);
+    }
   };
 
   // Personnel Handlers
@@ -195,7 +260,11 @@ export function BPWizardStep3Expenses({ businessPlanId }: BPWizardStep3ExpensesP
         </TabsList>
 
         <TabsContent value="fixed" className="space-y-4">
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={handleOpenBulkDialog} className="gap-2">
+              <ListPlus className="h-4 w-4" />
+              Ajout en masse
+            </Button>
             <Button onClick={() => handleOpenExpenseDialog()} className="gap-2">
               <Plus className="h-4 w-4" />
               Ajouter une charge
@@ -416,6 +485,105 @@ export function BPWizardStep3Expenses({ businessPlanId }: BPWizardStep3ExpensesP
             <Button variant="outline" onClick={() => setPersonnelDialogOpen(false)}>Annuler</Button>
             <Button onClick={handleSubmitPersonnel} disabled={!personnelForm.position}>
               {editingPersonnel ? 'Enregistrer' : 'Créer'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Add Dialog */}
+      <Dialog open={bulkDialogOpen} onOpenChange={setBulkDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ListPlus className="h-5 w-5" />
+              Ajout en masse
+            </DialogTitle>
+            <DialogDescription>
+              Saisissez rapidement jusqu'à 10 charges fixes. Seules les lignes avec un nom et un montant seront créées.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-3">
+            {/* Header */}
+            <div className="grid grid-cols-[1fr_140px_140px_40px] gap-2 text-sm font-medium text-muted-foreground px-1">
+              <span>Nom de la charge</span>
+              <span>Catégorie</span>
+              <span>Montant/mois</span>
+              <span></span>
+            </div>
+            
+            {/* Rows */}
+            {bulkRows.map((row, index) => (
+              <div key={index} className="grid grid-cols-[1fr_140px_140px_40px] gap-2 items-center">
+                <Input
+                  placeholder="Ex: Loyer bureau"
+                  value={row.name}
+                  onChange={(e) => handleBulkRowChange(index, 'name', e.target.value)}
+                />
+                <Select 
+                  value={row.category} 
+                  onValueChange={(v) => handleBulkRowChange(index, 'category', v)}
+                >
+                  <SelectTrigger className="h-10">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(FIXED_EXPENSE_CATEGORIES).map(([key, { label }]) => (
+                      <SelectItem key={key} value={key}>{label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="relative">
+                  <Input
+                    type="number"
+                    placeholder="0"
+                    value={row.monthly_amount || ''}
+                    onChange={(e) => handleBulkRowChange(index, 'monthly_amount', Number(e.target.value))}
+                    className="pr-6"
+                  />
+                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">€</span>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => handleRemoveBulkRow(index)}
+                  disabled={bulkRows.length <= 1}
+                  className="h-8 w-8"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+            
+            {/* Add row button */}
+            {bulkRows.length < 10 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleAddBulkRow}
+                className="w-full gap-2"
+              >
+                <Plus className="h-4 w-4" />
+                Ajouter une ligne ({bulkRows.length}/10)
+              </Button>
+            )}
+          </div>
+
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setBulkDialogOpen(false)}>
+              Annuler
+            </Button>
+            <Button 
+              onClick={handleSubmitBulk} 
+              disabled={isBulkSaving || bulkRows.every(r => !r.name.trim() || r.monthly_amount <= 0)}
+              className="gap-2"
+            >
+              {isBulkSaving ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <ListPlus className="h-4 w-4" />
+              )}
+              Créer les charges
             </Button>
           </DialogFooter>
         </DialogContent>
