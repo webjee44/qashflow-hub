@@ -225,7 +225,7 @@ export default function BPEditor() {
         </div>
 
         {/* Tab Content */}
-        <div className="flex-1 overflow-auto">
+        <div className="flex-1 overflow-auto bg-muted/40">
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTab}
@@ -235,7 +235,7 @@ export default function BPEditor() {
               transition={{ duration: 0.2 }}
               className="h-full"
             >
-              <TabsContent value="settings" className="h-full m-0 p-6">
+              <TabsContent value="settings" className="h-full m-0 p-6 lg:p-8">
                 <BPWizardStep1Settings
                   businessPlan={currentBP}
                   onCreated={handleBPCreated}
@@ -243,23 +243,23 @@ export default function BPEditor() {
                 />
               </TabsContent>
 
-              <TabsContent value="revenue" className="h-full m-0 p-6">
+              <TabsContent value="revenue" className="h-full m-0 p-6 lg:p-8">
                 <BPWizardStep2Revenue businessPlanId={currentBP?.id} />
               </TabsContent>
 
-              <TabsContent value="expenses" className="h-full m-0 p-6">
+              <TabsContent value="expenses" className="h-full m-0 p-6 lg:p-8">
                 <BPWizardStep3Expenses businessPlanId={currentBP?.id} />
               </TabsContent>
 
-              <TabsContent value="investments" className="h-full m-0 p-6">
+              <TabsContent value="investments" className="h-full m-0 p-6 lg:p-8">
                 <BPWizardStep4Investments businessPlanId={currentBP?.id} />
               </TabsContent>
 
-              <TabsContent value="funding" className="h-full m-0 p-6">
+              <TabsContent value="funding" className="h-full m-0 p-6 lg:p-8">
                 <BPWizardStep5Funding businessPlanId={currentBP?.id} />
               </TabsContent>
 
-              <TabsContent value="summary" className="h-full m-0 p-6">
+              <TabsContent value="summary" className="h-full m-0 p-6 lg:p-8">
                 <BPWizardStep6Summary 
                   businessPlan={currentBP} 
                   onFinalize={handleFinalize}
