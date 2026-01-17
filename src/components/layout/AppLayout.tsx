@@ -5,6 +5,7 @@ import { AppBreadcrumb } from './AppBreadcrumb';
 import { TrialExpiredBlocker } from './TrialExpiredBlocker';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAppModeSync } from '@/hooks/useAppMode';
+import { useAuth } from '@/hooks/useAuth';
 import { useEffect } from 'react';
 
 // Widget de support externe
@@ -12,14 +13,18 @@ const SUPPORT_WIDGET_ID = 'qashflow-support'; // Remplacer par votre ID Widget
 
 export function AppLayout() {
   const location = useLocation();
+  const { user } = useAuth();
   
   // Auto-sync mode with current route
   useAppModeSync();
 
   // Charger le widget de support externe
   useEffect(() => {
-    // Éviter les doublons
-    if (document.getElementById('support-widget-script')) return;
+    // Supprimer l'ancien script si présent
+    const existingScript = document.getElementById('support-widget-script');
+    if (existingScript) {
+      existingScript.remove();
+    }
     
     const script = document.createElement('script');
     script.id = 'support-widget-script';
@@ -28,15 +33,21 @@ export function AppLayout() {
     script.setAttribute('data-api-key', SUPPORT_WIDGET_ID);
     script.setAttribute('data-color', '#6366f1'); // Primary color
     script.setAttribute('data-position', 'bottom-right');
+    
+    // Pré-remplir l'email si l'utilisateur est connecté
+    if (user?.email) {
+      script.setAttribute('data-email', user.email);
+    }
+    
     document.head.appendChild(script);
 
     return () => {
-      const existingScript = document.getElementById('support-widget-script');
-      if (existingScript) {
-        existingScript.remove();
+      const scriptToRemove = document.getElementById('support-widget-script');
+      if (scriptToRemove) {
+        scriptToRemove.remove();
       }
     };
-  }, []);
+  }, [user?.email]);
 
   return (
     <div className="min-h-screen bg-background overflow-visible">
