@@ -121,7 +121,10 @@ export function PersonnelDialog({ open, onOpenChange, personnel, onSave, default
     new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(value);
 
   const chargesBreakdown = [
-    { label: 'Maladie', value: detailedCharges.maladie, rate: grossSalaryMonthly > 0 ? detailedCharges.maladie / grossSalaryMonthly : 0 },
+    { label: 'Maladie (base)', value: detailedCharges.maladieBase, rate: URSSAF_RATES_2026.employer.maladie_base },
+    ...(isExecutive ? [
+      { label: 'Maladie complément (cadre)', value: detailedCharges.maladieComplementCadre, rate: URSSAF_RATES_2026.employer.maladie_complement_cadre },
+    ] : []),
     { label: 'CSA', value: detailedCharges.csa, rate: URSSAF_RATES_2026.employer.csa },
     { label: 'Vieillesse déplafonnée', value: detailedCharges.vieillesseDeplafonnee, rate: URSSAF_RATES_2026.employer.vieillesse_deplafonnee },
     { label: 'Vieillesse plafonnée', value: detailedCharges.vieillessePlafonnee, rate: grossSalaryMonthly > 0 ? detailedCharges.vieillessePlafonnee / grossSalaryMonthly : 0 },
@@ -131,13 +134,15 @@ export function PersonnelDialog({ open, onOpenChange, personnel, onSave, default
     { label: 'FNAL', value: detailedCharges.fnal, rate: grossSalaryMonthly > 0 ? detailedCharges.fnal / grossSalaryMonthly : 0 },
     { label: 'Formation', value: detailedCharges.formation, rate: grossSalaryMonthly > 0 ? detailedCharges.formation / grossSalaryMonthly : 0 },
     { label: 'Taxe apprentissage', value: detailedCharges.apprentissage, rate: URSSAF_RATES_2026.employer.apprentissage },
-    { label: 'AT/MP', value: detailedCharges.atMp, rate: URSSAF_RATES_2026.employer.at_mp },
-    { label: 'Retraite compl. T1', value: detailedCharges.retraiteComplementaireT1, rate: grossSalaryMonthly > 0 ? detailedCharges.retraiteComplementaireT1 / grossSalaryMonthly : 0 },
+    { label: 'AT/MP', value: detailedCharges.atMp, rate: URSSAF_RATES_2026.employer.at_mp.avg },
+    { label: 'Retraite compl. T1', value: detailedCharges.retraiteComplementaireT1, rate: URSSAF_RATES_2026.employer.retraite_complementaire.tranche1 },
     ...(isExecutive ? [
-      { label: 'Retraite compl. T2 (cadre)', value: detailedCharges.retraiteComplementaireT2, rate: grossSalaryMonthly > 0 ? detailedCharges.retraiteComplementaireT2 / grossSalaryMonthly : 0 },
-      { label: 'Prévoyance cadre', value: detailedCharges.prevoyanceCadre, rate: grossSalaryMonthly > 0 ? detailedCharges.prevoyanceCadre / grossSalaryMonthly : 0 },
+      { label: 'Retraite compl. T2 (cadre)', value: detailedCharges.retraiteComplementaireT2, rate: URSSAF_RATES_2026.employer.retraite_complementaire.tranche2 },
+      { label: 'APEC (cadre)', value: detailedCharges.apec, rate: URSSAF_RATES_2026.employer.apec },
+      { label: 'Prévoyance cadre', value: detailedCharges.prevoyanceCadre, rate: URSSAF_RATES_2026.employer.prevoyance_cadre },
     ] : []),
     { label: 'CET', value: detailedCharges.cet, rate: URSSAF_RATES_2026.employer.cet },
+    { label: 'Mutuelle (forfait)', value: detailedCharges.mutuelle, rate: grossSalaryMonthly > 0 ? detailedCharges.mutuelle / grossSalaryMonthly : 0 },
   ].filter(c => c.value > 0);
 
   return (

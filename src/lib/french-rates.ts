@@ -1,24 +1,43 @@
 // Taux URSSAF 2026 officiels - France
+// Source: URSSAF.fr, mise à jour janvier 2026
 export const URSSAF_RATES_2026 = {
   // Cotisations patronales (taux employeur)
   employer: {
-    maladie: { full: 0.13, reduced: 0.07 },           // 13% ou 7% (salaire ≤ 2.5 SMIC)
-    csa: 0.003,                                        // Contribution solidarité autonomie
-    vieillesse_deplafonnee: 0.0211,                    // 2.11%
-    vieillesse_plafonnee: 0.0855,                      // 8.55% (jusqu'au PASS)
+    // Assurance maladie
+    maladie_base: 0.07,                              // 7% base
+    maladie_complement_cadre: 0.06,                  // 6% complément cadres
+    csa: 0.003,                                      // 0.3% Contribution solidarité autonomie
+    
+    // Vieillesse
+    vieillesse_deplafonnee: 0.0202,                  // 2.02%
+    vieillesse_plafonnee: 0.0855,                    // 8.55% (jusqu'au PASS)
+    
+    // Famille
     allocations_familiales: { full: 0.0525, reduced: 0.0345 }, // 5.25% ou 3.45%
-    chomage: 0.0405,                                   // 4.05%
-    ags: 0.0015,                                       // 0.15%
-    fnal: { small: 0.001, large: 0.005 },             // 0.1% (<50) ou 0.5% (≥50)
-    formation: { small: 0.0055, large: 0.01 },        // 0.55% (<11) ou 1% (≥11)
-    apprentissage: 0.0068,                             // 0.68%
-    at_mp: 0.02,                                       // ~2% moyenne (variable selon activité)
+    
+    // Chômage
+    chomage: 0.0405,                                 // 4.05%
+    ags: 0.0015,                                     // 0.15%
+    
+    // Formation
+    fnal: { small: 0.001, large: 0.005 },           // 0.1% (<50) ou 0.5% (≥50)
+    formation: { small: 0.0055, large: 0.01 },      // 0.55% (<11) ou 1% (≥11)
+    apprentissage: 0.0068,                           // 0.68%
+    
+    // Accidents du travail (taux moyen, varie selon activité)
+    at_mp: { min: 0.0089, avg: 0.02, max: 0.05 },   // 0.89% à 5%, moyenne ~2%
+    
+    // Retraite complémentaire Agirc-Arrco
     retraite_complementaire: {
-      tranche1: { cadre: 0.0472, nonCadre: 0.0472 },   // Agirc-Arrco T1
-      tranche2: { cadre: 0.1295, nonCadre: 0 },        // Agirc-Arrco T2 (cadres)
+      tranche1: 0.0601,                              // 6.01% T1 (employeur)
+      tranche2: 0.1295,                              // 12.95% T2 cadres
     },
-    cet: 0.0014,                                       // Contribution d'équilibre technique
-    prevoyance_cadre: 0.015,                           // Prévoyance obligatoire cadres (1.5%)
+    cet: 0.0021,                                     // 0.21% Contribution équilibre technique
+    apec: 0.00036,                                   // 0.036% APEC (cadres)
+    
+    // Prévoyance & Mutuelle (cadres obligatoire)
+    prevoyance_cadre: 0.015,                         // 1.5% prévoyance obligatoire cadres
+    mutuelle_forfait_moyen: 150,                     // ~150€/mois forfait moyen mutuelle
   },
 
   // Plafonds 2026
@@ -31,7 +50,6 @@ export const URSSAF_RATES_2026 = {
 
   // Seuils pour réductions
   seuils: {
-    maladie_reduit: 2.5,          // × SMIC pour taux réduit maladie
     af_reduit: 3.5,               // × SMIC pour taux réduit alloc fam
   },
 };
@@ -105,7 +123,8 @@ export const INVESTMENT_CATEGORIES = [
 
 // Calcul des cotisations patronales détaillées
 export interface DetailedCharges {
-  maladie: number;
+  maladieBase: number;
+  maladieComplementCadre: number;
   csa: number;
   vieillesseDeplafonnee: number;
   vieillessePlafonnee: number;
@@ -119,7 +138,9 @@ export interface DetailedCharges {
   retraiteComplementaireT1: number;
   retraiteComplementaireT2: number;
   cet: number;
+  apec: number;
   prevoyanceCadre: number;
+  mutuelle: number;
   total: number;
 }
 
@@ -133,9 +154,8 @@ export function calculateDetailedCharges(
   const pass = rates.plafonds.pass_mensuel;
   const smic = rates.plafonds.smic_mensuel_brut;
   
-  // Déterminer les taux réduits
+  // Déterminer les taux réduits (alloc familiales < 3.5 SMIC)
   const salaryRatio = grossSalary / smic;
-  const useMaladieReduit = salaryRatio <= rates.seuils.maladie_reduit;
   const useAFReduit = salaryRatio <= rates.seuils.af_reduit;
   const isLarge = companySize === 'large';
   const isSmall = companySize === 'small';
@@ -146,21 +166,26 @@ export function calculateDetailedCharges(
   
   // Calculer chaque cotisation
   const charges: DetailedCharges = {
-    maladie: grossSalary * (useMaladieReduit ? rates.employer.maladie.reduced : rates.employer.maladie.full),
+    // Maladie: base 7% + complément 6% pour cadres
+    maladieBase: grossSalary * rates.employer.maladie_base,
+    maladieComplementCadre: isExecutive ? grossSalary * rates.employer.maladie_complement_cadre : 0,
     csa: grossSalary * rates.employer.csa,
     vieillesseDeplafonnee: grossSalary * rates.employer.vieillesse_deplafonnee,
     vieillessePlafonnee: tranche1 * rates.employer.vieillesse_plafonnee,
     allocationsFamiliales: grossSalary * (useAFReduit ? rates.employer.allocations_familiales.reduced : rates.employer.allocations_familiales.full),
-    chomage: contractType === 'intern' ? 0 : grossSalary * rates.employer.chomage,
-    ags: contractType === 'intern' ? 0 : grossSalary * rates.employer.ags,
+    chomage: contractType === 'intern' || contractType === 'stage' ? 0 : grossSalary * rates.employer.chomage,
+    ags: contractType === 'intern' || contractType === 'stage' ? 0 : grossSalary * rates.employer.ags,
     fnal: grossSalary * (isLarge ? rates.employer.fnal.large : rates.employer.fnal.small),
     formation: grossSalary * (isSmall ? rates.employer.formation.small : rates.employer.formation.large),
     apprentissage: grossSalary * rates.employer.apprentissage,
-    atMp: grossSalary * rates.employer.at_mp,
-    retraiteComplementaireT1: tranche1 * rates.employer.retraite_complementaire.tranche1.cadre,
-    retraiteComplementaireT2: isExecutive ? tranche2 * rates.employer.retraite_complementaire.tranche2.cadre : 0,
+    atMp: grossSalary * rates.employer.at_mp.avg,
+    retraiteComplementaireT1: tranche1 * rates.employer.retraite_complementaire.tranche1,
+    retraiteComplementaireT2: isExecutive ? tranche2 * rates.employer.retraite_complementaire.tranche2 : 0,
     cet: grossSalary * rates.employer.cet,
+    apec: isExecutive ? tranche1 * rates.employer.apec : 0,
     prevoyanceCadre: isExecutive ? tranche1 * rates.employer.prevoyance_cadre : 0,
+    // Mutuelle forfaitaire (obligatoire pour tous)
+    mutuelle: rates.employer.mutuelle_forfait_moyen,
     total: 0,
   };
   
