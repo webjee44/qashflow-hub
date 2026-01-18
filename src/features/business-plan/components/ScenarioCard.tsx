@@ -22,13 +22,34 @@ const ICONS: Record<string, React.ReactNode> = {
 export function ScenarioCard({ scenario, onEdit, onDelete }: ScenarioCardProps) {
   const { data } = useProfitLoss();
   
-  // Use first year data for scenario comparison
-  const baseRevenue = data.totals.revenue[0] || 0;
-  const baseExpenses = (data.totals.fixedExpenses[0] || 0) + (data.totals.personnelCosts[0] || 0);
+  // Calculate totals across all years for comprehensive scenario comparison
+  const totalRevenue = data.grandTotal.revenue || 0;
+  const totalExpenses = (
+    data.grandTotal.fixedExpenses + 
+    data.grandTotal.variableExpenses + 
+    data.grandTotal.personnelCosts + 
+    data.grandTotal.directorsCosts +
+    data.grandTotal.depreciation +
+    data.grandTotal.leaseExpenses
+  ) || 0;
   
-  const projectedRevenue = baseRevenue * Number(scenario.revenue_multiplier);
-  const projectedExpenses = baseExpenses * Number(scenario.expense_multiplier);
+  // Apply scenario multipliers
+  const projectedRevenue = totalRevenue * Number(scenario.revenue_multiplier);
+  const projectedExpenses = totalExpenses * Number(scenario.expense_multiplier);
   const projectedResult = projectedRevenue - projectedExpenses;
+
+  // Calculate Year 1 data for quick reference
+  const year1Revenue = data.totals.revenue[0] || 0;
+  const year1Expenses = (
+    (data.totals.fixedExpenses[0] || 0) + 
+    (data.totals.variableExpenses[0] || 0) + 
+    (data.totals.personnelCosts[0] || 0) + 
+    (data.totals.directorsCosts[0] || 0) +
+    (data.totals.depreciation[0] || 0) +
+    (data.totals.leaseExpenses[0] || 0)
+  );
+  const year1Result = (year1Revenue * Number(scenario.revenue_multiplier)) - 
+                      (year1Expenses * Number(scenario.expense_multiplier));
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('fr-FR', {
@@ -94,16 +115,35 @@ export function ScenarioCard({ scenario, onEdit, onDelete }: ScenarioCardProps) 
           </div>
 
           <div className="pt-3 border-t space-y-2">
+            <p className="text-xs text-muted-foreground font-medium mb-2">Année 1</p>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">CA projeté</span>
-              <span className="font-medium text-success">{formatCurrency(projectedRevenue)}</span>
+              <span className="font-medium text-success">{formatCurrency(year1Revenue * Number(scenario.revenue_multiplier))}</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Charges projetées</span>
+              <span className="font-medium text-destructive">{formatCurrency(year1Expenses * Number(scenario.expense_multiplier))}</span>
+            </div>
+            <div className="flex justify-between pt-2 border-t">
+              <span className="font-medium">Résultat A1</span>
+              <span className={`font-bold ${year1Result >= 0 ? 'text-success' : 'text-destructive'}`}>
+                {formatCurrency(year1Result)}
+              </span>
+            </div>
+          </div>
+
+          <div className="pt-3 border-t space-y-2">
+            <p className="text-xs text-muted-foreground font-medium mb-2">Total ({data.years.length} ans)</p>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">CA total</span>
+              <span className="font-medium text-success">{formatCurrency(projectedRevenue)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Charges totales</span>
               <span className="font-medium text-destructive">{formatCurrency(projectedExpenses)}</span>
             </div>
             <div className="flex justify-between pt-2 border-t">
-              <span className="font-medium">Résultat</span>
+              <span className="font-medium">Résultat cumulé</span>
               <span className={`font-bold ${projectedResult >= 0 ? 'text-success' : 'text-destructive'}`}>
                 {formatCurrency(projectedResult)}
               </span>
