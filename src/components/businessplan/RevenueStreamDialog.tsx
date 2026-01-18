@@ -72,9 +72,15 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
   }, [stream, open]);
 
   const handleSave = () => {
-    const rate2 = (parseFloat(growthRateYear2) || 10) / 100;
-    const rate3 = (parseFloat(growthRateYear3) || 10) / 100;
-    const rate4 = (parseFloat(growthRateYear4) || 10) / 100;
+    // Use isNaN check to allow 0 as a valid value
+    const parseRate = (value: string, defaultVal: number) => {
+      const parsed = parseFloat(value);
+      return isNaN(parsed) ? defaultVal : parsed;
+    };
+    
+    const rate2 = parseRate(growthRateYear2, 10) / 100;
+    const rate3 = parseRate(growthRateYear3, 10) / 100;
+    const rate4 = parseRate(growthRateYear4, 10) / 100;
     
     onSave({
       id: stream?.id,
@@ -84,8 +90,8 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
       model,
       initial_subscribers: parseInt(initialSubscribers) || 0,
       monthly_price: parseFloat(monthlyPrice) || 0,
-      churn_rate: (parseFloat(churnRate) || 5) / 100,
-      growth_rate: (parseFloat(growthRate) || 10) / 100,
+      churn_rate: parseRate(churnRate, 5) / 100,
+      growth_rate: parseRate(growthRate, 10) / 100,
       annual_growth_rate: rate2, // Keep for backwards compatibility
       growth_rate_year2: rate2,
       growth_rate_year3: rate3,
