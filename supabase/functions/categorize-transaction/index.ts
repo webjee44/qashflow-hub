@@ -1,9 +1,16 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+// ========== Zod Schema for request validation ==========
+const categorizeTransactionRequestSchema = z.object({
+  transactionIds: z.array(z.string()).min(1, 'Au moins un ID requis').max(100, 'Maximum 100 IDs'),
+  companyId: z.string().optional(),
+});
 
 interface Category {
   id: string;
@@ -32,22 +39,36 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { transactionIds, companyId } = await req.json();
-    
-    if (!transactionIds || !Array.isArray(transactionIds) || transactionIds.length === 0) {
-      return new Response(JSON.stringify({ error: 'transactionIds requis' }), {
+    // Parse and validate request body
+    let rawBody;
+    try {
+      rawBody = await req.json();
+    } catch {
+      return new Response(JSON.stringify({ error: 'Body JSON invalide' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
+    const validation = categorizeTransactionRequestSchema.safeParse(rawBody);
+    if (!validation.success) {
+      const errors = validation.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join(', ');
+      console.error('[categorize-transaction] Validation error:', errors);
+      return new Response(JSON.stringify({ error: `Validation échouée: ${errors}` }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const { transactionIds, companyId } = validation.data;
+
     // Limiter à 50 transactions à la fois pour éviter les timeouts
     const limitedIds = transactionIds.slice(0, 50);
-    console.log(`Processing ${limitedIds.length} transactions out of ${transactionIds.length}`);
+    console.log(`[categorize-transaction] Processing ${limitedIds.length} transactions out of ${transactionIds.length}`);
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
-      console.error("LOVABLE_API_KEY is not configured");
+      console.error("[categorize-transaction] LOVABLE_API_KEY is not configured");
       return new Response(JSON.stringify({ error: "Service IA non configuré" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -73,7 +94,7 @@ Deno.serve(async (req) => {
     const { data: transactions, error: txError } = await txQuery;
 
     if (txError) {
-      console.error('Error fetching transactions:', txError);
+      console.error('[categorize-transaction] Error fetching transactions:', txError);
       throw new Error(`Erreur de récupération des transactions: ${txError.message}`);
     }
 
@@ -96,7 +117,7 @@ Deno.serve(async (req) => {
     const { data: categories, error: catError } = await categoriesQuery;
 
     if (catError) {
-      console.error('Error fetching categories:', catError);
+      console.error('[categorize-transaction] Error fetching categories:', catError);
       throw catError;
     }
 
@@ -191,7 +212,7 @@ Réponds UNIQUEMENT au format JSON suivant, sans aucun texte avant ou après:
         });
       }
       const errorText = await response.text();
-      console.error("AI gateway error:", response.status, errorText);
+      console.error("[categorize-transaction] AI gateway error:", response.status, errorText);
       throw new Error("Erreur du service IA");
     }
 
@@ -209,7 +230,7 @@ Réponds UNIQUEMENT au format JSON suivant, sans aucun texte avant ou après:
       const cleanContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
       suggestions = JSON.parse(cleanContent);
     } catch (parseError) {
-      console.error('Error parsing AI response:', content);
+      console.error('[categorize-transaction] Error parsing AI response:', content);
       throw new Error("Format de réponse IA invalide");
     }
 
@@ -239,12 +260,14 @@ Réponds UNIQUEMENT au format JSON suivant, sans aucun texte avant ou après:
             confidence: suggestion.confidence
           });
         } else {
-          console.error('Error updating transaction:', suggestion.id, updateError);
+          console.error('[categorize-transaction] Error updating transaction:', suggestion.id, updateError);
         }
       } else {
-        console.warn('Category not found:', suggestion.category);
+        console.warn('[categorize-transaction] Category not found:', suggestion.category);
       }
     }
+
+    console.log(`[categorize-transaction] Successfully categorized ${categorizedCount}/${transactions.length} transactions`);
 
     return new Response(JSON.stringify({ 
       success: true, 
@@ -256,7 +279,7 @@ Réponds UNIQUEMENT au format JSON suivant, sans aucun texte avant ou après:
     });
 
   } catch (error) {
-    console.error("Categorization error:", error);
+    console.error("[categorize-transaction] Error:", error);
     return new Response(JSON.stringify({ 
       error: error instanceof Error ? error.message : "Erreur inconnue" 
     }), {

@@ -6,11 +6,15 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { 
   BridgeClient, 
-  BridgeTransaction,
   corsHeaders, 
   errorResponse, 
   successResponse 
 } from '../_shared/bridge-client.ts';
+import { 
+  bridgeAccountsRequestSchema, 
+  validateRequest, 
+  validationErrorResponse 
+} from '../_shared/validation.ts';
 
 Deno.serve(async (req) => {
   // Handle CORS preflight
@@ -29,25 +33,22 @@ Deno.serve(async (req) => {
       return errorResponse('Bridge API non configurée. Ajoutez BRIDGE_CLIENT_ID et BRIDGE_CLIENT_SECRET.');
     }
 
-    // Parse request body
-    let action = 'get-accounts';
-    let bridgeUserUuid: string | null = null;
-    let companyId: string | null = null;
-
+    // Parse and validate request body
+    let body = {};
     try {
-      const body = await req.json();
-      action = body.action || 'get-accounts';
-      bridgeUserUuid = body.bridge_user_uuid || null;
-      companyId = body.company_id || null;
+      body = await req.json();
     } catch {
-      // No body or invalid JSON
+      // Empty body - will fail validation
     }
 
+    const validation = validateRequest(bridgeAccountsRequestSchema, body);
+    if (!validation.success) {
+      console.error('[bridge-accounts] Validation error:', validation.error);
+      return validationErrorResponse(validation.error, corsHeaders);
+    }
+
+    const { action, bridge_user_uuid, company_id } = validation.data;
     console.info('[bridge-accounts] Action:', action);
-
-    if (!bridgeUserUuid) {
-      return errorResponse('bridge_user_uuid requis');
-    }
 
     // Authenticate user
     const authHeader = req.headers.get('Authorization');
@@ -70,7 +71,7 @@ Deno.serve(async (req) => {
     console.info('[bridge-accounts] User authenticated');
 
     // Get auth token
-    const authData = await bridgeClient.getAuthToken(bridgeUserUuid);
+    const authData = await bridgeClient.getAuthToken(bridge_user_uuid);
     bridgeClient.setAccessToken(authData.access_token);
 
     // ============================================
@@ -81,7 +82,7 @@ Deno.serve(async (req) => {
       const totalBalance = bridgeClient.calculateTotalBalance(allAccounts);
 
       // Update company balance if company_id provided
-      if (companyId) {
+      if (company_id) {
         const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
         await supabaseAdmin
           .from('companies')
@@ -89,7 +90,7 @@ Deno.serve(async (req) => {
             bank_balance: totalBalance,
             bank_balance_updated_at: new Date().toISOString()
           })
-          .eq('id', companyId);
+          .eq('id', company_id);
       }
 
       return successResponse({ 

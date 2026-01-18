@@ -7,10 +7,14 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { 
   BridgeClient, 
   corsHeaders, 
-  jsonResponse, 
   errorResponse, 
   successResponse 
 } from '../_shared/bridge-client.ts';
+import { 
+  bridgeAuthRequestSchema, 
+  validateRequest, 
+  validationErrorResponse 
+} from '../_shared/validation.ts';
 
 Deno.serve(async (req) => {
   // Handle CORS preflight
@@ -28,18 +32,21 @@ Deno.serve(async (req) => {
       return errorResponse('Bridge API non configurée. Ajoutez BRIDGE_CLIENT_ID et BRIDGE_CLIENT_SECRET.');
     }
 
-    // Parse request body
-    let action = 'get-auth-token';
-    let bridgeUserUuid: string | null = null;
-
+    // Parse and validate request body
+    let body = {};
     try {
-      const body = await req.json();
-      action = body.action || 'get-auth-token';
-      bridgeUserUuid = body.bridge_user_uuid || null;
+      body = await req.json();
     } catch {
-      // No body or invalid JSON
+      // Empty body is OK for default action
     }
 
+    const validation = validateRequest(bridgeAuthRequestSchema, body);
+    if (!validation.success) {
+      console.error('[bridge-auth] Validation error:', validation.error);
+      return validationErrorResponse(validation.error, corsHeaders);
+    }
+
+    const { action, bridge_user_uuid } = validation.data;
     console.info('[bridge-auth] Action:', action);
 
     // Authenticate user
@@ -75,11 +82,11 @@ Deno.serve(async (req) => {
     // Action: get-auth-token
     // ============================================
     if (action === 'get-auth-token') {
-      if (!bridgeUserUuid) {
+      if (!bridge_user_uuid) {
         return errorResponse('bridge_user_uuid requis');
       }
 
-      const authData = await bridgeClient.getAuthToken(bridgeUserUuid);
+      const authData = await bridgeClient.getAuthToken(bridge_user_uuid);
       return successResponse({ access_token: authData.access_token, expires_at: authData.expires_at });
     }
 
