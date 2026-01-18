@@ -118,8 +118,9 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
     }
 
     try {
+      // Use the secure view that masks emails for non-admin members
       const { data, error } = await supabase
-        .from('organization_members')
+        .from('organization_members_safe')
         .select('*')
         .eq('organization_id', currentOrganization.id);
 
