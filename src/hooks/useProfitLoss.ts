@@ -8,7 +8,7 @@ import { useInvestments } from './useInvestments';
 import { useFinancings } from './useFinancings';
 import { useBPSettings } from './useBPSettings';
 import { startOfMonth, addMonths, isWithinInterval, startOfDay } from 'date-fns';
-import { calculateIS, TVA_RATES_FR } from '@/lib/french-rates';
+import { calculateTaxByRegime, TVA_RATES_FR, TaxRegime } from '@/lib/french-rates';
 
 export interface PLRow {
   label: string;
@@ -261,16 +261,34 @@ export function useProfitLoss() {
     const rcaiValues = years.map((_, i) => operatingResultValues[i] + financialResultValues[i]);
     rows.push({ label: 'RÉSULTAT COURANT AVANT IMPÔTS (RCAI)', type: 'sig', values: rcaiValues });
 
-    // Impôt sur les sociétés (par année)
+    // Impôt selon le régime fiscal (par année)
+    const taxRegime = (settings.tax_regime || 'is') as TaxRegime;
     const isPME = settings.is_pme !== false;
-    const isValues = years.map((_, i) => {
+    
+    const taxValues = years.map((_, i) => {
       const yearResult = rcaiValues[i];
-      return calculateIS(Math.max(0, yearResult), isPME);
+      const yearRevenue = revenueValues[i];
+      
+      const taxResult = calculateTaxByRegime(Math.max(0, yearResult), taxRegime, {
+        isPME,
+        activityType: 'services',
+        chiffreAffaires: yearRevenue,
+      });
+      
+      return taxResult.tax;
     });
-    rows.push({ label: 'Impôt sur les sociétés', type: 'item', values: isValues, isExpense: true });
+    
+    // Label dynamique selon le régime
+    const taxLabel = taxRegime === 'is' 
+      ? 'Impôt sur les sociétés' 
+      : taxRegime === 'ir' 
+        ? 'Impôt sur le revenu' 
+        : 'Impôt (micro-entreprise)';
+    
+    rows.push({ label: taxLabel, type: 'item', values: taxValues, isExpense: true });
 
-    // Résultat Net = RCAI - IS
-    const netResultValues = years.map((_, i) => rcaiValues[i] - isValues[i]);
+    // Résultat Net = RCAI - Impôt
+    const netResultValues = years.map((_, i) => rcaiValues[i] - taxValues[i]);
     rows.push({ label: 'RÉSULTAT NET', type: 'total', values: netResultValues });
 
     // ═══════════════════════════════════════════════════════════════
@@ -334,7 +352,7 @@ export function useProfitLoss() {
       operatingResult: sumAll(operatingResultValues),
       financialResult: sumAll(financialResultValues),
       netResultBeforeTax: sumAll(rcaiValues),
-      corporateTax: sumAll(isValues),
+      corporateTax: sumAll(taxValues),
       netResult: sumAll(netResultValues),
       grossMarginPercent: totalRevenue > 0 ? ((totalRevenue - totalVariableExpenses) / totalRevenue) * 100 : 0,
       ebitdaMarginPercent: totalRevenue > 0 ? (sumAll(ebeValues) / totalRevenue) * 100 : 0,
@@ -355,7 +373,7 @@ export function useProfitLoss() {
         operatingResult: operatingResultValues,
         financialResult: financialResultValues,
         netResultBeforeTax: rcaiValues,
-        corporateTax: isValues,
+        corporateTax: taxValues,
         netResult: netResultValues,
       },
       grandTotal,

@@ -51,6 +51,22 @@ export const IS_RATES_FR = {
   plafond_taux_reduit: 42500,
 };
 
+// Barème IR France 2026 (revenus 2025)
+export const IR_BRACKETS_FR = [
+  { max: 11294, rate: 0 },       // 0%
+  { max: 28797, rate: 0.11 },    // 11%
+  { max: 82341, rate: 0.30 },    // 30%
+  { max: 177106, rate: 0.41 },   // 41%
+  { max: Infinity, rate: 0.45 }, // 45%
+];
+
+// Abattements micro-entreprise France 2026
+export const MICRO_ABATEMENTS_FR = {
+  services: 0.34,      // 34% d'abattement pour BNC/services
+  commerce: 0.71,      // 71% d'abattement pour BIC/commerce
+  mixed: 0.50,         // 50% d'abattement moyen
+};
+
 // Coefficients amortissement dégressif fiscal
 export const DEPRECIATION_COEFFICIENTS = {
   3: 1.25,  // 3-4 ans
@@ -168,7 +184,7 @@ export function getGlobalChargesRate(
   return charges.total / grossSalary;
 }
 
-// Calcul de l'IS
+// Calcul de l'IS (Impôt sur les Sociétés)
 export function calculateIS(resultatAvantIS: number, isPME: boolean): number {
   if (resultatAvantIS <= 0) return 0;
   
@@ -180,6 +196,120 @@ export function calculateIS(resultatAvantIS: number, isPME: boolean): number {
     return (plafond_taux_reduit * taux_reduit_pme) + ((resultatAvantIS - plafond_taux_reduit) * taux_normal);
   } else {
     return resultatAvantIS * taux_normal;
+  }
+}
+
+// Calcul de l'IR (Impôt sur le Revenu) - barème progressif
+export function calculateIR(revenuImposable: number): number {
+  if (revenuImposable <= 0) return 0;
+  
+  let impot = 0;
+  let previousMax = 0;
+  
+  for (const bracket of IR_BRACKETS_FR) {
+    if (revenuImposable <= previousMax) break;
+    
+    const taxableInBracket = Math.min(revenuImposable, bracket.max) - previousMax;
+    impot += taxableInBracket * bracket.rate;
+    previousMax = bracket.max;
+  }
+  
+  return impot;
+}
+
+// Calcul de l'impôt micro-entreprise (versement libératoire)
+export function calculateMicroTax(chiffreAffaires: number, activityType: 'services' | 'commerce' | 'mixed' = 'services'): number {
+  if (chiffreAffaires <= 0) return 0;
+  
+  // Abattement forfaitaire
+  const abatement = MICRO_ABATEMENTS_FR[activityType];
+  const beneficeImposable = chiffreAffaires * (1 - abatement);
+  
+  // Appliquer le barème IR sur le bénéfice imposable
+  return calculateIR(beneficeImposable);
+}
+
+// Calcul unifié selon le régime fiscal
+export type TaxRegime = 'is' | 'ir' | 'micro';
+
+export interface TaxCalculationResult {
+  tax: number;
+  regime: TaxRegime;
+  effectiveRate: number;
+  details: {
+    base: number;
+    abatement?: number;
+    brackets?: { amount: number; rate: number }[];
+  };
+}
+
+export function calculateTaxByRegime(
+  resultatAvantIS: number,
+  regime: TaxRegime,
+  options: {
+    isPME?: boolean;
+    activityType?: 'services' | 'commerce' | 'mixed';
+    chiffreAffaires?: number; // Pour micro, on peut utiliser le CA au lieu du résultat
+  } = {}
+): TaxCalculationResult {
+  const { isPME = true, activityType = 'services', chiffreAffaires } = options;
+  
+  switch (regime) {
+    case 'is': {
+      const tax = calculateIS(resultatAvantIS, isPME);
+      return {
+        tax,
+        regime: 'is',
+        effectiveRate: resultatAvantIS > 0 ? (tax / resultatAvantIS) * 100 : 0,
+        details: {
+          base: resultatAvantIS,
+          brackets: isPME && resultatAvantIS > IS_RATES_FR.plafond_taux_reduit
+            ? [
+                { amount: IS_RATES_FR.plafond_taux_reduit, rate: 15 },
+                { amount: resultatAvantIS - IS_RATES_FR.plafond_taux_reduit, rate: 25 },
+              ]
+            : [{ amount: resultatAvantIS, rate: isPME ? 15 : 25 }],
+        },
+      };
+    }
+    
+    case 'ir': {
+      const tax = calculateIR(resultatAvantIS);
+      return {
+        tax,
+        regime: 'ir',
+        effectiveRate: resultatAvantIS > 0 ? (tax / resultatAvantIS) * 100 : 0,
+        details: {
+          base: resultatAvantIS,
+        },
+      };
+    }
+    
+    case 'micro': {
+      // Pour micro, on utilise le CA si disponible, sinon le résultat
+      const base = chiffreAffaires ?? resultatAvantIS;
+      const abatement = MICRO_ABATEMENTS_FR[activityType];
+      const beneficeImposable = base * (1 - abatement);
+      const tax = calculateIR(beneficeImposable);
+      
+      return {
+        tax,
+        regime: 'micro',
+        effectiveRate: base > 0 ? (tax / base) * 100 : 0,
+        details: {
+          base,
+          abatement: abatement * 100,
+        },
+      };
+    }
+    
+    default:
+      return {
+        tax: 0,
+        regime: 'is',
+        effectiveRate: 0,
+        details: { base: 0 },
+      };
   }
 }
 
