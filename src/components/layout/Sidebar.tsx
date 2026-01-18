@@ -25,6 +25,7 @@ import { useState, useMemo } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useAppMode } from '@/hooks/useAppMode';
 import { useBPSettings } from '@/hooks/useBPSettings';
+import { useOnboarding } from '@/hooks/useOnboarding';
 import { Button } from '@/components/ui/button';
 import { BPSettingsDialog } from '@/components/businessplan/BPSettingsDialog';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -71,26 +72,34 @@ export function Sidebar() {
   const { user, signOut } = useAuth();
   const { mode, setMode, isBusinessPlan } = useAppMode();
   const { settings } = useBPSettings();
+  const { bpEnabled } = useOnboarding();
   const location = useLocation();
   const navigate = useNavigate();
   const currentPath = location.pathname;
+  
+  // If bpEnabled is true, hide treasury module entirely - only show BP
+  const showTreasuryModule = !bpEnabled;
 
   const handleSignOut = async () => {
     await signOut();
     navigate('/auth');
   };
   
-  // Filter nav items based on settings
+  // Filter nav items based on settings and bpEnabled
   const navItems = useMemo(() => {
-    if (!isBusinessPlan) return treasuryNavItems;
+    // If bpEnabled is true, always show BP nav items (no treasury)
+    if (bpEnabled || isBusinessPlan) {
+      return businessPlanNavItems.filter(item => {
+        if (item.key === 'stocks' && !settings.show_stocks) return false;
+        if (item.key === 'financing' && !settings.show_financing) return false;
+        if (item.key === 'funding' && !settings.show_financing) return false;
+        return true;
+      });
+    }
     
-    return businessPlanNavItems.filter(item => {
-      if (item.key === 'stocks' && !settings.show_stocks) return false;
-      if (item.key === 'financing' && !settings.show_financing) return false;
-      if (item.key === 'funding' && !settings.show_financing) return false;
-      return true;
-    });
-  }, [isBusinessPlan, settings.show_stocks, settings.show_financing]);
+    // Only show treasury if bpEnabled is false
+    return treasuryNavItems;
+  }, [bpEnabled, isBusinessPlan, settings.show_stocks, settings.show_financing]);
 
   const handleModeChange = (checked: boolean) => {
     const newMode = checked ? 'business-plan' : 'treasury';
@@ -139,13 +148,13 @@ export function Sidebar() {
       {isCollapsed && (
         <div className="px-2 py-3 border-b border-border flex flex-col items-center gap-2">
           <div className="p-2 rounded-lg bg-primary/10">
-            {isBusinessPlan ? (
+            {(bpEnabled || isBusinessPlan) ? (
               <FileSpreadsheet className="h-5 w-5 text-primary" />
             ) : (
               <Wallet className="h-5 w-5 text-primary" />
             )}
           </div>
-          {isBusinessPlan && (
+          {(bpEnabled || isBusinessPlan) && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
@@ -162,7 +171,7 @@ export function Sidebar() {
       )}
 
       {/* BP Settings Button (expanded) */}
-      {!isCollapsed && isBusinessPlan && (
+      {!isCollapsed && (bpEnabled || isBusinessPlan) && (
         <div className="px-4 py-3 border-b border-border space-y-1">
           <button
             data-tour-bp="settings"
