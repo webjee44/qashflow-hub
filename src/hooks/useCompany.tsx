@@ -116,6 +116,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
         queryClient.invalidateQueries({ queryKey: ['automationRules'] });
         
         // Invalidate Business Plan data (using underscores to match hook queryKeys)
+        queryClient.invalidateQueries({ queryKey: ['business_plans'] });
         queryClient.invalidateQueries({ queryKey: ['bp_settings'] });
         queryClient.invalidateQueries({ queryKey: ['bp_revenue_streams'] });
         queryClient.invalidateQueries({ queryKey: ['bp_revenue_forecasts'] });
@@ -128,6 +129,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
         queryClient.invalidateQueries({ queryKey: ['bp_stocks'] });
         queryClient.invalidateQueries({ queryKey: ['bp_scenarios'] });
         queryClient.invalidateQueries({ queryKey: ['bp_notes'] });
+        queryClient.invalidateQueries({ queryKey: ['bp_snapshots'] });
         
         toast.info(`Contexte changé vers ${company.name}`);
       }
