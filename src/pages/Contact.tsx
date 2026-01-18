@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Mail, Phone, MapPin, Send, MessageSquare, Loader2 } from 'lucide-react';
+import { Mail, MapPin, Send, MessageSquare, Loader2 } from 'lucide-react';
 import { SEOHead, generateBreadcrumbSchema } from '@/components/seo/SEOHead';
 import { toast } from 'sonner';
 import logo from '@/assets/logo.png';
@@ -211,23 +211,11 @@ export default function Contact() {
                   
                   <div className="flex items-start gap-4">
                     <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                      <Phone className="w-5 h-5 text-primary" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold">Téléphone</h3>
-                      <p className="text-muted-foreground">+33 1 XX XX XX XX</p>
-                      <p className="text-sm text-muted-foreground">Du lundi au vendredi, 9h-18h</p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
                       <MapPin className="w-5 h-5 text-primary" />
                     </div>
                     <div>
                       <h3 className="font-semibold">Adresse</h3>
-                      <p className="text-muted-foreground">Paris, France</p>
-                      <p className="text-sm text-muted-foreground">Sur rendez-vous uniquement</p>
+                      <p className="text-muted-foreground">44800 Saint-Herblain</p>
                     </div>
                   </div>
                 </div>
