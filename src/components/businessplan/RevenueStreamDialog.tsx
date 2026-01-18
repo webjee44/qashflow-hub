@@ -17,12 +17,12 @@ interface RevenueStreamDialogProps {
 
 const DEFAULT_COLOR = 'hsl(142, 76%, 36%)';
 
-type ModelType = 'fixed' | 'units' | 'growth' | 'subscription';
+type ModelType = 'variable' | 'subscription';
 
 export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: RevenueStreamDialogProps) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [model, setModel] = useState<ModelType>('fixed');
+  const [model, setModel] = useState<ModelType>('variable');
   
   // Subscription model fields
   const [initialSubscribers, setInitialSubscribers] = useState('0');
@@ -38,7 +38,9 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
     if (stream) {
       setName(stream.name);
       setDescription(stream.description || '');
-      setModel(stream.model);
+      // Map old models to new ones
+      const mappedModel = stream.model === 'subscription' ? 'subscription' : 'variable';
+      setModel(mappedModel);
       setInitialSubscribers(stream.initial_subscribers?.toString() || '0');
       setMonthlyPrice(stream.monthly_price?.toString() || '');
       setChurnRate(((stream.churn_rate || 0.05) * 100).toString());
@@ -48,7 +50,7 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
     } else {
       setName('');
       setDescription('');
-      setModel('fixed');
+      setModel('variable');
       setInitialSubscribers('0');
       setMonthlyPrice('');
       setChurnRate('5');
@@ -132,12 +134,15 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="fixed">Montant fixe mensuel</SelectItem>
-                <SelectItem value="units">Unités × Prix unitaire</SelectItem>
-                <SelectItem value="subscription">Abonnements SaaS (MRR)</SelectItem>
-                <SelectItem value="growth">Croissance progressive</SelectItem>
+                <SelectItem value="variable">CA variable (saisie mensuelle)</SelectItem>
+                <SelectItem value="subscription">Abonnement / SaaS (MRR)</SelectItem>
               </SelectContent>
             </Select>
+            <p className="text-xs text-muted-foreground">
+              {model === 'variable' 
+                ? 'Saisissez le CA mois par mois dans le tableau' 
+                : 'Calcul automatique basé sur les abonnés et le prix mensuel'}
+            </p>
           </div>
 
           {/* Year-specific growth rates (3-year BP: N+1 and N+2) */}

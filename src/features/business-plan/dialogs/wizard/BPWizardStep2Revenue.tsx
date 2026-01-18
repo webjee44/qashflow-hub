@@ -14,10 +14,8 @@ interface BPWizardStep2RevenueProps {
 }
 
 const REVENUE_MODELS = {
-  fixed: { label: 'Montant fixe', description: 'Revenus mensuels constants' },
-  subscription: { label: 'Abonnement', description: 'Modèle SaaS avec croissance et churn' },
-  units: { label: 'Par unité', description: 'Prix par unité vendue' },
-  growth: { label: 'Croissance', description: 'Croissance mensuelle progressive' },
+  variable: { label: 'CA variable', description: 'Saisie mensuelle manuelle' },
+  subscription: { label: 'Abonnement / SaaS', description: 'Modèle avec croissance et churn' },
 };
 
 export function BPWizardStep2Revenue({ businessPlanId }: BPWizardStep2RevenueProps) {
@@ -26,7 +24,7 @@ export function BPWizardStep2Revenue({ businessPlanId }: BPWizardStep2RevenuePro
   const [editingStream, setEditingStream] = useState<BPRevenueStream | null>(null);
   const [formData, setFormData] = useState({
     name: '',
-    model: 'fixed' as 'fixed' | 'units' | 'growth' | 'subscription',
+    model: 'variable' as 'variable' | 'subscription',
     monthly_price: 0,
     initial_subscribers: 0,
     growth_rate: 10,
@@ -44,9 +42,11 @@ export function BPWizardStep2Revenue({ businessPlanId }: BPWizardStep2RevenuePro
   const handleOpenDialog = (stream?: BPRevenueStream) => {
     if (stream) {
       setEditingStream(stream);
+      // Map old models to new ones
+      const mappedModel = stream.model === 'subscription' ? 'subscription' : 'variable';
       setFormData({
         name: stream.name,
-        model: stream.model,
+        model: mappedModel,
         monthly_price: Number(stream.monthly_price),
         initial_subscribers: stream.initial_subscribers,
         growth_rate: Number(stream.growth_rate) * 100,
@@ -56,7 +56,7 @@ export function BPWizardStep2Revenue({ businessPlanId }: BPWizardStep2RevenuePro
       setEditingStream(null);
       setFormData({
         name: '',
-        model: 'fixed',
+        model: 'variable',
         monthly_price: 0,
         initial_subscribers: 0,
         growth_rate: 10,

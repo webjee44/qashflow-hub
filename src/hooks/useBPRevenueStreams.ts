@@ -61,7 +61,7 @@ export function useBPRevenueStreams(businessPlanId?: string) {
           name: data.name || 'Nouveau flux',
           description: data.description || null,
           color: data.color || 'hsl(142, 76%, 36%)',
-          model: data.model || 'fixed',
+          model: data.model || 'variable',
           is_active: true,
           initial_subscribers: data.initial_subscribers || 0,
           monthly_price: data.monthly_price || 0,

@@ -12,7 +12,7 @@ export interface RevenueStream {
   name: string;
   description: string | null;
   color: string;
-  model: 'fixed' | 'units' | 'growth' | 'subscription';
+  model: 'variable' | 'subscription';
   is_active: boolean;
   // Subscription model fields
   initial_subscribers: number;
@@ -105,7 +105,7 @@ export function useRevenueStreams() {
           name: data.name || 'Nouveau flux',
           description: data.description || null,
           color: data.color || 'hsl(142, 76%, 36%)',
-          model: data.model || 'fixed',
+          model: data.model || 'variable',
           is_active: true,
           initial_subscribers: data.initial_subscribers || 0,
           monthly_price: data.monthly_price || 0,
@@ -219,7 +219,7 @@ export function useRevenueStreams() {
       return subscribers * (stream.monthly_price || 0);
     }
 
-    // For other models, use stored forecast
+    // For variable model, use stored forecast (manual entry)
     const monthStr = format(startOfMonth(month), 'yyyy-MM-dd');
     const forecast = forecasts.find(f => f.stream_id === streamId && f.month === monthStr);
     return forecast?.amount || 0;
