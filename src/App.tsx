@@ -44,6 +44,7 @@ import Scenarios from "./pages/BusinessPlan/Scenarios";
 import Stocks from "./pages/BusinessPlan/Stocks";
 import BalanceSheet from "./pages/BusinessPlan/BalanceSheet";
 import FundingPlan from "./pages/BusinessPlan/FundingPlan";
+import Team from "./pages/BusinessPlan/Team";
 
 // Super Admin pages
 import SuperAdminDashboard from "./pages/SuperAdmin/Dashboard";
@@ -102,6 +103,7 @@ const App = () => (
                   <Route path="/bp/synthese" element={<BPDashboard />} />
                   <Route path="/bp/revenus" element={<RevenueAssumptions />} />
                   <Route path="/bp/charges" element={<Expenses />} />
+                  <Route path="/bp/equipe" element={<Team />} />
                   <Route path="/bp/investissements" element={<Investments />} />
                   <Route path="/bp/pnl" element={<ProfitLoss />} />
                   <Route path="/bp/tresorerie" element={<CashFlow />} />
