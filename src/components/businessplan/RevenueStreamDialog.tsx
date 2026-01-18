@@ -38,8 +38,10 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
   const [churnRate, setChurnRate] = useState('5');
   const [growthRate, setGrowthRate] = useState('10');
   
-  // Annual growth rate for years 2+
-  const [annualGrowthRate, setAnnualGrowthRate] = useState('10');
+  // Year-specific annual growth rates
+  const [growthRateYear2, setGrowthRateYear2] = useState('10');
+  const [growthRateYear3, setGrowthRateYear3] = useState('10');
+  const [growthRateYear4, setGrowthRateYear4] = useState('10');
 
   useEffect(() => {
     if (stream) {
@@ -51,7 +53,9 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
       setMonthlyPrice(stream.monthly_price?.toString() || '');
       setChurnRate(((stream.churn_rate || 0.05) * 100).toString());
       setGrowthRate(((stream.growth_rate || 0.10) * 100).toString());
-      setAnnualGrowthRate(((stream.annual_growth_rate ?? 0.10) * 100).toString());
+      setGrowthRateYear2(((stream.growth_rate_year2 ?? stream.annual_growth_rate ?? 0.10) * 100).toString());
+      setGrowthRateYear3(((stream.growth_rate_year3 ?? stream.annual_growth_rate ?? 0.10) * 100).toString());
+      setGrowthRateYear4(((stream.growth_rate_year4 ?? stream.annual_growth_rate ?? 0.10) * 100).toString());
     } else {
       setName('');
       setDescription('');
@@ -61,11 +65,17 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
       setMonthlyPrice('');
       setChurnRate('5');
       setGrowthRate('10');
-      setAnnualGrowthRate('10');
+      setGrowthRateYear2('10');
+      setGrowthRateYear3('10');
+      setGrowthRateYear4('10');
     }
   }, [stream, open]);
 
   const handleSave = () => {
+    const rate2 = (parseFloat(growthRateYear2) || 10) / 100;
+    const rate3 = (parseFloat(growthRateYear3) || 10) / 100;
+    const rate4 = (parseFloat(growthRateYear4) || 10) / 100;
+    
     onSave({
       id: stream?.id,
       name,
@@ -76,7 +86,10 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
       monthly_price: parseFloat(monthlyPrice) || 0,
       churn_rate: (parseFloat(churnRate) || 5) / 100,
       growth_rate: (parseFloat(growthRate) || 10) / 100,
-      annual_growth_rate: (parseFloat(annualGrowthRate) || 10) / 100,
+      annual_growth_rate: rate2, // Keep for backwards compatibility
+      growth_rate_year2: rate2,
+      growth_rate_year3: rate3,
+      growth_rate_year4: rate4,
     });
     onOpenChange(false);
   };
@@ -151,26 +164,65 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
             </Select>
           </div>
 
-          {/* Annual growth rate for all models */}
-          <div className="grid gap-2 p-4 bg-muted/30 rounded-lg border">
-            <Label htmlFor="annualGrowth" className="flex items-center gap-2">
+          {/* Year-specific growth rates */}
+          <div className="grid gap-4 p-4 bg-muted/30 rounded-lg border">
+            <Label className="flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-primary" />
-              Taux de croissance annuel (Années 2+)
+              Taux de croissance annuels
             </Label>
-            <div className="flex items-center gap-2">
-              <Input
-                id="annualGrowth"
-                type="number"
-                value={annualGrowthRate}
-                onChange={(e) => setAnnualGrowthRate(e.target.value)}
-                placeholder="10"
-                className="w-24"
-              />
-              <span className="text-sm text-muted-foreground">%</span>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Appliqué automatiquement sur le CA de l'année 1 pour projeter les années suivantes
+            <p className="text-xs text-muted-foreground -mt-2">
+              Définissez un taux différent pour chaque année de projection
             </p>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="grid gap-1">
+                <Label htmlFor="growthYear2" className="text-xs text-muted-foreground">
+                  N+1 (Année 2)
+                </Label>
+                <div className="flex items-center gap-1">
+                  <Input
+                    id="growthYear2"
+                    type="number"
+                    value={growthRateYear2}
+                    onChange={(e) => setGrowthRateYear2(e.target.value)}
+                    placeholder="10"
+                    className="h-8"
+                  />
+                  <span className="text-xs text-muted-foreground">%</span>
+                </div>
+              </div>
+              <div className="grid gap-1">
+                <Label htmlFor="growthYear3" className="text-xs text-muted-foreground">
+                  N+2 (Année 3)
+                </Label>
+                <div className="flex items-center gap-1">
+                  <Input
+                    id="growthYear3"
+                    type="number"
+                    value={growthRateYear3}
+                    onChange={(e) => setGrowthRateYear3(e.target.value)}
+                    placeholder="10"
+                    className="h-8"
+                  />
+                  <span className="text-xs text-muted-foreground">%</span>
+                </div>
+              </div>
+              <div className="grid gap-1">
+                <Label htmlFor="growthYear4" className="text-xs text-muted-foreground">
+                  N+3 (Année 4)
+                </Label>
+                <div className="flex items-center gap-1">
+                  <Input
+                    id="growthYear4"
+                    type="number"
+                    value={growthRateYear4}
+                    onChange={(e) => setGrowthRateYear4(e.target.value)}
+                    placeholder="10"
+                    className="h-8"
+                  />
+                  <span className="text-xs text-muted-foreground">%</span>
+                </div>
+              </div>
+            </div>
           </div>
           {/* Subscription model specific fields */}
           {model === 'subscription' && (

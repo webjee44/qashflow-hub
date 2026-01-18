@@ -19,6 +19,11 @@ export interface BPRevenueStream {
   growth_rate: number;
   vat_rate: number;
   bad_debt_rate: number;
+  // Year-specific growth rates
+  annual_growth_rate: number;
+  growth_rate_year2: number;
+  growth_rate_year3: number;
+  growth_rate_year4: number;
   created_at: string;
   updated_at: string;
 }
@@ -64,6 +69,10 @@ export function useBPRevenueStreams(businessPlanId?: string) {
           growth_rate: data.growth_rate || 0.10,
           vat_rate: data.vat_rate || 0.20,
           bad_debt_rate: data.bad_debt_rate || 0,
+          annual_growth_rate: data.annual_growth_rate ?? 0.10,
+          growth_rate_year2: data.growth_rate_year2 ?? 0.10,
+          growth_rate_year3: data.growth_rate_year3 ?? 0.10,
+          growth_rate_year4: data.growth_rate_year4 ?? 0.10,
         })
         .select()
         .single();

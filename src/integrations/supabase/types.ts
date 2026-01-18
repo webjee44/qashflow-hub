@@ -593,6 +593,9 @@ export type Database = {
           created_at: string | null
           description: string | null
           growth_rate: number | null
+          growth_rate_year2: number | null
+          growth_rate_year3: number | null
+          growth_rate_year4: number | null
           id: string
           initial_subscribers: number | null
           is_active: boolean | null
@@ -613,6 +616,9 @@ export type Database = {
           created_at?: string | null
           description?: string | null
           growth_rate?: number | null
+          growth_rate_year2?: number | null
+          growth_rate_year3?: number | null
+          growth_rate_year4?: number | null
           id?: string
           initial_subscribers?: number | null
           is_active?: boolean | null
@@ -633,6 +639,9 @@ export type Database = {
           created_at?: string | null
           description?: string | null
           growth_rate?: number | null
+          growth_rate_year2?: number | null
+          growth_rate_year3?: number | null
+          growth_rate_year4?: number | null
           id?: string
           initial_subscribers?: number | null
           is_active?: boolean | null

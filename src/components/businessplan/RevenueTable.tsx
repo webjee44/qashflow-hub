@@ -192,8 +192,13 @@ export function RevenueTable({ onEditStream }: RevenueTableProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {streams.map((stream) => {
-              const annualGrowth = (stream.annual_growth_rate ?? 0.10) * 100;
+          {streams.map((stream) => {
+              // Year-specific growth rates
+              const growthRates = [
+                (stream.growth_rate_year2 ?? stream.annual_growth_rate ?? 0.10) * 100,
+                (stream.growth_rate_year3 ?? stream.annual_growth_rate ?? 0.10) * 100,
+                (stream.growth_rate_year4 ?? stream.annual_growth_rate ?? 0.10) * 100,
+              ];
               
               return (
                 <TableRow key={stream.id} className="group">
@@ -221,10 +226,21 @@ export function RevenueTable({ onEditStream }: RevenueTableProps) {
                           >
                             {stream.name}
                           </span>
-                          <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-                            <TrendingUp className="h-3 w-3" />
-                            +{annualGrowth.toFixed(0)}%/an
-                          </span>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="text-[10px] text-muted-foreground flex items-center gap-1 cursor-help">
+                                <TrendingUp className="h-3 w-3" />
+                                +{growthRates[0].toFixed(0)}% / +{growthRates[1].toFixed(0)}% / +{growthRates[2].toFixed(0)}%
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent side="right">
+                              <div className="text-xs space-y-1">
+                                <p>Croissance N+1: <strong>+{growthRates[0].toFixed(0)}%</strong></p>
+                                <p>Croissance N+2: <strong>+{growthRates[1].toFixed(0)}%</strong></p>
+                                <p>Croissance N+3: <strong>+{growthRates[2].toFixed(0)}%</strong></p>
+                              </div>
+                            </TooltipContent>
+                          </Tooltip>
                         </div>
                       )}
                     </div>
@@ -266,6 +282,7 @@ export function RevenueTable({ onEditStream }: RevenueTableProps) {
                   {fiscalYears.map((_, yearIndex) => {
                     const yearlyValue = getYearlyRevenue(stream.id, yearIndex, year1Months);
                     const isProjected = yearIndex > 0;
+                    const yearGrowthRate = yearIndex > 0 ? growthRates[yearIndex - 1] : 0;
                     
                     return (
                       <TableCell 
@@ -284,7 +301,7 @@ export function RevenueTable({ onEditStream }: RevenueTableProps) {
                               </span>
                             </TooltipTrigger>
                             <TooltipContent>
-                              <p>Année {yearIndex}: +{annualGrowth.toFixed(0)}% vs année précédente</p>
+                              <p>Année {yearIndex + 1}: +{yearGrowthRate.toFixed(0)}% vs année {yearIndex}</p>
                               <p className="text-xs text-muted-foreground">
                                 Calculé automatiquement
                               </p>
