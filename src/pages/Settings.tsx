@@ -41,8 +41,8 @@ export default function Settings() {
   };
 
   const handleStartTour = () => {
-    localStorage.setItem('show-onboarding-tour', 'true');
-    navigate('/previsions');
+    localStorage.setItem('show-bp-onboarding-tour', 'true');
+    navigate('/bp/revenus');
   };
 
   return (

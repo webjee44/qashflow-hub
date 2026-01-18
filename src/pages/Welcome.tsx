@@ -56,9 +56,9 @@ export default function Welcome() {
   }, [user, navigate]);
 
   const handleStart = () => {
-    // Store flag to trigger tour on dashboard
-    localStorage.setItem('show-onboarding-tour', 'true');
-    navigate('/previsions');
+    // Store flag to trigger BP tour
+    localStorage.setItem('show-bp-onboarding-tour', 'true');
+    navigate('/bp/revenus');
   };
 
   return (

@@ -77,7 +77,7 @@ export default function SignIn() {
 
   useEffect(() => {
     if (user && mode !== 'reset' && !isCheckingSession) {
-      navigate('/previsions');
+      navigate('/bp/revenus');
     }
   }, [user, navigate, mode, isCheckingSession]);
 
