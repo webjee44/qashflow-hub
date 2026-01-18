@@ -39,6 +39,27 @@ Deno.serve(async (req) => {
       });
     }
 
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+
+    // Create user client to validate auth
+    const supabaseUser = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+
+    // Verify the user is authenticated
+    const { data: { user }, error: authError } = await supabaseUser.auth.getUser();
+    if (authError || !user) {
+      console.error('[categorize-transaction] Auth error:', authError);
+      return new Response(JSON.stringify({ error: 'Non autorisé' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    console.log(`[categorize-transaction] Authenticated user: ${user.id}`);
+
     // Parse and validate request body
     let rawBody;
     try {
@@ -75,14 +96,14 @@ Deno.serve(async (req) => {
       });
     }
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    // Use service role client for queries but ALWAYS filter by authenticated user
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Fetch transactions to categorize - use filter instead of .in() for large arrays
+    // Fetch transactions to categorize - CRITICAL: Filter by user_id
     let txQuery = supabase
       .from('transactions')
       .select('id, description, amount, type')
+      .eq('user_id', user.id)  // CRITICAL: Only user's own transactions
       .is('category_id', null)
       .limit(50);
 
@@ -108,8 +129,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Fetch available categories
-    let categoriesQuery = supabase.from('categories').select('id, name, type');
+    // Fetch available categories - filter by user's categories
+    let categoriesQuery = supabase.from('categories').select('id, name, type').eq('user_id', user.id);
     if (companyId) {
       categoriesQuery = categoriesQuery.or(`company_id.eq.${companyId},company_id.is.null`);
     }
@@ -131,10 +152,11 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Fetch recent categorized transactions for context
+    // Fetch recent categorized transactions for context - filter by user
     let recentQuery = supabase
       .from('transactions')
       .select('description, category_id, categories(name)')
+      .eq('user_id', user.id)  // CRITICAL: Only user's own transactions
       .not('category_id', 'is', null)
       .order('created_at', { ascending: false })
       .limit(50);
@@ -244,13 +266,15 @@ Réponds UNIQUEMENT au format JSON suivant, sans aucun texte avant ou après:
       );
 
       if (category) {
+        // CRITICAL: Also filter by user_id on update to prevent modifying other users' transactions
         const { error: updateError } = await supabase
           .from('transactions')
           .update({ 
             category_id: category.id,
             ai_confidence: suggestion.confidence
           })
-          .eq('id', suggestion.id);
+          .eq('id', suggestion.id)
+          .eq('user_id', user.id);  // CRITICAL: Ensure ownership
 
         if (!updateError) {
           categorizedCount++;
