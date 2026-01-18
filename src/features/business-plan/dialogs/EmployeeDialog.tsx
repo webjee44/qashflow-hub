@@ -424,19 +424,72 @@ export function EmployeeDialog({ open, onOpenChange, employee, onSave }: Employe
                     </div>
                   </button>
                 </CollapsibleTrigger>
-                <CollapsibleContent className="mt-2 space-y-1">
+                <CollapsibleContent className="mt-2 space-y-3">
                   {customChargesRate && (
-                    <div className="mb-2 p-2 bg-green-500/10 rounded text-xs text-green-700">
+                    <div className="p-2 bg-green-500/10 rounded text-xs text-green-700">
                       Taux importé depuis la fiche de paie ({(customChargesRate * 100).toFixed(1)}%)
                     </div>
                   )}
-                  <div className="pl-3 border-l-2 border-muted space-y-1">
-                    {chargesBreakdown.map(charge => (
-                      <div key={charge.label} className="flex justify-between text-xs text-muted-foreground">
-                        <span>{charge.label} ({(charge.rate * 100).toFixed(2)}%)</span>
-                        <span>{formatCurrency(charge.value)}</span>
+                  
+                  {/* Mutuelle - Section dédiée */}
+                  {(customMutuelle || detailedCharges.mutuelle > 0) && (
+                    <div className="p-3 bg-blue-500/10 border border-blue-200 rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 bg-blue-500 rounded-full" />
+                          <span className="text-sm font-medium text-blue-800">Mutuelle employeur</span>
+                          {customMutuelle && (
+                            <span className="text-[10px] px-1.5 py-0.5 bg-blue-500/20 text-blue-700 rounded">
+                              Importé
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-sm font-semibold text-blue-800">
+                          {formatCurrency(customMutuelle ?? detailedCharges.mutuelle)}/mois
+                        </span>
                       </div>
-                    ))}
+                      {!customMutuelle && (
+                        <p className="text-xs text-blue-600 mt-1">
+                          Forfait estimé (50% part employeur)
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* AT/MP - Section dédiée si importé */}
+                  {customAtMpRate && (
+                    <div className="p-3 bg-amber-500/10 border border-amber-200 rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 bg-amber-500 rounded-full" />
+                          <span className="text-sm font-medium text-amber-800">AT/MP</span>
+                          <span className="text-[10px] px-1.5 py-0.5 bg-amber-500/20 text-amber-700 rounded">
+                            Importé
+                          </span>
+                        </div>
+                        <span className="text-sm font-semibold text-amber-800">
+                          {(customAtMpRate * 100).toFixed(2)}%
+                        </span>
+                      </div>
+                      <p className="text-xs text-amber-600 mt-1">
+                        Taux réel de votre entreprise
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Autres cotisations */}
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-2">Autres cotisations</p>
+                    <div className="pl-3 border-l-2 border-muted space-y-1">
+                      {chargesBreakdown
+                        .filter(c => c.label !== 'Mutuelle (forfait)' && (!customAtMpRate || c.label !== 'AT/MP'))
+                        .map(charge => (
+                          <div key={charge.label} className="flex justify-between text-xs text-muted-foreground">
+                            <span>{charge.label} ({(charge.rate * 100).toFixed(2)}%)</span>
+                            <span>{formatCurrency(charge.value)}</span>
+                          </div>
+                        ))}
+                    </div>
                   </div>
                 </CollapsibleContent>
               </Collapsible>
