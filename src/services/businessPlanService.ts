@@ -85,15 +85,6 @@ export const businessPlanService = {
     if (error) throw error;
   },
 
-  async delete(id: string): Promise<void> {
-    const { error } = await supabase
-      .from('business_plans')
-      .delete()
-      .eq('id', id);
-
-    if (error) throw error;
-  },
-
   async finalize(id: string): Promise<void> {
     const { error } = await supabase
       .from('business_plans')
@@ -105,36 +96,5 @@ export const businessPlanService = {
       .eq('id', id);
 
     if (error) throw error;
-  },
-
-  async duplicate(id: string, userId: string): Promise<BusinessPlan> {
-    // Get the original BP
-    const original = await this.getById(id);
-    if (!original) throw new Error('Business plan not found');
-
-    // Create a copy
-    const { data: newBP, error } = await supabase
-      .from('business_plans')
-      .insert({
-        user_id: userId,
-        company_id: original.company_id,
-        name: `${original.name} (copie)`,
-        status: 'draft',
-        description: original.description,
-        bp_start_date: original.bp_start_date,
-        bp_years: original.bp_years,
-        fiscal_year_start_month: original.fiscal_year_start_month,
-        fiscal_year_start_day: original.fiscal_year_start_day,
-        customer_payment_delay: original.customer_payment_delay,
-        supplier_payment_delay: original.supplier_payment_delay,
-        initial_cash: original.initial_cash,
-        tax_regime: original.tax_regime,
-        is_pme: original.is_pme,
-      })
-      .select()
-      .single();
-
-    if (error) throw error;
-    return newBP as BusinessPlan;
   },
 };

@@ -33,8 +33,6 @@ import StartVerify from "./pages/StartVerify";
 import StartWelcome from "./pages/StartWelcome";
 
 // Business Plan pages
-import BPDashboard from "./pages/BusinessPlan/Dashboard";
-
 import RevenueAssumptions from "./pages/BusinessPlan/RevenueAssumptions";
 import Expenses from "./pages/BusinessPlan/Expenses";
 import Investments from "./pages/BusinessPlan/Investments";
@@ -100,7 +98,6 @@ const App = () => (
                   
                   {/* Business Plan routes - Mono-BP architecture */}
                   <Route path="/bp" element={<Navigate to="/bp/revenus" replace />} />
-                  <Route path="/bp/synthese" element={<BPDashboard />} />
                   <Route path="/bp/revenus" element={<RevenueAssumptions />} />
                   <Route path="/bp/charges" element={<Expenses />} />
                   <Route path="/bp/equipe" element={<Team />} />
