@@ -97,26 +97,26 @@ export default function Settings() {
                 </CardContent>
               </Card>
 
-              {/* Module Business Plan */}
+              {/* Module Trésorerie (désactivable si BP activé) */}
               <Card className="bg-card border-border">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <TrendingUp className="h-5 w-5 text-primary" />
-                    Module Business Plan
+                    <Building2 className="h-5 w-5 text-primary" />
+                    Module Trésorerie
                   </CardTitle>
                   <CardDescription>
-                    Activez le module Business Plan pour créer des prévisionnels financiers complets.
+                    Désactivez le module Trésorerie pour n'utiliser que le Business Plan.
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="flex items-center justify-between">
                     <Label htmlFor="bp-toggle" className="text-sm">
-                      Activer le module Business Plan
+                      Activer le module Trésorerie
                     </Label>
                     <Switch
                       id="bp-toggle"
-                      checked={bpEnabled}
-                      onCheckedChange={toggleBP}
+                      checked={!bpEnabled}
+                      onCheckedChange={(checked) => toggleBP(!checked)}
                     />
                   </div>
                 </CardContent>

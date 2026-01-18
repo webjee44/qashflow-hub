@@ -104,7 +104,7 @@ export function useOnboarding(): UseOnboardingReturn {
   const [isActive, setIsActive] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [isCompleted, setIsCompleted] = useState(true); // Default to true to prevent auto-show
-  const [bpEnabled, setBpEnabled] = useState(false);
+  const [bpEnabled, setBpEnabled] = useState(true); // BP activé par défaut
 
   // Load onboarding state from profile
   useEffect(() => {
@@ -120,7 +120,7 @@ export function useOnboarding(): UseOnboardingReturn {
       if (!error && data) {
         setIsCompleted(data.onboarding_completed ?? false);
         setCurrentStep(data.onboarding_step ?? 0);
-        setBpEnabled(data.bp_enabled ?? false);
+        setBpEnabled(data.bp_enabled ?? true); // BP activé par défaut
 
         // Check if we should show tour (from welcome page click or not completed)
         const shouldShowTour = localStorage.getItem('show-onboarding-tour') === 'true';
