@@ -26,6 +26,10 @@ export interface BPPersonnel {
   worker_type: WorkerType;
   daily_rate: number | null;
   estimated_days_per_month: number | null;
+  // Payslip import fields
+  mutuelle_employer_amount: number | null;
+  at_mp_rate: number | null;
+  payslip_imported: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -63,8 +67,9 @@ export const personnelService = {
     const workerType = data.worker_type || 'employee';
     const isFreelance = workerType === 'freelance';
     
-    let chargesRate = 0;
-    if (!isFreelance) {
+    // Calculate charges rate if not provided (for payslip import, it's provided)
+    let chargesRate = data.employer_charges_rate ?? 0;
+    if (!isFreelance && chargesRate === 0 && !data.payslip_imported) {
       const grossSalary = data.gross_salary || 0;
       const isExecutive = data.is_executive ?? false;
       const companySize = (data.company_size || 'small') as 'small' | 'medium' | 'large';
@@ -89,6 +94,10 @@ export const personnelService = {
         worker_type: workerType,
         daily_rate: isFreelance ? (data.daily_rate || 0) : null,
         estimated_days_per_month: isFreelance ? (data.estimated_days_per_month || 0) : null,
+        // Payslip import fields
+        mutuelle_employer_amount: data.mutuelle_employer_amount ?? null,
+        at_mp_rate: data.at_mp_rate ?? null,
+        payslip_imported: data.payslip_imported ?? false,
       })
       .select()
       .single();
@@ -160,6 +169,21 @@ export const personnelService = {
     return {
       employees: personnel.filter(p => p.worker_type === 'employee' || p.worker_type === 'intern'),
       freelancers: personnel.filter(p => p.worker_type === 'freelance'),
+    };
+  },
+
+  calculateTotalCosts(personnel: BPPersonnel[]): {
+    totalEmployeeCost: number;
+    totalFreelanceCost: number;
+    totalMonthlyCost: number;
+  } {
+    const { employees, freelancers } = this.separateByType(personnel);
+    const totalEmployeeCost = employees.reduce((sum, p) => sum + this.getEmployeeMonthlyCost(p), 0);
+    const totalFreelanceCost = freelancers.reduce((sum, p) => sum + this.getFreelanceMonthlyCost(p), 0);
+    return {
+      totalEmployeeCost,
+      totalFreelanceCost,
+      totalMonthlyCost: totalEmployeeCost + totalFreelanceCost,
     };
   },
 };
