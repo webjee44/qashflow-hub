@@ -1,13 +1,13 @@
 // ============================================
-// useProfitLoss Hook - BP-aware version
-// Uses business_plan_id to fetch all related data
+// useProfitLoss Hook - Company-based version
+// Uses company_id to fetch all related data
 // ============================================
 
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { useCurrentBusinessPlan } from './useCurrentBusinessPlan';
+import { useCompany } from '@/hooks/useCompany';
 import { useBPSettings } from './useBPSettings';
 import { startOfMonth, addMonths, parseISO, format } from 'date-fns';
 import { calculateTaxByRegime, TVA_RATES_FR, TaxRegime, getGlobalChargesRate } from '@/lib/french-rates';
@@ -72,110 +72,110 @@ export interface PLData {
 
 export function useProfitLoss() {
   const { user } = useAuth();
-  const { currentPlan, isLoading: planLoading } = useCurrentBusinessPlan();
+  const { currentCompany } = useCompany();
   const { settings, isLoading: settingsLoading } = useBPSettings();
-  const businessPlanId = currentPlan?.id;
+  const companyId = currentCompany?.id;
 
-  // Fetch all BP data in parallel
+  // Fetch all BP data in parallel using company_id
   const { data: streams = [], isLoading: streamsLoading } = useQuery({
-    queryKey: ['bp_revenue_streams', businessPlanId],
+    queryKey: ['bp_revenue_streams', companyId],
     queryFn: async () => {
-      if (!businessPlanId) return [];
+      if (!companyId) return [];
       const { data, error } = await supabase
         .from('bp_revenue_streams')
         .select('*')
-        .eq('business_plan_id', businessPlanId);
+        .eq('company_id', companyId);
       if (error) throw error;
       return data || [];
     },
-    enabled: !!user && !!businessPlanId,
+    enabled: !!user && !!companyId,
   });
 
   const { data: fixedExpenses = [], isLoading: fixedLoading } = useQuery({
-    queryKey: ['bp_fixed_expenses', businessPlanId],
+    queryKey: ['bp_fixed_expenses', companyId],
     queryFn: async () => {
-      if (!businessPlanId) return [];
+      if (!companyId) return [];
       const { data, error } = await supabase
         .from('bp_fixed_expenses')
         .select('*')
-        .eq('business_plan_id', businessPlanId);
+        .eq('company_id', companyId);
       if (error) throw error;
       return data || [];
     },
-    enabled: !!user && !!businessPlanId,
+    enabled: !!user && !!companyId,
   });
 
   const { data: variableExpenses = [], isLoading: variableLoading } = useQuery({
-    queryKey: ['bp_variable_expenses', businessPlanId],
+    queryKey: ['bp_variable_expenses', companyId],
     queryFn: async () => {
-      if (!businessPlanId) return [];
+      if (!companyId) return [];
       const { data, error } = await supabase
         .from('bp_variable_expenses')
         .select('*')
-        .eq('business_plan_id', businessPlanId);
+        .eq('company_id', companyId);
       if (error) throw error;
       return data || [];
     },
-    enabled: !!user && !!businessPlanId,
+    enabled: !!user && !!companyId,
   });
 
   const { data: personnel = [], isLoading: personnelLoading } = useQuery({
-    queryKey: ['bp_personnel', businessPlanId],
+    queryKey: ['bp_personnel', companyId],
     queryFn: async () => {
-      if (!businessPlanId) return [];
+      if (!companyId) return [];
       const { data, error } = await supabase
         .from('bp_personnel')
         .select('*')
-        .eq('business_plan_id', businessPlanId);
+        .eq('company_id', companyId);
       if (error) throw error;
       return data || [];
     },
-    enabled: !!user && !!businessPlanId,
+    enabled: !!user && !!companyId,
   });
 
   const { data: directors = [], isLoading: directorsLoading } = useQuery({
-    queryKey: ['bp_directors', businessPlanId],
+    queryKey: ['bp_directors', companyId],
     queryFn: async () => {
-      if (!businessPlanId) return [];
+      if (!companyId) return [];
       const { data, error } = await supabase
         .from('bp_directors')
         .select('*')
-        .eq('business_plan_id', businessPlanId);
+        .eq('company_id', companyId);
       if (error) throw error;
       return data || [];
     },
-    enabled: !!user && !!businessPlanId,
+    enabled: !!user && !!companyId,
   });
 
   const { data: investments = [], isLoading: investmentsLoading } = useQuery({
-    queryKey: ['bp_investments', businessPlanId],
+    queryKey: ['bp_investments', companyId],
     queryFn: async () => {
-      if (!businessPlanId) return [];
+      if (!companyId) return [];
       const { data, error } = await supabase
         .from('bp_investments')
         .select('*')
-        .eq('business_plan_id', businessPlanId);
+        .eq('company_id', companyId);
       if (error) throw error;
       return data || [];
     },
-    enabled: !!user && !!businessPlanId,
+    enabled: !!user && !!companyId,
   });
 
   const { data: financings = [], isLoading: financingsLoading } = useQuery({
-    queryKey: ['bp_financings', businessPlanId],
+    queryKey: ['bp_financings', companyId],
     queryFn: async () => {
-      if (!businessPlanId) return [];
+      if (!companyId) return [];
       const { data, error } = await supabase
         .from('bp_financings')
         .select('*')
-        .eq('business_plan_id', businessPlanId);
+        .eq('company_id', companyId);
       if (error) throw error;
       return data || [];
     },
-    enabled: !!user && !!businessPlanId,
+    enabled: !!user && !!companyId,
   });
 
-  // Fetch forecasts by stream_ids (since forecasts may not have business_plan_id set)
+  // Fetch forecasts by stream_ids
   const streamIds = streams.map(s => s.id);
   const { data: forecasts = [], isLoading: forecastsLoading } = useQuery({
     queryKey: ['bp_revenue_forecasts_by_streams', streamIds],
@@ -191,7 +191,7 @@ export function useProfitLoss() {
     enabled: !!user && streamIds.length > 0,
   });
 
-  const isLoading = planLoading || settingsLoading || streamsLoading || fixedLoading || variableLoading || 
+  const isLoading = settingsLoading || streamsLoading || fixedLoading || variableLoading || 
                     personnelLoading || directorsLoading || investmentsLoading || 
                     financingsLoading || forecastsLoading;
 
@@ -265,7 +265,7 @@ export function useProfitLoss() {
     if (!stream) return 0;
 
     if (stream.model === 'subscription') {
-      const startMonth = startOfMonth(new Date(currentPlan?.bp_start_date || new Date()));
+      const startMonth = startOfMonth(new Date(settings.bp_start_date || new Date()));
       const targetMonth = startOfMonth(month);
       const monthsDiff = Math.round((targetMonth.getTime() - startMonth.getTime()) / (1000 * 60 * 60 * 24 * 30));
       if (monthsDiff < 0) return 0;
@@ -343,12 +343,12 @@ export function useProfitLoss() {
     return (expense.unit_cost || 0);
   };
 
-  // Build fiscal years from business plan settings
+  // Build fiscal years from settings
   const getFiscalYears = (): FiscalYear[] => {
-    const startDate = currentPlan?.bp_start_date ? new Date(currentPlan.bp_start_date) : new Date();
-    const startMonth = currentPlan?.fiscal_year_start_month || 1;
-    const startDay = currentPlan?.fiscal_year_start_day || 1;
-    const numYears = currentPlan?.bp_years || 3;
+    const startDate = settings.bp_start_date ? new Date(settings.bp_start_date) : new Date();
+    const startMonth = settings.fiscal_year_start_month || 1;
+    const startDay = settings.fiscal_year_start_day || 1;
+    const numYears = settings.bp_years || 3;
 
     const years: FiscalYear[] = [];
     let fiscalYearStart = new Date(startDate.getFullYear(), startMonth - 1, startDay);
@@ -514,8 +514,8 @@ export function useProfitLoss() {
     rows.push({ label: 'RÉSULTAT COURANT AVANT IMPÔTS (RCAI)', type: 'sig', values: rcaiValues });
 
     // Impôt
-    const taxRegime = (currentPlan?.tax_regime || 'is') as TaxRegime;
-    const isPME = currentPlan?.is_pme !== false;
+    const taxRegime = (settings.tax_regime || 'is') as TaxRegime;
+    const isPME = settings.is_pme !== false;
     
     const taxValues = years.map((_, i) => {
       const yearResult = rcaiValues[i];
@@ -601,7 +601,7 @@ export function useProfitLoss() {
         balance: tvaBalanceValues,
       },
     };
-  }, [streams, fixedExpenses, variableExpenses, personnel, directors, investments, financings, forecasts, currentPlan]);
+  }, [streams, fixedExpenses, variableExpenses, personnel, directors, investments, financings, forecasts, settings]);
 
   const getBreakEvenYear = (): number | null => {
     let cumulative = 0;

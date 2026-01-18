@@ -40,18 +40,18 @@ export type BPFixedExpenseInsert = Partial<Omit<BPFixedExpense, 'id' | 'created_
 export type BPFixedExpenseUpdate = Partial<Omit<BPFixedExpense, 'id' | 'user_id' | 'created_at' | 'updated_at'>>;
 
 export const fixedExpenseService = {
-  async getByBusinessPlanId(businessPlanId: string): Promise<BPFixedExpense[]> {
+  async getByCompanyId(companyId: string): Promise<BPFixedExpense[]> {
     const { data, error } = await supabase
       .from('bp_fixed_expenses')
       .select('*')
-      .eq('business_plan_id', businessPlanId)
+      .eq('company_id', companyId)
       .order('category', { ascending: true });
 
     if (error) throw error;
     return (data || []) as BPFixedExpense[];
   },
 
-  async create(userId: string, businessPlanId: string, data: BPFixedExpenseInsert): Promise<BPFixedExpense> {
+  async create(userId: string, companyId: string, data: BPFixedExpenseInsert): Promise<BPFixedExpense> {
     const frequency = data.payment_frequency || 'monthly';
     const paymentMonths = data.payment_months || DEFAULT_PAYMENT_MONTHS[frequency];
 
@@ -59,7 +59,7 @@ export const fixedExpenseService = {
       .from('bp_fixed_expenses')
       .insert({
         user_id: userId,
-        business_plan_id: businessPlanId,
+        company_id: companyId,
         name: data.name || 'Nouvelle charge',
         category: data.category || 'other',
         monthly_amount: data.monthly_amount || 0,

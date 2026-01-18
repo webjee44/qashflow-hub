@@ -36,23 +36,23 @@ export type BPInvestmentInsert = Partial<Omit<BPInvestment, 'id' | 'created_at' 
 export type BPInvestmentUpdate = Partial<Omit<BPInvestment, 'id' | 'user_id' | 'created_at' | 'updated_at'>>;
 
 export const investmentService = {
-  async getByBusinessPlanId(businessPlanId: string): Promise<BPInvestment[]> {
+  async getByCompanyId(companyId: string): Promise<BPInvestment[]> {
     const { data, error } = await supabase
       .from('bp_investments')
       .select('*')
-      .eq('business_plan_id', businessPlanId)
+      .eq('company_id', companyId)
       .order('purchase_date', { ascending: true });
 
     if (error) throw error;
     return (data || []) as BPInvestment[];
   },
 
-  async create(userId: string, businessPlanId: string, data: BPInvestmentInsert): Promise<BPInvestment> {
+  async create(userId: string, companyId: string, data: BPInvestmentInsert): Promise<BPInvestment> {
     const { data: newInvestment, error } = await supabase
       .from('bp_investments')
       .insert({
         user_id: userId,
-        business_plan_id: businessPlanId,
+        company_id: companyId,
         name: data.name || 'Nouvel investissement',
         category: data.category || 'equipment',
         purchase_date: data.purchase_date || format(new Date(), 'yyyy-MM-dd'),

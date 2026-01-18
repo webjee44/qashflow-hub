@@ -1,10 +1,12 @@
 // ============================================
 // useBPPersonnel Hook
 // Uses personnelService for data operations
+// Now uses company_id instead of business_plan_id
 // ============================================
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
+import { useCompany } from '@/hooks/useCompany';
 import { toast } from 'sonner';
 import { 
   personnelService, 
@@ -19,17 +21,19 @@ import {
 export type { BPPersonnel, WorkerType };
 export { WORKER_TYPES, CONTRACT_TYPES };
 
-export function useBPPersonnel(businessPlanId?: string) {
+export function useBPPersonnel() {
   const { user } = useAuth();
+  const { currentCompany } = useCompany();
   const queryClient = useQueryClient();
+  const companyId = currentCompany?.id;
 
   const { data: personnel = [], isLoading } = useQuery({
-    queryKey: ['bp_personnel', businessPlanId],
+    queryKey: ['bp_personnel', companyId],
     queryFn: async () => {
-      if (!businessPlanId) return [];
-      return personnelService.getByBusinessPlanId(businessPlanId);
+      if (!companyId) return [];
+      return personnelService.getByCompanyId(companyId);
     },
-    enabled: !!user && !!businessPlanId,
+    enabled: !!user && !!companyId,
   });
 
   // Use service utility for separation
@@ -37,11 +41,11 @@ export function useBPPersonnel(businessPlanId?: string) {
 
   const createPersonnel = useMutation({
     mutationFn: async (data: BPPersonnelInsert) => {
-      if (!user || !businessPlanId) throw new Error('Not authenticated or no BP');
-      return personnelService.create(user.id, businessPlanId, data);
+      if (!user || !companyId) throw new Error('Not authenticated or no company');
+      return personnelService.create(user.id, companyId, data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['bp_personnel', businessPlanId] });
+      queryClient.invalidateQueries({ queryKey: ['bp_personnel', companyId] });
       toast.success('Membre ajouté');
     },
     onError: (error) => {
@@ -54,7 +58,7 @@ export function useBPPersonnel(businessPlanId?: string) {
       await personnelService.update(id, data, personnel);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['bp_personnel', businessPlanId] });
+      queryClient.invalidateQueries({ queryKey: ['bp_personnel', companyId] });
       toast.success('Membre mis à jour');
     },
     onError: (error) => {
@@ -67,7 +71,7 @@ export function useBPPersonnel(businessPlanId?: string) {
       await personnelService.delete(id);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['bp_personnel', businessPlanId] });
+      queryClient.invalidateQueries({ queryKey: ['bp_personnel', companyId] });
       toast.success('Membre supprimé');
     },
     onError: (error) => {
