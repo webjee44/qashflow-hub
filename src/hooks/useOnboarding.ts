@@ -1,7 +1,6 @@
-import { useState, useEffect, useCallback, useSyncExternalStore } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
-import { toast } from 'sonner';
 
 interface OnboardingStep {
   id: string;
@@ -84,13 +83,10 @@ const ONBOARDING_STEPS: OnboardingStep[] = [
   },
 ];
 
-// Cross-component state store for bpEnabled.
-// We mirror it into localStorage so ANY component instance (even after HMR reloads)
-// reads the same value immediately.
+// Shared bp_enabled state via localStorage + custom event.
+// This avoids useSyncExternalStore (which is crashing in this environment) while
+// still keeping Sidebar/Settings in sync.
 const BP_ENABLED_STORAGE_KEY = 'bp_enabled';
-
-let globalBpEnabled = true;
-const listeners = new Set<() => void>();
 
 function readStoredBpEnabled(): boolean {
   const raw = localStorage.getItem(BP_ENABLED_STORAGE_KEY);
@@ -98,39 +94,11 @@ function readStoredBpEnabled(): boolean {
   return raw === 'true';
 }
 
-function subscribeToBpEnabled(callback: () => void) {
-  listeners.add(callback);
-
-  const onStorage = (e: StorageEvent) => {
-    if (e.key === BP_ENABLED_STORAGE_KEY) callback();
-  };
-
-  const onCustom = () => callback();
-
-  window.addEventListener('storage', onStorage);
-  window.addEventListener('bp-enabled-changed', onCustom);
-
-  return () => {
-    listeners.delete(callback);
-    window.removeEventListener('storage', onStorage);
-    window.removeEventListener('bp-enabled-changed', onCustom);
-  };
-}
-
-function getBpEnabledSnapshot() {
-  // Always read from localStorage for consistency.
-  globalBpEnabled = readStoredBpEnabled();
-  return globalBpEnabled;
-}
-
-function setBpEnabledGlobal(value: boolean) {
-  globalBpEnabled = value;
+function writeStoredBpEnabled(value: boolean) {
   localStorage.setItem(BP_ENABLED_STORAGE_KEY, String(value));
-  // Notify in-tab subscribers
   window.dispatchEvent(new Event('bp-enabled-changed'));
-  // Notify direct listeners (extra safety)
-  listeners.forEach((listener) => listener());
 }
+
 
 interface UseOnboardingReturn {
   isActive: boolean;
@@ -153,9 +121,35 @@ export function useOnboarding(): UseOnboardingReturn {
   const [isActive, setIsActive] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [isCompleted, setIsCompleted] = useState(true);
+  const [bpEnabled, setBpEnabled] = useState<boolean>(() => {
+    // Guard in case localStorage isn't available yet
+    try {
+      return readStoredBpEnabled();
+    } catch {
+      return true;
+    }
+  });
 
-  // Use useSyncExternalStore for cross-component state sharing
-  const bpEnabled = useSyncExternalStore(subscribeToBpEnabled, getBpEnabledSnapshot);
+  useEffect(() => {
+    const sync = () => {
+      try {
+        setBpEnabled(readStoredBpEnabled());
+      } catch {
+        // ignore
+      }
+    };
+
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === BP_ENABLED_STORAGE_KEY) sync();
+    };
+
+    window.addEventListener('storage', onStorage);
+    window.addEventListener('bp-enabled-changed', sync);
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener('bp-enabled-changed', sync);
+    };
+  }, []);
 
   // Load onboarding state from profile
   useEffect(() => {
@@ -176,7 +170,8 @@ export function useOnboarding(): UseOnboardingReturn {
       if (data) {
         setIsCompleted(data.onboarding_completed ?? false);
         setCurrentStep(data.onboarding_step ?? 0);
-        setBpEnabledGlobal(data.bp_enabled ?? true);
+        writeStoredBpEnabled(data.bp_enabled ?? true);
+        setBpEnabled(data.bp_enabled ?? true);
 
         const shouldShowTour = localStorage.getItem('show-onboarding-tour') === 'true';
         if (shouldShowTour) {
@@ -246,7 +241,8 @@ export function useOnboarding(): UseOnboardingReturn {
       .update({ bp_enabled: true })
       .eq('id', user.id);
 
-    setBpEnabledGlobal(true);
+    writeStoredBpEnabled(true);
+    setBpEnabled(true);
   }, [user]);
 
   const toggleBP = useCallback(async (enabled: boolean) => {
@@ -257,7 +253,8 @@ export function useOnboarding(): UseOnboardingReturn {
       .update({ bp_enabled: enabled })
       .eq('id', user.id);
 
-    setBpEnabledGlobal(enabled);
+    writeStoredBpEnabled(enabled);
+    setBpEnabled(enabled);
   }, [user]);
 
   return {
