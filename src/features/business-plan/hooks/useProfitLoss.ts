@@ -1,19 +1,21 @@
+// ============================================
+// useProfitLoss Hook - BP-aware version
+// Uses business_plan_id to fetch all related data
+// ============================================
+
 import { useMemo } from 'react';
-import { useRevenueStreams } from './useRevenueStreams';
-import { useFixedExpenses } from './useFixedExpenses';
-import { useVariableExpenses } from './useVariableExpenses';
-import { usePersonnel } from './usePersonnel';
-import { useDirectors } from './useDirectors';
-import { useInvestments } from './useInvestments';
-import { useFinancings } from './useFinancings';
-import { useBPSettings } from './useBPSettings';
-import { startOfMonth, addMonths, isWithinInterval, startOfDay } from 'date-fns';
-import { calculateTaxByRegime, TVA_RATES_FR, TaxRegime } from '@/lib/french-rates';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
+import { useCurrentBusinessPlan } from './useCurrentBusinessPlan';
+import { startOfMonth, addMonths, parseISO, format } from 'date-fns';
+import { calculateTaxByRegime, TVA_RATES_FR, TaxRegime, getGlobalChargesRate } from '@/lib/french-rates';
+import { PAYMENT_FREQUENCIES, DEFAULT_PAYMENT_MONTHS } from '@/constants/bpConstants';
 
 export interface PLRow {
   label: string;
   type: 'header' | 'item' | 'subtotal' | 'total' | 'sig';
-  values: number[]; // Now represents years instead of months
+  values: number[];
   isExpense?: boolean;
   indent?: number;
 }
@@ -68,33 +70,308 @@ export interface PLData {
 }
 
 export function useProfitLoss() {
-  const { streams, getForecast, isLoading: revenueLoading } = useRevenueStreams();
-  const { expenses, getTotalForMonth: getExpensesTotal, isLoading: expensesLoading, expenses: allExpenses } = useFixedExpenses();
-  const { expenses: variableExpenses, calculateVariableExpenseForMonth, isLoading: variableExpensesLoading } = useVariableExpenses();
-  const { personnel, getBreakdownForMonth, isLoading: personnelLoading } = usePersonnel();
-  const { directors, getBreakdownForMonth: getDirectorsBreakdown, isLoading: directorsLoading } = useDirectors();
-  const { getDepreciationForMonth, isLoading: investmentsLoading } = useInvestments();
-  const { getMonthlyLeasePayments, getMonthlyInterestExpense, isLoading: financingsLoading } = useFinancings();
-  const { settings, getFiscalYears, isLoading: settingsLoading } = useBPSettings();
+  const { user } = useAuth();
+  const { currentPlan, isLoading: planLoading } = useCurrentBusinessPlan();
+  const businessPlanId = currentPlan?.id;
 
-  const isLoading = revenueLoading || expensesLoading || variableExpensesLoading || personnelLoading || directorsLoading || investmentsLoading || financingsLoading || settingsLoading;
+  // Fetch all BP data in parallel
+  const { data: streams = [], isLoading: streamsLoading } = useQuery({
+    queryKey: ['bp_revenue_streams', businessPlanId],
+    queryFn: async () => {
+      if (!businessPlanId) return [];
+      const { data, error } = await supabase
+        .from('bp_revenue_streams')
+        .select('*')
+        .eq('business_plan_id', businessPlanId);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user && !!businessPlanId,
+  });
 
-  const data = useMemo<PLData>(() => {
-    // Get fiscal years from settings
-    const fiscalYearsBase = getFiscalYears();
+  const { data: fixedExpenses = [], isLoading: fixedLoading } = useQuery({
+    queryKey: ['bp_fixed_expenses', businessPlanId],
+    queryFn: async () => {
+      if (!businessPlanId) return [];
+      const { data, error } = await supabase
+        .from('bp_fixed_expenses')
+        .select('*')
+        .eq('business_plan_id', businessPlanId);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user && !!businessPlanId,
+  });
+
+  const { data: variableExpenses = [], isLoading: variableLoading } = useQuery({
+    queryKey: ['bp_variable_expenses', businessPlanId],
+    queryFn: async () => {
+      if (!businessPlanId) return [];
+      const { data, error } = await supabase
+        .from('bp_variable_expenses')
+        .select('*')
+        .eq('business_plan_id', businessPlanId);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user && !!businessPlanId,
+  });
+
+  const { data: personnel = [], isLoading: personnelLoading } = useQuery({
+    queryKey: ['bp_personnel', businessPlanId],
+    queryFn: async () => {
+      if (!businessPlanId) return [];
+      const { data, error } = await supabase
+        .from('bp_personnel')
+        .select('*')
+        .eq('business_plan_id', businessPlanId);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user && !!businessPlanId,
+  });
+
+  const { data: directors = [], isLoading: directorsLoading } = useQuery({
+    queryKey: ['bp_directors', businessPlanId],
+    queryFn: async () => {
+      if (!businessPlanId) return [];
+      const { data, error } = await supabase
+        .from('bp_directors')
+        .select('*')
+        .eq('business_plan_id', businessPlanId);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user && !!businessPlanId,
+  });
+
+  const { data: investments = [], isLoading: investmentsLoading } = useQuery({
+    queryKey: ['bp_investments', businessPlanId],
+    queryFn: async () => {
+      if (!businessPlanId) return [];
+      const { data, error } = await supabase
+        .from('bp_investments')
+        .select('*')
+        .eq('business_plan_id', businessPlanId);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user && !!businessPlanId,
+  });
+
+  const { data: financings = [], isLoading: financingsLoading } = useQuery({
+    queryKey: ['bp_financings', businessPlanId],
+    queryFn: async () => {
+      if (!businessPlanId) return [];
+      const { data, error } = await supabase
+        .from('bp_financings')
+        .select('*')
+        .eq('business_plan_id', businessPlanId);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user && !!businessPlanId,
+  });
+
+  const { data: forecasts = [], isLoading: forecastsLoading } = useQuery({
+    queryKey: ['bp_revenue_forecasts', businessPlanId],
+    queryFn: async () => {
+      if (!businessPlanId) return [];
+      const { data, error } = await supabase
+        .from('bp_revenue_forecasts')
+        .select('*')
+        .eq('business_plan_id', businessPlanId);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user && !!businessPlanId,
+  });
+
+  const isLoading = planLoading || streamsLoading || fixedLoading || variableLoading || 
+                    personnelLoading || directorsLoading || investmentsLoading || 
+                    financingsLoading || forecastsLoading;
+
+  // Helper functions for calculations
+  const isPersonnelActiveForMonth = (person: any, month: Date): boolean => {
+    const monthStart = startOfMonth(month);
+    const startDate = parseISO(person.start_date);
+    const endDate = person.end_date ? parseISO(person.end_date) : null;
+    if (monthStart < startOfMonth(startDate)) return false;
+    if (endDate && monthStart > startOfMonth(endDate)) return false;
+    return true;
+  };
+
+  const getPersonnelCost = (person: any): number => {
+    if (person.worker_type === 'freelance') {
+      const dailyRate = Number(person.daily_rate) || 0;
+      const daysPerMonth = Number(person.estimated_days_per_month) || 0;
+      return dailyRate * daysPerMonth;
+    }
+    const salary = Number(person.gross_salary) || 0;
+    const chargesRate = Number(person.employer_charges_rate) || 
+      getGlobalChargesRate(salary, person.is_executive, person.company_size || 'small', person.contract_type || 'cdi');
+    return salary + (salary * chargesRate);
+  };
+
+  const getPersonnelBreakdownForMonth = (month: Date) => {
+    const activePersonnel = personnel.filter(p => 
+      isPersonnelActiveForMonth(p, month) && p.worker_type !== 'freelance'
+    );
+    const grossSalaries = activePersonnel.reduce((sum, p) => sum + (Number(p.gross_salary) || 0), 0);
+    const employerCharges = activePersonnel.reduce((sum, p) => {
+      const salary = Number(p.gross_salary) || 0;
+      const rate = Number(p.employer_charges_rate) || 0;
+      return sum + (salary * rate);
+    }, 0);
+    return { grossSalaries, employerCharges, total: grossSalaries + employerCharges };
+  };
+
+  const getDirectorsBreakdownForMonth = (month: Date) => {
+    const activeDirectors = directors.filter(d => {
+      const monthStart = startOfMonth(month);
+      const startDate = parseISO(d.start_date);
+      const endDate = d.end_date ? parseISO(d.end_date) : null;
+      if (monthStart < startOfMonth(startDate)) return false;
+      if (endDate && monthStart > startOfMonth(endDate)) return false;
+      return true;
+    });
+    const remuneration = activeDirectors.reduce((sum, d) => sum + (Number(d.monthly_remuneration) || 0), 0);
+    const charges = activeDirectors.reduce((sum, d) => {
+      const rem = Number(d.monthly_remuneration) || 0;
+      const rate = Number(d.charges_rate) || 0;
+      return sum + (rem * rate);
+    }, 0);
+    return { remuneration, charges, total: remuneration + charges };
+  };
+
+  const getFixedExpenseForMonth = (expense: any, month: Date): number => {
+    const monthStart = startOfMonth(month);
+    const startDate = parseISO(expense.start_date);
+    const endDate = expense.end_date ? parseISO(expense.end_date) : null;
+    if (monthStart < startOfMonth(startDate)) return 0;
+    if (endDate && monthStart > startOfMonth(endDate)) return 0;
     
-    // Generate months for each fiscal year
-    const years: FiscalYear[] = fiscalYearsBase.map(fy => {
+    const freq = expense.payment_frequency || 'monthly';
+    const multiplier = PAYMENT_FREQUENCIES[freq]?.multiplier || 1;
+    return (Number(expense.monthly_amount) || 0) / multiplier;
+  };
+
+  const getRevenueForecast = (streamId: string, month: Date): number => {
+    const stream = streams.find(s => s.id === streamId);
+    if (!stream) return 0;
+
+    if (stream.model === 'subscription') {
+      const startMonth = startOfMonth(new Date(currentPlan?.bp_start_date || new Date()));
+      const targetMonth = startOfMonth(month);
+      const monthsDiff = Math.round((targetMonth.getTime() - startMonth.getTime()) / (1000 * 60 * 60 * 24 * 30));
+      if (monthsDiff < 0) return 0;
+      const netGrowth = (stream.growth_rate || 0.10) - (stream.churn_rate || 0.05);
+      const subscribers = Math.round((stream.initial_subscribers || 0) * Math.pow(1 + netGrowth, monthsDiff));
+      return subscribers * (stream.monthly_price || 0);
+    }
+
+    const monthStr = format(startOfMonth(month), 'yyyy-MM-dd');
+    const forecast = forecasts.find(f => f.stream_id === streamId && f.month === monthStr);
+    return forecast?.amount || stream.monthly_price || 0;
+  };
+
+  const getDepreciationForMonth = (month: Date): number => {
+    return investments.reduce((sum, inv) => {
+      const purchaseDate = parseISO(inv.purchase_date);
+      const monthStart = startOfMonth(month);
+      if (monthStart < startOfMonth(purchaseDate)) return sum;
+      
+      const years = inv.depreciation_years || 5;
+      const endDate = addMonths(purchaseDate, years * 12);
+      if (monthStart >= endDate) return sum;
+      
+      const monthlyDepreciation = (inv.purchase_amount || 0) / (years * 12);
+      return sum + monthlyDepreciation;
+    }, 0);
+  };
+
+  const getMonthlyLeasePayments = (month: Date): number => {
+    return financings.filter(f => f.financing_type === 'leasing').reduce((sum, fin) => {
+      const startDate = parseISO(fin.start_date);
+      const endDate = fin.end_date ? parseISO(fin.end_date) : null;
+      const monthStart = startOfMonth(month);
+      if (monthStart < startOfMonth(startDate)) return sum;
+      if (endDate && monthStart > startOfMonth(endDate)) return sum;
+      return sum + (Number(fin.monthly_payment) || 0);
+    }, 0);
+  };
+
+  const getMonthlyInterestExpense = (month: Date): number => {
+    return financings.filter(f => f.financing_type === 'loan').reduce((sum, fin) => {
+      const startDate = parseISO(fin.start_date);
+      const endDate = fin.end_date ? parseISO(fin.end_date) : null;
+      const monthStart = startOfMonth(month);
+      if (monthStart < startOfMonth(startDate)) return sum;
+      if (endDate && monthStart > startOfMonth(endDate)) return sum;
+      const rate = (fin.interest_rate || 0) / 100 / 12;
+      const principal = fin.amount || 0;
+      return sum + (principal * rate);
+    }, 0);
+  };
+
+  const calculateVariableExpenseForMonth = (expense: any, month: Date, revenueByStream: Map<string | null, { amount: number; units: number }>): number => {
+    const monthStart = startOfMonth(month);
+    const startDate = parseISO(expense.start_date);
+    const endDate = expense.end_date ? parseISO(expense.end_date) : null;
+    if (monthStart < startOfMonth(startDate)) return 0;
+    if (endDate && monthStart > startOfMonth(endDate)) return 0;
+
+    let relevantAmount = 0;
+    if (expense.linked_revenue_stream_id) {
+      const streamData = revenueByStream.get(expense.linked_revenue_stream_id);
+      if (streamData) relevantAmount = streamData.amount;
+    } else {
+      revenueByStream.forEach(data => { relevantAmount += data.amount; });
+    }
+
+    if (expense.calculation_type === 'percentage') {
+      return (relevantAmount * (expense.percentage || 0)) / 100;
+    }
+    return (expense.unit_cost || 0);
+  };
+
+  // Build fiscal years from business plan settings
+  const getFiscalYears = (): FiscalYear[] => {
+    const startDate = currentPlan?.bp_start_date ? new Date(currentPlan.bp_start_date) : new Date();
+    const startMonth = currentPlan?.fiscal_year_start_month || 1;
+    const startDay = currentPlan?.fiscal_year_start_day || 1;
+    const numYears = currentPlan?.bp_years || 3;
+
+    const years: FiscalYear[] = [];
+    let fiscalYearStart = new Date(startDate.getFullYear(), startMonth - 1, startDay);
+    if (fiscalYearStart > startDate) {
+      fiscalYearStart = new Date(startDate.getFullYear() - 1, startMonth - 1, startDay);
+    }
+
+    for (let i = 0; i < numYears; i++) {
+      const yearStart = new Date(fiscalYearStart);
+      yearStart.setFullYear(yearStart.getFullYear() + i);
+      
+      const yearEnd = new Date(yearStart);
+      yearEnd.setFullYear(yearEnd.getFullYear() + 1);
+      yearEnd.setDate(yearEnd.getDate() - 1);
+
       const months: Date[] = [];
-      let currentMonth = startOfMonth(fy.start);
-      while (currentMonth <= fy.end) {
+      let currentMonth = startOfMonth(yearStart);
+      while (currentMonth <= yearEnd) {
         months.push(currentMonth);
         currentMonth = addMonths(currentMonth, 1);
       }
-      return { ...fy, months };
-    });
 
-    // Helper to calculate monthly values and sum by year
+      years.push({ start: yearStart, end: yearEnd, label: `Année ${i + 1}`, months });
+    }
+
+    return years;
+  };
+
+  const data = useMemo<PLData>(() => {
+    const years = getFiscalYears();
+
     const calculateYearlyValues = (getMonthValue: (month: Date) => number): number[] => {
       return years.map(year => 
         year.months.reduce((sum, month) => sum + getMonthValue(month), 0)
@@ -108,19 +385,13 @@ export function useProfitLoss() {
     // ═══════════════════════════════════════════════════════════════
     rows.push({ label: 'PRODUITS D\'EXPLOITATION', type: 'header', values: [] });
     
-    // Chiffre d'affaires par flux
     streams.forEach(stream => {
-      const values = calculateYearlyValues(month => getForecast(stream.id, month));
-      rows.push({
-        label: stream.name,
-        type: 'item',
-        values,
-        indent: 1,
-      });
+      const values = calculateYearlyValues(month => getRevenueForecast(stream.id, month));
+      rows.push({ label: stream.name, type: 'item', values, indent: 1 });
     });
 
     const revenueValues = calculateYearlyValues(month => 
-      streams.reduce((sum, stream) => sum + getForecast(stream.id, month), 0)
+      streams.reduce((sum, stream) => sum + getRevenueForecast(stream.id, month), 0)
     );
     rows.push({ label: 'Chiffre d\'affaires', type: 'subtotal', values: revenueValues });
 
@@ -129,14 +400,13 @@ export function useProfitLoss() {
     // ═══════════════════════════════════════════════════════════════
     rows.push({ label: 'CHARGES D\'EXPLOITATION', type: 'header', values: [], isExpense: true });
 
-    // Charges variables (coûts proportionnels au CA)
+    // Charges variables
     const variableExpenseValues = calculateYearlyValues(month => {
       const revenueByStream = new Map<string | null, { amount: number; units: number }>();
       streams.forEach(stream => {
-        const amount = getForecast(stream.id, month);
+        const amount = getRevenueForecast(stream.id, month);
         revenueByStream.set(stream.id, { amount, units: 1 });
       });
-      
       return variableExpenses.reduce((total, expense) => {
         return total + calculateVariableExpenseForMonth(expense, month, revenueByStream);
       }, 0);
@@ -144,70 +414,51 @@ export function useProfitLoss() {
 
     if (variableExpenses.length > 0) {
       rows.push({ label: 'Charges variables', type: 'header', values: [], isExpense: true, indent: 1 });
-      
       variableExpenses.forEach(expense => {
         const values = calculateYearlyValues(month => {
           const revenueByStream = new Map<string | null, { amount: number; units: number }>();
           streams.forEach(stream => {
-            const amount = getForecast(stream.id, month);
+            const amount = getRevenueForecast(stream.id, month);
             revenueByStream.set(stream.id, { amount, units: 1 });
           });
           return calculateVariableExpenseForMonth(expense, month, revenueByStream);
         });
-        rows.push({
-          label: expense.name,
-          type: 'item',
-          values,
-          isExpense: true,
-          indent: 2,
-        });
+        rows.push({ label: expense.name, type: 'item', values, isExpense: true, indent: 2 });
       });
-      
       rows.push({ label: 'Total charges variables', type: 'subtotal', values: variableExpenseValues, isExpense: true });
     }
 
-    // Achats et charges externes (fixes)
+    // Charges fixes
     rows.push({ label: 'Achats et charges externes', type: 'header', values: [], isExpense: true, indent: 1 });
-    
-    expenses.forEach(expense => {
-      const values = calculateYearlyValues(month => {
-        const startDate = startOfMonth(new Date(expense.start_date));
-        const endDate = expense.end_date ? startOfMonth(new Date(expense.end_date)) : null;
-        const monthStart = startOfMonth(month);
-        const isActive = monthStart >= startDate && (!endDate || monthStart <= endDate);
-        return isActive ? Number(expense.monthly_amount) : 0;
-      });
-      rows.push({
-        label: expense.name,
-        type: 'item',
-        values,
-        isExpense: true,
-        indent: 2,
-      });
+    fixedExpenses.forEach(expense => {
+      const values = calculateYearlyValues(month => getFixedExpenseForMonth(expense, month));
+      rows.push({ label: expense.name, type: 'item', values, isExpense: true, indent: 2 });
     });
 
-    const fixedExpenseValues = calculateYearlyValues(month => getExpensesTotal(month));
+    const fixedExpenseValues = calculateYearlyValues(month => 
+      fixedExpenses.reduce((sum, e) => sum + getFixedExpenseForMonth(e, month), 0)
+    );
     rows.push({ label: 'Total charges fixes', type: 'subtotal', values: fixedExpenseValues, isExpense: true });
 
     // Charges de personnel
     rows.push({ label: 'Charges de personnel', type: 'header', values: [], isExpense: true, indent: 1 });
     
-    const grossSalaryValues = calculateYearlyValues(month => getBreakdownForMonth(month).grossSalaries);
+    const grossSalaryValues = calculateYearlyValues(month => getPersonnelBreakdownForMonth(month).grossSalaries);
     rows.push({ label: 'Salaires bruts', type: 'item', values: grossSalaryValues, isExpense: true, indent: 2 });
     
-    const chargesValues = calculateYearlyValues(month => getBreakdownForMonth(month).employerCharges);
+    const chargesValues = calculateYearlyValues(month => getPersonnelBreakdownForMonth(month).employerCharges);
     rows.push({ label: 'Charges sociales patronales', type: 'item', values: chargesValues, isExpense: true, indent: 2 });
 
-    const personnelValues = calculateYearlyValues(month => getBreakdownForMonth(month).total);
+    const personnelValues = calculateYearlyValues(month => getPersonnelBreakdownForMonth(month).total);
     rows.push({ label: 'Total personnel salarié', type: 'subtotal', values: personnelValues, isExpense: true });
 
     // Rémunération des dirigeants
-    const directorTotalValues = calculateYearlyValues(month => getDirectorsBreakdown(month).total);
+    const directorTotalValues = calculateYearlyValues(month => getDirectorsBreakdownForMonth(month).total);
 
     if (directors.length > 0) {
       rows.push({ label: 'Rémunération dirigeants', type: 'header', values: [], isExpense: true, indent: 1 });
-      const directorRemunerationValues = calculateYearlyValues(month => getDirectorsBreakdown(month).remuneration);
-      const directorChargesValues = calculateYearlyValues(month => getDirectorsBreakdown(month).charges);
+      const directorRemunerationValues = calculateYearlyValues(month => getDirectorsBreakdownForMonth(month).remuneration);
+      const directorChargesValues = calculateYearlyValues(month => getDirectorsBreakdownForMonth(month).charges);
       rows.push({ label: 'Rémunération nette', type: 'item', values: directorRemunerationValues, isExpense: true, indent: 2 });
       rows.push({ label: 'Charges sociales', type: 'item', values: directorChargesValues, isExpense: true, indent: 2 });
       rows.push({ label: 'Total dirigeants', type: 'subtotal', values: directorTotalValues, isExpense: true });
@@ -219,7 +470,7 @@ export function useProfitLoss() {
       rows.push({ label: 'Dotations aux amortissements', type: 'item', values: depreciationValues, isExpense: true });
     }
 
-    // Loyers de crédit-bail (leasing)
+    // Loyers de crédit-bail
     const leaseExpenseValues = calculateYearlyValues(month => getMonthlyLeasePayments(month));
     if (leaseExpenseValues.some(v => v > 0)) {
       rows.push({ label: 'Loyers de crédit-bail', type: 'item', values: leaseExpenseValues, isExpense: true });
@@ -234,108 +485,67 @@ export function useProfitLoss() {
     // ═══════════════════════════════════════════════════════════════
     // SOLDES INTERMÉDIAIRES DE GESTION (SIG)
     // ═══════════════════════════════════════════════════════════════
-
-    // Marge brute = CA - Charges variables
     const grossMarginValues = years.map((_, i) => revenueValues[i] - variableExpenseValues[i]);
     rows.push({ label: 'MARGE BRUTE', type: 'sig', values: grossMarginValues });
 
-    // Valeur Ajoutée = Marge brute - Charges fixes
     const vaValues = years.map((_, i) => grossMarginValues[i] - fixedExpenseValues[i]);
     rows.push({ label: 'VALEUR AJOUTÉE', type: 'sig', values: vaValues });
 
-    // EBE = VA - Charges de personnel - Rémunération dirigeants - Loyers crédit-bail
     const ebeValues = years.map((_, i) => 
       vaValues[i] - personnelValues[i] - directorTotalValues[i] - leaseExpenseValues[i]
     );
     rows.push({ label: 'EXCÉDENT BRUT D\'EXPLOITATION (EBE)', type: 'sig', values: ebeValues });
 
-    // Résultat d'exploitation = EBE - Amortissements
     const operatingResultValues = years.map((_, i) => ebeValues[i] - depreciationValues[i]);
     rows.push({ label: 'RÉSULTAT D\'EXPLOITATION', type: 'sig', values: operatingResultValues });
 
-    // Résultat financier = -intérêts d'emprunts
     const financialResultValues = calculateYearlyValues(month => -getMonthlyInterestExpense(month));
     rows.push({ label: 'Résultat financier', type: 'item', values: financialResultValues, isExpense: financialResultValues.some(v => v < 0) });
 
-    // RCAI = Résultat d'exploitation + Résultat financier
     const rcaiValues = years.map((_, i) => operatingResultValues[i] + financialResultValues[i]);
     rows.push({ label: 'RÉSULTAT COURANT AVANT IMPÔTS (RCAI)', type: 'sig', values: rcaiValues });
 
-    // Impôt selon le régime fiscal (par année)
-    const taxRegime = (settings.tax_regime || 'is') as TaxRegime;
-    const isPME = settings.is_pme !== false;
+    // Impôt
+    const taxRegime = (currentPlan?.tax_regime || 'is') as TaxRegime;
+    const isPME = currentPlan?.is_pme !== false;
     
     const taxValues = years.map((_, i) => {
       const yearResult = rcaiValues[i];
       const yearRevenue = revenueValues[i];
-      
       const taxResult = calculateTaxByRegime(Math.max(0, yearResult), taxRegime, {
         isPME,
         activityType: 'services',
         chiffreAffaires: yearRevenue,
       });
-      
       return taxResult.tax;
     });
     
-    // Label dynamique selon le régime
-    const taxLabel = taxRegime === 'is' 
-      ? 'Impôt sur les sociétés' 
-      : taxRegime === 'ir' 
-        ? 'Impôt sur le revenu' 
-        : 'Impôt (micro-entreprise)';
-    
+    const taxLabel = taxRegime === 'is' ? 'Impôt sur les sociétés' : taxRegime === 'ir' ? 'Impôt sur le revenu' : 'Impôt (micro-entreprise)';
     rows.push({ label: taxLabel, type: 'item', values: taxValues, isExpense: true });
 
-    // Résultat Net = RCAI - Impôt
     const netResultValues = years.map((_, i) => rcaiValues[i] - taxValues[i]);
     rows.push({ label: 'RÉSULTAT NET', type: 'total', values: netResultValues });
 
-    // ═══════════════════════════════════════════════════════════════
-    // TVA (par année)
-    // ═══════════════════════════════════════════════════════════════
+    // TVA
     const tvaCollectedValues = calculateYearlyValues(month => {
       return streams.reduce((sum, stream) => {
-        const revenue = getForecast(stream.id, month);
-        const vatRate = (stream as any).vat_rate ?? TVA_RATES_FR.standard;
+        const revenue = getRevenueForecast(stream.id, month);
+        const vatRate = stream.vat_rate ?? TVA_RATES_FR.standard;
         return sum + (revenue * vatRate);
       }, 0);
     });
 
     const tvaDeductibleValues = calculateYearlyValues(month => {
-      // Fixed expenses TVA
-      const fixedTva = allExpenses.reduce((sum, expense) => {
-        const startDate = startOfMonth(new Date(expense.start_date));
-        const endDate = expense.end_date ? startOfMonth(new Date(expense.end_date)) : null;
-        const monthStart = startOfMonth(month);
-        const isActive = monthStart >= startDate && (!endDate || monthStart <= endDate);
-        if (!isActive) return sum;
-        
-        const vatRate = (expense as any).vat_rate ?? TVA_RATES_FR.standard;
-        const isDeductible = (expense as any).is_vat_deductible !== false;
-        return sum + (isDeductible ? Number(expense.monthly_amount) * vatRate : 0);
+      return fixedExpenses.reduce((sum, expense) => {
+        const expenseAmount = getFixedExpenseForMonth(expense, month);
+        const vatRate = expense.vat_rate ?? TVA_RATES_FR.standard;
+        const isDeductible = expense.is_vat_deductible !== false;
+        return sum + (isDeductible ? expenseAmount * vatRate : 0);
       }, 0);
-
-      // Variable expenses TVA
-      const variableTva = variableExpenses.reduce((sum, expense) => {
-        if (!expense.is_vat_deductible) return sum;
-        
-        const revenueByStream = new Map<string | null, { amount: number; units: number }>();
-        streams.forEach(stream => {
-          const amount = getForecast(stream.id, month);
-          revenueByStream.set(stream.id, { amount, units: 1 });
-        });
-        
-        const expenseAmount = calculateVariableExpenseForMonth(expense, month, revenueByStream);
-        return sum + (expenseAmount * expense.vat_rate);
-      }, 0);
-
-      return fixedTva + variableTva;
     });
 
     const tvaBalanceValues = years.map((_, i) => tvaCollectedValues[i] - tvaDeductibleValues[i]);
 
-    // Grand total (sum of all years)
     const sumAll = (arr: number[]) => arr.reduce((a, b) => a + b, 0);
     const totalRevenue = sumAll(revenueValues);
     const totalVariableExpenses = sumAll(variableExpenseValues);
@@ -383,9 +593,8 @@ export function useProfitLoss() {
         balance: tvaBalanceValues,
       },
     };
-  }, [streams, expenses, allExpenses, variableExpenses, personnel, directors, settings, getForecast, getExpensesTotal, calculateVariableExpenseForMonth, getBreakdownForMonth, getDirectorsBreakdown, getDepreciationForMonth, getMonthlyLeasePayments, getMonthlyInterestExpense, getFiscalYears]);
+  }, [streams, fixedExpenses, variableExpenses, personnel, directors, investments, financings, forecasts, currentPlan]);
 
-  // Helper: get break-even year
   const getBreakEvenYear = (): number | null => {
     let cumulative = 0;
     for (let i = 0; i < data.totals.netResult.length; i++) {
@@ -395,15 +604,8 @@ export function useProfitLoss() {
     return null;
   };
 
-  // Helper: get gross margin percentage
-  const getGrossMargin = (): number => {
-    return data.grandTotal.grossMarginPercent;
-  };
-
-  // Helper: get EBITDA margin
-  const getEBITDAMargin = (): number => {
-    return data.grandTotal.ebitdaMarginPercent;
-  };
+  const getGrossMargin = (): number => data.grandTotal.grossMarginPercent;
+  const getEBITDAMargin = (): number => data.grandTotal.ebitdaMarginPercent;
 
   return {
     data,
