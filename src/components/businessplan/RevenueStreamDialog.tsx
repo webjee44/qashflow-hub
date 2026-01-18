@@ -166,19 +166,19 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
             </Select>
           </div>
 
-          {/* Year-specific growth rates (3-year BP: only N+1 and N+2) */}
+          {/* Year-specific growth rates (3-year BP: N+1 and N+2) */}
           <div className="grid gap-4 p-4 bg-muted/30 rounded-lg border">
             <Label className="flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-primary" />
               Taux de croissance annuels
             </Label>
             <p className="text-xs text-muted-foreground -mt-2">
-              Définissez le taux de croissance pour les années 2 et 3
+              Appliqués pour projeter le CA des années 2 et 3
             </p>
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-1">
                 <Label htmlFor="growthYear2" className="text-xs text-muted-foreground">
-                  Année 2 vs Année 1
+                  N+1 (vs Année 1)
                 </Label>
                 <div className="flex items-center gap-1">
                   <Input
@@ -194,7 +194,7 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
               </div>
               <div className="grid gap-1">
                 <Label htmlFor="growthYear3" className="text-xs text-muted-foreground">
-                  Année 3 vs Année 2
+                  N+2 (vs Année 2)
                 </Label>
                 <div className="flex items-center gap-1">
                   <Input

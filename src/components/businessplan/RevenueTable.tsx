@@ -229,13 +229,13 @@ export function RevenueTable({ onEditStream }: RevenueTableProps) {
                             <TooltipTrigger asChild>
                               <span className="text-[10px] text-muted-foreground flex items-center gap-1 cursor-help">
                                 <TrendingUp className="h-3 w-3" />
-                                +{growthRates[0].toFixed(0)}% / +{growthRates[1].toFixed(0)}%
+                                N+1: +{growthRates[0].toFixed(0)}% | N+2: +{growthRates[1].toFixed(0)}%
                               </span>
                             </TooltipTrigger>
                             <TooltipContent side="right">
                               <div className="text-xs space-y-1">
-                                <p>Croissance Année 2: <strong>+{growthRates[0].toFixed(0)}%</strong></p>
-                                <p>Croissance Année 3: <strong>+{growthRates[1].toFixed(0)}%</strong></p>
+                                <p>N+1 (Année 2): <strong>+{growthRates[0].toFixed(0)}%</strong> vs Année 1</p>
+                                <p>N+2 (Année 3): <strong>+{growthRates[1].toFixed(0)}%</strong> vs Année 2</p>
                               </div>
                             </TooltipContent>
                           </Tooltip>
