@@ -3,6 +3,7 @@ import { Sidebar } from './Sidebar';
 import { AppHeader } from './AppHeader';
 import { AppBreadcrumb } from './AppBreadcrumb';
 import { TrialExpiredBlocker } from './TrialExpiredBlocker';
+import { DemoBanner } from './DemoBanner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAppModeSync } from '@/hooks/useAppMode';
 import { useAuth } from '@/hooks/useAuth';
@@ -52,6 +53,7 @@ export function AppLayout() {
 
   return (
     <div className="min-h-screen bg-background overflow-visible">
+      <DemoBanner />
       <TrialExpiredBlocker />
       <Sidebar />
       
