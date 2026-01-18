@@ -14,6 +14,7 @@ import {
   Building2,
   GitBranch,
   Package,
+  Landmark,
   LogOut,
   SlidersHorizontal,
   Users
@@ -49,11 +50,12 @@ const businessPlanNavItems: NavItem[] = [
   { icon: Building2, label: 'Charges', href: '/bp/charges' },
   { icon: Users, label: 'Équipe', href: '/bp/equipe' },
   { icon: Package, label: 'Investissements', href: '/bp/investissements' },
+  { icon: Landmark, label: 'Financements', href: '/bp/financements', key: 'financing' },
   { icon: Package, label: 'Stocks', href: '/bp/stocks', key: 'stocks' },
   { icon: FileSpreadsheet, label: 'Compte de résultat', href: '/bp/pnl' },
   { icon: Wallet, label: 'Bilan', href: '/bp/bilan' },
   { icon: Wallet, label: 'Trésorerie', href: '/bp/tresorerie' },
-  { icon: Wallet, label: 'Plan de financement', href: '/bp/financement', key: 'financing' },
+  { icon: Wallet, label: 'Plan de financement', href: '/bp/financement', key: 'funding' },
   { icon: GitBranch, label: 'Scénarios', href: '/bp/scenarios' },
 ];
 
@@ -84,6 +86,7 @@ export function Sidebar() {
     return businessPlanNavItems.filter(item => {
       if (item.key === 'stocks' && !settings.show_stocks) return false;
       if (item.key === 'financing' && !settings.show_financing) return false;
+      if (item.key === 'funding' && !settings.show_financing) return false;
       return true;
     });
   }, [isBusinessPlan, settings.show_stocks, settings.show_financing]);
