@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, Users, Briefcase, ListPlus, X, Loader2, User } from 'lucide-react';
+import { Plus, Users, Briefcase, ListPlus, X, Loader2, User, Gift } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -11,9 +11,11 @@ import { PersonnelTable } from '@/components/businessplan/PersonnelTable';
 import { FreelanceTable } from '@/components/businessplan/FreelanceTable';
 import { EmployeeDialog } from '@/features/business-plan/dialogs/EmployeeDialog';
 import { FreelanceDialog } from '@/features/business-plan/dialogs/FreelanceDialog';
+import { BonusDialog } from '@/features/business-plan/dialogs/BonusDialog';
 import { SectionNotes } from '@/components/businessplan/SectionNotes';
 import { BPExportDialog } from '@/components/businessplan/BPExportDialog';
 import { useBPPersonnel, BPPersonnel } from '@/hooks/useBPPersonnel';
+import { useBPBonuses } from '@/features/business-plan/hooks/useBPBonuses';
 import { useCurrentBusinessPlan } from '@/hooks/useCurrentBusinessPlan';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { toast } from 'sonner';
@@ -63,6 +65,12 @@ export default function Team() {
   const [bulkFreelanceDialogOpen, setBulkFreelanceDialogOpen] = useState(false);
   const [bulkFreelanceRows, setBulkFreelanceRows] = useState<BulkFreelanceRow[]>([{ position: '', daily_rate: '', estimated_days: '10' }]);
   const [isBulkFreelanceSaving, setIsBulkFreelanceSaving] = useState(false);
+  
+  // Dialog primes
+  const [bonusDialogOpen, setBonusDialogOpen] = useState(false);
+  
+  // Hook primes
+  const { bulkCreateBonuses, isCreating: isBonusSaving } = useBPBonuses(currentPlan?.id ?? null);
 
   // Handlers pour les dialogs
   const handleOpenEmployeeDialog = () => {
@@ -284,6 +292,16 @@ export default function Team() {
                     size="sm" 
                     variant="outline"
                     className="gap-2"
+                    onClick={() => setBonusDialogOpen(true)}
+                    disabled={employees.length === 0}
+                  >
+                    <Gift className="h-4 w-4" />
+                    Ajouter primes
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    className="gap-2"
                     onClick={() => {
                       setBulkRows([{ position: '', gross_salary: '', contract_type: 'cdi' }]);
                       setBulkDialogOpen(true);
@@ -384,6 +402,15 @@ export default function Team() {
         onOpenChange={setFreelanceDialogOpen}
         freelance={selectedFreelance}
         onSave={handleSaveFreelance}
+      />
+
+      {/* Dialog primes */}
+      <BonusDialog
+        open={bonusDialogOpen}
+        onOpenChange={setBonusDialogOpen}
+        personnel={employees}
+        onSubmit={bulkCreateBonuses}
+        isSubmitting={isBonusSaving}
       />
 
       {/* Dialog ajout en masse salariés */}

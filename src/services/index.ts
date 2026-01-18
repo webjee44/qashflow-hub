@@ -54,3 +54,12 @@ export {
   type BPFinancingInsert, 
   type BPFinancingUpdate 
 } from './financingService';
+
+export { 
+  bonusService, 
+  BONUS_TYPES,
+  type BPBonus, 
+  type BPBonusInsert, 
+  type BPBonusUpdate,
+  type BonusType,
+} from './bonusService';
