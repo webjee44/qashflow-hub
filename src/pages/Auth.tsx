@@ -87,7 +87,8 @@ export default function Auth() {
 
   useEffect(() => {
     if (user && mode !== 'reset' && !isCheckingSession) {
-      navigate('/dashboard');
+      // Redirect to BP module by default (BP is always active)
+      navigate('/bp/revenus');
     }
   }, [user, navigate, mode, isCheckingSession]);
 
@@ -202,7 +203,7 @@ export default function Auth() {
             title: 'Mot de passe mis à jour',
             description: 'Vous pouvez maintenant vous connecter avec votre nouveau mot de passe.',
           });
-          navigate('/dashboard');
+          navigate('/bp/revenus');
         }
       }
     } finally {

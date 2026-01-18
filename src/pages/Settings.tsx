@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { Building2, User, Play, TrendingUp } from 'lucide-react';
+import { Building2, User, Play, Wallet } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useOnboarding } from '@/hooks/useOnboarding';
 
@@ -97,24 +97,31 @@ export default function Settings() {
                 </CardContent>
               </Card>
 
-              {/* Module Trésorerie (désactivable si BP activé) */}
+              {/* Module Trésorerie - Désactivé par défaut */}
               <Card className="bg-card border-border">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <Building2 className="h-5 w-5 text-primary" />
+                    <Wallet className="h-5 w-5 text-primary" />
                     Module Trésorerie
                   </CardTitle>
                   <CardDescription>
-                    Désactivez le module Trésorerie pour n'utiliser que le Business Plan.
+                    Par défaut, seul le Business Plan est affiché. Activez le module Trésorerie pour gérer également vos flux bancaires, transactions et prévisions.
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="bp-toggle" className="text-sm">
-                      Activer le module Trésorerie
-                    </Label>
+                    <div className="space-y-0.5">
+                      <Label htmlFor="treasury-toggle" className="text-sm font-medium">
+                        Afficher le module Trésorerie
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        {!bpEnabled 
+                          ? "Les deux modules sont affichés" 
+                          : "Seul le Business Plan est affiché"}
+                      </p>
+                    </div>
                     <Switch
-                      id="bp-toggle"
+                      id="treasury-toggle"
                       checked={!bpEnabled}
                       onCheckedChange={(checked) => toggleBP(!checked)}
                     />
