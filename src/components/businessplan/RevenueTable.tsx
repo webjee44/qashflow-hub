@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { format, addMonths, startOfMonth } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -14,10 +14,13 @@ interface RevenueTableProps {
 }
 
 export function RevenueTable({ onEditStream }: RevenueTableProps) {
-  const { streams, getForecast, upsertForecast, deleteStream, isLoading } = useRevenueStreams();
+  const { streams, getForecast, upsertForecast, deleteStream, updateStream, isLoading } = useRevenueStreams();
   const [editingCell, setEditingCell] = useState<{ streamId: string; monthIndex: number } | null>(null);
   const [inputValue, setInputValue] = useState('');
   const [collapsedStreams, setCollapsedStreams] = useState<Set<string>>(new Set());
+  const [editingName, setEditingName] = useState<string | null>(null);
+  const [nameValue, setNameValue] = useState('');
+  const nameInputRef = useRef<HTMLInputElement>(null);
 
   // Generate months for the next 12 months
   const months = Array.from({ length: 12 }, (_, i) => addMonths(startOfMonth(new Date()), i));
@@ -71,6 +74,36 @@ export function RevenueTable({ onEditStream }: RevenueTableProps) {
     });
   };
 
+  // Inline name editing
+  const handleNameDoubleClick = (stream: RevenueStream) => {
+    setEditingName(stream.id);
+    setNameValue(stream.name);
+  };
+
+  const handleNameSave = async (streamId: string) => {
+    if (nameValue.trim() && nameValue !== streams.find(s => s.id === streamId)?.name) {
+      await updateStream.mutateAsync({ id: streamId, name: nameValue.trim() });
+    }
+    setEditingName(null);
+    setNameValue('');
+  };
+
+  const handleNameKeyDown = (e: React.KeyboardEvent, streamId: string) => {
+    if (e.key === 'Enter') {
+      handleNameSave(streamId);
+    } else if (e.key === 'Escape') {
+      setEditingName(null);
+      setNameValue('');
+    }
+  };
+
+  useEffect(() => {
+    if (editingName && nameInputRef.current) {
+      nameInputRef.current.focus();
+      nameInputRef.current.select();
+    }
+  }, [editingName]);
+
   const getMonthlyTotals = () => {
     return months.map(month => 
       streams.reduce((sum, stream) => sum + getForecast(stream.id, month), 0)
@@ -117,10 +150,27 @@ export function RevenueTable({ onEditStream }: RevenueTableProps) {
               <TableCell className="sticky left-0 bg-background z-10">
                 <div className="flex items-center gap-2">
                   <div 
-                    className="w-3 h-3 rounded-full" 
+                    className="w-3 h-3 rounded-full flex-shrink-0" 
                     style={{ backgroundColor: stream.color }}
                   />
-                  <span className="font-medium">{stream.name}</span>
+                  {editingName === stream.id ? (
+                    <Input
+                      ref={nameInputRef}
+                      value={nameValue}
+                      onChange={(e) => setNameValue(e.target.value)}
+                      onBlur={() => handleNameSave(stream.id)}
+                      onKeyDown={(e) => handleNameKeyDown(e, stream.id)}
+                      className="h-7 w-full max-w-[180px] text-sm font-medium"
+                    />
+                  ) : (
+                    <span 
+                      className="font-medium cursor-pointer hover:text-primary transition-colors"
+                      onDoubleClick={() => handleNameDoubleClick(stream)}
+                      title="Double-cliquez pour renommer"
+                    >
+                      {stream.name}
+                    </span>
+                  )}
                 </div>
               </TableCell>
               {months.map((month, monthIndex) => {
