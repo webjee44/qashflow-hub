@@ -24,13 +24,13 @@ import { useBPFinancings } from '@/hooks/useBPFinancings';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
-interface BPWizardStep6SummaryProps {
+interface BPWizardStep7SummaryProps {
   businessPlan: BusinessPlan | null;
   onFinalize: () => void;
   isLoading: boolean;
 }
 
-export function BPWizardStep6Summary({ businessPlan, onFinalize, isLoading }: BPWizardStep6SummaryProps) {
+export function BPWizardStep7Summary({ businessPlan, onFinalize, isLoading }: BPWizardStep7SummaryProps) {
   const { streams, totalMonthlyRevenue } = useBPRevenueStreams(businessPlan?.id);
   const { expenses, totalMonthlyExpenses } = useBPFixedExpenses(businessPlan?.id);
   const { personnel, totalMonthlyCost: personnelCost } = useBPPersonnel(businessPlan?.id);

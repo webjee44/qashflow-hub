@@ -2,14 +2,15 @@ import { useState, useEffect } from 'react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { Settings, TrendingUp, Receipt, Building2, Wallet, FileCheck, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Settings, TrendingUp, Receipt, Users, Building2, Wallet, FileCheck, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useBusinessPlans, BusinessPlan } from '@/hooks/useBusinessPlans';
 import { BPWizardStep1Settings } from './wizard/BPWizardStep1Settings';
 import { BPWizardStep2Revenue } from './wizard/BPWizardStep2Revenue';
 import { BPWizardStep3Expenses } from './wizard/BPWizardStep3Expenses';
-import { BPWizardStep4Investments } from './wizard/BPWizardStep4Investments';
-import { BPWizardStep5Funding } from './wizard/BPWizardStep5Funding';
-import { BPWizardStep6Summary } from './wizard/BPWizardStep6Summary';
+import { BPWizardStep4Team } from './wizard/BPWizardStep4Team';
+import { BPWizardStep5Investments } from './wizard/BPWizardStep5Investments';
+import { BPWizardStep6Funding } from './wizard/BPWizardStep6Funding';
+import { BPWizardStep7Summary } from './wizard/BPWizardStep7Summary';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface BPWizardDialogProps {
@@ -23,6 +24,7 @@ const TABS = [
   { id: 'settings', label: 'Paramètres', icon: Settings },
   { id: 'revenue', label: 'Revenus', icon: TrendingUp },
   { id: 'expenses', label: 'Charges', icon: Receipt },
+  { id: 'team', label: 'Équipe', icon: Users },
   { id: 'investments', label: 'Investissements', icon: Building2 },
   { id: 'funding', label: 'Financement', icon: Wallet },
   { id: 'summary', label: 'Synthèse', icon: FileCheck },
@@ -162,16 +164,20 @@ export function BPWizardDialog({ open, onOpenChange, businessPlan, mode = 'creat
                   <BPWizardStep3Expenses businessPlanId={currentBP?.id} />
                 </TabsContent>
 
+                <TabsContent value="team" className="h-full m-0 p-6">
+                  <BPWizardStep4Team businessPlanId={currentBP?.id} />
+                </TabsContent>
+
                 <TabsContent value="investments" className="h-full m-0 p-6">
-                  <BPWizardStep4Investments businessPlanId={currentBP?.id} />
+                  <BPWizardStep5Investments businessPlanId={currentBP?.id} />
                 </TabsContent>
 
                 <TabsContent value="funding" className="h-full m-0 p-6">
-                  <BPWizardStep5Funding businessPlanId={currentBP?.id} />
+                  <BPWizardStep6Funding businessPlanId={currentBP?.id} />
                 </TabsContent>
 
                 <TabsContent value="summary" className="h-full m-0 p-6">
-                  <BPWizardStep6Summary 
+                  <BPWizardStep7Summary 
                     businessPlan={currentBP} 
                     onFinalize={handleFinalize}
                     isLoading={finalizeBusinessPlan.isPending}

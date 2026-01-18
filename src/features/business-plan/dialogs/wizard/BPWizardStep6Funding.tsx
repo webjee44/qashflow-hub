@@ -11,7 +11,7 @@ import { useBPInvestments } from '@/hooks/useBPInvestments';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { format } from 'date-fns';
 
-interface BPWizardStep5FundingProps {
+interface BPWizardStep6FundingProps {
   businessPlanId?: string;
 }
 
@@ -22,7 +22,7 @@ const FINANCING_TYPES = {
   current_account: { label: 'Compte courant', icon: Wallet, color: 'text-green-600' },
 };
 
-export function BPWizardStep5Funding({ businessPlanId }: BPWizardStep5FundingProps) {
+export function BPWizardStep6Funding({ businessPlanId }: BPWizardStep6FundingProps) {
   const { 
     financings, 
     isLoading, 
