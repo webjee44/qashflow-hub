@@ -6,13 +6,17 @@
 // Catégories de charges fixes
 // Contrainte DB: bp_fixed_expenses_category_check
 export const FIXED_EXPENSE_CATEGORIES = {
-  rent: { label: 'Loyer', icon: 'Building2' },
+  rent: { label: 'Loyer & Charges locatives', icon: 'Building2' },
   insurance: { label: 'Assurances', icon: 'Shield' },
   software: { label: 'Logiciels & Abonnements', icon: 'Laptop' },
-  marketing: { label: 'Marketing', icon: 'Megaphone' },
-  utilities: { label: 'Charges & Fluides', icon: 'Zap' },
-  professional_fees: { label: 'Honoraires', icon: 'Briefcase' },
-  other: { label: 'Autres', icon: 'MoreHorizontal' },
+  telecom: { label: 'Téléphonie & Internet', icon: 'Wifi' },
+  marketing: { label: 'Marketing & Publicité', icon: 'Megaphone' },
+  utilities: { label: 'Électricité, Eau, Gaz', icon: 'Zap' },
+  professional_fees: { label: 'Comptable & Juridique', icon: 'Briefcase' },
+  banking: { label: 'Frais bancaires', icon: 'CreditCard' },
+  travel: { label: 'Déplacements & Transport', icon: 'Car' },
+  office: { label: 'Fournitures de bureau', icon: 'Pencil' },
+  other: { label: 'Autres charges fixes', icon: 'MoreHorizontal' },
 } as const;
 
 export type FixedExpenseCategory = keyof typeof FIXED_EXPENSE_CATEGORIES;
