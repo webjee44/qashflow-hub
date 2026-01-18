@@ -38,10 +38,9 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
   const [churnRate, setChurnRate] = useState('5');
   const [growthRate, setGrowthRate] = useState('10');
   
-  // Year-specific annual growth rates
+  // Year-specific annual growth rates (only N+1 and N+2 for 3-year BP)
   const [growthRateYear2, setGrowthRateYear2] = useState('10');
   const [growthRateYear3, setGrowthRateYear3] = useState('10');
-  const [growthRateYear4, setGrowthRateYear4] = useState('10');
 
   useEffect(() => {
     if (stream) {
@@ -55,7 +54,6 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
       setGrowthRate(((stream.growth_rate || 0.10) * 100).toString());
       setGrowthRateYear2(((stream.growth_rate_year2 ?? stream.annual_growth_rate ?? 0.10) * 100).toString());
       setGrowthRateYear3(((stream.growth_rate_year3 ?? stream.annual_growth_rate ?? 0.10) * 100).toString());
-      setGrowthRateYear4(((stream.growth_rate_year4 ?? stream.annual_growth_rate ?? 0.10) * 100).toString());
     } else {
       setName('');
       setDescription('');
@@ -67,7 +65,6 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
       setGrowthRate('10');
       setGrowthRateYear2('10');
       setGrowthRateYear3('10');
-      setGrowthRateYear4('10');
     }
   }, [stream, open]);
 
@@ -80,7 +77,6 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
     
     const rate2 = parseRate(growthRateYear2, 10) / 100;
     const rate3 = parseRate(growthRateYear3, 10) / 100;
-    const rate4 = parseRate(growthRateYear4, 10) / 100;
     
     onSave({
       id: stream?.id,
@@ -95,7 +91,7 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
       annual_growth_rate: rate2, // Keep for backwards compatibility
       growth_rate_year2: rate2,
       growth_rate_year3: rate3,
-      growth_rate_year4: rate4,
+      growth_rate_year4: rate3, // Use rate3 for year4 as fallback
     });
     onOpenChange(false);
   };
@@ -170,19 +166,19 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
             </Select>
           </div>
 
-          {/* Year-specific growth rates */}
+          {/* Year-specific growth rates (3-year BP: only N+1 and N+2) */}
           <div className="grid gap-4 p-4 bg-muted/30 rounded-lg border">
             <Label className="flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-primary" />
               Taux de croissance annuels
             </Label>
             <p className="text-xs text-muted-foreground -mt-2">
-              Définissez un taux différent pour chaque année de projection
+              Définissez le taux de croissance pour les années 2 et 3
             </p>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-1">
                 <Label htmlFor="growthYear2" className="text-xs text-muted-foreground">
-                  N+1 (Année 2)
+                  Année 2 vs Année 1
                 </Label>
                 <div className="flex items-center gap-1">
                   <Input
@@ -198,7 +194,7 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
               </div>
               <div className="grid gap-1">
                 <Label htmlFor="growthYear3" className="text-xs text-muted-foreground">
-                  N+2 (Année 3)
+                  Année 3 vs Année 2
                 </Label>
                 <div className="flex items-center gap-1">
                   <Input
@@ -206,22 +202,6 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
                     type="number"
                     value={growthRateYear3}
                     onChange={(e) => setGrowthRateYear3(e.target.value)}
-                    placeholder="10"
-                    className="h-8"
-                  />
-                  <span className="text-xs text-muted-foreground">%</span>
-                </div>
-              </div>
-              <div className="grid gap-1">
-                <Label htmlFor="growthYear4" className="text-xs text-muted-foreground">
-                  N+3 (Année 4)
-                </Label>
-                <div className="flex items-center gap-1">
-                  <Input
-                    id="growthYear4"
-                    type="number"
-                    value={growthRateYear4}
-                    onChange={(e) => setGrowthRateYear4(e.target.value)}
                     placeholder="10"
                     className="h-8"
                   />

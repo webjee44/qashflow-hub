@@ -193,11 +193,10 @@ export function RevenueTable({ onEditStream }: RevenueTableProps) {
           </TableHeader>
           <TableBody>
           {streams.map((stream) => {
-              // Year-specific growth rates
+              // Year-specific growth rates (only 2 rates for 3-year BP)
               const growthRates = [
                 (stream.growth_rate_year2 ?? stream.annual_growth_rate ?? 0.10) * 100,
                 (stream.growth_rate_year3 ?? stream.annual_growth_rate ?? 0.10) * 100,
-                (stream.growth_rate_year4 ?? stream.annual_growth_rate ?? 0.10) * 100,
               ];
               
               return (
@@ -230,14 +229,13 @@ export function RevenueTable({ onEditStream }: RevenueTableProps) {
                             <TooltipTrigger asChild>
                               <span className="text-[10px] text-muted-foreground flex items-center gap-1 cursor-help">
                                 <TrendingUp className="h-3 w-3" />
-                                +{growthRates[0].toFixed(0)}% / +{growthRates[1].toFixed(0)}% / +{growthRates[2].toFixed(0)}%
+                                +{growthRates[0].toFixed(0)}% / +{growthRates[1].toFixed(0)}%
                               </span>
                             </TooltipTrigger>
                             <TooltipContent side="right">
                               <div className="text-xs space-y-1">
-                                <p>Croissance N+1: <strong>+{growthRates[0].toFixed(0)}%</strong></p>
-                                <p>Croissance N+2: <strong>+{growthRates[1].toFixed(0)}%</strong></p>
-                                <p>Croissance N+3: <strong>+{growthRates[2].toFixed(0)}%</strong></p>
+                                <p>Croissance Année 2: <strong>+{growthRates[0].toFixed(0)}%</strong></p>
+                                <p>Croissance Année 3: <strong>+{growthRates[1].toFixed(0)}%</strong></p>
                               </div>
                             </TooltipContent>
                           </Tooltip>
