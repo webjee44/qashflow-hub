@@ -259,7 +259,7 @@ export function BonusDialog({
             </Button>
           </div>
 
-          <ScrollArea className="flex-1 -mx-6 px-6">
+          <ScrollArea className="flex-1">
             <div className="space-y-2">
               {employees.map((person) => {
                 const entry = entries.find(e => e.personnelId === person.id);
