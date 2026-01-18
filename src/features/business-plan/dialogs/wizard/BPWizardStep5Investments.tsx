@@ -12,11 +12,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
-interface BPWizardStep4InvestmentsProps {
+interface BPWizardStep5InvestmentsProps {
   businessPlanId?: string;
 }
 
-export function BPWizardStep4Investments({ businessPlanId }: BPWizardStep4InvestmentsProps) {
+export function BPWizardStep5Investments({ businessPlanId }: BPWizardStep5InvestmentsProps) {
   const { 
     investments, 
     isLoading, 
