@@ -37,6 +37,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [currentCompany, setCurrentCompanyState] = useState<Company | null>(null);
+  const [hasInitialized, setHasInitialized] = useState(false);
 
   // Fetch companies
   const { data: companies = [], isLoading, refetch } = useQuery({
@@ -58,16 +59,17 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     enabled: !!user?.id,
   });
 
-  // Set current company from localStorage or default
+  // Set current company from localStorage or default - runs once when companies are loaded
   useEffect(() => {
-    if (companies.length > 0 && !currentCompany) {
+    if (companies.length > 0 && !hasInitialized) {
       const storedId = localStorage.getItem(STORAGE_KEY);
       const storedCompany = storedId ? companies.find(c => c.id === storedId) : null;
       const defaultCompany = companies.find(c => c.is_default) || companies[0];
       
       setCurrentCompanyState(storedCompany || defaultCompany);
+      setHasInitialized(true);
     }
-  }, [companies, currentCompany]);
+  }, [companies, hasInitialized]);
 
   // Keep currentCompany in sync when companies are refetched/updated
   useEffect(() => {
@@ -92,6 +94,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!user) {
       setCurrentCompanyState(null);
+      setHasInitialized(false);
       localStorage.removeItem(STORAGE_KEY);
     }
   }, [user]);
