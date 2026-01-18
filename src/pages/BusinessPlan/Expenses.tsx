@@ -247,13 +247,13 @@ export default function Expenses() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
           >
-            <Card>
+            <Card data-tour-bp="expenses-card">
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>Charges fixes</CardTitle>
                 <div className="flex gap-2">
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button size="sm" variant="outline" className="gap-2">
+                      <Button data-tour-bp="expense-template" size="sm" variant="outline" className="gap-2">
                         <FileDown className="h-4 w-4" />
                         Templates
                       </Button>

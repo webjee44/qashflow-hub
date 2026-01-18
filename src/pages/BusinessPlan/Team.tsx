@@ -239,7 +239,7 @@ export default function Team() {
       />
 
       {/* Résumé global */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div data-tour-bp="team-summary" className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
