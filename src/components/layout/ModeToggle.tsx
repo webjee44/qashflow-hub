@@ -53,7 +53,7 @@ export function ModeToggle() {
         )}
       >
         <TrendingUp className="h-4 w-4" />
-        <span className="hidden sm:inline">Prévisions</span>
+        <span className="hidden sm:inline">Business Plan</span>
       </button>
     </div>
   );
