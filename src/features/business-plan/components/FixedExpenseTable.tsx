@@ -66,8 +66,8 @@ export function FixedExpenseTable({ onEdit, businessPlanId }: FixedExpenseTableP
             <TableHead>Nom</TableHead>
             <TableHead>Catégorie</TableHead>
             <TableHead>Périodicité</TableHead>
-            <TableHead className="text-right">Montant</TableHead>
-            <TableHead className="text-right">Mensuel</TableHead>
+            <TableHead className="text-right">Montant saisi</TableHead>
+            <TableHead className="text-right">Équiv. mensuel</TableHead>
             <TableHead>Début</TableHead>
             <TableHead>Fin</TableHead>
             <TableHead className="w-[80px]"></TableHead>
