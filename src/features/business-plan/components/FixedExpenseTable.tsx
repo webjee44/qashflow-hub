@@ -53,6 +53,11 @@ export function FixedExpenseTable({ onEdit, businessPlanId }: FixedExpenseTableP
     return null;
   }
 
+  // Sort expenses alphabetically by name
+  const sortedExpenses = [...expenses].sort((a, b) => 
+    a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' })
+  );
+
   return (
     <div className="space-y-4">
       <Table>
@@ -69,7 +74,7 @@ export function FixedExpenseTable({ onEdit, businessPlanId }: FixedExpenseTableP
           </TableRow>
         </TableHeader>
         <TableBody>
-          {expenses.map((expense) => {
+          {sortedExpenses.map((expense) => {
             const frequencyInfo = PAYMENT_FREQUENCIES[expense.payment_frequency] || PAYMENT_FREQUENCIES.monthly;
             const monthlyAmount = getMonthlyAmount(expense);
             const isNonMonthly = expense.payment_frequency !== 'monthly';
