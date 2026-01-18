@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { toast } from 'sonner';
+import { type RevenueModel } from '@/constants/bpConstants';
 
 export interface BPRevenueStream {
   id: string;
@@ -11,7 +12,7 @@ export interface BPRevenueStream {
   name: string;
   description: string | null;
   color: string;
-  model: 'fixed' | 'units' | 'growth' | 'subscription';
+  model: RevenueModel;
   is_active: boolean;
   initial_subscribers: number;
   monthly_price: number;
@@ -19,7 +20,6 @@ export interface BPRevenueStream {
   growth_rate: number;
   vat_rate: number;
   bad_debt_rate: number;
-  // Year-specific growth rates
   annual_growth_rate: number;
   growth_rate_year2: number;
   growth_rate_year3: number;

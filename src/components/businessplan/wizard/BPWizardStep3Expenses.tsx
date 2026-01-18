@@ -8,7 +8,8 @@ import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus, Receipt, Users, Pencil, Trash2, Loader2, ListPlus, X } from 'lucide-react';
-import { useBPFixedExpenses, BPFixedExpense, FIXED_EXPENSE_CATEGORIES } from '@/hooks/useBPFixedExpenses';
+import { useBPFixedExpenses, BPFixedExpense } from '@/hooks/useBPFixedExpenses';
+import { FIXED_EXPENSE_CATEGORIES, type FixedExpenseCategory } from '@/constants/bpConstants';
 import { useBPPersonnel, BPPersonnel } from '@/hooks/useBPPersonnel';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { toast } from 'sonner';
@@ -19,7 +20,7 @@ interface BPWizardStep3ExpensesProps {
 
 interface BulkExpenseRow {
   name: string;
-  category: string;
+  category: FixedExpenseCategory;
   monthly_amount: number;
 }
 
@@ -46,7 +47,13 @@ export function BPWizardStep3Expenses({ businessPlanId }: BPWizardStep3ExpensesP
 
   const [expenseDialogOpen, setExpenseDialogOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState<BPFixedExpense | null>(null);
-  const [expenseForm, setExpenseForm] = useState({
+  const [expenseForm, setExpenseForm] = useState<{
+    name: string;
+    category: FixedExpenseCategory;
+    monthly_amount: number;
+    vat_rate: number;
+    is_vat_deductible: boolean;
+  }>({
     name: '',
     category: 'other',
     monthly_amount: 0,
@@ -392,7 +399,7 @@ export function BPWizardStep3Expenses({ businessPlanId }: BPWizardStep3ExpensesP
             </div>
             <div className="space-y-2">
               <Label>Catégorie</Label>
-              <Select value={expenseForm.category} onValueChange={(v) => setExpenseForm({ ...expenseForm, category: v })}>
+              <Select value={expenseForm.category} onValueChange={(v) => setExpenseForm({ ...expenseForm, category: v as FixedExpenseCategory })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {Object.entries(FIXED_EXPENSE_CATEGORIES).map(([key, { label }]) => (
