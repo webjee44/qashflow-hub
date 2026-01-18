@@ -5,7 +5,8 @@ import { useCategories, CategoryGroup } from '@/hooks/useCategories';
 import { useForecasts } from '@/hooks/useForecasts';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { Loader2, Copy, Check, TrendingUp, ChevronRight, ChevronDown } from 'lucide-react';
+import { Loader2, Copy, Check, TrendingUp, ChevronRight, ChevronDown, Link2 } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
@@ -22,6 +23,7 @@ export function ForecastTable() {
   const { 
     months, 
     getForecast, 
+    getForecastSource,
     getActual, 
     getVatForecast, 
     getVatActual, 
@@ -195,6 +197,7 @@ export function ForecastTable() {
     const cellKey = `${categoryId}-${monthIndex}`;
     const forecast = getForecast(categoryId, months[monthIndex]);
     const actual = getActual(categoryId, months[monthIndex]);
+    const source = getForecastSource(categoryId, months[monthIndex]);
     const isEditing = editingCell === cellKey;
     const showingCopyForThis = showCopyOption && pendingSave?.categoryId === categoryId && pendingSave?.monthIndex === monthIndex;
     const isIncomeCategory = pendingSave?.type === 'income';
@@ -204,6 +207,8 @@ export function ForecastTable() {
     const isPositive = type === 'income' 
       ? actual >= forecast 
       : Math.abs(actual) <= forecast;
+
+    const isBpSource = source === 'bp_import' || source === 'bp_synced';
 
     return (
       <td key={cellKey} className="p-0 border-r border-border">
@@ -225,9 +230,23 @@ export function ForecastTable() {
           }}>
             <PopoverTrigger asChild>
               <div 
-                className="flex-1 px-3 py-2 text-right cursor-pointer hover:bg-primary/5 transition-colors"
+                className={cn(
+                  "flex-1 px-3 py-2 text-right cursor-pointer hover:bg-primary/5 transition-colors relative",
+                  isBpSource && "bg-primary/5"
+                )}
                 onClick={() => !isEditing && !showingCopyForThis && handleCellClick(categoryId, monthIndex, forecast)}
               >
+                {/* BP Source badge */}
+                {isBpSource && forecast > 0 && !isEditing && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Link2 className="w-3 h-3 text-primary absolute top-1 left-1 opacity-60" />
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="text-xs">
+                      {source === 'bp_synced' ? 'Synchronisé avec Prévisions' : 'Importé depuis Prévisions'}
+                    </TooltipContent>
+                  </Tooltip>
+                )}
                 {isEditing ? (
                   <input
                     ref={inputRef}

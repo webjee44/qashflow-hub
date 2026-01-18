@@ -16,6 +16,9 @@ export interface CategoryForecast {
   created_at: string;
   updated_at: string;
   company_id?: string | null;
+  source?: 'manual' | 'bp_import' | 'bp_synced';
+  bp_stream_id?: string | null;
+  bp_expense_id?: string | null;
 }
 
 export interface ForecastWithActual extends CategoryForecast {
@@ -164,6 +167,15 @@ export function useForecasts() {
     return forecast?.expected_amount ?? 0;
   };
 
+  // Helper to get forecast source for a specific category and month
+  const getForecastSource = (categoryId: string, month: Date): 'manual' | 'bp_import' | 'bp_synced' | null => {
+    const monthStr = format(month, 'yyyy-MM-01');
+    const forecast = forecasts.find(
+      f => f.category_id === categoryId && f.month === monthStr
+    );
+    return forecast?.source || null;
+  };
+
   // Helper to get actual amount for a specific category and month
   const getActual = (categoryId: string, month: Date): number => {
     const monthStr = format(month, 'yyyy-MM-01');
@@ -198,6 +210,7 @@ export function useForecasts() {
     isLoading: forecastsLoading || actualsLoading,
     upsertForecast,
     getForecast,
+    getForecastSource,
     getActual,
     getVatForecast,
     getVatActual,
