@@ -1682,7 +1682,50 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      organization_members_safe: {
+        Row: {
+          created_at: string | null
+          id: string | null
+          invited_at: string | null
+          invited_email: string | null
+          joined_at: string | null
+          organization_id: string | null
+          role: Database["public"]["Enums"]["app_role"] | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string | null
+          invited_at?: string | null
+          invited_email?: never
+          joined_at?: string | null
+          organization_id?: string | null
+          role?: Database["public"]["Enums"]["app_role"] | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string | null
+          invited_at?: string | null
+          invited_email?: never
+          joined_at?: string | null
+          organization_id?: string | null
+          role?: Database["public"]["Enums"]["app_role"] | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_members_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       assign_superadmin_role: {
