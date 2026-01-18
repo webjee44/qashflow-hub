@@ -116,6 +116,63 @@ export type Database = {
           },
         ]
       }
+      bp_bonuses: {
+        Row: {
+          amount: number
+          bonus_type: string
+          business_plan_id: string
+          created_at: string | null
+          id: string
+          is_exempt: boolean | null
+          notes: string | null
+          payment_month: string
+          personnel_id: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          amount?: number
+          bonus_type?: string
+          business_plan_id: string
+          created_at?: string | null
+          id?: string
+          is_exempt?: boolean | null
+          notes?: string | null
+          payment_month: string
+          personnel_id: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          bonus_type?: string
+          business_plan_id?: string
+          created_at?: string | null
+          id?: string
+          is_exempt?: boolean | null
+          notes?: string | null
+          payment_month?: string
+          personnel_id?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bp_bonuses_business_plan_id_fkey"
+            columns: ["business_plan_id"]
+            isOneToOne: false
+            referencedRelation: "business_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bp_bonuses_personnel_id_fkey"
+            columns: ["personnel_id"]
+            isOneToOne: false
+            referencedRelation: "bp_personnel"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bp_directors: {
         Row: {
           business_plan_id: string | null
