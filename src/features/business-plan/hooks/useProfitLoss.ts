@@ -175,18 +175,20 @@ export function useProfitLoss() {
     enabled: !!user && !!businessPlanId,
   });
 
+  // Fetch forecasts by stream_ids (since forecasts may not have business_plan_id set)
+  const streamIds = streams.map(s => s.id);
   const { data: forecasts = [], isLoading: forecastsLoading } = useQuery({
-    queryKey: ['bp_revenue_forecasts', businessPlanId],
+    queryKey: ['bp_revenue_forecasts_by_streams', streamIds],
     queryFn: async () => {
-      if (!businessPlanId) return [];
+      if (streamIds.length === 0) return [];
       const { data, error } = await supabase
         .from('bp_revenue_forecasts')
         .select('*')
-        .eq('business_plan_id', businessPlanId);
+        .in('stream_id', streamIds);
       if (error) throw error;
       return data || [];
     },
-    enabled: !!user && !!businessPlanId,
+    enabled: !!user && streamIds.length > 0,
   });
 
   const isLoading = planLoading || settingsLoading || streamsLoading || fixedLoading || variableLoading || 
