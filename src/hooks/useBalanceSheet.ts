@@ -153,40 +153,50 @@ export function useBalanceSheet() {
     );
     rows.push({ label: 'Total Capitaux Propres', type: 'subtotal', values: equityValues });
 
-    // Dettes Financières (Financial Debts)
-    rows.push({ label: 'Dettes financières', type: 'header', values: [], indent: 1 });
+    // Dettes Financières (Financial Debts) - only if show_financing is enabled
+    const showFinancing = settings.show_financing !== false;
+    
+    let bankLoansValues = years.map(() => 0);
+    let currentAccountValues = years.map(() => 0);
+    
+    if (showFinancing) {
+      rows.push({ label: 'Dettes financières', type: 'header', values: [], indent: 1 });
 
-    // Bank loans
-    const bankLoansValues = years.map(year => {
-      return financings
-        .filter(f => f.financing_type === 'loan')
-        .reduce((sum, f) => {
-          const endDate = f.end_date ? new Date(f.end_date) : addMonths(new Date(f.start_date), f.duration_months);
-          if (year.endDate > endDate) return sum;
-          return sum + getTotalOutstandingLoans(year.endDate);
-        }, 0) / Math.max(1, financings.filter(f => f.financing_type === 'loan').length);
-    });
-    rows.push({ label: 'Emprunts bancaires', type: 'item', values: bankLoansValues, indent: 2 });
+      // Bank loans
+      bankLoansValues = years.map(year => {
+        return financings
+          .filter(f => f.financing_type === 'loan')
+          .reduce((sum, f) => {
+            const endDate = f.end_date ? new Date(f.end_date) : addMonths(new Date(f.start_date), f.duration_months);
+            if (year.endDate > endDate) return sum;
+            return sum + getTotalOutstandingLoans(year.endDate);
+          }, 0) / Math.max(1, financings.filter(f => f.financing_type === 'loan').length);
+      });
+      rows.push({ label: 'Emprunts bancaires', type: 'item', values: bankLoansValues, indent: 2 });
 
-    // Current accounts (comptes courants associés)
-    const currentAccountValues = years.map(year => {
-      return financings
-        .filter(f => f.financing_type === 'current_account')
-        .filter(f => {
-          const startDate = new Date(f.start_date);
-          const endDate = f.end_date ? new Date(f.end_date) : null;
-          return startDate <= year.endDate && (!endDate || endDate >= year.endDate);
-        })
-        .reduce((sum, f) => sum + Number(f.amount), 0);
-    });
-    if (currentAccountValues.some(v => v > 0)) {
-      rows.push({ label: 'Comptes courants d\'associés', type: 'item', values: currentAccountValues, indent: 2 });
+      // Current accounts (comptes courants associés)
+      currentAccountValues = years.map(year => {
+        return financings
+          .filter(f => f.financing_type === 'current_account')
+          .filter(f => {
+            const startDate = new Date(f.start_date);
+            const endDate = f.end_date ? new Date(f.end_date) : null;
+            return startDate <= year.endDate && (!endDate || endDate >= year.endDate);
+          })
+          .reduce((sum, f) => sum + Number(f.amount), 0);
+      });
+      if (currentAccountValues.some(v => v > 0)) {
+        rows.push({ label: 'Comptes courants d\'associés', type: 'item', values: currentAccountValues, indent: 2 });
+      }
     }
 
     const financialDebtsValues = years.map((_, i) => 
       bankLoansValues[i] + currentAccountValues[i]
     );
-    rows.push({ label: 'Total Dettes Financières', type: 'subtotal', values: financialDebtsValues });
+    
+    if (showFinancing) {
+      rows.push({ label: 'Total Dettes Financières', type: 'subtotal', values: financialDebtsValues });
+    }
 
     // Dettes d'exploitation (Operating Debts)
     rows.push({ label: 'Dettes d\'exploitation', type: 'header', values: [], indent: 1 });

@@ -74,8 +74,10 @@ export function useFundingPlan() {
     });
     rows.push({ label: 'Variation du BFR', type: 'item', values: bfrVariation, isNeed: true, indent: 1 });
 
-    // Loan repayments (principal only, not interest)
-    const loanRepayments = years.map((_, yearIndex) => {
+    // Loan repayments (principal only, not interest) - only if show_financing is enabled
+    const showFinancing = settings.show_financing !== false;
+    
+    const loanRepayments = showFinancing ? years.map((_, yearIndex) => {
       const yearStart = plData.years[yearIndex]?.start;
       const yearEnd = plData.years[yearIndex]?.end;
       if (!yearStart || !yearEnd) return 0;
@@ -100,8 +102,11 @@ export function useFundingPlan() {
           const avgInterest = outstandingAtStart * interestRate;
           return sum + Math.max(0, annualPayment - avgInterest);
         }, 0);
-    });
-    rows.push({ label: 'Remboursements emprunts', type: 'item', values: loanRepayments, isNeed: true, indent: 1 });
+    }) : years.map(() => 0);
+    
+    if (showFinancing) {
+      rows.push({ label: 'Remboursements emprunts', type: 'item', values: loanRepayments, isNeed: true, indent: 1 });
+    }
 
     // Dividends (set to 0 for now, could be configurable)
     const dividends = years.map(() => 0);
@@ -132,8 +137,8 @@ export function useFundingPlan() {
     });
     rows.push({ label: 'Apports en capital', type: 'item', values: capitalContributions, indent: 1 });
 
-    // New loans by year
-    const newLoans = years.map((_, yearIndex) => {
+    // New loans by year (only if show_financing is enabled)
+    const newLoans = showFinancing ? years.map((_, yearIndex) => {
       const yearStart = plData.years[yearIndex]?.start;
       const yearEnd = plData.years[yearIndex]?.end;
       if (!yearStart || !yearEnd) return 0;
@@ -145,11 +150,14 @@ export function useFundingPlan() {
           return startDate >= yearStart && startDate <= yearEnd;
         })
         .reduce((sum, f) => sum + Number(f.amount), 0);
-    });
-    rows.push({ label: 'Nouveaux emprunts', type: 'item', values: newLoans, indent: 1 });
+    }) : years.map(() => 0);
+    
+    if (showFinancing) {
+      rows.push({ label: 'Nouveaux emprunts', type: 'item', values: newLoans, indent: 1 });
+    }
 
-    // Current accounts
-    const currentAccounts = years.map((_, yearIndex) => {
+    // Current accounts (only if show_financing is enabled)
+    const currentAccounts = showFinancing ? years.map((_, yearIndex) => {
       const yearStart = plData.years[yearIndex]?.start;
       const yearEnd = plData.years[yearIndex]?.end;
       if (!yearStart || !yearEnd) return 0;
@@ -161,8 +169,11 @@ export function useFundingPlan() {
           return startDate >= yearStart && startDate <= yearEnd;
         })
         .reduce((sum, f) => sum + Number(f.amount), 0);
-    });
-    rows.push({ label: 'Comptes courants associés', type: 'item', values: currentAccounts, indent: 1 });
+    }) : years.map(() => 0);
+    
+    if (showFinancing) {
+      rows.push({ label: 'Comptes courants associés', type: 'item', values: currentAccounts, indent: 1 });
+    }
 
     // Add BFR decrease as resource if negative
     const bfrDecrease = years.map((_, i) => Math.max(0, -bfrVariation[i]));
