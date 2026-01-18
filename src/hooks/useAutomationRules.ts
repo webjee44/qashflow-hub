@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { useCompany } from './useCompany';
 import { toast } from 'sonner';
+import { logError } from '@/lib/logger';
 
 export interface AutomationRule {
   id: string;
@@ -72,7 +73,7 @@ export function useAutomationRules() {
       const totalMatches = (data || []).reduce((acc, rule) => acc + (rule.match_count || 0), 0);
       setStats(prev => ({ ...prev, totalAutomated: totalMatches }));
     } catch (error) {
-      console.error('Error fetching rules:', error);
+      logError('Error fetching rules:', error);
       toast.error('Erreur lors du chargement des règles');
     }
   };
@@ -96,7 +97,7 @@ export function useAutomationRules() {
       if (error) throw error;
       setCategories(data || []);
     } catch (error) {
-      console.error('Error fetching categories:', error);
+      logError('Error fetching categories:', error);
     }
   };
 
@@ -119,13 +120,13 @@ export function useAutomationRules() {
       });
 
       if (error) {
-        console.error('Error applying rule:', error);
+        logError('Error applying rule:', error);
         return 0;
       }
 
       return data?.updated || 0;
     } catch (error) {
-      console.error('Error applying rule:', error);
+      logError('Error applying rule:', error);
       return 0;
     }
   };
@@ -174,7 +175,7 @@ export function useAutomationRules() {
       
       return data;
     } catch (error) {
-      console.error('Error creating rule:', error);
+      logError('Error creating rule:', error);
       toast.error('Erreur lors de la création de la règle');
       return null;
     }
@@ -205,7 +206,7 @@ export function useAutomationRules() {
       toast.success('Catégorie créée avec succès');
       return newCategory;
     } catch (error) {
-      console.error('Error creating category:', error);
+      logError('Error creating category:', error);
       toast.error('Erreur lors de la création de la catégorie');
       return null;
     }
@@ -229,7 +230,7 @@ export function useAutomationRules() {
       toast.success('Règle mise à jour');
       return data;
     } catch (error) {
-      console.error('Error updating rule:', error);
+      logError('Error updating rule:', error);
       toast.error('Erreur lors de la mise à jour');
       return null;
     }

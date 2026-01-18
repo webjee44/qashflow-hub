@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { useCompany } from './useCompany';
 import { toast } from 'sonner';
+import { logError } from '@/lib/logger';
 
 export interface Category {
   id: string;
@@ -61,7 +62,7 @@ export function useCategories() {
       if (error) throw error;
       setCategories(data || []);
     } catch (error) {
-      console.error('Error fetching categories:', error);
+      logError('Error fetching categories:', error);
       toast.error('Erreur lors du chargement des catégories');
     } finally {
       setLoading(false);
@@ -95,7 +96,7 @@ export function useCategories() {
       await fetchCategories();
       toast.success('Catégories par défaut créées');
     } catch (error) {
-      console.error('Error initializing categories:', error);
+      logError('Error initializing categories:', error);
     }
   };
 
@@ -132,7 +133,7 @@ export function useCategories() {
       toast.success('Catégorie créée avec succès');
       return data;
     } catch (error) {
-      console.error('Error creating category:', error);
+      logError('Error creating category:', error);
       toast.error('Erreur lors de la création');
       return null;
     }
@@ -153,7 +154,7 @@ export function useCategories() {
       toast.success('Catégorie mise à jour');
       return data;
     } catch (error) {
-      console.error('Error updating category:', error);
+      logError('Error updating category:', error);
       toast.error('Erreur lors de la mise à jour');
       return null;
     }
@@ -171,7 +172,7 @@ export function useCategories() {
       setCategories(prev => prev.filter(c => c.id !== id));
       toast.success('Catégorie supprimée');
     } catch (error) {
-      console.error('Error deleting category:', error);
+      logError('Error deleting category:', error);
       toast.error('Erreur lors de la suppression');
     }
   };
@@ -276,7 +277,7 @@ export function useCategories() {
       toast.success('Groupe créé avec succès');
       return groupData;
     } catch (error) {
-      console.error('Error creating group:', error);
+      logError('Error creating group:', error);
       toast.error('Erreur lors de la création du groupe');
       return null;
     }
@@ -326,7 +327,7 @@ export function useCategories() {
       toast.success('Groupe mis à jour');
       return true;
     } catch (error) {
-      console.error('Error updating group:', error);
+      logError('Error updating group:', error);
       toast.error('Erreur lors de la mise à jour du groupe');
       return null;
     }
@@ -364,7 +365,7 @@ export function useCategories() {
       await fetchCategories();
       toast.success('Groupe supprimé');
     } catch (error) {
-      console.error('Error deleting group:', error);
+      logError('Error deleting group:', error);
       toast.error('Erreur lors de la suppression du groupe');
     }
   };

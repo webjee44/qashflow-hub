@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { toast } from 'sonner';
+import { logError } from '@/lib/logger';
 
 type AppRole = 'owner' | 'admin' | 'member' | 'viewer' | 'superadmin';
 
@@ -104,7 +105,7 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
         setUserRole(membership?.role as AppRole || null);
       }
     } catch (error) {
-      console.error('Error fetching organizations:', error);
+      logError('Error fetching organizations:', error);
     } finally {
       setLoading(false);
     }
@@ -125,7 +126,7 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
       if (error) throw error;
       setMembers(data || []);
     } catch (error) {
-      console.error('Error fetching members:', error);
+      logError('Error fetching members:', error);
     }
   };
 
@@ -158,7 +159,7 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
       toast.success('Organisation mise à jour');
       await fetchOrganizations();
     } catch (error) {
-      console.error('Error updating organization:', error);
+      logError('Error updating organization:', error);
       toast.error('Erreur lors de la mise à jour');
       throw error;
     }

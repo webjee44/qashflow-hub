@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { useCompany } from './useCompany';
 import { toast } from 'sonner';
+import { logError } from '@/lib/logger';
 
 export interface DeletedCompany {
   id: string;
@@ -80,7 +81,7 @@ export function useTrash() {
       toast.success('Société restaurée avec succès');
     },
     onError: (error) => {
-      console.error('Error restoring company:', error);
+      logError('Error restoring company:', error);
       toast.error('Erreur lors de la restauration');
     },
   });
@@ -101,7 +102,7 @@ export function useTrash() {
       toast.success('Transaction restaurée avec succès');
     },
     onError: (error) => {
-      console.error('Error restoring transaction:', error);
+      logError('Error restoring transaction:', error);
       toast.error('Erreur lors de la restauration');
     },
   });
@@ -121,7 +122,7 @@ export function useTrash() {
       toast.success('Société supprimée définitivement');
     },
     onError: (error) => {
-      console.error('Error permanently deleting company:', error);
+      logError('Error permanently deleting company:', error);
       toast.error('Erreur lors de la suppression définitive');
     },
   });
@@ -141,7 +142,7 @@ export function useTrash() {
       toast.success('Transaction supprimée définitivement');
     },
     onError: (error) => {
-      console.error('Error permanently deleting transaction:', error);
+      logError('Error permanently deleting transaction:', error);
       toast.error('Erreur lors de la suppression définitive');
     },
   });
