@@ -439,6 +439,7 @@ export type Database = {
       }
       bp_personnel: {
         Row: {
+          at_mp_rate: number | null
           business_plan_id: string | null
           company_id: string | null
           company_size: string | null
@@ -451,7 +452,9 @@ export type Database = {
           gross_salary: number | null
           id: string
           is_executive: boolean | null
+          mutuelle_employer_amount: number | null
           notes: string | null
+          payslip_imported: boolean | null
           position: string
           start_date: string
           updated_at: string | null
@@ -459,6 +462,7 @@ export type Database = {
           worker_type: string | null
         }
         Insert: {
+          at_mp_rate?: number | null
           business_plan_id?: string | null
           company_id?: string | null
           company_size?: string | null
@@ -471,7 +475,9 @@ export type Database = {
           gross_salary?: number | null
           id?: string
           is_executive?: boolean | null
+          mutuelle_employer_amount?: number | null
           notes?: string | null
+          payslip_imported?: boolean | null
           position: string
           start_date?: string
           updated_at?: string | null
@@ -479,6 +485,7 @@ export type Database = {
           worker_type?: string | null
         }
         Update: {
+          at_mp_rate?: number | null
           business_plan_id?: string | null
           company_id?: string | null
           company_size?: string | null
@@ -491,7 +498,9 @@ export type Database = {
           gross_salary?: number | null
           id?: string
           is_executive?: boolean | null
+          mutuelle_employer_amount?: number | null
           notes?: string | null
+          payslip_imported?: boolean | null
           position?: string
           start_date?: string
           updated_at?: string | null

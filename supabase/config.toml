@@ -41,3 +41,6 @@ verify_jwt = false
 
 [functions.backup-scheduler]
 verify_jwt = false
+
+[functions.parse-payslip]
+verify_jwt = true
