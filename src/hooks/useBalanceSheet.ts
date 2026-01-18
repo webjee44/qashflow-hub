@@ -85,9 +85,15 @@ export function useBalanceSheet() {
     // Actif Circulant (Current Assets)
     rows.push({ label: 'Actif circulant', type: 'header', values: [], indent: 1 });
 
-    // Stocks
-    const stockValues = years.map((_, i) => getStockValueAtEnd(i + 1));
-    rows.push({ label: 'Stocks', type: 'item', values: stockValues, indent: 2 });
+    // Stocks (only if show_stocks is enabled)
+    const showStocks = settings.show_stocks !== false;
+    const stockValues = showStocks 
+      ? years.map((_, i) => getStockValueAtEnd(i + 1))
+      : years.map(() => 0);
+    
+    if (showStocks) {
+      rows.push({ label: 'Stocks', type: 'item', values: stockValues, indent: 2 });
+    }
 
     // Créances clients (based on revenue and payment delay)
     const receivablesValues = years.map((_, yearIndex) => {
