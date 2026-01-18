@@ -33,8 +33,8 @@ export const SEOHead = ({
   const fullUrl = canonicalUrl || `${BASE_URL}${location.pathname}`;
   
   const fullTitle = title 
-    ? `${title} | qashflow - Gestion de trésorerie`
-    : 'qashflow - Pilotez votre trésorerie avec intelligence';
+    ? `${title} | qashflow - Gestion financière`
+    : 'qashflow - Pilotez vos finances avec intelligence';
   
   const defaultDescription = 'Synchronisez vos banques, anticipez votre cash-flow et créez des business plans professionnels. Tout en un seul outil.';
   const fullDescription = description || defaultDescription;
