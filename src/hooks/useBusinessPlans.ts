@@ -96,24 +96,6 @@ export function useBusinessPlans() {
     },
   });
 
-  const deleteBusinessPlan = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('business_plans')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['business_plans'] });
-      toast({ title: 'Business Plan supprimé' });
-    },
-    onError: (error) => {
-      toast({ title: 'Erreur', description: error.message, variant: 'destructive' });
-    },
-  });
-
   const finalizeBusinessPlan = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase
@@ -136,60 +118,11 @@ export function useBusinessPlans() {
     },
   });
 
-  const duplicateBusinessPlan = useMutation({
-    mutationFn: async (id: string) => {
-      if (!user) throw new Error('Not authenticated');
-
-      // Get the original BP
-      const { data: original, error: fetchError } = await supabase
-        .from('business_plans')
-        .select('*')
-        .eq('id', id)
-        .single();
-
-      if (fetchError) throw fetchError;
-
-      // Create a copy
-      const { data: newBP, error: insertError } = await supabase
-        .from('business_plans')
-        .insert({
-          user_id: user.id,
-          company_id: original.company_id,
-          name: `${original.name} (copie)`,
-          status: 'draft',
-          description: original.description,
-          bp_start_date: original.bp_start_date,
-          bp_years: original.bp_years,
-          fiscal_year_start_month: original.fiscal_year_start_month,
-          fiscal_year_start_day: original.fiscal_year_start_day,
-          customer_payment_delay: original.customer_payment_delay,
-          supplier_payment_delay: original.supplier_payment_delay,
-          initial_cash: original.initial_cash,
-          tax_regime: original.tax_regime,
-          is_pme: original.is_pme,
-        })
-        .select()
-        .single();
-
-      if (insertError) throw insertError;
-      return newBP as BusinessPlan;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['business_plans'] });
-      toast({ title: 'Business Plan dupliqué' });
-    },
-    onError: (error) => {
-      toast({ title: 'Erreur', description: error.message, variant: 'destructive' });
-    },
-  });
-
   return {
     businessPlans,
     isLoading,
     createBusinessPlan,
     updateBusinessPlan,
-    deleteBusinessPlan,
     finalizeBusinessPlan,
-    duplicateBusinessPlan,
   };
 }

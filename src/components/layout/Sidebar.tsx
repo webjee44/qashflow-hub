@@ -55,7 +55,6 @@ const businessPlanNavItems: NavItem[] = [
   { icon: Wallet, label: 'Trésorerie', href: '/bp/tresorerie' },
   { icon: Wallet, label: 'Plan de financement', href: '/bp/financement', key: 'financing' },
   { icon: GitBranch, label: 'Scénarios', href: '/bp/scenarios' },
-  { icon: LayoutDashboard, label: 'Synthèse', href: '/bp/synthese' },
 ];
 
 const bottomNavItems: NavItem[] = [
