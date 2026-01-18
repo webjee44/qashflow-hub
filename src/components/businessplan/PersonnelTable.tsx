@@ -1,8 +1,8 @@
-import { Edit, Trash2, User, GraduationCap, Gift } from 'lucide-react';
+import { Edit, Trash2, User, GraduationCap, Gift, Pencil } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useBPPersonnel, BPPersonnel, CONTRACT_TYPES } from '@/hooks/useBPPersonnel';
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -12,9 +12,11 @@ interface PersonnelTableProps {
   onEdit: (personnel: BPPersonnel) => void;
   businessPlanId?: string;
   bonuses?: BPBonus[];
+  onEditBonus?: (bonus: BPBonus) => void;
+  onDeleteBonus?: (bonusId: string) => void;
 }
 
-export function PersonnelTable({ onEdit, businessPlanId, bonuses = [] }: PersonnelTableProps) {
+export function PersonnelTable({ onEdit, businessPlanId, bonuses = [], onEditBonus, onDeleteBonus }: PersonnelTableProps) {
   const { employees, deletePersonnel, getEmployeeMonthlyCost, totalEmployeeCost, isLoading } = useBPPersonnel(businessPlanId);
 
   const formatCurrency = (value: number) => {
@@ -27,6 +29,14 @@ export function PersonnelTable({ onEdit, businessPlanId, bonuses = [] }: Personn
 
   const formatDate = (dateStr: string) => {
     return format(parseISO(dateStr), 'MMM yyyy', { locale: fr });
+  };
+
+  const formatMonthYear = (dateStr: string) => {
+    try {
+      return format(parseISO(dateStr), 'MMM yyyy', { locale: fr });
+    } catch {
+      return dateStr;
+    }
   };
 
   // Calculer le total des primes par salarié
@@ -112,28 +122,89 @@ export function PersonnelTable({ onEdit, businessPlanId, bonuses = [] }: Personn
                 </TableCell>
                 <TableCell className="text-right">
                   {personBonuses.length > 0 ? (
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <div className="inline-flex items-center gap-1 cursor-help">
-                            <Gift className="h-3 w-3 text-emerald-500" />
-                            <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20">
-                              {formatCurrency(totalBonusForPerson)}
-                            </Badge>
-                          </div>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <div className="space-y-1">
-                            {personBonuses.map((bonus) => (
-                              <div key={bonus.id} className="flex justify-between gap-4 text-sm">
-                                <span>{BONUS_TYPES[bonus.bonus_type as keyof typeof BONUS_TYPES]?.label || bonus.bonus_type}</span>
-                                <span className="font-medium">{formatCurrency(bonus.amount)}</span>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button className="inline-flex items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity">
+                          <Gift className="h-3 w-3 text-emerald-500" />
+                          <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20">
+                            {formatCurrency(totalBonusForPerson)}
+                          </Badge>
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-80 p-0" align="end">
+                        <div className="p-3 border-b bg-muted/50">
+                          <p className="font-medium text-sm">Primes de {person.position}</p>
+                          <p className="text-xs text-muted-foreground">Cliquez sur une prime pour la modifier</p>
+                        </div>
+                        <div className="divide-y max-h-64 overflow-y-auto">
+                          {personBonuses.map((bonus) => (
+                            <div
+                              key={bonus.id}
+                              className="p-3 hover:bg-muted/50 transition-colors"
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-medium text-sm truncate">
+                                      {BONUS_TYPES[bonus.bonus_type as keyof typeof BONUS_TYPES]?.label || bonus.bonus_type}
+                                    </span>
+                                    {bonus.is_exempt && (
+                                      <Badge variant="secondary" className="text-xs bg-emerald-500/10 text-emerald-600">
+                                        Exo
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <p className="text-xs text-muted-foreground">
+                                    Versement : {formatMonthYear(bonus.payment_month)}
+                                  </p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-semibold text-sm">
+                                    {formatCurrency(bonus.amount)}
+                                  </span>
+                                  <div className="flex gap-1">
+                                    {onEditBonus && (
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-7 w-7"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          onEditBonus(bonus);
+                                        }}
+                                      >
+                                        <Pencil className="h-3 w-3" />
+                                      </Button>
+                                    )}
+                                    {onDeleteBonus && (
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-7 w-7 text-destructive hover:text-destructive"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          onDeleteBonus(bonus.id);
+                                        }}
+                                      >
+                                        <Trash2 className="h-3 w-3" />
+                                      </Button>
+                                    )}
+                                  </div>
+                                </div>
                               </div>
-                            ))}
+                            </div>
+                          ))}
+                        </div>
+                        <div className="p-3 border-t bg-muted/30">
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-muted-foreground">Total</span>
+                            <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                              {formatCurrency(totalBonusForPerson)}
+                            </span>
                           </div>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
                   ) : (
                     <span className="text-muted-foreground">–</span>
                   )}

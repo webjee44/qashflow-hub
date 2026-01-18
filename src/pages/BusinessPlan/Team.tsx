@@ -12,10 +12,12 @@ import { FreelanceTable } from '@/components/businessplan/FreelanceTable';
 import { EmployeeDialog } from '@/features/business-plan/dialogs/EmployeeDialog';
 import { FreelanceDialog } from '@/features/business-plan/dialogs/FreelanceDialog';
 import { BonusDialog } from '@/features/business-plan/dialogs/BonusDialog';
+import { EditBonusDialog } from '@/features/business-plan/dialogs/EditBonusDialog';
 import { SectionNotes } from '@/components/businessplan/SectionNotes';
 import { BPExportDialog } from '@/components/businessplan/BPExportDialog';
 import { useBPPersonnel, BPPersonnel } from '@/hooks/useBPPersonnel';
 import { useBPBonuses } from '@/features/business-plan/hooks/useBPBonuses';
+import { BPBonus } from '@/services/bonusService';
 import { useCurrentBusinessPlan } from '@/hooks/useCurrentBusinessPlan';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { toast } from 'sonner';
@@ -68,9 +70,21 @@ export default function Team() {
   
   // Dialog primes
   const [bonusDialogOpen, setBonusDialogOpen] = useState(false);
+  const [editBonusDialogOpen, setEditBonusDialogOpen] = useState(false);
+  const [selectedBonus, setSelectedBonus] = useState<BPBonus | null>(null);
   
   // Hook primes
-  const { bonuses, bulkCreateBonuses, isCreating: isBonusSaving } = useBPBonuses(currentPlan?.id ?? null);
+  const { bonuses, bulkCreateBonuses, updateBonus, deleteBonus, isCreating: isBonusSaving, isUpdating: isBonusUpdating, isDeleting: isBonusDeleting } = useBPBonuses(currentPlan?.id ?? null);
+
+  // Handlers pour les primes
+  const handleEditBonus = (bonus: BPBonus) => {
+    setSelectedBonus(bonus);
+    setEditBonusDialogOpen(true);
+  };
+
+  const handleDeleteBonus = (bonusId: string) => {
+    deleteBonus(bonusId);
+  };
 
   // Handlers pour les dialogs
   const handleOpenEmployeeDialog = () => {
@@ -330,7 +344,13 @@ export default function Team() {
                     </div>
                   </div>
                 ) : (
-                  <PersonnelTable onEdit={handleEditEmployee} businessPlanId={currentPlan?.id} bonuses={bonuses} />
+                  <PersonnelTable 
+                    onEdit={handleEditEmployee} 
+                    businessPlanId={currentPlan?.id} 
+                    bonuses={bonuses}
+                    onEditBonus={handleEditBonus}
+                    onDeleteBonus={handleDeleteBonus}
+                  />
                 )}
               </CardContent>
             </Card>
@@ -411,6 +431,17 @@ export default function Team() {
         personnel={employees}
         onSubmit={bulkCreateBonuses}
         isSubmitting={isBonusSaving}
+      />
+
+      {/* Dialog édition prime */}
+      <EditBonusDialog
+        open={editBonusDialogOpen}
+        onOpenChange={setEditBonusDialogOpen}
+        bonus={selectedBonus}
+        onUpdate={(id, data) => updateBonus({ id, data })}
+        onDelete={handleDeleteBonus}
+        isUpdating={isBonusUpdating}
+        isDeleting={isBonusDeleting}
       />
 
       {/* Dialog ajout en masse salariés */}
