@@ -14,7 +14,7 @@ import { VariableExpenseTable } from '@/components/businessplan/VariableExpenseT
 import { SectionNotes } from '@/components/businessplan/SectionNotes';
 import { BPExportDialog } from '@/components/businessplan/BPExportDialog';
 import { useBPFixedExpenses, BPFixedExpense, FIXED_EXPENSE_CATEGORIES } from '@/hooks/useBPFixedExpenses';
-import { useBusinessPlans } from '@/hooks/useBusinessPlans';
+import { useCurrentBusinessPlan } from '@/hooks/useCurrentBusinessPlan';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { toast } from 'sonner';
 
@@ -115,8 +115,7 @@ interface BulkExpenseRow {
 }
 
 export default function Expenses() {
-  const { businessPlans, isLoading: isLoadingBP, createBusinessPlan } = useBusinessPlans();
-  const currentPlan = businessPlans[0];
+  const { currentPlan, isLoading: isLoadingBP } = useCurrentBusinessPlan();
   
   const { expenses, createExpense, updateExpense } = useBPFixedExpenses(currentPlan?.id);
 
@@ -128,62 +127,12 @@ export default function Expenses() {
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateKey | null>(null);
   const [isApplyingTemplate, setIsApplyingTemplate] = useState(false);
-  const [isCreatingBP, setIsCreatingBP] = useState(false);
 
-  // Create a default BP if none exists
-  const handleCreateDefaultBP = async () => {
-    setIsCreatingBP(true);
-    try {
-      await createBusinessPlan.mutateAsync({ 
-        name: 'Mon Business Plan',
-        company_id: null,
-        status: 'draft',
-        description: null,
-        bp_start_date: new Date().toISOString().split('T')[0],
-        bp_years: 3,
-        fiscal_year_start_month: 1,
-        fiscal_year_start_day: 1,
-        customer_payment_delay: 30,
-        supplier_payment_delay: 30,
-        initial_cash: 0,
-        tax_regime: 'IS',
-        is_pme: true,
-        finalized_at: null,
-      });
-      toast.success('Business Plan créé');
-    } catch (error) {
-      toast.error('Erreur lors de la création du BP');
-    } finally {
-      setIsCreatingBP(false);
-    }
-  };
-
-  // Show loading or create BP prompt
+  // Show loading while BP is being loaded/created
   if (isLoadingBP) {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-
-  if (!currentPlan) {
-    return (
-      <div className="space-y-6">
-        <PageHeader
-          title="Charges"
-          subtitle="Gérez vos charges fixes et variables"
-        />
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center h-64 gap-4">
-            <Building2 className="h-16 w-16 text-muted-foreground/30" />
-            <p className="text-muted-foreground">Aucun business plan trouvé</p>
-            <Button onClick={handleCreateDefaultBP} disabled={isCreatingBP}>
-              {isCreatingBP && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Créer un Business Plan
-            </Button>
-          </CardContent>
-        </Card>
       </div>
     );
   }
