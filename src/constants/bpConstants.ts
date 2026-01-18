@@ -24,10 +24,8 @@ export type FixedExpenseCategory = keyof typeof FIXED_EXPENSE_CATEGORIES;
 // Modèles de revenus
 // Contrainte DB: bp_revenue_streams_model_check
 export const REVENUE_MODELS = {
-  fixed: { label: 'Montant fixe', description: 'CA mensuel fixe' },
-  units: { label: 'À l\'unité', description: 'Prix x Quantité' },
-  growth: { label: 'Croissance', description: 'Croissance mensuelle' },
-  subscription: { label: 'Abonnement', description: 'Récurrent avec churn' },
+  variable: { label: 'CA variable', description: 'Saisie mensuelle manuelle' },
+  subscription: { label: 'Abonnement / SaaS', description: 'Récurrent avec croissance et churn' },
 } as const;
 
 export type RevenueModel = keyof typeof REVENUE_MODELS;
