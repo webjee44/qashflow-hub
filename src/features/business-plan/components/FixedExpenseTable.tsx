@@ -108,9 +108,9 @@ export function FixedExpenseTable({ onEdit, businessPlanId }: FixedExpenseTableP
                 </TableCell>
                 <TableCell className="text-right font-semibold text-destructive">
                   {formatCurrency(Number(expense.monthly_amount))}
-                  {isNonMonthly && (
-                    <span className="text-xs text-muted-foreground ml-1">/{frequencyInfo.label.toLowerCase().slice(0, 4)}</span>
-                  )}
+                  <span className="text-xs text-muted-foreground ml-1">
+                    {expense.payment_frequency === 'annual' ? '/an' : '/mois'}
+                  </span>
                 </TableCell>
                 <TableCell className="text-right text-muted-foreground">
                   {formatCurrency(monthlyAmount)}
