@@ -1,17 +1,20 @@
-import { Edit, Trash2, User, GraduationCap } from 'lucide-react';
+import { Edit, Trash2, User, GraduationCap, Gift } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useBPPersonnel, BPPersonnel, CONTRACT_TYPES } from '@/hooks/useBPPersonnel';
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { BPBonus, BONUS_TYPES } from '@/services/bonusService';
 
 interface PersonnelTableProps {
   onEdit: (personnel: BPPersonnel) => void;
   businessPlanId?: string;
+  bonuses?: BPBonus[];
 }
 
-export function PersonnelTable({ onEdit, businessPlanId }: PersonnelTableProps) {
+export function PersonnelTable({ onEdit, businessPlanId, bonuses = [] }: PersonnelTableProps) {
   const { employees, deletePersonnel, getEmployeeMonthlyCost, totalEmployeeCost, isLoading } = useBPPersonnel(businessPlanId);
 
   const formatCurrency = (value: number) => {
@@ -26,8 +29,18 @@ export function PersonnelTable({ onEdit, businessPlanId }: PersonnelTableProps) 
     return format(parseISO(dateStr), 'MMM yyyy', { locale: fr });
   };
 
+  // Calculer le total des primes par salarié
+  const getBonusesForPerson = (personnelId: string) => {
+    return bonuses.filter(b => b.personnel_id === personnelId);
+  };
+
+  const getTotalBonusesForPerson = (personnelId: string) => {
+    return getBonusesForPerson(personnelId).reduce((sum, b) => sum + b.amount, 0);
+  };
+
   const totalGrossSalaries = employees.reduce((sum, p) => sum + Number(p.gross_salary), 0);
   const totalCharges = employees.reduce((sum, p) => sum + (Number(p.gross_salary) * Number(p.employer_charges_rate)), 0);
+  const totalBonuses = bonuses.reduce((sum, b) => sum + b.amount, 0);
 
   if (isLoading) {
     return (
@@ -50,6 +63,7 @@ export function PersonnelTable({ onEdit, businessPlanId }: PersonnelTableProps) 
             <TableHead>Contrat</TableHead>
             <TableHead className="text-right">Salaire brut</TableHead>
             <TableHead className="text-right">Charges</TableHead>
+            <TableHead className="text-right">Primes</TableHead>
             <TableHead className="text-right">Coût total</TableHead>
             <TableHead>Début</TableHead>
             <TableHead>Fin</TableHead>
@@ -62,6 +76,8 @@ export function PersonnelTable({ onEdit, businessPlanId }: PersonnelTableProps) 
             const total = getEmployeeMonthlyCost(person);
             const contractInfo = CONTRACT_TYPES[person.contract_type as keyof typeof CONTRACT_TYPES];
             const isIntern = person.worker_type === 'intern' || person.contract_type === 'stage';
+            const personBonuses = getBonusesForPerson(person.id);
+            const totalBonusForPerson = getTotalBonusesForPerson(person.id);
             
             return (
               <TableRow key={person.id} className="group">
@@ -93,6 +109,34 @@ export function PersonnelTable({ onEdit, businessPlanId }: PersonnelTableProps) 
                 <TableCell className="text-right text-muted-foreground">
                   {formatCurrency(charges)}
                   <span className="text-xs ml-1">({(Number(person.employer_charges_rate) * 100).toFixed(0)}%)</span>
+                </TableCell>
+                <TableCell className="text-right">
+                  {personBonuses.length > 0 ? (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="inline-flex items-center gap-1 cursor-help">
+                            <Gift className="h-3 w-3 text-emerald-500" />
+                            <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20">
+                              {formatCurrency(totalBonusForPerson)}
+                            </Badge>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <div className="space-y-1">
+                            {personBonuses.map((bonus) => (
+                              <div key={bonus.id} className="flex justify-between gap-4 text-sm">
+                                <span>{BONUS_TYPES[bonus.bonus_type as keyof typeof BONUS_TYPES]?.label || bonus.bonus_type}</span>
+                                <span className="font-medium">{formatCurrency(bonus.amount)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  ) : (
+                    <span className="text-muted-foreground">–</span>
+                  )}
                 </TableCell>
                 <TableCell className="text-right font-semibold text-destructive">
                   {formatCurrency(total)}
@@ -139,6 +183,12 @@ export function PersonnelTable({ onEdit, businessPlanId }: PersonnelTableProps) 
           <p className="text-sm text-muted-foreground">Charges patronales</p>
           <p className="text-lg font-semibold">{formatCurrency(totalCharges)}</p>
         </div>
+        {totalBonuses > 0 && (
+          <div className="text-right">
+            <p className="text-sm text-muted-foreground">Primes annuelles</p>
+            <p className="text-lg font-semibold text-emerald-600 dark:text-emerald-400">{formatCurrency(totalBonuses)}</p>
+          </div>
+        )}
         <div className="text-right">
           <p className="text-sm text-muted-foreground">Coût total mensuel</p>
           <p className="text-xl font-bold text-destructive">{formatCurrency(totalEmployeeCost)}</p>

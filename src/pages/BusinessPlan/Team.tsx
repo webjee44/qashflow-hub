@@ -70,7 +70,7 @@ export default function Team() {
   const [bonusDialogOpen, setBonusDialogOpen] = useState(false);
   
   // Hook primes
-  const { bulkCreateBonuses, isCreating: isBonusSaving } = useBPBonuses(currentPlan?.id ?? null);
+  const { bonuses, bulkCreateBonuses, isCreating: isBonusSaving } = useBPBonuses(currentPlan?.id ?? null);
 
   // Handlers pour les dialogs
   const handleOpenEmployeeDialog = () => {
@@ -330,7 +330,7 @@ export default function Team() {
                     </div>
                   </div>
                 ) : (
-                  <PersonnelTable onEdit={handleEditEmployee} businessPlanId={currentPlan?.id} />
+                  <PersonnelTable onEdit={handleEditEmployee} businessPlanId={currentPlan?.id} bonuses={bonuses} />
                 )}
               </CardContent>
             </Card>
