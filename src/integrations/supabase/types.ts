@@ -1103,6 +1103,8 @@ export type Database = {
       }
       category_forecasts: {
         Row: {
+          bp_expense_id: string | null
+          bp_stream_id: string | null
           category_id: string
           company_id: string | null
           created_at: string
@@ -1110,10 +1112,13 @@ export type Database = {
           id: string
           month: string
           notes: string | null
+          source: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
+          bp_expense_id?: string | null
+          bp_stream_id?: string | null
           category_id: string
           company_id?: string | null
           created_at?: string
@@ -1121,10 +1126,13 @@ export type Database = {
           id?: string
           month: string
           notes?: string | null
+          source?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
+          bp_expense_id?: string | null
+          bp_stream_id?: string | null
           category_id?: string
           company_id?: string | null
           created_at?: string
@@ -1132,10 +1140,25 @@ export type Database = {
           id?: string
           month?: string
           notes?: string | null
+          source?: string | null
           updated_at?: string
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "category_forecasts_bp_expense_id_fkey"
+            columns: ["bp_expense_id"]
+            isOneToOne: false
+            referencedRelation: "bp_fixed_expenses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "category_forecasts_bp_stream_id_fkey"
+            columns: ["bp_stream_id"]
+            isOneToOne: false
+            referencedRelation: "bp_revenue_streams"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "category_forecasts_category_id_fkey"
             columns: ["category_id"]
