@@ -7,7 +7,7 @@ import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useBPSettings } from '@/hooks/useBPSettings';
-import { Package, Wallet, Calendar } from 'lucide-react';
+import { Package, Wallet, Calendar, Building2 } from 'lucide-react';
 
 const MONTHS = [
   { value: 1, label: 'Janvier' },
@@ -32,6 +32,23 @@ const BP_DURATIONS = [
   { value: 5, label: '5 ans' },
 ];
 
+const TAX_REGIMES = [
+  { value: 'is', label: 'IS - Impôt sur les Sociétés', description: 'SAS, SASU, SARL soumises à l\'IS' },
+  { value: 'ir', label: 'IR - Impôt sur le Revenu', description: 'EI, EURL, SASU à l\'IR' },
+  { value: 'micro', label: 'Micro-entreprise', description: 'Auto-entrepreneur, micro-BIC/BNC' },
+];
+
+const LEGAL_FORMS = [
+  { value: 'sas', label: 'SAS' },
+  { value: 'sasu', label: 'SASU' },
+  { value: 'sarl', label: 'SARL' },
+  { value: 'eurl', label: 'EURL' },
+  { value: 'ei', label: 'EI' },
+  { value: 'micro', label: 'Micro-entreprise' },
+  { value: 'sa', label: 'SA' },
+  { value: 'other', label: 'Autre' },
+];
+
 interface BPSettingsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -45,6 +62,8 @@ export function BPSettingsDialog({ open, onOpenChange }: BPSettingsDialogProps) 
   const [initialCash, setInitialCash] = useState('');
   const [customerDelay, setCustomerDelay] = useState('');
   const [supplierDelay, setSupplierDelay] = useState('');
+  const [taxRegime, setTaxRegime] = useState('is');
+  const [isPme, setIsPme] = useState(true);
   const [showStocks, setShowStocks] = useState(true);
   const [showFinancing, setShowFinancing] = useState(true);
 
@@ -56,6 +75,8 @@ export function BPSettingsDialog({ open, onOpenChange }: BPSettingsDialogProps) 
       setInitialCash(settings.initial_cash.toString());
       setCustomerDelay(settings.customer_payment_delay.toString());
       setSupplierDelay(settings.supplier_payment_delay.toString());
+      setTaxRegime(settings.tax_regime || 'is');
+      setIsPme(settings.is_pme ?? true);
       setShowStocks(settings.show_stocks ?? true);
       setShowFinancing(settings.show_financing ?? true);
     }
@@ -77,6 +98,8 @@ export function BPSettingsDialog({ open, onOpenChange }: BPSettingsDialogProps) 
       initial_cash: parseFloat(initialCash) || 0,
       customer_payment_delay: parseInt(customerDelay) || 30,
       supplier_payment_delay: parseInt(supplierDelay) || 30,
+      tax_regime: taxRegime,
+      is_pme: isPme,
       show_stocks: showStocks,
       show_financing: showFinancing,
     });
@@ -143,6 +166,53 @@ export function BPSettingsDialog({ open, onOpenChange }: BPSettingsDialogProps) 
             <p className="text-xs text-muted-foreground">
               Exercice fiscal : {getFiscalYearDisplay()}
             </p>
+          </div>
+
+          <Separator />
+
+          {/* Legal & Tax Settings */}
+          <div className="space-y-4">
+            <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <Building2 className="h-4 w-4" />
+              Statut juridique & fiscal
+            </h4>
+            
+            <div className="grid gap-2">
+              <Label htmlFor="taxRegime">Régime fiscal</Label>
+              <Select value={taxRegime} onValueChange={setTaxRegime}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {TAX_REGIMES.map((r) => (
+                    <SelectItem key={r.value} value={r.value}>
+                      <div className="flex flex-col">
+                        <span>{r.label}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {TAX_REGIMES.find(r => r.value === taxRegime)?.description}
+              </p>
+            </div>
+
+            <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
+              <div>
+                <Label htmlFor="isPme" className="font-medium cursor-pointer">
+                  PME au sens communautaire
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Moins de 250 salariés, CA &lt; 50M€ ou bilan &lt; 43M€
+                </p>
+              </div>
+              <Switch
+                id="isPme"
+                checked={isPme}
+                onCheckedChange={setIsPme}
+              />
+            </div>
           </div>
 
           <Separator />
