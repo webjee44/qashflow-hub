@@ -25,8 +25,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import logo from '@/assets/logo.png';
-import screenshotDashboard from '@/assets/screenshot-dashboard.png';
-import screenshotBusinessPlan from '@/assets/screenshot-businessplan.png';
+import screenshotPnl from '@/assets/screenshot-pnl.png';
 
 const emailSchema = z.string().email('Email invalide');
 
@@ -241,40 +240,31 @@ export default function Landing() {
           >
             <div className="bg-gradient-to-b from-primary/20 to-transparent absolute inset-0 rounded-2xl blur-3xl -z-10" />
             
-            {/* Main Screenshot - Treasury Dashboard */}
-            <div className="bg-card border border-border rounded-2xl shadow-2xl overflow-hidden mb-8">
-              <div className="bg-muted/50 px-4 py-3 border-b border-border flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-red-500" />
-                <div className="w-3 h-3 rounded-full bg-yellow-500" />
-                <div className="w-3 h-3 rounded-full bg-green-500" />
-                <span className="ml-3 text-sm text-muted-foreground font-medium">Trésorerie</span>
+            {/* Main Screenshot - P&L with Browser Frame */}
+            <div className="bg-card border border-border rounded-2xl shadow-2xl overflow-hidden">
+              {/* Browser Chrome */}
+              <div className="bg-muted/50 px-4 py-3 border-b border-border flex items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-red-500" />
+                  <div className="w-3 h-3 rounded-full bg-yellow-500" />
+                  <div className="w-3 h-3 rounded-full bg-green-500" />
+                </div>
+                <div className="flex-1 flex justify-center">
+                  <div className="bg-background/80 px-4 py-1.5 rounded-lg text-sm text-muted-foreground flex items-center gap-2 border border-border/50">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                    app.qashflow.fr
+                  </div>
+                </div>
+                <div className="w-[52px]" /> {/* Spacer to balance the traffic lights */}
               </div>
               <img 
-                src={screenshotDashboard} 
-                alt="Dashboard Trésorerie qashflow" 
+                src={screenshotPnl} 
+                alt="Compte de résultat qashflow - Business Plan" 
                 className="w-full h-auto"
               />
             </div>
-
-            {/* Secondary Screenshot - Business Plan */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.4 }}
-              className="bg-card border border-border rounded-2xl shadow-2xl overflow-hidden"
-            >
-              <div className="bg-muted/50 px-4 py-3 border-b border-border flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-red-500" />
-                <div className="w-3 h-3 rounded-full bg-yellow-500" />
-                <div className="w-3 h-3 rounded-full bg-green-500" />
-                <span className="ml-3 text-sm text-muted-foreground font-medium">Prévisions</span>
-              </div>
-              <img 
-                src={screenshotBusinessPlan} 
-                alt="Business Plan qashflow" 
-                className="w-full h-auto"
-              />
-            </motion.div>
           </motion.div>
         </div>
       </section>
