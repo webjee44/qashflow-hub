@@ -9,10 +9,11 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PersonnelTable } from '@/components/businessplan/PersonnelTable';
 import { FreelanceTable } from '@/components/businessplan/FreelanceTable';
-import { PersonnelDialog } from '@/components/businessplan/PersonnelDialog';
+import { EmployeeDialog } from '@/features/business-plan/dialogs/EmployeeDialog';
+import { FreelanceDialog } from '@/features/business-plan/dialogs/FreelanceDialog';
 import { SectionNotes } from '@/components/businessplan/SectionNotes';
 import { BPExportDialog } from '@/components/businessplan/BPExportDialog';
-import { useBPPersonnel, BPPersonnel, WorkerType } from '@/hooks/useBPPersonnel';
+import { useBPPersonnel, BPPersonnel } from '@/hooks/useBPPersonnel';
 import { useCurrentBusinessPlan } from '@/hooks/useCurrentBusinessPlan';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { toast } from 'sonner';
@@ -49,9 +50,11 @@ export default function Team() {
     totalMonthlyCost 
   } = useBPPersonnel(currentPlan?.id);
 
-  const [personnelDialogOpen, setPersonnelDialogOpen] = useState(false);
-  const [selectedPersonnel, setSelectedPersonnel] = useState<BPPersonnel | null>(null);
-  const [defaultWorkerType, setDefaultWorkerType] = useState<WorkerType>('employee');
+  // Separate dialogs for employees and freelancers
+  const [employeeDialogOpen, setEmployeeDialogOpen] = useState(false);
+  const [freelanceDialogOpen, setFreelanceDialogOpen] = useState(false);
+  const [selectedEmployee, setSelectedEmployee] = useState<BPPersonnel | null>(null);
+  const [selectedFreelance, setSelectedFreelance] = useState<BPPersonnel | null>(null);
   
   const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
   const [bulkRows, setBulkRows] = useState<BulkRow[]>([{ position: '', gross_salary: '', contract_type: 'cdi' }]);
@@ -61,20 +64,44 @@ export default function Team() {
   const [bulkFreelanceRows, setBulkFreelanceRows] = useState<BulkFreelanceRow[]>([{ position: '', daily_rate: '', estimated_days: '10' }]);
   const [isBulkFreelanceSaving, setIsBulkFreelanceSaving] = useState(false);
 
-  // Handlers pour le dialog personnel
-  const handleOpenPersonnelDialog = (workerType: WorkerType = 'employee') => {
-    setDefaultWorkerType(workerType);
-    setSelectedPersonnel(null);
-    setPersonnelDialogOpen(true);
+  // Handlers pour les dialogs
+  const handleOpenEmployeeDialog = () => {
+    setSelectedEmployee(null);
+    setEmployeeDialogOpen(true);
+  };
+
+  const handleEditEmployee = (person: BPPersonnel) => {
+    setSelectedEmployee(person);
+    setEmployeeDialogOpen(true);
+  };
+
+  const handleOpenFreelanceDialog = () => {
+    setSelectedFreelance(null);
+    setFreelanceDialogOpen(true);
+  };
+
+  const handleEditFreelance = (person: BPPersonnel) => {
+    setSelectedFreelance(person);
+    setFreelanceDialogOpen(true);
   };
 
   const handleEditPersonnel = (person: BPPersonnel) => {
-    setSelectedPersonnel(person);
-    setDefaultWorkerType(person.worker_type);
-    setPersonnelDialogOpen(true);
+    if (person.worker_type === 'freelance') {
+      handleEditFreelance(person);
+    } else {
+      handleEditEmployee(person);
+    }
   };
 
-  const handleSavePersonnel = (data: Partial<BPPersonnel>) => {
+  const handleSaveEmployee = (data: Partial<BPPersonnel>) => {
+    if (data.id) {
+      updatePersonnel.mutate({ id: data.id, ...data });
+    } else {
+      createPersonnel.mutate(data);
+    }
+  };
+
+  const handleSaveFreelance = (data: Partial<BPPersonnel>) => {
     if (data.id) {
       updatePersonnel.mutate({ id: data.id, ...data });
     } else {
@@ -268,7 +295,7 @@ export default function Team() {
                   <Button 
                     size="sm" 
                     className="gap-2"
-                    onClick={() => handleOpenPersonnelDialog('employee')}
+                    onClick={handleOpenEmployeeDialog}
                   >
                     <Plus className="h-4 w-4" />
                     Ajouter un salarié
@@ -285,7 +312,7 @@ export default function Team() {
                     </div>
                   </div>
                 ) : (
-                  <PersonnelTable onEdit={handleEditPersonnel} businessPlanId={currentPlan?.id} />
+                  <PersonnelTable onEdit={handleEditEmployee} businessPlanId={currentPlan?.id} />
                 )}
               </CardContent>
             </Card>
@@ -316,7 +343,7 @@ export default function Team() {
                   <Button 
                     size="sm" 
                     className="gap-2"
-                    onClick={() => handleOpenPersonnelDialog('freelance')}
+                    onClick={handleOpenFreelanceDialog}
                   >
                     <Plus className="h-4 w-4" />
                     Ajouter un freelance
@@ -333,7 +360,7 @@ export default function Team() {
                     </div>
                   </div>
                 ) : (
-                  <FreelanceTable onEdit={handleEditPersonnel} businessPlanId={currentPlan?.id} />
+                  <FreelanceTable onEdit={handleEditFreelance} businessPlanId={currentPlan?.id} />
                 )}
               </CardContent>
             </Card>
@@ -343,13 +370,20 @@ export default function Team() {
 
       <SectionNotes section="personnel" />
 
-      {/* Dialog ajout/modification */}
-      <PersonnelDialog
-        open={personnelDialogOpen}
-        onOpenChange={setPersonnelDialogOpen}
-        personnel={selectedPersonnel}
-        defaultWorkerType={defaultWorkerType}
-        onSave={handleSavePersonnel}
+      {/* Dialog salarié */}
+      <EmployeeDialog
+        open={employeeDialogOpen}
+        onOpenChange={setEmployeeDialogOpen}
+        employee={selectedEmployee}
+        onSave={handleSaveEmployee}
+      />
+
+      {/* Dialog freelance */}
+      <FreelanceDialog
+        open={freelanceDialogOpen}
+        onOpenChange={setFreelanceDialogOpen}
+        freelance={selectedFreelance}
+        onSave={handleSaveFreelance}
       />
 
       {/* Dialog ajout en masse salariés */}

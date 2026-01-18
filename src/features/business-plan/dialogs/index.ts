@@ -1,5 +1,7 @@
 // Re-export all BP dialogs
 export { BPExportDialog } from './BPExportDialog';
+export { EmployeeDialog } from './EmployeeDialog';
+export { FreelanceDialog } from './FreelanceDialog';
 export { BPSettingsDialog } from './BPSettingsDialog';
 export { BPWizardDialog } from './BPWizardDialog';
 export { FinancingDialog } from './FinancingDialog';
