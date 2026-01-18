@@ -48,6 +48,7 @@ const Settings = lazy(() => import("./pages/Settings"));
 const RevenueAssumptions = lazy(() => import("./pages/BusinessPlan/RevenueAssumptions"));
 const Expenses = lazy(() => import("./pages/BusinessPlan/Expenses"));
 const Investments = lazy(() => import("./pages/BusinessPlan/Investments"));
+const Financings = lazy(() => import("./pages/BusinessPlan/Financings"));
 const ProfitLoss = lazy(() => import("./pages/BusinessPlan/ProfitLoss"));
 const CashFlow = lazy(() => import("./pages/BusinessPlan/CashFlow"));
 const Scenarios = lazy(() => import("./pages/BusinessPlan/Scenarios"));
@@ -118,6 +119,7 @@ const App = () => (
                   <Route path="/bp/charges" element={<Suspense fallback={<PageLoader />}><Expenses /></Suspense>} />
                   <Route path="/bp/equipe" element={<Suspense fallback={<PageLoader />}><Team /></Suspense>} />
                   <Route path="/bp/investissements" element={<Suspense fallback={<PageLoader />}><Investments /></Suspense>} />
+                  <Route path="/bp/financements" element={<Suspense fallback={<PageLoader />}><Financings /></Suspense>} />
                   <Route path="/bp/pnl" element={<Suspense fallback={<PageLoader />}><ProfitLoss /></Suspense>} />
                   <Route path="/bp/tresorerie" element={<Suspense fallback={<PageLoader />}><CashFlow /></Suspense>} />
                   <Route path="/bp/scenarios" element={<Suspense fallback={<PageLoader />}><Scenarios /></Suspense>} />
