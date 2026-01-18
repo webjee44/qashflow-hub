@@ -34,7 +34,7 @@ const CompanyContext = createContext<CompanyContextType | undefined>(undefined);
 const STORAGE_KEY = 'selected_company_id';
 
 export function CompanyProvider({ children }: { children: ReactNode }) {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const queryClient = useQueryClient();
   const [currentCompany, setCurrentCompanyState] = useState<Company | null>(null);
   const [hasInitialized, setHasInitialized] = useState(false);
@@ -90,14 +90,14 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     }
   }, [companies, currentCompany]);
 
-  // Clear company when user logs out
+  // Clear company when user logs out (but NOT during initial auth loading)
   useEffect(() => {
-    if (!user) {
+    if (!authLoading && !user) {
       setCurrentCompanyState(null);
       setHasInitialized(false);
       localStorage.removeItem(STORAGE_KEY);
     }
-  }, [user]);
+  }, [user, authLoading]);
 
   const setCurrentCompany = (company: Company | null) => {
     const previousCompanyId = currentCompany?.id;
