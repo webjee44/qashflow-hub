@@ -15,21 +15,13 @@ interface RevenueStreamDialogProps {
   onSave: (data: Partial<RevenueStream>) => void;
 }
 
-const COLORS = [
-  { value: 'hsl(142, 76%, 36%)', label: 'Vert' },
-  { value: 'hsl(220, 70%, 50%)', label: 'Bleu' },
-  { value: 'hsl(270, 70%, 50%)', label: 'Violet' },
-  { value: 'hsl(340, 70%, 50%)', label: 'Rose' },
-  { value: 'hsl(45, 70%, 50%)', label: 'Jaune' },
-  { value: 'hsl(20, 70%, 50%)', label: 'Orange' },
-];
+const DEFAULT_COLOR = 'hsl(142, 76%, 36%)';
 
 type ModelType = 'fixed' | 'units' | 'growth' | 'subscription';
 
 export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: RevenueStreamDialogProps) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [color, setColor] = useState(COLORS[0].value);
   const [model, setModel] = useState<ModelType>('fixed');
   
   // Subscription model fields
@@ -46,7 +38,6 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
     if (stream) {
       setName(stream.name);
       setDescription(stream.description || '');
-      setColor(stream.color);
       setModel(stream.model);
       setInitialSubscribers(stream.initial_subscribers?.toString() || '0');
       setMonthlyPrice(stream.monthly_price?.toString() || '');
@@ -57,7 +48,6 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
     } else {
       setName('');
       setDescription('');
-      setColor(COLORS[0].value);
       setModel('fixed');
       setInitialSubscribers('0');
       setMonthlyPrice('');
@@ -82,7 +72,7 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
       id: stream?.id,
       name,
       description: description || null,
-      color,
+      color: stream?.color || DEFAULT_COLOR,
       model,
       initial_subscribers: parseInt(initialSubscribers) || 0,
       monthly_price: parseFloat(monthlyPrice) || 0,
@@ -134,22 +124,6 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
               placeholder="Décrivez ce flux de revenus..."
               rows={2}
             />
-          </div>
-          <div className="grid gap-2">
-            <Label>Couleur</Label>
-            <div className="flex gap-2">
-              {COLORS.map((c) => (
-                <button
-                  key={c.value}
-                  type="button"
-                  className={`w-8 h-8 rounded-full border-2 transition-all ${
-                    color === c.value ? 'border-foreground scale-110' : 'border-transparent'
-                  }`}
-                  style={{ backgroundColor: c.value }}
-                  onClick={() => setColor(c.value)}
-                />
-              ))}
-            </div>
           </div>
           <div className="grid gap-2">
             <Label>Modèle de calcul</Label>
