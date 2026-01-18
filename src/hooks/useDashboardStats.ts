@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useCompany } from '@/hooks/useCompany';
 import { startOfMonth, endOfMonth, subMonths, format, addMonths, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { logError } from '@/lib/logger';
 
 interface DashboardStats {
   currentBalance: number;
@@ -63,7 +64,7 @@ export function useDashboardStats() {
         const { data: transactions, error } = await query;
 
         if (error) {
-          console.error('Error fetching transactions:', error);
+          logError('Error fetching transactions:', error);
           return;
         }
 
@@ -145,7 +146,7 @@ export function useDashboardStats() {
           loading: false,
         });
       } catch (error) {
-        console.error('Error calculating stats:', error);
+        logError('Error calculating stats:', error);
         setStats(prev => ({ ...prev, loading: false }));
       }
     };
@@ -299,7 +300,7 @@ export function useBalanceChartData() {
 
         setData(chartData);
       } catch (error) {
-        console.error('Error fetching balance chart data:', error);
+        logError('Error fetching balance chart data:', error);
       } finally {
         setLoading(false);
       }
@@ -371,7 +372,7 @@ export function useCategoryBreakdown() {
         setData(chartData);
         setTotalExpense(total);
       } catch (error) {
-        console.error('Error fetching category breakdown:', error);
+        logError('Error fetching category breakdown:', error);
       } finally {
         setLoading(false);
       }

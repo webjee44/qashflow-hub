@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
+import { logError } from '@/lib/logger';
 
 interface GlobalStats {
   total_users: number;
@@ -41,7 +42,7 @@ export function useSuperAdminRole() {
         .maybeSingle();
 
       if (error) {
-        console.error('Error checking superadmin role:', error);
+        logError('Error checking superadmin role:', error);
         return false;
       }
 
@@ -60,7 +61,7 @@ export function useSuperAdminGlobalStats() {
       const { data, error } = await supabase.rpc('get_superadmin_global_stats');
       
       if (error) {
-        console.error('Error fetching global stats:', error);
+        logError('Error fetching global stats:', error);
         throw error;
       }
 
@@ -79,7 +80,7 @@ export function useSuperAdminOrgStats() {
       const { data, error } = await supabase.rpc('get_superadmin_org_stats');
       
       if (error) {
-        console.error('Error fetching org stats:', error);
+        logError('Error fetching org stats:', error);
         throw error;
       }
 

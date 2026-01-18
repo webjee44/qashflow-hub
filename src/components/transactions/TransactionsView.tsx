@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
+import { logError } from '@/lib/logger';
 import { 
   ArrowUpRight, 
   ArrowDownRight, 
@@ -78,7 +79,7 @@ export function TransactionsView() {
     const { data, error } = await query;
 
     if (error) {
-      console.error('Error fetching transactions:', error);
+      logError('Error fetching transactions:', error);
       toast({
         title: 'Erreur',
         description: 'Impossible de charger les transactions',
@@ -105,7 +106,7 @@ export function TransactionsView() {
     const { data, error } = await query;
 
     if (error) {
-      console.error('Error fetching categories:', error);
+      logError('Error fetching categories:', error);
     } else {
       setCategories(data || []);
     }
@@ -133,7 +134,7 @@ export function TransactionsView() {
       .eq('id', transactionId);
 
     if (error) {
-      console.error('Error updating category:', error);
+      logError('Error updating category:', error);
       // Rollback en cas d'erreur
       const rollbackTransactions = transactionsRef.current.map(t =>
         t.id === transactionId ? { ...t, category_id: previousCategoryId ?? null } : t
@@ -200,7 +201,7 @@ export function TransactionsView() {
       });
 
       if (error) {
-        console.error('AI categorization error:', error);
+        logError('AI categorization error:', error);
         toast({
           title: 'Erreur de catégorisation',
           description: error.message || 'Une erreur est survenue',
@@ -214,7 +215,7 @@ export function TransactionsView() {
         fetchTransactions();
       }
     } catch (err) {
-      console.error('AI error:', err);
+      logError('AI error:', err);
       toast({
         title: 'Erreur',
         description: 'Impossible de catégoriser les transactions',
@@ -324,7 +325,7 @@ export function TransactionsView() {
       .in('id', idsArray);
 
     if (error) {
-      console.error('Error bulk updating categories:', error);
+      logError('Error bulk updating categories:', error);
       // Rollback
       transactionsRef.current = previousTransactions;
       setTransactions(previousTransactions);
@@ -370,7 +371,7 @@ export function TransactionsView() {
       .single();
 
     if (error) {
-      console.error('Error creating category:', error);
+      logError('Error creating category:', error);
       toast({
         title: 'Erreur',
         description: 'Impossible de créer la catégorie',
