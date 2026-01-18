@@ -142,7 +142,7 @@ export default function Landing() {
   return (
     <div className="min-h-screen bg-background">
       {/* SEO - Hidden H1 for crawlers */}
-      <h1 className="sr-only">Qashflow - Logiciel de gestion de trésorerie et business plan pour PME et startups</h1>
+      <h1 className="sr-only">Qashflow - Logiciel de gestion financière, trésorerie et business plan pour PME et startups</h1>
       
       {/* Navbar */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-lg border-b border-border" aria-label="Navigation principale">
@@ -201,10 +201,10 @@ export default function Landing() {
             </Badge>
             
             <h2 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6">
-              Qashflow, pilotez votre
+              Pilotez vos finances
               <br />
               <span className="bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-                trésorerie avec intelligence
+                avec intelligence
               </span>
             </h2>
             
