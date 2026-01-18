@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, Package, Landmark } from 'lucide-react';
+import { Plus, Package, Landmark, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { InvestmentTable } from '@/components/businessplan/InvestmentTable';
@@ -11,9 +11,12 @@ import { SectionNotes } from '@/components/businessplan/SectionNotes';
 import { BPExportDialog } from '@/components/businessplan/BPExportDialog';
 import { useInvestments, Investment } from '@/hooks/useInvestments';
 import { useFinancings, Financing } from '@/hooks/useFinancings';
+import { useCurrentBusinessPlan } from '@/hooks/useCurrentBusinessPlan';
 import { PageHeader } from '@/components/layout/PageHeader';
 
 export default function Investments() {
+  const { isLoading: isLoadingBP } = useCurrentBusinessPlan();
+  
   const [investmentDialogOpen, setInvestmentDialogOpen] = useState(false);
   const [selectedInvestment, setSelectedInvestment] = useState<Investment | null>(null);
   const [financingDialogOpen, setFinancingDialogOpen] = useState(false);
@@ -56,6 +59,14 @@ export default function Investments() {
 
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(value);
+
+  if (isLoadingBP) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

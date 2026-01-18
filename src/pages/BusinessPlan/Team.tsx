@@ -13,7 +13,7 @@ import { PersonnelDialog } from '@/components/businessplan/PersonnelDialog';
 import { SectionNotes } from '@/components/businessplan/SectionNotes';
 import { BPExportDialog } from '@/components/businessplan/BPExportDialog';
 import { useBPPersonnel, BPPersonnel, WorkerType } from '@/hooks/useBPPersonnel';
-import { useBusinessPlans } from '@/hooks/useBusinessPlans';
+import { useCurrentBusinessPlan } from '@/hooks/useCurrentBusinessPlan';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { toast } from 'sonner';
 
@@ -37,8 +37,7 @@ const CONTRACT_TYPES = [
 ] as const;
 
 export default function Team() {
-  const { businessPlans } = useBusinessPlans();
-  const currentPlan = businessPlans[0];
+  const { currentPlan, isLoading: isLoadingBP } = useCurrentBusinessPlan();
   
   const { 
     employees, 
@@ -173,6 +172,14 @@ export default function Team() {
 
   const formatCurrency = (value: number) => 
     new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(value);
+
+  if (isLoadingBP) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, TrendingUp } from 'lucide-react';
+import { Plus, TrendingUp, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { useRevenueStreams, RevenueStream } from '@/hooks/useRevenueStreams';
+import { useBPRevenueStreams, BPRevenueStream } from '@/hooks/useBPRevenueStreams';
+import { useCurrentBusinessPlan } from '@/hooks/useCurrentBusinessPlan';
 import { RevenueStreamDialog } from '@/components/businessplan/RevenueStreamDialog';
 import { RevenueTable } from '@/components/businessplan/RevenueTable';
 import { SectionNotes } from '@/components/businessplan/SectionNotes';
@@ -11,11 +12,12 @@ import { BPExportDialog } from '@/components/businessplan/BPExportDialog';
 import { PageHeader } from '@/components/layout/PageHeader';
 
 export default function RevenueAssumptions() {
-  const { streams, createStream, updateStream, isLoading } = useRevenueStreams();
+  const { currentPlan, isLoading: isLoadingBP } = useCurrentBusinessPlan();
+  const { streams, createStream, updateStream, isLoading } = useBPRevenueStreams(currentPlan?.id);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingStream, setEditingStream] = useState<RevenueStream | null>(null);
+  const [editingStream, setEditingStream] = useState<BPRevenueStream | null>(null);
 
-  const handleSave = async (data: Partial<RevenueStream>) => {
+  const handleSave = async (data: Partial<BPRevenueStream>) => {
     if (data.id) {
       await updateStream.mutateAsync({ id: data.id, ...data });
     } else {
@@ -23,7 +25,7 @@ export default function RevenueAssumptions() {
     }
   };
 
-  const handleEdit = (stream: RevenueStream) => {
+  const handleEdit = (stream: BPRevenueStream) => {
     setEditingStream(stream);
     setDialogOpen(true);
   };
@@ -32,6 +34,14 @@ export default function RevenueAssumptions() {
     setEditingStream(null);
     setDialogOpen(true);
   };
+
+  if (isLoadingBP) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -83,7 +93,7 @@ export default function RevenueAssumptions() {
       <RevenueStreamDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
-        stream={editingStream}
+        stream={editingStream as any}
         onSave={handleSave}
       />
     </div>
