@@ -12,6 +12,15 @@ verify_jwt = false
 [functions.bridge-sync]
 verify_jwt = false
 
+[functions.bridge-auth]
+verify_jwt = false
+
+[functions.bridge-connect]
+verify_jwt = false
+
+[functions.bridge-accounts]
+verify_jwt = false
+
 [functions.admin-reset-password]
 verify_jwt = false
 
