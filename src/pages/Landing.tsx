@@ -67,7 +67,7 @@ const plans = [
   {
     name: 'Essai gratuit',
     price: '0',
-    description: 'Testez pendant 14 jours',
+    description: 'Testez pendant 30 jours',
     features: [
       '1 société incluse',
       'Comptes bancaires illimités',
@@ -228,7 +228,7 @@ export default function Landing() {
             </div>
             
             <p className="text-sm text-muted-foreground mt-4">
-              ✓ Gratuit 14 jours &nbsp; ✓ Sans carte bancaire &nbsp; ✓ Annulation facile
+              ✓ Gratuit 30 jours &nbsp; ✓ Sans carte bancaire &nbsp; ✓ Annulation facile
             </p>
           </motion.div>
 
@@ -364,7 +364,7 @@ export default function Landing() {
                     <div className="mt-4">
                       <span className="text-4xl font-bold">{plan.price}€</span>
                       <span className="text-muted-foreground">
-                        {plan.price === '0' ? ' pendant 14 jours' : '/mois/société'}
+                        {plan.price === '0' ? ' pendant 30 jours' : '/mois/société'}
                       </span>
                     </div>
                   </CardHeader>

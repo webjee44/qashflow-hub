@@ -225,7 +225,7 @@ export default function Fonctionnalites() {
             Prêt à optimiser votre gestion financière ?
           </h2>
           <p className="text-xl text-muted-foreground mb-8">
-            Essayez qashflow gratuitement pendant 14 jours, sans carte bancaire.
+            Essayez qashflow gratuitement pendant 30 jours, sans carte bancaire.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Button size="lg" onClick={() => navigate('/sign-up')}>
