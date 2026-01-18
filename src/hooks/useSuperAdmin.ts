@@ -24,6 +24,7 @@ interface OrgStats {
   member_count: number;
   company_count: number;
   bp_count: number;
+  is_demo: boolean;
 }
 
 export function useSuperAdminRole() {

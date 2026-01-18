@@ -44,6 +44,7 @@ export default function SuperAdminOrganizations() {
   const [search, setSearch] = useState('');
   const [planFilter, setPlanFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [demoFilter, setDemoFilter] = useState<string>('all');
 
   const filteredOrgs = orgStats?.filter((org) => {
     const matchesSearch =
@@ -51,7 +52,10 @@ export default function SuperAdminOrganizations() {
       org.slug.toLowerCase().includes(search.toLowerCase());
     const matchesPlan = planFilter === 'all' || org.plan === planFilter;
     const matchesStatus = statusFilter === 'all' || org.subscription_status === statusFilter;
-    return matchesSearch && matchesPlan && matchesStatus;
+    const matchesDemo = demoFilter === 'all' || 
+      (demoFilter === 'demo' && org.is_demo) || 
+      (demoFilter === 'production' && !org.is_demo);
+    return matchesSearch && matchesPlan && matchesStatus && matchesDemo;
   }) || [];
 
   return (
@@ -98,6 +102,16 @@ export default function SuperAdminOrganizations() {
               <SelectItem value="past_due">Impayé</SelectItem>
             </SelectContent>
           </Select>
+          <Select value={demoFilter} onValueChange={setDemoFilter}>
+            <SelectTrigger className="w-[150px]">
+              <SelectValue placeholder="Type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tous les types</SelectItem>
+              <SelectItem value="demo">Démo</SelectItem>
+              <SelectItem value="production">Production</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Results count */}
@@ -142,9 +156,16 @@ export default function SuperAdminOrganizations() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="secondary" className={planColors[org.plan] || ''}>
-                        {org.plan}
-                      </Badge>
+                      <div className="flex gap-1.5">
+                        {org.is_demo && (
+                          <Badge variant="secondary" className="bg-violet-500/10 text-violet-600">
+                            DÉMO
+                          </Badge>
+                        )}
+                        <Badge variant="secondary" className={planColors[org.plan] || ''}>
+                          {org.plan}
+                        </Badge>
+                      </div>
                     </TableCell>
                     <TableCell>
                       <Badge variant="secondary" className={statusColors[org.subscription_status] || ''}>

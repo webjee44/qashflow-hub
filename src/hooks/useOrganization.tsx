@@ -17,6 +17,7 @@ interface Organization {
   max_companies: number;
   max_members: number;
   max_transactions_per_month: number;
+  is_demo: boolean;
   created_at: string;
   updated_at: string;
 }
