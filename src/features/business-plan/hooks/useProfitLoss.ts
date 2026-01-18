@@ -8,6 +8,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useCurrentBusinessPlan } from './useCurrentBusinessPlan';
+import { useBPSettings } from './useBPSettings';
 import { startOfMonth, addMonths, parseISO, format } from 'date-fns';
 import { calculateTaxByRegime, TVA_RATES_FR, TaxRegime, getGlobalChargesRate } from '@/lib/french-rates';
 import { PAYMENT_FREQUENCIES, DEFAULT_PAYMENT_MONTHS } from '@/constants/bpConstants';
@@ -72,6 +73,7 @@ export interface PLData {
 export function useProfitLoss() {
   const { user } = useAuth();
   const { currentPlan, isLoading: planLoading } = useCurrentBusinessPlan();
+  const { settings, isLoading: settingsLoading } = useBPSettings();
   const businessPlanId = currentPlan?.id;
 
   // Fetch all BP data in parallel
@@ -187,7 +189,7 @@ export function useProfitLoss() {
     enabled: !!user && !!businessPlanId,
   });
 
-  const isLoading = planLoading || streamsLoading || fixedLoading || variableLoading || 
+  const isLoading = planLoading || settingsLoading || streamsLoading || fixedLoading || variableLoading || 
                     personnelLoading || directorsLoading || investmentsLoading || 
                     financingsLoading || forecastsLoading;
 
@@ -290,7 +292,10 @@ export function useProfitLoss() {
     }, 0);
   };
 
+  const showFinancing = settings.show_financing !== false;
+  
   const getMonthlyLeasePayments = (month: Date): number => {
+    if (!showFinancing) return 0;
     return financings.filter(f => f.financing_type === 'leasing').reduce((sum, fin) => {
       const startDate = parseISO(fin.start_date);
       const endDate = fin.end_date ? parseISO(fin.end_date) : null;
@@ -302,6 +307,7 @@ export function useProfitLoss() {
   };
 
   const getMonthlyInterestExpense = (month: Date): number => {
+    if (!showFinancing) return 0;
     return financings.filter(f => f.financing_type === 'loan').reduce((sum, fin) => {
       const startDate = parseISO(fin.start_date);
       const endDate = fin.end_date ? parseISO(fin.end_date) : null;

@@ -28,6 +28,7 @@ export function useBPCashFlow() {
   } = useFinancings();
 
   const isLoading = plLoading || settingsLoading || financingsLoading;
+  const showFinancing = settings.show_financing !== false;
 
   const data = useMemo<CashFlowData>(() => {
     // Flatten all months from all years
@@ -55,10 +56,10 @@ export function useBPCashFlow() {
       }
     });
 
-    // Calculate financing flows for each month
-    const loanDisbursements = months.map(month => getLoanDisbursements(month));
-    const loanPayments = months.map(month => getMonthlyLoanPayments(month));
-    const leasePayments = months.map(month => getMonthlyLeasePayments(month));
+    // Calculate financing flows for each month (only if show_financing is enabled)
+    const loanDisbursements = showFinancing ? months.map(month => getLoanDisbursements(month)) : months.map(() => 0);
+    const loanPayments = showFinancing ? months.map(month => getMonthlyLoanPayments(month)) : months.map(() => 0);
+    const leasePayments = showFinancing ? months.map(month => getMonthlyLeasePayments(month)) : months.map(() => 0);
 
     // Apply payment delays
     // Inflows = revenue shifted by customer delay + loan disbursements
