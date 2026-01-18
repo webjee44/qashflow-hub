@@ -1,32 +1,21 @@
+// ============================================
+// useBusinessPlans Hook
+// Uses businessPlanService for data operations
+// ============================================
+
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
 import { useCompany } from '@/hooks/useCompany';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
+import { 
+  businessPlanService, 
+  type BusinessPlan, 
+  type BusinessPlanInsert, 
+  type BusinessPlanUpdate 
+} from '@/services';
 
-export interface BusinessPlan {
-  id: string;
-  user_id: string;
-  company_id: string | null;
-  name: string;
-  status: 'draft' | 'finalized';
-  description: string | null;
-  bp_start_date: string | null;
-  bp_years: number | null;
-  fiscal_year_start_month: number | null;
-  fiscal_year_start_day: number | null;
-  customer_payment_delay: number | null;
-  supplier_payment_delay: number | null;
-  initial_cash: number | null;
-  tax_regime: string | null;
-  is_pme: boolean | null;
-  finalized_at: string | null;
-  created_at: string | null;
-  updated_at: string | null;
-}
-
-export type BusinessPlanInsert = Omit<BusinessPlan, 'id' | 'created_at' | 'updated_at'>;
-export type BusinessPlanUpdate = Partial<Omit<BusinessPlan, 'id' | 'user_id' | 'created_at' | 'updated_at'>>;
+// Re-export types for backward compatibility
+export type { BusinessPlan, BusinessPlanInsert, BusinessPlanUpdate };
 
 export function useBusinessPlans() {
   const { currentCompany } = useCompany();
@@ -37,18 +26,10 @@ export function useBusinessPlans() {
   const { data: businessPlans = [], isLoading } = useQuery({
     queryKey: ['business_plans', currentCompany?.id],
     queryFn: async () => {
-      let query = supabase
-        .from('business_plans')
-        .select('*')
-        .order('created_at', { ascending: false });
-
       if (currentCompany?.id) {
-        query = query.eq('company_id', currentCompany.id);
+        return businessPlanService.getByCompanyId(currentCompany.id);
       }
-
-      const { data, error } = await query;
-      if (error) throw error;
-      return (data || []) as BusinessPlan[];
+      return businessPlanService.getAll();
     },
     enabled: !!user,
   });
@@ -56,19 +37,11 @@ export function useBusinessPlans() {
   const createBusinessPlan = useMutation({
     mutationFn: async (data: Omit<BusinessPlanInsert, 'user_id'>) => {
       if (!user) throw new Error('Not authenticated');
-
-      const { data: newBP, error } = await supabase
-        .from('business_plans')
-        .insert({
-          ...data,
-          user_id: user.id,
-          company_id: currentCompany?.id || null,
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-      return newBP as BusinessPlan;
+      return businessPlanService.create({
+        ...data,
+        user_id: user.id,
+        company_id: currentCompany?.id || null,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['business_plans'] });
@@ -81,12 +54,7 @@ export function useBusinessPlans() {
 
   const updateBusinessPlan = useMutation({
     mutationFn: async ({ id, ...data }: BusinessPlanUpdate & { id: string }) => {
-      const { error } = await supabase
-        .from('business_plans')
-        .update({ ...data, updated_at: new Date().toISOString() })
-        .eq('id', id);
-
-      if (error) throw error;
+      await businessPlanService.update(id, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['business_plans'] });
@@ -98,16 +66,7 @@ export function useBusinessPlans() {
 
   const finalizeBusinessPlan = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('business_plans')
-        .update({ 
-          status: 'finalized', 
-          finalized_at: new Date().toISOString(),
-          updated_at: new Date().toISOString() 
-        })
-        .eq('id', id);
-
-      if (error) throw error;
+      await businessPlanService.finalize(id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['business_plans'] });
