@@ -4,12 +4,12 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useBPFixedExpenses, BPFixedExpense, FIXED_EXPENSE_CATEGORIES, PAYMENT_FREQUENCIES } from '@/hooks/useBPFixedExpenses';
-import { useBusinessPlans } from '@/hooks/useBusinessPlans';
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
 interface FixedExpenseTableProps {
   onEdit: (expense: BPFixedExpense) => void;
+  businessPlanId?: string;
 }
 
 const ICONS: Record<string, React.ReactNode> = {
@@ -24,9 +24,8 @@ const ICONS: Record<string, React.ReactNode> = {
 
 const MONTH_NAMES = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
 
-export function FixedExpenseTable({ onEdit }: FixedExpenseTableProps) {
-  const { currentPlan } = useBusinessPlans();
-  const { expenses, deleteExpense, isLoading, getMonthlyAmount, totalMonthlyExpenses } = useBPFixedExpenses(currentPlan?.id);
+export function FixedExpenseTable({ onEdit, businessPlanId }: FixedExpenseTableProps) {
+  const { expenses, deleteExpense, isLoading, getMonthlyAmount, totalMonthlyExpenses } = useBPFixedExpenses(businessPlanId);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('fr-FR', {

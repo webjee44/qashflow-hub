@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, Building2, Users, Percent, ListPlus, X, Loader2, FileDown, Briefcase, Store, Code, Stethoscope, Utensils } from 'lucide-react';
+import { Plus, Building2, Percent, ListPlus, X, Loader2, FileDown, Briefcase, Store, Code, Stethoscope, Utensils } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -10,13 +10,11 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { FixedExpenseTable } from '@/components/businessplan/FixedExpenseTable';
 import { FixedExpenseDialog } from '@/components/businessplan/FixedExpenseDialog';
-import { PersonnelTable } from '@/components/businessplan/PersonnelTable';
-import { PersonnelDialog } from '@/components/businessplan/PersonnelDialog';
 import { VariableExpenseTable } from '@/components/businessplan/VariableExpenseTable';
 import { SectionNotes } from '@/components/businessplan/SectionNotes';
 import { BPExportDialog } from '@/components/businessplan/BPExportDialog';
-import { useFixedExpenses, FixedExpense } from '@/hooks/useFixedExpenses';
-import { usePersonnel, Personnel } from '@/hooks/usePersonnel';
+import { useBPFixedExpenses, BPFixedExpense, FIXED_EXPENSE_CATEGORIES } from '@/hooks/useBPFixedExpenses';
+import { useBusinessPlans } from '@/hooks/useBusinessPlans';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { toast } from 'sonner';
 
@@ -26,6 +24,7 @@ const EXPENSE_CATEGORIES = [
   { value: 'software', label: 'Logiciels' },
   { value: 'marketing', label: 'Marketing' },
   { value: 'utilities', label: 'Charges' },
+  { value: 'professional_fees', label: 'Honoraires' },
   { value: 'other', label: 'Autres' },
 ] as const;
 
@@ -42,7 +41,7 @@ const EXPENSE_TEMPLATES = {
       { name: 'Marketing Digital', category: 'marketing', monthly_amount: 1000 },
       { name: 'Domiciliation / Coworking', category: 'rent', monthly_amount: 300 },
       { name: 'Assurance RC Pro', category: 'insurance', monthly_amount: 100 },
-      { name: 'Comptabilité', category: 'other', monthly_amount: 150 },
+      { name: 'Comptabilité', category: 'professional_fees', monthly_amount: 150 },
     ],
   },
   commerce: {
@@ -56,7 +55,7 @@ const EXPENSE_TEMPLATES = {
       { name: 'Logiciel de caisse', category: 'software', monthly_amount: 50 },
       { name: 'Téléphone & Internet', category: 'utilities', monthly_amount: 80 },
       { name: 'Publicité locale', category: 'marketing', monthly_amount: 300 },
-      { name: 'Comptabilité', category: 'other', monthly_amount: 200 },
+      { name: 'Comptabilité', category: 'professional_fees', monthly_amount: 200 },
       { name: 'Entretien / Ménage', category: 'other', monthly_amount: 150 },
     ],
   },
@@ -71,7 +70,7 @@ const EXPENSE_TEMPLATES = {
       { name: 'Téléphone mobile', category: 'utilities', monthly_amount: 60 },
       { name: 'Frais de déplacement', category: 'other', monthly_amount: 500 },
       { name: 'Marketing & Networking', category: 'marketing', monthly_amount: 200 },
-      { name: 'Comptabilité', category: 'other', monthly_amount: 180 },
+      { name: 'Comptabilité', category: 'professional_fees', monthly_amount: 180 },
     ],
   },
   medical: {
@@ -82,10 +81,10 @@ const EXPENSE_TEMPLATES = {
       { name: 'Loyer cabinet', category: 'rent', monthly_amount: 1500 },
       { name: 'Assurance RCP', category: 'insurance', monthly_amount: 300 },
       { name: 'Logiciel médical', category: 'software', monthly_amount: 150 },
-      { name: 'Télésecrétariat', category: 'other', monthly_amount: 250 },
+      { name: 'Télésecrétariat', category: 'professional_fees', monthly_amount: 250 },
       { name: 'Matériel consommable', category: 'other', monthly_amount: 200 },
       { name: 'Électricité & Eau', category: 'utilities', monthly_amount: 150 },
-      { name: 'Comptabilité', category: 'other', monthly_amount: 200 },
+      { name: 'Comptabilité', category: 'professional_fees', monthly_amount: 200 },
       { name: 'Formation continue', category: 'other', monthly_amount: 100 },
     ],
   },
@@ -101,7 +100,7 @@ const EXPENSE_TEMPLATES = {
       { name: 'Logiciel caisse / commandes', category: 'software', monthly_amount: 100 },
       { name: 'Hygiène & Nettoyage', category: 'other', monthly_amount: 300 },
       { name: 'Marketing local', category: 'marketing', monthly_amount: 200 },
-      { name: 'Comptabilité', category: 'other', monthly_amount: 250 },
+      { name: 'Comptabilité', category: 'professional_fees', monthly_amount: 250 },
       { name: 'Entretien équipement', category: 'other', monthly_amount: 150 },
     ],
   },
@@ -115,37 +114,20 @@ interface BulkExpenseRow {
   monthly_amount: string;
 }
 
-interface BulkPersonnelRow {
-  position: string;
-  gross_salary: string;
-  contract_type: string;
-}
-
-const CONTRACT_TYPES = [
-  { value: 'cdi', label: 'CDI' },
-  { value: 'cdd', label: 'CDD' },
-  { value: 'stage', label: 'Stage' },
-  { value: 'apprentissage', label: 'Apprentissage' },
-  { value: 'freelance', label: 'Freelance' },
-] as const;
-
 export default function Expenses() {
+  const { businessPlans } = useBusinessPlans();
+  const currentPlan = businessPlans[0];
+  
+  const { expenses, createExpense, updateExpense } = useBPFixedExpenses(currentPlan?.id);
+
   const [expenseDialogOpen, setExpenseDialogOpen] = useState(false);
-  const [selectedExpense, setSelectedExpense] = useState<FixedExpense | null>(null);
-  const [personnelDialogOpen, setPersonnelDialogOpen] = useState(false);
-  const [selectedPersonnel, setSelectedPersonnel] = useState<Personnel | null>(null);
+  const [selectedExpense, setSelectedExpense] = useState<BPFixedExpense | null>(null);
   const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
   const [bulkRows, setBulkRows] = useState<BulkExpenseRow[]>([{ name: '', category: '', monthly_amount: '' }]);
   const [isBulkSaving, setIsBulkSaving] = useState(false);
-  const [bulkPersonnelDialogOpen, setBulkPersonnelDialogOpen] = useState(false);
-  const [bulkPersonnelRows, setBulkPersonnelRows] = useState<BulkPersonnelRow[]>([{ position: '', gross_salary: '', contract_type: 'cdi' }]);
-  const [isBulkPersonnelSaving, setIsBulkPersonnelSaving] = useState(false);
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateKey | null>(null);
   const [isApplyingTemplate, setIsApplyingTemplate] = useState(false);
-
-  const { expenses, createExpense, updateExpense, deleteExpense } = useFixedExpenses();
-  const { personnel, createPersonnel, updatePersonnel, deletePersonnel } = usePersonnel();
 
   const handleOpenBulkDialog = () => {
     setBulkRows([{ name: '', category: '', monthly_amount: '' }]);
@@ -180,7 +162,7 @@ export default function Expenses() {
       for (const row of validRows) {
         await createExpense.mutateAsync({
           name: row.name.trim(),
-          category: (row.category || 'other') as 'rent' | 'insurance' | 'software' | 'marketing' | 'utilities' | 'other',
+          category: row.category || 'other',
           monthly_amount: parseFloat(row.monthly_amount) || 0,
         });
       }
@@ -190,53 +172,6 @@ export default function Expenses() {
       toast.error("Erreur lors de l'ajout des charges");
     } finally {
       setIsBulkSaving(false);
-    }
-  };
-
-  // Personnel bulk handlers
-  const handleOpenBulkPersonnelDialog = () => {
-    setBulkPersonnelRows([{ position: '', gross_salary: '', contract_type: 'cdi' }]);
-    setBulkPersonnelDialogOpen(true);
-  };
-
-  const handleBulkPersonnelRowChange = (index: number, field: keyof BulkPersonnelRow, value: string) => {
-    setBulkPersonnelRows(prev => prev.map((row, i) => i === index ? { ...row, [field]: value } : row));
-  };
-
-  const handleAddBulkPersonnelRow = () => {
-    if (bulkPersonnelRows.length < 10) {
-      setBulkPersonnelRows(prev => [...prev, { position: '', gross_salary: '', contract_type: 'cdi' }]);
-    }
-  };
-
-  const handleRemoveBulkPersonnelRow = (index: number) => {
-    if (bulkPersonnelRows.length > 1) {
-      setBulkPersonnelRows(prev => prev.filter((_, i) => i !== index));
-    }
-  };
-
-  const handleSubmitBulkPersonnel = async () => {
-    const validRows = bulkPersonnelRows.filter(row => row.position.trim() && row.gross_salary);
-    if (validRows.length === 0) {
-      toast.error('Veuillez remplir au moins une ligne');
-      return;
-    }
-    
-    setIsBulkPersonnelSaving(true);
-    try {
-      for (const row of validRows) {
-        await createPersonnel.mutateAsync({
-          position: row.position.trim(),
-          gross_salary: parseFloat(row.gross_salary) || 0,
-          contract_type: row.contract_type || 'cdi',
-        });
-      }
-      toast.success(`${validRows.length} poste(s) ajouté(s)`);
-      setBulkPersonnelDialogOpen(false);
-    } catch (error) {
-      toast.error("Erreur lors de l'ajout du personnel");
-    } finally {
-      setIsBulkPersonnelSaving(false);
     }
   };
 
@@ -256,7 +191,7 @@ export default function Expenses() {
       for (const expense of template.expenses) {
         await createExpense.mutateAsync({
           name: expense.name,
-          category: expense.category as 'rent' | 'insurance' | 'software' | 'marketing' | 'utilities' | 'other',
+          category: expense.category,
           monthly_amount: expense.monthly_amount,
         });
       }
@@ -270,37 +205,24 @@ export default function Expenses() {
     }
   };
 
-  const handleSaveExpense = (data: Partial<FixedExpense>) => {
+  const handleSaveExpense = (data: Partial<BPFixedExpense>) => {
     if (data.id) {
-      updateExpense.mutate(data as FixedExpense & { id: string });
+      updateExpense.mutate({ id: data.id, ...data });
     } else {
       createExpense.mutate(data);
     }
   };
 
-  const handleEditExpense = (expense: FixedExpense) => {
+  const handleEditExpense = (expense: BPFixedExpense) => {
     setSelectedExpense(expense);
     setExpenseDialogOpen(true);
-  };
-
-  const handleSavePersonnel = (data: Partial<Personnel>) => {
-    if (data.id) {
-      updatePersonnel.mutate(data as Personnel & { id: string });
-    } else {
-      createPersonnel.mutate(data);
-    }
-  };
-
-  const handleEditPersonnel = (person: Personnel) => {
-    setSelectedPersonnel(person);
-    setPersonnelDialogOpen(true);
   };
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Charges & Personnel"
-        subtitle="Gérez vos charges fixes, variables et votre masse salariale"
+        title="Charges"
+        subtitle="Gérez vos charges fixes et variables"
         actions={<BPExportDialog />}
       />
 
@@ -313,10 +235,6 @@ export default function Expenses() {
           <TabsTrigger value="variable" className="gap-2">
             <Percent className="h-4 w-4" />
             Charges variables
-          </TabsTrigger>
-          <TabsTrigger value="personnel" className="gap-2">
-            <Users className="h-4 w-4" />
-            Personnel
           </TabsTrigger>
         </TabsList>
 
@@ -392,7 +310,7 @@ export default function Expenses() {
                     </div>
                   </div>
                 ) : (
-                  <FixedExpenseTable onEdit={handleEditExpense} />
+                  <FixedExpenseTable onEdit={handleEditExpense} businessPlanId={currentPlan?.id} />
                 )}
               </CardContent>
             </Card>
@@ -405,54 +323,6 @@ export default function Expenses() {
             animate={{ opacity: 1, y: 0 }}
           >
             <VariableExpenseTable />
-          </motion.div>
-        </TabsContent>
-
-        <TabsContent value="personnel">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle>Personnel</CardTitle>
-                <div className="flex gap-2">
-                  <Button 
-                    size="sm" 
-                    variant="outline"
-                    className="gap-2"
-                    onClick={handleOpenBulkPersonnelDialog}
-                  >
-                    <ListPlus className="h-4 w-4" />
-                    Ajout en masse
-                  </Button>
-                  <Button 
-                    size="sm" 
-                    className="gap-2"
-                    onClick={() => {
-                      setSelectedPersonnel(null);
-                      setPersonnelDialogOpen(true);
-                    }}
-                  >
-                    <Plus className="h-4 w-4" />
-                    Ajouter un poste
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {personnel.length === 0 ? (
-                  <div className="h-[200px] flex items-center justify-center">
-                    <div className="text-center text-muted-foreground">
-                      <Users className="h-16 w-16 mx-auto mb-4 opacity-20" />
-                      <p className="text-lg font-medium">Aucun personnel</p>
-                      <p className="text-sm">Planifiez vos recrutements et salaires</p>
-                    </div>
-                  </div>
-                ) : (
-                  <PersonnelTable onEdit={handleEditPersonnel} />
-                )}
-              </CardContent>
-            </Card>
           </motion.div>
         </TabsContent>
       </Tabs>
@@ -468,13 +338,6 @@ export default function Expenses() {
         onOpenChange={setExpenseDialogOpen}
         expense={selectedExpense}
         onSave={handleSaveExpense}
-      />
-
-      <PersonnelDialog
-        open={personnelDialogOpen}
-        onOpenChange={setPersonnelDialogOpen}
-        personnel={selectedPersonnel}
-        onSave={handleSavePersonnel}
       />
 
       {/* Bulk Add Dialog */}
@@ -500,17 +363,19 @@ export default function Expenses() {
                     <SelectValue placeholder="Catégorie" />
                   </SelectTrigger>
                   <SelectContent>
-                    {EXPENSE_CATEGORIES.map(cat => (
-                      <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>
+                    {EXPENSE_CATEGORIES.map((cat) => (
+                      <SelectItem key={cat.value} value={cat.value}>
+                        {cat.label}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
                 <Input
                   type="number"
-                  placeholder="€/mois"
+                  placeholder="Montant/mois"
                   value={row.monthly_amount}
                   onChange={(e) => handleBulkRowChange(index, 'monthly_amount', e.target.value)}
-                  className="w-[100px]"
+                  className="w-[120px]"
                 />
                 <Button
                   variant="ghost"
@@ -522,80 +387,23 @@ export default function Expenses() {
                 </Button>
               </div>
             ))}
-            {bulkRows.length < 10 && (
-              <Button variant="outline" size="sm" onClick={handleAddBulkRow} className="gap-2">
-                <Plus className="h-4 w-4" />
-                Ajouter une ligne
-              </Button>
-            )}
           </div>
+          <Button
+            variant="outline"
+            onClick={handleAddBulkRow}
+            disabled={bulkRows.length >= 10}
+            className="w-full"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Ajouter une ligne
+          </Button>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setBulkDialogOpen(false)}>Annuler</Button>
+            <Button variant="outline" onClick={() => setBulkDialogOpen(false)}>
+              Annuler
+            </Button>
             <Button onClick={handleSubmitBulk} disabled={isBulkSaving}>
               {isBulkSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Enregistrer
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Bulk Personnel Dialog */}
-      <Dialog open={bulkPersonnelDialogOpen} onOpenChange={setBulkPersonnelDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Ajout en masse de personnel</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            {bulkPersonnelRows.map((row, index) => (
-              <div key={index} className="flex gap-2 items-center">
-                <Input
-                  placeholder="Intitulé du poste"
-                  value={row.position}
-                  onChange={(e) => handleBulkPersonnelRowChange(index, 'position', e.target.value)}
-                  className="flex-1"
-                />
-                <Select
-                  value={row.contract_type}
-                  onValueChange={(val) => handleBulkPersonnelRowChange(index, 'contract_type', val)}
-                >
-                  <SelectTrigger className="w-[140px]">
-                    <SelectValue placeholder="Contrat" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CONTRACT_TYPES.map(ct => (
-                      <SelectItem key={ct.value} value={ct.value}>{ct.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Input
-                  type="number"
-                  placeholder="Brut €/mois"
-                  value={row.gross_salary}
-                  onChange={(e) => handleBulkPersonnelRowChange(index, 'gross_salary', e.target.value)}
-                  className="w-[120px]"
-                />
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => handleRemoveBulkPersonnelRow(index)}
-                  disabled={bulkPersonnelRows.length === 1}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            ))}
-            {bulkPersonnelRows.length < 10 && (
-              <Button variant="outline" size="sm" onClick={handleAddBulkPersonnelRow} className="gap-2">
-                <Plus className="h-4 w-4" />
-                Ajouter une ligne
-              </Button>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setBulkPersonnelDialogOpen(false)}>Annuler</Button>
-            <Button onClick={handleSubmitBulkPersonnel} disabled={isBulkPersonnelSaving}>
-              {isBulkPersonnelSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Enregistrer
+              Ajouter {bulkRows.filter(r => r.name.trim() && r.monthly_amount).length} charge(s)
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -609,33 +417,11 @@ export default function Expenses() {
             <DialogDescription>
               {selectedTemplate && (
                 <>
-                  Vous allez ajouter {EXPENSE_TEMPLATES[selectedTemplate].expenses.length} charges 
-                  fixes du template "{EXPENSE_TEMPLATES[selectedTemplate].name}".
+                  Le template "{EXPENSE_TEMPLATES[selectedTemplate].name}" va ajouter {EXPENSE_TEMPLATES[selectedTemplate].expenses.length} charges fixes à votre business plan.
                 </>
               )}
             </DialogDescription>
           </DialogHeader>
-          
-          {selectedTemplate && (
-            <div className="space-y-2 max-h-[300px] overflow-y-auto">
-              <p className="text-sm font-medium text-muted-foreground mb-2">Charges incluses :</p>
-              {EXPENSE_TEMPLATES[selectedTemplate].expenses.map((exp, idx) => (
-                <div key={idx} className="flex justify-between items-center py-1.5 px-3 bg-muted/50 rounded text-sm">
-                  <span>{exp.name}</span>
-                  <span className="font-medium">{exp.monthly_amount.toLocaleString('fr-FR')} €/mois</span>
-                </div>
-              ))}
-              <div className="flex justify-between items-center py-2 px-3 bg-primary/10 rounded text-sm font-semibold mt-2">
-                <span>Total mensuel</span>
-                <span>
-                  {EXPENSE_TEMPLATES[selectedTemplate].expenses
-                    .reduce((sum, e) => sum + e.monthly_amount, 0)
-                    .toLocaleString('fr-FR')} €/mois
-                </span>
-              </div>
-            </div>
-          )}
-
           <DialogFooter>
             <Button variant="outline" onClick={() => setTemplateDialogOpen(false)}>
               Annuler

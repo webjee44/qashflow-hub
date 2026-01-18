@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, Users, Briefcase, ListPlus, X, Loader2, User, GraduationCap } from 'lucide-react';
+import { Plus, Users, Briefcase, ListPlus, X, Loader2, User } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -37,11 +37,14 @@ const CONTRACT_TYPES = [
 ] as const;
 
 export default function Team() {
-  const { currentPlan } = useBusinessPlans();
+  const { businessPlans } = useBusinessPlans();
+  const currentPlan = businessPlans[0];
+  
   const { 
     employees, 
     freelancers, 
-    createPersonnel, 
+    createPersonnel,
+    updatePersonnel,
     totalEmployeeCost, 
     totalFreelanceCost,
     totalMonthlyCost 
@@ -70,6 +73,14 @@ export default function Team() {
     setSelectedPersonnel(person);
     setDefaultWorkerType(person.worker_type);
     setPersonnelDialogOpen(true);
+  };
+
+  const handleSavePersonnel = (data: Partial<BPPersonnel>) => {
+    if (data.id) {
+      updatePersonnel.mutate({ id: data.id, ...data });
+    } else {
+      createPersonnel.mutate(data);
+    }
   };
 
   // Handlers pour l'ajout en masse de salariés
@@ -267,7 +278,7 @@ export default function Team() {
                     </div>
                   </div>
                 ) : (
-                  <PersonnelTable onEdit={handleEditPersonnel} />
+                  <PersonnelTable onEdit={handleEditPersonnel} businessPlanId={currentPlan?.id} />
                 )}
               </CardContent>
             </Card>
@@ -315,7 +326,7 @@ export default function Team() {
                     </div>
                   </div>
                 ) : (
-                  <FreelanceTable onEdit={handleEditPersonnel} />
+                  <FreelanceTable onEdit={handleEditPersonnel} businessPlanId={currentPlan?.id} />
                 )}
               </CardContent>
             </Card>
@@ -323,7 +334,7 @@ export default function Team() {
         </TabsContent>
       </Tabs>
 
-      <SectionNotes section="team" />
+      <SectionNotes section="personnel" />
 
       {/* Dialog ajout/modification */}
       <PersonnelDialog
@@ -331,13 +342,7 @@ export default function Team() {
         onOpenChange={setPersonnelDialogOpen}
         personnel={selectedPersonnel}
         defaultWorkerType={defaultWorkerType}
-        onSave={(data) => {
-          if (data.id) {
-            // Update via hook
-          } else {
-            createPersonnel.mutate(data);
-          }
-        }}
+        onSave={handleSavePersonnel}
       />
 
       {/* Dialog ajout en masse salariés */}

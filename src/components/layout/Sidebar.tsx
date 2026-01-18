@@ -15,7 +15,8 @@ import {
   GitBranch,
   Package,
   LogOut,
-  SlidersHorizontal
+  SlidersHorizontal,
+  Users
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState, useMemo } from 'react';
@@ -46,6 +47,7 @@ const treasuryNavItems: NavItem[] = [
 const businessPlanNavItems: NavItem[] = [
   { icon: DollarSign, label: 'Revenus', href: '/bp/revenus' },
   { icon: Building2, label: 'Charges', href: '/bp/charges' },
+  { icon: Users, label: 'Équipe', href: '/bp/equipe' },
   { icon: Package, label: 'Investissements', href: '/bp/investissements' },
   { icon: Package, label: 'Stocks', href: '/bp/stocks', key: 'stocks' },
   { icon: FileSpreadsheet, label: 'Compte de résultat', href: '/bp/pnl' },

@@ -3,17 +3,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useBPPersonnel, BPPersonnel, CONTRACT_TYPES } from '@/hooks/useBPPersonnel';
-import { useBusinessPlans } from '@/hooks/useBusinessPlans';
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
 interface PersonnelTableProps {
   onEdit: (personnel: BPPersonnel) => void;
+  businessPlanId?: string;
 }
 
-export function PersonnelTable({ onEdit }: PersonnelTableProps) {
-  const { currentPlan } = useBusinessPlans();
-  const { employees, deletePersonnel, getEmployeeMonthlyCost, totalEmployeeCost, isLoading } = useBPPersonnel(currentPlan?.id);
+export function PersonnelTable({ onEdit, businessPlanId }: PersonnelTableProps) {
+  const { employees, deletePersonnel, getEmployeeMonthlyCost, totalEmployeeCost, isLoading } = useBPPersonnel(businessPlanId);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('fr-FR', {

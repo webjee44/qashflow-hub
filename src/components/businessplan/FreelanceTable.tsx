@@ -2,17 +2,16 @@ import { Edit, Trash2, Briefcase } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { useBPPersonnel, BPPersonnel } from '@/hooks/useBPPersonnel';
-import { useBusinessPlans } from '@/hooks/useBusinessPlans';
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
 interface FreelanceTableProps {
   onEdit: (personnel: BPPersonnel) => void;
+  businessPlanId?: string;
 }
 
-export function FreelanceTable({ onEdit }: FreelanceTableProps) {
-  const { currentPlan } = useBusinessPlans();
-  const { freelancers, deletePersonnel, getFreelanceMonthlyCost, totalFreelanceCost, isLoading } = useBPPersonnel(currentPlan?.id);
+export function FreelanceTable({ onEdit, businessPlanId }: FreelanceTableProps) {
+  const { freelancers, deletePersonnel, getFreelanceMonthlyCost, totalFreelanceCost, isLoading } = useBPPersonnel(businessPlanId);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('fr-FR', {
