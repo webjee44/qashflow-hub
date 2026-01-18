@@ -264,9 +264,11 @@ export function useProfitLoss() {
     const stream = streams.find(s => s.id === streamId);
     if (!stream) return 0;
 
+    const startDate = settings.bp_start_date ? new Date(settings.bp_start_date) : new Date();
+    const targetMonth = startOfMonth(month);
+
     if (stream.model === 'subscription') {
-      const startMonth = startOfMonth(new Date(settings.bp_start_date || new Date()));
-      const targetMonth = startOfMonth(month);
+      const startMonth = startOfMonth(startDate);
       const monthsDiff = Math.round((targetMonth.getTime() - startMonth.getTime()) / (1000 * 60 * 60 * 24 * 30));
       if (monthsDiff < 0) return 0;
       const netGrowth = (stream.growth_rate || 0.10) - (stream.churn_rate || 0.05);
@@ -274,9 +276,46 @@ export function useProfitLoss() {
       return subscribers * (stream.monthly_price || 0);
     }
 
-    const monthStr = format(startOfMonth(month), 'yyyy-MM-dd');
+    // For fixed model: look for explicit forecast first
+    const monthStr = format(targetMonth, 'yyyy-MM-dd');
     const forecast = forecasts.find(f => f.stream_id === streamId && f.month === monthStr);
-    return forecast?.amount || stream.monthly_price || 0;
+    if (forecast?.amount) return forecast.amount;
+
+    // If no forecast for this month, project from Year 1 with growth rates
+    // Find the same month in Year 1 to use as base
+    const targetMonthOfYear = targetMonth.getMonth(); // 0-11
+    const bpStartYear = startDate.getFullYear();
+    const targetYear = targetMonth.getFullYear();
+    const yearOffset = targetYear - bpStartYear;
+
+    if (yearOffset <= 0) {
+      // Still in year 1, no forecast found - return 0 or monthly_price fallback
+      return stream.monthly_price || 0;
+    }
+
+    // Find the base forecast from Year 1 (same month)
+    const baseMonthStr = format(new Date(bpStartYear, targetMonthOfYear, 1), 'yyyy-MM-dd');
+    const baseForecast = forecasts.find(f => f.stream_id === streamId && f.month === baseMonthStr);
+    const baseAmount = baseForecast?.amount || stream.monthly_price || 0;
+
+    if (baseAmount === 0) return 0;
+
+    // Apply growth rates for each year
+    // Year 2: growth_rate_year2 or growth_rate
+    // Year 3: growth_rate_year3 or growth_rate
+    // Year 4+: growth_rate_year4 or growth_rate
+    let projectedAmount = baseAmount;
+    
+    for (let y = 1; y <= yearOffset; y++) {
+      let growthRate = stream.growth_rate || 0;
+      if (y === 1) growthRate = stream.growth_rate_year2 ?? stream.growth_rate ?? 0;
+      else if (y === 2) growthRate = stream.growth_rate_year3 ?? stream.growth_rate ?? 0;
+      else growthRate = stream.growth_rate_year4 ?? stream.growth_rate ?? 0;
+      
+      projectedAmount = projectedAmount * (1 + growthRate);
+    }
+
+    return Math.round(projectedAmount * 100) / 100;
   };
 
   const getDepreciationForMonth = (month: Date): number => {
