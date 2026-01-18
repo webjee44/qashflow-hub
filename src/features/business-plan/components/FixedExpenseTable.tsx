@@ -113,7 +113,7 @@ export function FixedExpenseTable({ onEdit, businessPlanId }: FixedExpenseTableP
                   )}
                 </TableCell>
                 <TableCell className="text-right text-muted-foreground">
-                  {isNonMonthly ? formatCurrency(monthlyAmount) : '–'}
+                  {formatCurrency(monthlyAmount)}
                 </TableCell>
                 <TableCell className="text-muted-foreground">
                   {formatDate(expense.start_date)}
