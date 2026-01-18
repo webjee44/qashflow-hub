@@ -15,82 +15,277 @@ import {
   BarChart3,
   PiggyBank,
   FileText,
-  Zap
+  Zap,
+  Calculator,
+  Target,
+  Layers,
+  Building2,
+  Receipt,
+  Briefcase,
+  Download,
+  History,
+  Trash2
 } from 'lucide-react';
 import { SEOHead, generateBreadcrumbSchema } from '@/components/seo/SEOHead';
 import logo from '@/assets/logo.png';
 
-const features = [
+const featureCategories = [
   {
-    icon: Wallet,
-    title: 'Synchronisation bancaire',
-    slug: 'synchronisation-bancaire',
-    description: 'Connectez tous vos comptes bancaires professionnels en un clic grâce à Bridge API.',
-    details: [
-      'Connexion sécurisée à plus de 350 banques françaises',
-      'Synchronisation automatique quotidienne',
-      'Agrégation multi-comptes en temps réel',
-      'Historique complet des transactions',
+    title: "Trésorerie",
+    description: "Suivez et anticipez votre cash en temps réel",
+    features: [
+      {
+        icon: Wallet,
+        title: 'Synchronisation bancaire',
+        slug: 'synchronisation-bancaire',
+        description: 'Connectez tous vos comptes bancaires professionnels via Bridge API.',
+        details: [
+          'Connexion à plus de 350 banques françaises',
+          'Synchronisation automatique quotidienne',
+          'Agrégation multi-comptes temps réel',
+          'Historique complet des transactions',
+        ],
+      },
+      {
+        icon: Bot,
+        title: 'Catégorisation IA',
+        slug: 'categorisation-ia',
+        description: "L'IA catégorise automatiquement vos transactions avec précision.",
+        details: [
+          'Apprentissage sur vos données',
+          'Précision de 95%+',
+          'Suggestions intelligentes',
+          'Règles d\'automatisation personnalisées',
+        ],
+      },
+      {
+        icon: LineChart,
+        title: 'Prévisions cash-flow',
+        slug: 'previsions-tresorerie',
+        description: 'Anticipez vos besoins de trésorerie sur 12 mois.',
+        details: [
+          'Projections basées sur l\'historique',
+          'Alertes de trésorerie basse',
+          'Comparaison budget vs réel',
+          'Export des prévisions',
+        ],
+      },
     ],
   },
   {
-    icon: TrendingUp,
-    title: 'Business Plan intégré',
-    slug: 'business-plan',
-    description: 'Créez des projections financières professionnelles avec des scénarios multiples.',
-    details: [
-      'Compte de résultat prévisionnel',
-      'Plan de trésorerie sur 3 ans',
-      'Bilan prévisionnel automatique',
-      'Export PDF professionnel',
+    title: "Business Plan",
+    description: "Créez des projections financières professionnelles",
+    features: [
+      {
+        icon: TrendingUp,
+        title: 'Hypothèses de revenus',
+        slug: 'revenus',
+        description: 'Modélisez vos sources de revenus avec différents modèles.',
+        details: [
+          'Modèles : abonnement, vente unitaire, forfait',
+          'Taux de croissance par année',
+          'Taux de churn et créances douteuses',
+          'Prévisions mensuelles automatiques',
+        ],
+      },
+      {
+        icon: Receipt,
+        title: 'Gestion des charges',
+        slug: 'charges',
+        description: 'Charges fixes et variables liées à vos revenus.',
+        details: [
+          'Charges fixes avec fréquence de paiement',
+          'Charges variables liées aux revenus',
+          'Gestion TVA déductible',
+          'Catégorisation par type',
+        ],
+      },
+      {
+        icon: Briefcase,
+        title: 'Équipe & Masse salariale',
+        slug: 'equipe',
+        description: 'Gérez salariés, dirigeants et freelances.',
+        details: [
+          'Calcul automatique des charges patronales',
+          'Import de bulletins de paie',
+          'Primes et bonus par employé',
+          'Freelances et TJM',
+        ],
+      },
+      {
+        icon: Building2,
+        title: 'Investissements & Amortissements',
+        slug: 'investissements',
+        description: 'Planifiez vos investissements et leur amortissement.',
+        details: [
+          'Amortissement linéaire/dégressif',
+          'Durée configurable (1-20 ans)',
+          'Catégorisation des immobilisations',
+          'Impact automatique sur le bilan',
+        ],
+      },
+      {
+        icon: PiggyBank,
+        title: 'Financements',
+        slug: 'financements',
+        description: 'Emprunts, apports en capital et subventions.',
+        details: [
+          'Emprunts avec échéancier automatique',
+          'Apports en capital',
+          'Subventions et aides',
+          'Comptes courants d\'associés',
+        ],
+      },
+      {
+        icon: Layers,
+        title: 'Stocks',
+        slug: 'stocks',
+        description: 'Gérez vos stocks et leur impact sur le BFR.',
+        details: [
+          'Stock initial et final par exercice',
+          'Achats de marchandises',
+          'Variation de stocks automatique',
+          'Impact sur le besoin en fonds de roulement',
+        ],
+      },
     ],
   },
   {
-    icon: Bot,
-    title: 'Catégorisation IA',
-    slug: 'categorisation-ia',
-    description: "L'intelligence artificielle catégorise automatiquement vos transactions.",
-    details: [
-      'Apprentissage continu sur vos données',
-      'Précision de 95% après quelques semaines',
-      'Suggestions intelligentes',
-      'Règles d\'automatisation personnalisées',
+    title: "Analyses & Rapports",
+    description: "Tableaux financiers et indicateurs clés",
+    features: [
+      {
+        icon: Calculator,
+        title: 'Compte de résultat',
+        slug: 'compte-resultat',
+        description: 'P&L prévisionnel automatique sur plusieurs années.',
+        details: [
+          'Chiffre d\'affaires et marge brute',
+          'EBE, résultat d\'exploitation',
+          'Résultat net après IS',
+          'Vue mensuelle et annuelle',
+        ],
+      },
+      {
+        icon: BarChart3,
+        title: 'Plan de trésorerie',
+        slug: 'plan-tresorerie',
+        description: 'Flux de trésorerie détaillés mois par mois.',
+        details: [
+          'Encaissements et décaissements',
+          'Délais de paiement clients/fournisseurs',
+          'Solde de trésorerie prévisionnel',
+          'Alertes de trésorerie négative',
+        ],
+      },
+      {
+        icon: FileText,
+        title: 'Bilan prévisionnel',
+        slug: 'bilan',
+        description: 'Actif et passif calculés automatiquement.',
+        details: [
+          'Immobilisations nettes',
+          'BFR et créances/dettes',
+          'Capitaux propres',
+          'Équilibre automatique',
+        ],
+      },
+      {
+        icon: Target,
+        title: 'Ratios & Indicateurs',
+        slug: 'ratios',
+        description: 'KPIs financiers essentiels en un coup d\'œil.',
+        details: [
+          'Seuil de rentabilité',
+          'Marge brute et nette',
+          'BFR en jours de CA',
+          'Capacité d\'autofinancement',
+        ],
+      },
     ],
   },
   {
-    icon: LineChart,
-    title: 'Prévisions cash-flow',
-    slug: 'previsions-tresorerie',
-    description: 'Anticipez vos besoins de trésorerie sur 12 mois avec nos algorithmes.',
-    details: [
-      'Projections basées sur l\'historique',
-      'Alertes de trésorerie basse',
-      'Scénarios optimiste/pessimiste',
-      'Intégration du BFR',
+    title: "Scénarios & Collaboration",
+    description: "Comparez et travaillez en équipe",
+    features: [
+      {
+        icon: Layers,
+        title: 'Scénarios multiples',
+        slug: 'scenarios',
+        description: 'Créez des scénarios optimiste, réaliste et pessimiste.',
+        details: [
+          'Multiplicateurs revenus/charges',
+          'Overrides par élément',
+          'Comparaison graphique',
+          'Duplication de scénarios',
+        ],
+      },
+      {
+        icon: History,
+        title: 'Snapshots & Historique',
+        slug: 'snapshots',
+        description: 'Sauvegardez des versions de votre BP.',
+        details: [
+          'Création de snapshots',
+          'Comparaison entre versions',
+          'Restauration possible',
+          'Historique des modifications',
+        ],
+      },
+      {
+        icon: Download,
+        title: 'Export PDF professionnel',
+        slug: 'export',
+        description: 'Générez un BP complet pour vos investisseurs.',
+        details: [
+          'Export PDF multi-pages',
+          'Tous les tableaux financiers',
+          'Graphiques inclus',
+          'Personnalisation logo',
+        ],
+      },
+      {
+        icon: Users,
+        title: 'Multi-utilisateurs',
+        slug: 'collaboration',
+        description: 'Invitez votre équipe avec des rôles granulaires.',
+        details: [
+          'Rôles : Owner, Admin, Membre, Viewer',
+          'Invitations par email',
+          'Journal d\'audit complet',
+          'Permissions par entreprise',
+        ],
+      },
     ],
   },
   {
-    icon: Shield,
-    title: 'Sécurité bancaire',
-    slug: 'securite',
-    description: 'Vos données sont chiffrées et sécurisées avec les standards bancaires.',
-    details: [
-      'Chiffrement AES-256',
-      'Hébergement en France',
-      'Conformité RGPD',
-      'Audit de sécurité régulier',
-    ],
-  },
-  {
-    icon: Users,
-    title: 'Multi-utilisateurs',
-    slug: 'collaboration',
-    description: 'Invitez votre équipe et gérez les accès avec des rôles granulaires.',
-    details: [
-      'Gestion des rôles (Admin, Membre, Viewer)',
-      'Invitations par email',
-      'Journal d\'audit complet',
-      'Permissions par entreprise',
+    title: "Sécurité & Conformité",
+    description: "Vos données protégées aux standards bancaires",
+    features: [
+      {
+        icon: Shield,
+        title: 'Sécurité bancaire',
+        slug: 'securite',
+        description: 'Chiffrement et protection de niveau bancaire.',
+        details: [
+          'Chiffrement AES-256',
+          'Authentification sécurisée',
+          'Secrets API chiffrés',
+          'Audit de sécurité régulier',
+        ],
+      },
+      {
+        icon: Trash2,
+        title: 'Corbeille & Récupération',
+        slug: 'corbeille',
+        description: 'Récupérez vos données supprimées.',
+        details: [
+          'Soft delete sur toutes les données',
+          'Restauration en un clic',
+          'Purge après 30 jours',
+          'Protection contre les erreurs',
+        ],
+      },
     ],
   },
 ];
@@ -167,54 +362,72 @@ export default function Fonctionnalites() {
               Toutes les fonctionnalités pour
               <br />
               <span className="bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-                maîtriser votre trésorerie
+                piloter vos finances
               </span>
             </h1>
             
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              De la synchronisation bancaire au business plan, découvrez comment qashflow 
-              simplifie la gestion financière de votre entreprise.
+              Trésorerie en temps réel, business plan professionnel, scénarios multiples et export PDF.
+              Tout ce dont vous avez besoin pour gérer vos finances.
             </p>
           </motion.div>
         </div>
       </section>
 
-      {/* Features Grid */}
-      <section className="py-16 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto">
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {features.map((feature, i) => (
-              <motion.div
-                key={feature.slug}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.1 }}
-              >
-                <Card className="h-full hover:shadow-lg transition-shadow" id={feature.slug}>
-                  <CardHeader>
-                    <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
-                      <feature.icon className="w-6 h-6 text-primary" />
-                    </div>
-                    <CardTitle className="text-xl">{feature.title}</CardTitle>
-                    <CardDescription className="text-base">
-                      {feature.description}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <ul className="space-y-2">
-                      {feature.details.map((detail, j) => (
-                        <li key={j} className="flex items-start gap-2 text-sm text-muted-foreground">
-                          <Check className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
-                          {detail}
-                        </li>
-                      ))}
-                    </ul>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            ))}
-          </div>
+      {/* Features by Category */}
+      <section className="py-8 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto space-y-20">
+          {featureCategories.map((category, categoryIndex) => (
+            <motion.div
+              key={category.title}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: categoryIndex * 0.1 }}
+            >
+              {/* Category Header */}
+              <div className="text-center mb-10">
+                <Badge variant="outline" className="mb-4">{category.title}</Badge>
+                <h2 className="text-2xl sm:text-3xl font-bold mb-2">{category.title}</h2>
+                <p className="text-muted-foreground">{category.description}</p>
+              </div>
+
+              {/* Features Grid */}
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {category.features.map((feature, i) => (
+                  <motion.div
+                    key={feature.slug}
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: i * 0.05 }}
+                  >
+                    <Card className="h-full hover:shadow-lg hover:border-primary/20 transition-all" id={feature.slug}>
+                      <CardHeader className="pb-3">
+                        <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center mb-3">
+                          <feature.icon className="w-5 h-5 text-primary" />
+                        </div>
+                        <CardTitle className="text-lg">{feature.title}</CardTitle>
+                        <CardDescription className="text-sm">
+                          {feature.description}
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="pt-0">
+                        <ul className="space-y-1.5">
+                          {feature.details.map((detail, j) => (
+                            <li key={j} className="flex items-start gap-2 text-sm text-muted-foreground">
+                              <Check className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
+                              {detail}
+                            </li>
+                          ))}
+                        </ul>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                ))}
+              </div>
+            </motion.div>
+          ))}
         </div>
       </section>
 
