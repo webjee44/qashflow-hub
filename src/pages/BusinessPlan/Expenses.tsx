@@ -13,20 +13,16 @@ import { FixedExpenseDialog } from '@/components/businessplan/FixedExpenseDialog
 import { VariableExpenseTable } from '@/components/businessplan/VariableExpenseTable';
 import { SectionNotes } from '@/components/businessplan/SectionNotes';
 import { BPExportDialog } from '@/components/businessplan/BPExportDialog';
-import { useBPFixedExpenses, BPFixedExpense, FIXED_EXPENSE_CATEGORIES } from '@/hooks/useBPFixedExpenses';
+import { useBPFixedExpenses, BPFixedExpense } from '@/hooks/useBPFixedExpenses';
+import { FIXED_EXPENSE_CATEGORIES, type FixedExpenseCategory } from '@/constants/bpConstants';
 import { useCurrentBusinessPlan } from '@/hooks/useCurrentBusinessPlan';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { toast } from 'sonner';
 
-const EXPENSE_CATEGORIES = [
-  { value: 'rent', label: 'Loyer' },
-  { value: 'insurance', label: 'Assurances' },
-  { value: 'software', label: 'Logiciels' },
-  { value: 'marketing', label: 'Marketing' },
-  { value: 'utilities', label: 'Charges' },
-  { value: 'professional_fees', label: 'Honoraires' },
-  { value: 'other', label: 'Autres' },
-] as const;
+const EXPENSE_CATEGORIES = Object.entries(FIXED_EXPENSE_CATEGORIES).map(([value, { label }]) => ({
+  value: value as FixedExpenseCategory,
+  label,
+}));
 
 // Templates de charges fixes par type d'activité
 const EXPENSE_TEMPLATES = {
@@ -110,7 +106,7 @@ type TemplateKey = keyof typeof EXPENSE_TEMPLATES;
 
 interface BulkExpenseRow {
   name: string;
-  category: string;
+  category: FixedExpenseCategory;
   monthly_amount: string;
 }
 
@@ -122,7 +118,7 @@ export default function Expenses() {
   const [expenseDialogOpen, setExpenseDialogOpen] = useState(false);
   const [selectedExpense, setSelectedExpense] = useState<BPFixedExpense | null>(null);
   const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
-  const [bulkRows, setBulkRows] = useState<BulkExpenseRow[]>([{ name: '', category: '', monthly_amount: '' }]);
+  const [bulkRows, setBulkRows] = useState<BulkExpenseRow[]>([{ name: '', category: 'other', monthly_amount: '' }]);
   const [isBulkSaving, setIsBulkSaving] = useState(false);
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateKey | null>(null);
@@ -138,7 +134,7 @@ export default function Expenses() {
   }
 
   const handleOpenBulkDialog = () => {
-    setBulkRows([{ name: '', category: '', monthly_amount: '' }]);
+    setBulkRows([{ name: '', category: 'other', monthly_amount: '' }]);
     setBulkDialogOpen(true);
   };
 
@@ -148,7 +144,7 @@ export default function Expenses() {
 
   const handleAddBulkRow = () => {
     if (bulkRows.length < 10) {
-      setBulkRows(prev => [...prev, { name: '', category: '', monthly_amount: '' }]);
+      setBulkRows(prev => [...prev, { name: '', category: 'other', monthly_amount: '' }]);
     }
   };
 

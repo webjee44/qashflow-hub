@@ -3,8 +3,13 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
-
-export type PaymentFrequency = 'monthly' | 'quarterly' | 'biannual' | 'annual';
+import {
+  FIXED_EXPENSE_CATEGORIES,
+  PAYMENT_FREQUENCIES,
+  DEFAULT_PAYMENT_MONTHS,
+  type FixedExpenseCategory,
+  type PaymentFrequency,
+} from '@/constants/bpConstants';
 
 export interface BPFixedExpense {
   id: string;
@@ -12,7 +17,7 @@ export interface BPFixedExpense {
   company_id: string | null;
   business_plan_id: string | null;
   name: string;
-  category: string;
+  category: FixedExpenseCategory;
   monthly_amount: number;
   vat_rate: number;
   is_vat_deductible: boolean;
@@ -25,29 +30,9 @@ export interface BPFixedExpense {
   updated_at: string;
 }
 
-export const FIXED_EXPENSE_CATEGORIES = {
-  rent: { label: 'Loyer', icon: 'Building2' },
-  insurance: { label: 'Assurances', icon: 'Shield' },
-  software: { label: 'Logiciels & Abonnements', icon: 'Laptop' },
-  marketing: { label: 'Marketing', icon: 'Megaphone' },
-  utilities: { label: 'Charges & Fluides', icon: 'Zap' },
-  professional_fees: { label: 'Honoraires', icon: 'Briefcase' },
-  other: { label: 'Autres', icon: 'MoreHorizontal' },
-};
-
-export const PAYMENT_FREQUENCIES = {
-  monthly: { label: 'Mensuel', multiplier: 1 },
-  quarterly: { label: 'Trimestriel', multiplier: 3 },
-  biannual: { label: 'Semestriel', multiplier: 6 },
-  annual: { label: 'Annuel', multiplier: 12 },
-};
-
-export const DEFAULT_PAYMENT_MONTHS: Record<PaymentFrequency, number[]> = {
-  monthly: [],
-  quarterly: [1, 4, 7, 10], // Jan, Avr, Juil, Oct
-  biannual: [1, 7], // Jan, Juil
-  annual: [1], // Janvier
-};
+// Re-export for backward compatibility
+export { FIXED_EXPENSE_CATEGORIES, PAYMENT_FREQUENCIES, DEFAULT_PAYMENT_MONTHS };
+export type { FixedExpenseCategory, PaymentFrequency };
 
 export function useBPFixedExpenses(businessPlanId?: string) {
   const { user } = useAuth();

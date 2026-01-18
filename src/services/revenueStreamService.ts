@@ -4,6 +4,7 @@
 // ============================================
 
 import { supabase } from '@/integrations/supabase/client';
+import { type RevenueModel } from '@/constants/bpConstants';
 
 export interface BPRevenueStream {
   id: string;
@@ -13,7 +14,7 @@ export interface BPRevenueStream {
   name: string;
   description: string | null;
   color: string;
-  model: 'fixed' | 'units' | 'growth' | 'subscription';
+  model: RevenueModel;
   is_active: boolean;
   initial_subscribers: number;
   monthly_price: number;
@@ -28,6 +29,8 @@ export interface BPRevenueStream {
   created_at: string;
   updated_at: string;
 }
+
+export type { RevenueModel };
 
 export type BPRevenueStreamInsert = Partial<Omit<BPRevenueStream, 'id' | 'created_at' | 'updated_at'>>;
 export type BPRevenueStreamUpdate = Partial<Omit<BPRevenueStream, 'id' | 'user_id' | 'created_at' | 'updated_at'>>;
