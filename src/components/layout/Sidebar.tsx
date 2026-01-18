@@ -73,7 +73,7 @@ export function Sidebar() {
   const { user, signOut } = useAuth();
   const { mode, setMode, isBusinessPlan } = useAppMode();
   const { settings } = useBPSettings();
-  const { bpEnabled } = useOnboarding();
+  const { bpEnabled, isCompleted: onboardingCompleted } = useOnboarding();
   const location = useLocation();
   const navigate = useNavigate();
   const currentPath = location.pathname;
@@ -171,16 +171,18 @@ export function Sidebar() {
             <SlidersHorizontal size={18} />
             <span className="text-sm font-medium">Paramètres du BP</span>
           </button>
-          <button
-            onClick={() => {
-              localStorage.setItem('show-bp-onboarding-tour', 'true');
-              window.location.reload();
-            }}
-            className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 text-muted-foreground hover:bg-muted hover:text-foreground"
-          >
-            <Sparkles size={18} />
-            <span className="text-sm font-medium">Visite guidée</span>
-          </button>
+          {!onboardingCompleted && (
+            <button
+              onClick={() => {
+                localStorage.setItem('show-bp-onboarding-tour', 'true');
+                window.location.reload();
+              }}
+              className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <Sparkles size={18} />
+              <span className="text-sm font-medium">Visite guidée</span>
+            </button>
+          )}
         </div>
       )}
 
