@@ -569,6 +569,7 @@ export type Database = {
       }
       bp_revenue_streams: {
         Row: {
+          annual_growth_rate: number | null
           bad_debt_rate: number | null
           business_plan_id: string | null
           churn_rate: number | null
@@ -588,6 +589,7 @@ export type Database = {
           vat_rate: number | null
         }
         Insert: {
+          annual_growth_rate?: number | null
           bad_debt_rate?: number | null
           business_plan_id?: string | null
           churn_rate?: number | null
@@ -607,6 +609,7 @@ export type Database = {
           vat_rate?: number | null
         }
         Update: {
+          annual_growth_rate?: number | null
           bad_debt_rate?: number | null
           business_plan_id?: string | null
           churn_rate?: number | null

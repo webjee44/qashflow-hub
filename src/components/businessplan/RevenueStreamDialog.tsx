@@ -37,6 +37,9 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
   const [monthlyPrice, setMonthlyPrice] = useState('');
   const [churnRate, setChurnRate] = useState('5');
   const [growthRate, setGrowthRate] = useState('10');
+  
+  // Annual growth rate for years 2+
+  const [annualGrowthRate, setAnnualGrowthRate] = useState('10');
 
   useEffect(() => {
     if (stream) {
@@ -48,6 +51,7 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
       setMonthlyPrice(stream.monthly_price?.toString() || '');
       setChurnRate(((stream.churn_rate || 0.05) * 100).toString());
       setGrowthRate(((stream.growth_rate || 0.10) * 100).toString());
+      setAnnualGrowthRate(((stream.annual_growth_rate ?? 0.10) * 100).toString());
     } else {
       setName('');
       setDescription('');
@@ -57,6 +61,7 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
       setMonthlyPrice('');
       setChurnRate('5');
       setGrowthRate('10');
+      setAnnualGrowthRate('10');
     }
   }, [stream, open]);
 
@@ -71,6 +76,7 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
       monthly_price: parseFloat(monthlyPrice) || 0,
       churn_rate: (parseFloat(churnRate) || 5) / 100,
       growth_rate: (parseFloat(growthRate) || 10) / 100,
+      annual_growth_rate: (parseFloat(annualGrowthRate) || 10) / 100,
     });
     onOpenChange(false);
   };
@@ -145,6 +151,27 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
             </Select>
           </div>
 
+          {/* Annual growth rate for all models */}
+          <div className="grid gap-2 p-4 bg-muted/30 rounded-lg border">
+            <Label htmlFor="annualGrowth" className="flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-primary" />
+              Taux de croissance annuel (Années 2+)
+            </Label>
+            <div className="flex items-center gap-2">
+              <Input
+                id="annualGrowth"
+                type="number"
+                value={annualGrowthRate}
+                onChange={(e) => setAnnualGrowthRate(e.target.value)}
+                placeholder="10"
+                className="w-24"
+              />
+              <span className="text-sm text-muted-foreground">%</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Appliqué automatiquement sur le CA de l'année 1 pour projeter les années suivantes
+            </p>
+          </div>
           {/* Subscription model specific fields */}
           {model === 'subscription' && (
             <div className="space-y-4 p-4 bg-muted/30 rounded-lg border">
