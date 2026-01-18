@@ -19,8 +19,11 @@ export interface RevenueStream {
   monthly_price: number;
   churn_rate: number;
   growth_rate: number;
-  // Annual growth rate for years 2+
-  annual_growth_rate: number;
+  // Annual growth rates - year-specific (N+1, N+2, N+3)
+  annual_growth_rate: number; // Legacy, kept for compatibility
+  growth_rate_year2: number;
+  growth_rate_year3: number;
+  growth_rate_year4: number;
   created_at: string;
   updated_at: string;
 }
@@ -109,6 +112,9 @@ export function useRevenueStreams() {
           churn_rate: data.churn_rate || 0.05,
           growth_rate: data.growth_rate || 0.10,
           annual_growth_rate: data.annual_growth_rate ?? 0.10,
+          growth_rate_year2: data.growth_rate_year2 ?? 0.10,
+          growth_rate_year3: data.growth_rate_year3 ?? 0.10,
+          growth_rate_year4: data.growth_rate_year4 ?? 0.10,
         })
         .select()
         .single();
@@ -224,6 +230,16 @@ export function useRevenueStreams() {
     return streams.reduce((sum, stream) => sum + getForecast(stream.id, month), 0);
   };
 
+  // Helper: get growth rate for a specific year
+  const getYearGrowthRate = (stream: RevenueStream, yearIndex: number): number => {
+    switch (yearIndex) {
+      case 1: return stream.growth_rate_year2 ?? stream.annual_growth_rate ?? 0.10;
+      case 2: return stream.growth_rate_year3 ?? stream.annual_growth_rate ?? 0.10;
+      case 3: return stream.growth_rate_year4 ?? stream.annual_growth_rate ?? 0.10;
+      default: return stream.growth_rate_year4 ?? stream.annual_growth_rate ?? 0.10;
+    }
+  };
+
   // Helper: get yearly revenue for a stream, with automatic projection for years 2+
   const getYearlyRevenue = (streamId: string, yearIndex: number, year1Months: Date[]): number => {
     const stream = streams.find(s => s.id === streamId);
@@ -234,9 +250,13 @@ export function useRevenueStreams() {
     
     if (yearIndex === 0) return year1Total;
 
-    // Years 2+: apply annual growth rate
-    const annualGrowthRate = stream.annual_growth_rate ?? 0.10;
-    return year1Total * Math.pow(1 + annualGrowthRate, yearIndex);
+    // Years 2+: apply compound growth with year-specific rates
+    let projectedTotal = year1Total;
+    for (let i = 1; i <= yearIndex; i++) {
+      const rate = getYearGrowthRate(stream, i);
+      projectedTotal *= (1 + rate);
+    }
+    return projectedTotal;
   };
 
   // Helper: get total yearly revenue across all streams
