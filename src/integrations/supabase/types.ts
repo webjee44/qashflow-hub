@@ -266,6 +266,8 @@ export type Database = {
           monthly_amount: number | null
           name: string
           notes: string | null
+          payment_frequency: string | null
+          payment_months: number[] | null
           start_date: string
           updated_at: string | null
           user_id: string
@@ -282,6 +284,8 @@ export type Database = {
           monthly_amount?: number | null
           name: string
           notes?: string | null
+          payment_frequency?: string | null
+          payment_months?: number[] | null
           start_date?: string
           updated_at?: string | null
           user_id: string
@@ -298,6 +302,8 @@ export type Database = {
           monthly_amount?: number | null
           name?: string
           notes?: string | null
+          payment_frequency?: string | null
+          payment_months?: number[] | null
           start_date?: string
           updated_at?: string | null
           user_id?: string
@@ -438,8 +444,10 @@ export type Database = {
           company_size: string | null
           contract_type: string | null
           created_at: string | null
+          daily_rate: number | null
           employer_charges_rate: number | null
           end_date: string | null
+          estimated_days_per_month: number | null
           gross_salary: number | null
           id: string
           is_executive: boolean | null
@@ -448,6 +456,7 @@ export type Database = {
           start_date: string
           updated_at: string | null
           user_id: string
+          worker_type: string | null
         }
         Insert: {
           business_plan_id?: string | null
@@ -455,8 +464,10 @@ export type Database = {
           company_size?: string | null
           contract_type?: string | null
           created_at?: string | null
+          daily_rate?: number | null
           employer_charges_rate?: number | null
           end_date?: string | null
+          estimated_days_per_month?: number | null
           gross_salary?: number | null
           id?: string
           is_executive?: boolean | null
@@ -465,6 +476,7 @@ export type Database = {
           start_date?: string
           updated_at?: string | null
           user_id: string
+          worker_type?: string | null
         }
         Update: {
           business_plan_id?: string | null
@@ -472,8 +484,10 @@ export type Database = {
           company_size?: string | null
           contract_type?: string | null
           created_at?: string | null
+          daily_rate?: number | null
           employer_charges_rate?: number | null
           end_date?: string | null
+          estimated_days_per_month?: number | null
           gross_salary?: number | null
           id?: string
           is_executive?: boolean | null
@@ -482,6 +496,7 @@ export type Database = {
           start_date?: string
           updated_at?: string | null
           user_id?: string
+          worker_type?: string | null
         }
         Relationships: [
           {
