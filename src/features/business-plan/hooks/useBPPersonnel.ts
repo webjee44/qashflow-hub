@@ -24,6 +24,10 @@ export interface BPPersonnel {
   worker_type: WorkerType;
   daily_rate: number | null;
   estimated_days_per_month: number | null;
+  // Payslip import fields
+  mutuelle_employer_amount: number | null;
+  at_mp_rate: number | null;
+  payslip_imported: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -84,6 +88,9 @@ export function useBPPersonnel(businessPlanId?: string) {
         chargesRate = getGlobalChargesRate(grossSalary, isExecutive, companySize, contractType);
       }
 
+      // Use provided charges rate if from payslip import
+      const finalChargesRate = data.employer_charges_rate ?? chargesRate;
+
       const { data: newPerson, error } = await supabase
         .from('bp_personnel')
         .insert({
@@ -91,7 +98,7 @@ export function useBPPersonnel(businessPlanId?: string) {
           business_plan_id: businessPlanId,
           position: data.position || 'Nouveau poste',
           gross_salary: isFreelance ? 0 : (data.gross_salary || 0),
-          employer_charges_rate: chargesRate,
+          employer_charges_rate: finalChargesRate,
           start_date: data.start_date || format(new Date(), 'yyyy-MM-dd'),
           end_date: data.end_date || null,
           notes: data.notes || null,
@@ -101,6 +108,10 @@ export function useBPPersonnel(businessPlanId?: string) {
           worker_type: workerType,
           daily_rate: isFreelance ? (data.daily_rate || 0) : null,
           estimated_days_per_month: isFreelance ? (data.estimated_days_per_month || 0) : null,
+          // Payslip import fields
+          mutuelle_employer_amount: data.mutuelle_employer_amount ?? null,
+          at_mp_rate: data.at_mp_rate ?? null,
+          payslip_imported: data.payslip_imported ?? false,
         })
         .select()
         .single();

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ChevronDown, Info, User, Briefcase } from 'lucide-react';
+import { ChevronDown, Info, User, Briefcase, Upload, FileCheck, Loader2, AlertCircle } from 'lucide-react';
 import { BPPersonnel, WorkerType } from '@/hooks/useBPPersonnel';
 import { format } from 'date-fns';
 import { 
@@ -17,6 +17,23 @@ import {
   COMPANY_SIZES,
   URSSAF_RATES_2026 
 } from '@/lib/french-rates';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+
+interface PayslipImportData {
+  gross_salary_monthly: number;
+  net_salary?: number;
+  position?: string;
+  is_executive: boolean;
+  contract_type: 'cdi' | 'cdd' | 'interim' | 'apprentice';
+  employer_charges_total?: number;
+  employer_charges_rate?: number;
+  mutuelle_employer?: number;
+  at_mp_rate?: number;
+  period?: string;
+  employee_name?: string;
+  confidence_score: number;
+}
 
 interface PersonnelDialogProps {
   open: boolean;
@@ -39,6 +56,13 @@ export function PersonnelDialog({ open, onOpenChange, personnel, onSave, default
   const [isExecutive, setIsExecutive] = useState(false);
   const [companySize, setCompanySize] = useState('small');
   const [showDetails, setShowDetails] = useState(false);
+  
+  // Payslip import state
+  const [isImporting, setIsImporting] = useState(false);
+  const [importedData, setImportedData] = useState<PayslipImportData | null>(null);
+  const [customMutuelle, setCustomMutuelle] = useState<number | null>(null);
+  const [customAtMpRate, setCustomAtMpRate] = useState<number | null>(null);
+  const [customChargesRate, setCustomChargesRate] = useState<number | null>(null);
 
   useEffect(() => {
     if (personnel) {
@@ -53,6 +77,12 @@ export function PersonnelDialog({ open, onOpenChange, personnel, onSave, default
       setContractType(personnel.contract_type || 'cdi');
       setIsExecutive(personnel.is_executive ?? false);
       setCompanySize(personnel.company_size || 'small');
+      // Restore imported data if exists
+      if (personnel.payslip_imported) {
+        setCustomMutuelle(personnel.mutuelle_employer_amount);
+        setCustomAtMpRate(personnel.at_mp_rate);
+        setCustomChargesRate(personnel.employer_charges_rate);
+      }
     } else {
       setWorkerType(defaultWorkerType);
       setPosition('');
@@ -65,6 +95,10 @@ export function PersonnelDialog({ open, onOpenChange, personnel, onSave, default
       setContractType(defaultWorkerType === 'freelance' ? 'freelance' : 'cdi');
       setIsExecutive(false);
       setCompanySize('small');
+      setImportedData(null);
+      setCustomMutuelle(null);
+      setCustomAtMpRate(null);
+      setCustomChargesRate(null);
     }
   }, [personnel, open, defaultWorkerType]);
 
@@ -79,13 +113,91 @@ export function PersonnelDialog({ open, onOpenChange, personnel, onSave, default
     companySize as 'small' | 'medium' | 'large',
     contractType
   );
-  const totalEmployeeCostMonthly = grossSalaryMonthly + detailedCharges.total;
-  const effectiveRate = grossSalaryMonthly > 0 ? (detailedCharges.total / grossSalaryMonthly * 100) : 0;
+  
+  // Use imported charges rate if available
+  const effectiveChargesTotal = customChargesRate && grossSalaryMonthly > 0 
+    ? grossSalaryMonthly * customChargesRate 
+    : detailedCharges.total;
+  const effectiveRate = customChargesRate 
+    ? customChargesRate * 100 
+    : (grossSalaryMonthly > 0 ? (detailedCharges.total / grossSalaryMonthly * 100) : 0);
+  
+  const totalEmployeeCostMonthly = grossSalaryMonthly + effectiveChargesTotal;
 
   // Calculs pour les freelances
   const dailyRateValue = parseFloat(dailyRate) || 0;
   const estimatedDaysValue = parseFloat(estimatedDays) || 0;
   const totalFreelanceCostMonthly = dailyRateValue * estimatedDaysValue;
+
+  // File upload handler
+  const handlePayslipUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.type !== 'application/pdf') {
+      toast.error('Seuls les fichiers PDF sont acceptés');
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('Fichier trop volumineux (max 10 Mo)');
+      return;
+    }
+
+    setIsImporting(true);
+
+    try {
+      // Convert to base64
+      const buffer = await file.arrayBuffer();
+      const base64 = btoa(
+        new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
+      );
+
+      const { data, error } = await supabase.functions.invoke('parse-payslip', {
+        body: { pdf_base64: base64 }
+      });
+
+      if (error) throw error;
+
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      const payslipData = data as PayslipImportData;
+      setImportedData(payslipData);
+
+      // Pre-fill form fields
+      if (payslipData.position) setPosition(payslipData.position);
+      if (payslipData.gross_salary_monthly) {
+        setGrossSalary((payslipData.gross_salary_monthly * 12).toString());
+      }
+      setIsExecutive(payslipData.is_executive);
+      if (payslipData.contract_type) {
+        const mappedType = payslipData.contract_type === 'interim' ? 'cdd' : payslipData.contract_type;
+        setContractType(mappedType);
+      }
+
+      // Set custom values from payslip
+      if (payslipData.mutuelle_employer) {
+        setCustomMutuelle(payslipData.mutuelle_employer);
+      }
+      if (payslipData.at_mp_rate) {
+        setCustomAtMpRate(payslipData.at_mp_rate);
+      }
+      if (payslipData.employer_charges_rate) {
+        setCustomChargesRate(payslipData.employer_charges_rate);
+      }
+
+      toast.success('Fiche de paie importée ! Vérifiez les valeurs pré-remplies.');
+    } catch (error) {
+      console.error('Payslip import error:', error);
+      toast.error(error instanceof Error ? error.message : 'Erreur lors de l\'import');
+    } finally {
+      setIsImporting(false);
+      // Reset file input
+      e.target.value = '';
+    }
+  }, []);
 
   const handleSave = () => {
     if (isFreelance) {
@@ -106,12 +218,17 @@ export function PersonnelDialog({ open, onOpenChange, personnel, onSave, default
         position,
         worker_type: workerType,
         gross_salary: grossSalaryMonthly,
+        employer_charges_rate: customChargesRate ?? undefined,
         start_date: startDate,
         end_date: endDate || null,
         notes: notes || null,
         contract_type: contractType,
         is_executive: isExecutive,
         company_size: companySize,
+        // Payslip import fields
+        mutuelle_employer_amount: customMutuelle,
+        at_mp_rate: customAtMpRate,
+        payslip_imported: !!importedData || personnel?.payslip_imported,
       });
     }
     onOpenChange(false);
@@ -134,7 +251,7 @@ export function PersonnelDialog({ open, onOpenChange, personnel, onSave, default
     { label: 'FNAL', value: detailedCharges.fnal, rate: grossSalaryMonthly > 0 ? detailedCharges.fnal / grossSalaryMonthly : 0 },
     { label: 'Formation', value: detailedCharges.formation, rate: grossSalaryMonthly > 0 ? detailedCharges.formation / grossSalaryMonthly : 0 },
     { label: 'Taxe apprentissage', value: detailedCharges.apprentissage, rate: URSSAF_RATES_2026.employer.apprentissage },
-    { label: 'AT/MP', value: detailedCharges.atMp, rate: URSSAF_RATES_2026.employer.at_mp.avg },
+    { label: 'AT/MP', value: detailedCharges.atMp, rate: customAtMpRate ?? URSSAF_RATES_2026.employer.at_mp.avg },
     { label: 'Retraite compl. T1', value: detailedCharges.retraiteComplementaireT1, rate: URSSAF_RATES_2026.employer.retraite_complementaire.tranche1 },
     ...(isExecutive ? [
       { label: 'Retraite compl. T2 (cadre)', value: detailedCharges.retraiteComplementaireT2, rate: URSSAF_RATES_2026.employer.retraite_complementaire.tranche2 },
@@ -142,7 +259,7 @@ export function PersonnelDialog({ open, onOpenChange, personnel, onSave, default
       { label: 'Prévoyance cadre', value: detailedCharges.prevoyanceCadre, rate: URSSAF_RATES_2026.employer.prevoyance_cadre },
     ] : []),
     { label: 'CET', value: detailedCharges.cet, rate: URSSAF_RATES_2026.employer.cet },
-    { label: 'Mutuelle (forfait)', value: detailedCharges.mutuelle, rate: grossSalaryMonthly > 0 ? detailedCharges.mutuelle / grossSalaryMonthly : 0 },
+    { label: 'Mutuelle (forfait)', value: customMutuelle ?? detailedCharges.mutuelle, rate: grossSalaryMonthly > 0 ? (customMutuelle ?? detailedCharges.mutuelle) / grossSalaryMonthly : 0 },
   ].filter(c => c.value > 0);
 
   return (
@@ -165,6 +282,72 @@ export function PersonnelDialog({ open, onOpenChange, personnel, onSave, default
           </TabsList>
 
           <div className="grid gap-4 py-4">
+            {/* Payslip upload zone - only for new employees */}
+            {!personnel && workerType === 'employee' && (
+              <div className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors ${
+                importedData 
+                  ? 'border-green-500/50 bg-green-500/5' 
+                  : 'border-muted-foreground/25 hover:border-muted-foreground/50'
+              }`}>
+                {isImporting ? (
+                  <div className="flex items-center justify-center gap-2 text-muted-foreground">
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    <span>Analyse en cours...</span>
+                  </div>
+                ) : importedData ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-center gap-2 text-green-600">
+                      <FileCheck className="h-5 w-5" />
+                      <span className="font-medium">Fiche importée</span>
+                      {importedData.period && (
+                        <span className="text-sm text-muted-foreground">({importedData.period})</span>
+                      )}
+                    </div>
+                    {importedData.confidence_score < 0.7 && (
+                      <div className="flex items-center justify-center gap-1 text-xs text-amber-600">
+                        <AlertCircle className="h-3 w-3" />
+                        <span>Confiance moyenne - vérifiez les valeurs</span>
+                      </div>
+                    )}
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={() => {
+                        setImportedData(null);
+                        setCustomMutuelle(null);
+                        setCustomAtMpRate(null);
+                        setCustomChargesRate(null);
+                      }}
+                    >
+                      Réinitialiser
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    <Upload className="h-6 w-6 mx-auto text-muted-foreground mb-2" />
+                    <p className="text-sm text-muted-foreground mb-2">
+                      Importez une fiche de paie PDF pour pré-remplir automatiquement
+                    </p>
+                    <input 
+                      type="file" 
+                      accept=".pdf"
+                      onChange={handlePayslipUpload}
+                      className="hidden"
+                      id="payslip-upload"
+                    />
+                    <Button variant="outline" size="sm" asChild>
+                      <label htmlFor="payslip-upload" className="cursor-pointer">
+                        Parcourir
+                      </label>
+                    </Button>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Le fichier est analysé puis supprimé (RGPD)
+                    </p>
+                  </>
+                )}
+              </div>
+            )}
+
             <div className="grid gap-2">
               <Label htmlFor="position">{isFreelance ? 'Mission / Prestation' : 'Intitulé du poste'}</Label>
               <Input
@@ -236,8 +419,10 @@ export function PersonnelDialog({ open, onOpenChange, personnel, onSave, default
                 </div>
                 <div className="grid gap-2">
                   <Label className="text-muted-foreground">Taux charges patronales</Label>
-                  <div className="h-9 flex items-center px-3 bg-muted/50 rounded-md text-sm font-medium">
-                    {effectiveRate.toFixed(1)}% (calculé auto)
+                  <div className={`h-9 flex items-center px-3 rounded-md text-sm font-medium ${
+                    customChargesRate ? 'bg-green-500/10 text-green-700' : 'bg-muted/50'
+                  }`}>
+                    {effectiveRate.toFixed(1)}% {customChargesRate ? '(importé)' : '(calculé)'}
                   </div>
                 </div>
               </div>
@@ -253,14 +438,19 @@ export function PersonnelDialog({ open, onOpenChange, personnel, onSave, default
                   <Collapsible open={showDetails} onOpenChange={setShowDetails}>
                     <CollapsibleTrigger asChild>
                       <button className="flex items-center justify-between w-full text-sm text-muted-foreground hover:text-foreground transition-colors">
-                        <span>Charges patronales URSSAF ({effectiveRate.toFixed(1)}%)</span>
+                        <span>Charges patronales ({effectiveRate.toFixed(1)}%)</span>
                         <div className="flex items-center gap-2">
-                          <span className="text-foreground">{formatCurrency(detailedCharges.total)}</span>
+                          <span className="text-foreground">{formatCurrency(effectiveChargesTotal)}</span>
                           <ChevronDown className={`h-4 w-4 transition-transform ${showDetails ? 'rotate-180' : ''}`} />
                         </div>
                       </button>
                     </CollapsibleTrigger>
                     <CollapsibleContent className="mt-2 space-y-1">
+                      {customChargesRate && (
+                        <div className="mb-2 p-2 bg-green-500/10 rounded text-xs text-green-700">
+                          Taux importé depuis la fiche de paie ({(customChargesRate * 100).toFixed(1)}%)
+                        </div>
+                      )}
                       <div className="pl-3 border-l-2 border-muted space-y-1">
                         {chargesBreakdown.map(charge => (
                           <div key={charge.label} className="flex justify-between text-xs text-muted-foreground">
