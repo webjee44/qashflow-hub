@@ -1455,6 +1455,7 @@ export type Database = {
           created_at: string
           deleted_at: string | null
           id: string
+          is_demo: boolean
           max_companies: number
           max_members: number
           max_transactions_per_month: number
@@ -1472,6 +1473,7 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           id?: string
+          is_demo?: boolean
           max_companies?: number
           max_members?: number
           max_transactions_per_month?: number
@@ -1489,6 +1491,7 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           id?: string
+          is_demo?: boolean
           max_companies?: number
           max_members?: number
           max_transactions_per_month?: number
@@ -1753,6 +1756,7 @@ export type Database = {
           bp_count: number
           company_count: number
           created_at: string
+          is_demo: boolean
           max_companies: number
           max_members: number
           member_count: number

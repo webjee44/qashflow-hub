@@ -17,6 +17,7 @@ interface OrgCardProps {
     member_count: number;
     company_count: number;
     bp_count: number;
+    is_demo?: boolean;
   };
 }
 
@@ -50,6 +51,11 @@ export function OrgCard({ organization }: OrgCardProps) {
             </div>
           </div>
           <div className="flex gap-2">
+            {organization.is_demo && (
+              <Badge className="bg-violet-100 text-violet-800 dark:bg-violet-900 dark:text-violet-200 border-violet-300">
+                DÉMO
+              </Badge>
+            )}
             <Badge className={planColors[organization.plan] || planColors.free}>
               {organization.plan}
             </Badge>
