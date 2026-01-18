@@ -24,13 +24,7 @@ const MONTHS = [
   { value: 12, label: 'Décembre' },
 ];
 
-const BP_DURATIONS = [
-  { value: 1, label: '1 an' },
-  { value: 2, label: '2 ans' },
-  { value: 3, label: '3 ans' },
-  { value: 4, label: '4 ans' },
-  { value: 5, label: '5 ans' },
-];
+// BP duration is fixed at 3 years for simplicity
 
 const TAX_REGIMES = [
   { value: 'is', label: 'IS - Impôt sur les Sociétés', description: 'SAS, SASU, SARL soumises à l\'IS' },
@@ -57,7 +51,8 @@ interface BPSettingsDialogProps {
 export function BPSettingsDialog({ open, onOpenChange }: BPSettingsDialogProps) {
   const { settings, updateSettings } = useBPSettings();
   const [bpStartDate, setBpStartDate] = useState('');
-  const [bpYears, setBpYears] = useState(3);
+  // BP duration is fixed at 3 years
+  const bpYears = 3;
   const [fiscalMonth, setFiscalMonth] = useState(1);
   const [initialCash, setInitialCash] = useState('');
   const [customerDelay, setCustomerDelay] = useState('');
@@ -70,7 +65,7 @@ export function BPSettingsDialog({ open, onOpenChange }: BPSettingsDialogProps) 
   useEffect(() => {
     if (settings) {
       setBpStartDate(settings.bp_start_date || new Date().toISOString().split('T')[0]);
-      setBpYears(settings.bp_years || 3);
+      // bpYears is now fixed at 3
       setFiscalMonth(settings.fiscal_year_start_month || 1);
       setInitialCash(settings.initial_cash.toString());
       setCustomerDelay(settings.customer_payment_delay.toString());
@@ -130,37 +125,20 @@ export function BPSettingsDialog({ open, onOpenChange }: BPSettingsDialogProps) 
               />
             </div>
             
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="bpYears">Durée du BP</Label>
-                <Select value={bpYears.toString()} onValueChange={(v) => setBpYears(parseInt(v))}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {BP_DURATIONS.map((d) => (
-                      <SelectItem key={d.value} value={d.value.toString()}>
-                        {d.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="fiscalMonth">Début d'exercice</Label>
-                <Select value={fiscalMonth.toString()} onValueChange={(v) => setFiscalMonth(parseInt(v))}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {MONTHS.map((m) => (
-                      <SelectItem key={m.value} value={m.value.toString()}>
-                        {m.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="grid gap-2">
+              <Label htmlFor="fiscalMonth">Début d'exercice</Label>
+              <Select value={fiscalMonth.toString()} onValueChange={(v) => setFiscalMonth(parseInt(v))}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {MONTHS.map((m) => (
+                    <SelectItem key={m.value} value={m.value.toString()}>
+                      {m.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             
             <p className="text-xs text-muted-foreground">
