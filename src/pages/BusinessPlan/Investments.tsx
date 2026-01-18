@@ -70,7 +70,7 @@ export default function Investments() {
       />
 
       {/* Summary cards */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div data-tour-bp="investments-card" className="grid gap-4 md:grid-cols-3">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
           <Card>
             <CardContent className="pt-6">

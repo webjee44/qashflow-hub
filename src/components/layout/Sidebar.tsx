@@ -17,7 +17,8 @@ import {
   Landmark,
   LogOut,
   SlidersHorizontal,
-  Users
+  Users,
+  Sparkles
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState, useMemo } from 'react';
@@ -162,13 +163,24 @@ export function Sidebar() {
 
       {/* BP Settings Button (expanded) */}
       {!isCollapsed && isBusinessPlan && (
-        <div className="px-4 py-3 border-b border-border">
+        <div className="px-4 py-3 border-b border-border space-y-1">
           <button
+            data-tour-bp="settings"
             onClick={() => setBpSettingsOpen(true)}
             className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 text-muted-foreground hover:bg-muted hover:text-foreground"
           >
             <SlidersHorizontal size={18} />
             <span className="text-sm font-medium">Paramètres du BP</span>
+          </button>
+          <button
+            onClick={() => {
+              localStorage.setItem('show-bp-onboarding-tour', 'true');
+              window.location.reload();
+            }}
+            className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            <Sparkles size={18} />
+            <span className="text-sm font-medium">Visite guidée</span>
           </button>
         </div>
       )}

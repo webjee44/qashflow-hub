@@ -49,7 +49,7 @@ export default function ProfitLoss() {
       />
 
       {/* Summary cards */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div data-tour-bp="pnl-summary" className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardContent className="pt-6">
             <p className="text-sm text-muted-foreground">CA Total ({settings.bp_years} ans)</p>

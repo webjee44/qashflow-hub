@@ -12,6 +12,8 @@ import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { SuperAdminRoute } from "@/components/superadmin/SuperAdminRoute";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { OnboardingTour } from "@/components/onboarding/OnboardingTour";
+import { BPOnboardingTour } from "@/components/onboarding/BPOnboardingTour";
+import { BPOnboardingWizard } from "@/components/onboarding/BPOnboardingWizard";
 import { PageLoader } from "@/components/ui/page-loader";
 
 // ============================================
@@ -79,6 +81,8 @@ const App = () => (
             <Sonner />
             <BrowserRouter>
               <OnboardingTour />
+              <BPOnboardingTour />
+              <BPOnboardingWizard />
               <Routes>
                 {/* Public routes */}
                 <Route path="/" element={<Landing />} />

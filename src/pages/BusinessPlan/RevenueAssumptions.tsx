@@ -51,7 +51,11 @@ export default function RevenueAssumptions() {
         actions={
           <div className="flex gap-2">
             <BPExportDialog />
-            <Button className="gap-2" onClick={handleNewStream}>
+            <Button 
+              data-tour-bp="add-revenue"
+              className="gap-2" 
+              onClick={handleNewStream}
+            >
               <Plus className="h-4 w-4" />
               Ajouter un flux
             </Button>
@@ -60,7 +64,7 @@ export default function RevenueAssumptions() {
       />
 
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-        <Card>
+        <Card data-tour-bp="revenue-table">
           <CardHeader>
             <CardTitle>Flux de revenus</CardTitle>
           </CardHeader>

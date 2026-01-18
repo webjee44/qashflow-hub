@@ -98,7 +98,7 @@ export default function Scenarios() {
           </div>
 
           {/* Scenario Cards */}
-          <div className="grid gap-4 md:grid-cols-3">
+          <div data-tour-bp="scenarios-grid" className="grid gap-4 md:grid-cols-3">
             {scenarios.map((scenario, index) => (
               <motion.div
                 key={scenario.id}
