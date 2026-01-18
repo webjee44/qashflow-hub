@@ -44,3 +44,6 @@ verify_jwt = false
 
 [functions.parse-payslip]
 verify_jwt = false
+
+[functions.admin-impersonate]
+verify_jwt = false

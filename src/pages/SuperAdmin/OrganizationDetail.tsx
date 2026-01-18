@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Building2, Users, FileText, Calendar, CreditCard } from 'lucide-react';
+import { ArrowLeft, Building2, Users, FileText, Calendar, CreditCard, UserCog, Loader2 } from 'lucide-react';
 import { SuperAdminLayout } from '@/components/superadmin/SuperAdminLayout';
 import { useSuperAdminOrgStats } from '@/hooks/useSuperAdmin';
 import { Button } from '@/components/ui/button';
@@ -8,6 +9,8 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 const planColors: Record<string, string> = {
   free: 'bg-muted text-muted-foreground',
@@ -26,8 +29,42 @@ export default function SuperAdminOrganizationDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { data: orgStats, isLoading } = useSuperAdminOrgStats();
+  const [isImpersonating, setIsImpersonating] = useState(false);
 
   const organization = orgStats?.find((org) => org.organization_id === id);
+
+  const handleImpersonate = async () => {
+    if (!organization?.owner_id) {
+      toast.error("Aucun propriétaire trouvé pour cette organisation");
+      return;
+    }
+
+    setIsImpersonating(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('admin-impersonate', {
+        body: { targetUserId: organization.owner_id },
+      });
+
+      if (error) {
+        console.error('Impersonation error:', error);
+        toast.error("Erreur lors de l'impersonation");
+        return;
+      }
+
+      if (data?.impersonationUrl) {
+        toast.success(`Ouverture de la session de ${data.targetEmail}...`);
+        // Open in new tab to preserve superadmin session
+        window.open(data.impersonationUrl, '_blank');
+      } else {
+        toast.error("Aucun lien d'impersonation reçu");
+      }
+    } catch (err) {
+      console.error('Unexpected error:', err);
+      toast.error("Erreur inattendue");
+    } finally {
+      setIsImpersonating(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -193,8 +230,18 @@ export default function SuperAdminOrganizationDetail() {
               <Button variant="outline" className="w-full justify-start" disabled>
                 Voir les entreprises
               </Button>
-              <Button variant="outline" className="w-full justify-start" disabled>
-                Se connecter en tant que (impersonation)
+              <Button 
+                variant="outline" 
+                className="w-full justify-start"
+                onClick={handleImpersonate}
+                disabled={isImpersonating}
+              >
+                {isImpersonating ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <UserCog className="w-4 h-4 mr-2" />
+                )}
+                Se connecter en tant que propriétaire
               </Button>
               <Button variant="destructive" className="w-full justify-start" disabled>
                 Suspendre l'organisation
