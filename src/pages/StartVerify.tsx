@@ -73,7 +73,7 @@ export default function StartVerify() {
           phone,
           onboarding_completed: false,
           onboarding_step: 0,
-          bp_enabled: false,
+          bp_enabled: true,
         });
 
         // Create company

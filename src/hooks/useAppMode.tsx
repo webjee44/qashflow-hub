@@ -25,7 +25,8 @@ function getModeFromPath(pathname: string): AppMode {
 export function AppModeProvider({ children }: { children: ReactNode }) {
   const [mode, setModeState] = useState<AppMode>(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
-    return (stored === 'business-plan' ? 'business-plan' : 'treasury') as AppMode;
+    // Default to business-plan for new users
+    return (stored === 'treasury' ? 'treasury' : 'business-plan') as AppMode;
   });
 
   useEffect(() => {
