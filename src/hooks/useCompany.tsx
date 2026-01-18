@@ -115,19 +115,19 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
         queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
         queryClient.invalidateQueries({ queryKey: ['automationRules'] });
         
-        // Invalidate Business Plan data
-        queryClient.invalidateQueries({ queryKey: ['bp-settings'] });
-        queryClient.invalidateQueries({ queryKey: ['bp-revenue-streams'] });
-        queryClient.invalidateQueries({ queryKey: ['bp-revenue-forecasts'] });
-        queryClient.invalidateQueries({ queryKey: ['bp-fixed-expenses'] });
-        queryClient.invalidateQueries({ queryKey: ['bp-variable-expenses'] });
-        queryClient.invalidateQueries({ queryKey: ['bp-personnel'] });
-        queryClient.invalidateQueries({ queryKey: ['bp-directors'] });
-        queryClient.invalidateQueries({ queryKey: ['bp-investments'] });
-        queryClient.invalidateQueries({ queryKey: ['bp-financings'] });
-        queryClient.invalidateQueries({ queryKey: ['bp-stocks'] });
-        queryClient.invalidateQueries({ queryKey: ['bp-scenarios'] });
-        queryClient.invalidateQueries({ queryKey: ['bp-notes'] });
+        // Invalidate Business Plan data (using underscores to match hook queryKeys)
+        queryClient.invalidateQueries({ queryKey: ['bp_settings'] });
+        queryClient.invalidateQueries({ queryKey: ['bp_revenue_streams'] });
+        queryClient.invalidateQueries({ queryKey: ['bp_revenue_forecasts'] });
+        queryClient.invalidateQueries({ queryKey: ['bp_fixed_expenses'] });
+        queryClient.invalidateQueries({ queryKey: ['bp_variable_expenses'] });
+        queryClient.invalidateQueries({ queryKey: ['bp_personnel'] });
+        queryClient.invalidateQueries({ queryKey: ['bp_directors'] });
+        queryClient.invalidateQueries({ queryKey: ['bp_investments'] });
+        queryClient.invalidateQueries({ queryKey: ['bp_financings'] });
+        queryClient.invalidateQueries({ queryKey: ['bp_stocks'] });
+        queryClient.invalidateQueries({ queryKey: ['bp_scenarios'] });
+        queryClient.invalidateQueries({ queryKey: ['bp_notes'] });
         
         toast.info(`Contexte changé vers ${company.name}`);
       }
