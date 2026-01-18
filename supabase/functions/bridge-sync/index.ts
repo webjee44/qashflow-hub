@@ -12,6 +12,11 @@ import {
   errorResponse, 
   successResponse 
 } from '../_shared/bridge-client.ts';
+import { 
+  bridgeSyncRequestSchema, 
+  validateRequest, 
+  validationErrorResponse 
+} from '../_shared/validation.ts';
 
 // ============================================
 // Helper: Sync transactions for a company
@@ -100,20 +105,21 @@ Deno.serve(async (req) => {
     // Service client for admin operations
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Parse request body
-    let action = 'full-sync';
-    let bridgeUserUuid: string | null = null;
-    let companyId: string | null = null;
-
+    // Parse and validate request body
+    let body = {};
     try {
-      const body = await req.json();
-      action = body.action || 'full-sync';
-      bridgeUserUuid = body.bridge_user_uuid || null;
-      companyId = body.company_id || null;
+      body = await req.json();
     } catch {
-      // No body or invalid JSON
+      // Empty body - will use defaults
     }
 
+    const validation = validateRequest(bridgeSyncRequestSchema, body);
+    if (!validation.success) {
+      console.error('[bridge-sync] Validation error:', validation.error);
+      return validationErrorResponse(validation.error, corsHeaders);
+    }
+
+    const { action, bridge_user_uuid, company_id } = validation.data;
     console.info('[bridge-sync] Action:', action);
 
     // ============================================
@@ -196,7 +202,7 @@ Deno.serve(async (req) => {
     // Action: full-sync (User auth required)
     // ============================================
     if (action === 'full-sync') {
-      if (!bridgeUserUuid || !companyId) {
+      if (!bridge_user_uuid || !company_id) {
         return errorResponse('bridge_user_uuid et company_id requis');
       }
 
@@ -222,7 +228,7 @@ Deno.serve(async (req) => {
       console.info('[bridge-sync] Starting full sync for user:', userId);
 
       // Get auth token
-      await bridgeClient.getAuthToken(bridgeUserUuid);
+      await bridgeClient.getAuthToken(bridge_user_uuid);
 
       // Get accounts and balances
       const allAccounts = await bridgeClient.fetchAllAccounts();
@@ -236,7 +242,7 @@ Deno.serve(async (req) => {
           bank_balance: totalBalance,
           bank_balance_updated_at: new Date().toISOString()
         })
-        .eq('id', companyId);
+        .eq('id', company_id);
 
       if (updateError) {
         console.error('[bridge-sync] Failed to update company balance:', updateError);
@@ -251,7 +257,7 @@ Deno.serve(async (req) => {
       const { inserted, updated } = await syncCompanyTransactions(
         supabaseAdmin,
         bridgeClient,
-        companyId,
+        company_id,
         userId,
         allAccounts,
         allTransactions

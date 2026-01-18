@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -11,6 +12,11 @@ import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { SuperAdminRoute } from "@/components/superadmin/SuperAdminRoute";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { OnboardingTour } from "@/components/onboarding/OnboardingTour";
+import { PageLoader } from "@/components/ui/page-loader";
+
+// ============================================
+// Public pages (loaded immediately)
+// ============================================
 import Landing from "./pages/Landing";
 import Fonctionnalites from "./pages/Fonctionnalites";
 import Tarifs from "./pages/Tarifs";
@@ -18,11 +24,6 @@ import APropos from "./pages/APropos";
 import Contact from "./pages/Contact";
 import MentionsLegales from "./pages/MentionsLegales";
 import Confidentialite from "./pages/Confidentialite";
-import Dashboard from "./pages/Dashboard";
-import Transactions from "./pages/Transactions";
-import Forecasts from "./pages/Forecasts";
-import TreasurySettings from "./pages/TreasurySettings";
-import Settings from "./pages/Settings";
 import Auth from "./pages/Auth";
 import SignIn from "./pages/SignIn";
 import SignUp from "./pages/SignUp";
@@ -32,24 +33,37 @@ import Start from "./pages/Start";
 import StartVerify from "./pages/StartVerify";
 import StartWelcome from "./pages/StartWelcome";
 
-// Business Plan pages
-import RevenueAssumptions from "./pages/BusinessPlan/RevenueAssumptions";
-import Expenses from "./pages/BusinessPlan/Expenses";
-import Investments from "./pages/BusinessPlan/Investments";
-import ProfitLoss from "./pages/BusinessPlan/ProfitLoss";
-import CashFlow from "./pages/BusinessPlan/CashFlow";
-import Scenarios from "./pages/BusinessPlan/Scenarios";
-import Stocks from "./pages/BusinessPlan/Stocks";
-import BalanceSheet from "./pages/BusinessPlan/BalanceSheet";
-import FundingPlan from "./pages/BusinessPlan/FundingPlan";
-import Team from "./pages/BusinessPlan/Team";
+// ============================================
+// Protected pages (lazy loading)
+// ============================================
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Transactions = lazy(() => import("./pages/Transactions"));
+const Forecasts = lazy(() => import("./pages/Forecasts"));
+const TreasurySettings = lazy(() => import("./pages/TreasurySettings"));
+const Settings = lazy(() => import("./pages/Settings"));
 
-// Super Admin pages
-import SuperAdminDashboard from "./pages/SuperAdmin/Dashboard";
-import SuperAdminOrganizations from "./pages/SuperAdmin/Organizations";
-import SuperAdminOrganizationDetail from "./pages/SuperAdmin/OrganizationDetail";
-import SuperAdminSubscriptions from "./pages/SuperAdmin/Subscriptions";
-import SuperAdminAnalytics from "./pages/SuperAdmin/Analytics";
+// ============================================
+// Business Plan pages (lazy loading)
+// ============================================
+const RevenueAssumptions = lazy(() => import("./pages/BusinessPlan/RevenueAssumptions"));
+const Expenses = lazy(() => import("./pages/BusinessPlan/Expenses"));
+const Investments = lazy(() => import("./pages/BusinessPlan/Investments"));
+const ProfitLoss = lazy(() => import("./pages/BusinessPlan/ProfitLoss"));
+const CashFlow = lazy(() => import("./pages/BusinessPlan/CashFlow"));
+const Scenarios = lazy(() => import("./pages/BusinessPlan/Scenarios"));
+const Stocks = lazy(() => import("./pages/BusinessPlan/Stocks"));
+const BalanceSheet = lazy(() => import("./pages/BusinessPlan/BalanceSheet"));
+const FundingPlan = lazy(() => import("./pages/BusinessPlan/FundingPlan"));
+const Team = lazy(() => import("./pages/BusinessPlan/Team"));
+
+// ============================================
+// Super Admin pages (lazy loading - restricted users)
+// ============================================
+const SuperAdminDashboard = lazy(() => import("./pages/SuperAdmin/Dashboard"));
+const SuperAdminOrganizations = lazy(() => import("./pages/SuperAdmin/Organizations"));
+const SuperAdminOrganizationDetail = lazy(() => import("./pages/SuperAdmin/OrganizationDetail"));
+const SuperAdminSubscriptions = lazy(() => import("./pages/SuperAdmin/Subscriptions"));
+const SuperAdminAnalytics = lazy(() => import("./pages/SuperAdmin/Analytics"));
 
 const queryClient = new QueryClient();
 
@@ -65,6 +79,7 @@ const App = () => (
             <BrowserRouter>
               <OnboardingTour />
               <Routes>
+                {/* Public routes */}
                 <Route path="/" element={<Landing />} />
                 <Route path="/fonctionnalites" element={<Fonctionnalites />} />
                 <Route path="/tarifs" element={<Tarifs />} />
@@ -82,6 +97,7 @@ const App = () => (
                 <Route path="/start/verify" element={<StartVerify />} />
                 <Route path="/start/welcome" element={<StartWelcome />} />
                 
+                {/* Protected routes with lazy loading */}
                 <Route 
                   element={
                     <ProtectedRoute>
@@ -90,32 +106,52 @@ const App = () => (
                   }
                 >
                   {/* Treasury routes */}
-                  <Route path="/dashboard" element={<Dashboard />} />
-                  <Route path="/transactions" element={<Transactions />} />
-                  <Route path="/previsions" element={<Forecasts />} />
-                  <Route path="/reglages-tresorerie" element={<TreasurySettings />} />
-                  <Route path="/parametres" element={<Settings />} />
+                  <Route path="/dashboard" element={<Suspense fallback={<PageLoader />}><Dashboard /></Suspense>} />
+                  <Route path="/transactions" element={<Suspense fallback={<PageLoader />}><Transactions /></Suspense>} />
+                  <Route path="/previsions" element={<Suspense fallback={<PageLoader />}><Forecasts /></Suspense>} />
+                  <Route path="/reglages-tresorerie" element={<Suspense fallback={<PageLoader />}><TreasurySettings /></Suspense>} />
+                  <Route path="/parametres" element={<Suspense fallback={<PageLoader />}><Settings /></Suspense>} />
                   
-                  {/* Business Plan routes - Mono-BP architecture */}
+                  {/* Business Plan routes - Mono-BP architecture with lazy loading */}
                   <Route path="/bp" element={<Navigate to="/bp/revenus" replace />} />
-                  <Route path="/bp/revenus" element={<RevenueAssumptions />} />
-                  <Route path="/bp/charges" element={<Expenses />} />
-                  <Route path="/bp/equipe" element={<Team />} />
-                  <Route path="/bp/investissements" element={<Investments />} />
-                  <Route path="/bp/pnl" element={<ProfitLoss />} />
-                  <Route path="/bp/tresorerie" element={<CashFlow />} />
-                  <Route path="/bp/scenarios" element={<Scenarios />} />
-                  <Route path="/bp/stocks" element={<Stocks />} />
-                  <Route path="/bp/bilan" element={<BalanceSheet />} />
-                  <Route path="/bp/financement" element={<FundingPlan />} />
+                  <Route path="/bp/revenus" element={<Suspense fallback={<PageLoader />}><RevenueAssumptions /></Suspense>} />
+                  <Route path="/bp/charges" element={<Suspense fallback={<PageLoader />}><Expenses /></Suspense>} />
+                  <Route path="/bp/equipe" element={<Suspense fallback={<PageLoader />}><Team /></Suspense>} />
+                  <Route path="/bp/investissements" element={<Suspense fallback={<PageLoader />}><Investments /></Suspense>} />
+                  <Route path="/bp/pnl" element={<Suspense fallback={<PageLoader />}><ProfitLoss /></Suspense>} />
+                  <Route path="/bp/tresorerie" element={<Suspense fallback={<PageLoader />}><CashFlow /></Suspense>} />
+                  <Route path="/bp/scenarios" element={<Suspense fallback={<PageLoader />}><Scenarios /></Suspense>} />
+                  <Route path="/bp/stocks" element={<Suspense fallback={<PageLoader />}><Stocks /></Suspense>} />
+                  <Route path="/bp/bilan" element={<Suspense fallback={<PageLoader />}><BalanceSheet /></Suspense>} />
+                  <Route path="/bp/financement" element={<Suspense fallback={<PageLoader />}><FundingPlan /></Suspense>} />
                 </Route>
                 
-                {/* Super Admin routes */}
-                <Route path="/superadmin" element={<SuperAdminRoute><SuperAdminDashboard /></SuperAdminRoute>} />
-                <Route path="/superadmin/organizations" element={<SuperAdminRoute><SuperAdminOrganizations /></SuperAdminRoute>} />
-                <Route path="/superadmin/organizations/:id" element={<SuperAdminRoute><SuperAdminOrganizationDetail /></SuperAdminRoute>} />
-                <Route path="/superadmin/subscriptions" element={<SuperAdminRoute><SuperAdminSubscriptions /></SuperAdminRoute>} />
-                <Route path="/superadmin/analytics" element={<SuperAdminRoute><SuperAdminAnalytics /></SuperAdminRoute>} />
+                {/* Super Admin routes with lazy loading */}
+                <Route path="/superadmin" element={
+                  <SuperAdminRoute>
+                    <Suspense fallback={<PageLoader />}><SuperAdminDashboard /></Suspense>
+                  </SuperAdminRoute>
+                } />
+                <Route path="/superadmin/organizations" element={
+                  <SuperAdminRoute>
+                    <Suspense fallback={<PageLoader />}><SuperAdminOrganizations /></Suspense>
+                  </SuperAdminRoute>
+                } />
+                <Route path="/superadmin/organizations/:id" element={
+                  <SuperAdminRoute>
+                    <Suspense fallback={<PageLoader />}><SuperAdminOrganizationDetail /></Suspense>
+                  </SuperAdminRoute>
+                } />
+                <Route path="/superadmin/subscriptions" element={
+                  <SuperAdminRoute>
+                    <Suspense fallback={<PageLoader />}><SuperAdminSubscriptions /></Suspense>
+                  </SuperAdminRoute>
+                } />
+                <Route path="/superadmin/analytics" element={
+                  <SuperAdminRoute>
+                    <Suspense fallback={<PageLoader />}><SuperAdminAnalytics /></Suspense>
+                  </SuperAdminRoute>
+                } />
                 
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />

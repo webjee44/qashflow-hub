@@ -1,9 +1,15 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// ========== Zod Schema for request validation ==========
+const automationRuleRequestSchema = z.object({
+  rule_id: z.string().uuid('rule_id doit être un UUID valide'),
+});
 
 interface AutomationRule {
   id: string;
@@ -106,19 +112,32 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Client admin pour les updates
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
-
-    const { rule_id } = await req.json();
-    
-    if (!rule_id) {
+    // Parse and validate request body
+    let rawBody;
+    try {
+      rawBody = await req.json();
+    } catch {
       return new Response(
-        JSON.stringify({ error: 'Missing rule_id' }),
+        JSON.stringify({ error: 'Body JSON invalide' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log(`Applying rule ${rule_id} for user ${user.id}`);
+    const validation = automationRuleRequestSchema.safeParse(rawBody);
+    if (!validation.success) {
+      const errors = validation.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join(', ');
+      console.error('[apply-automation-rule] Validation error:', errors);
+      return new Response(
+        JSON.stringify({ error: `Validation échouée: ${errors}` }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const { rule_id } = validation.data;
+    console.log(`[apply-automation-rule] Applying rule ${rule_id} for user ${user.id}`);
+
+    // Client admin pour les updates
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
     // Récupérer la règle
     const { data: rule, error: ruleError } = await supabaseAdmin
@@ -129,7 +148,7 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (ruleError) {
-      console.error('Error fetching rule:', ruleError);
+      console.error('[apply-automation-rule] Error fetching rule:', ruleError);
       return new Response(
         JSON.stringify({ error: 'Failed to fetch rule' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -137,7 +156,7 @@ Deno.serve(async (req) => {
     }
 
     if (!rule) {
-      console.error('Rule not found');
+      console.error('[apply-automation-rule] Rule not found');
       return new Response(
         JSON.stringify({ error: 'Rule not found' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -159,21 +178,21 @@ Deno.serve(async (req) => {
       .is('category_id', null);
 
     if (txError) {
-      console.error('Error fetching transactions:', txError);
+      console.error('[apply-automation-rule] Error fetching transactions:', txError);
       return new Response(
         JSON.stringify({ error: 'Failed to fetch transactions' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log(`Found ${transactions?.length || 0} uncategorized transactions`);
+    console.log(`[apply-automation-rule] Found ${transactions?.length || 0} uncategorized transactions`);
 
     // Trouver les transactions qui matchent la règle
     const matchingTransactions = (transactions || []).filter(tx => 
       matchesRule(tx as Transaction, rule as AutomationRule)
     );
 
-    console.log(`${matchingTransactions.length} transactions match the rule`);
+    console.log(`[apply-automation-rule] ${matchingTransactions.length} transactions match the rule`);
 
     if (matchingTransactions.length === 0) {
       return new Response(
@@ -187,20 +206,20 @@ Deno.serve(async (req) => {
     const batches = chunkArray(transactionIds, 100);
     let totalUpdated = 0;
 
-    console.log(`Updating ${transactionIds.length} transactions in ${batches.length} batches`);
+    console.log(`[apply-automation-rule] Updating ${transactionIds.length} transactions in ${batches.length} batches`);
 
     for (const batch of batches) {
-      const { error: updateError, count } = await supabaseAdmin
+      const { error: updateError } = await supabaseAdmin
         .from('transactions')
         .update({ category_id: rule.target_category_id })
         .in('id', batch);
 
       if (updateError) {
-        console.error('Error updating batch:', updateError);
+        console.error('[apply-automation-rule] Error updating batch:', updateError);
         // Continue with other batches even if one fails
       } else {
         totalUpdated += batch.length;
-        console.log(`Updated batch of ${batch.length} transactions`);
+        console.log(`[apply-automation-rule] Updated batch of ${batch.length} transactions`);
       }
     }
 
@@ -211,10 +230,10 @@ Deno.serve(async (req) => {
       .eq('id', rule_id);
 
     if (countError) {
-      console.error('Error updating match count:', countError);
+      console.error('[apply-automation-rule] Error updating match count:', countError);
     }
 
-    console.log(`Successfully updated ${totalUpdated} transactions`);
+    console.log(`[apply-automation-rule] Successfully updated ${totalUpdated} transactions`);
 
     return new Response(
       JSON.stringify({ 
@@ -225,7 +244,7 @@ Deno.serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('Error in apply-automation-rule:', error);
+    console.error('[apply-automation-rule] Error:', error);
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

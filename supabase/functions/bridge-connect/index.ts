@@ -10,6 +10,11 @@ import {
   errorResponse, 
   successResponse 
 } from '../_shared/bridge-client.ts';
+import { 
+  bridgeConnectRequestSchema, 
+  validateRequest, 
+  validationErrorResponse 
+} from '../_shared/validation.ts';
 
 Deno.serve(async (req) => {
   // Handle CORS preflight
@@ -27,21 +32,22 @@ Deno.serve(async (req) => {
       return errorResponse('Bridge API non configurée. Ajoutez BRIDGE_CLIENT_ID et BRIDGE_CLIENT_SECRET.');
     }
 
-    // Parse request body
-    let bridgeUserUuid: string | null = null;
-
+    // Parse and validate request body
+    let body = {};
     try {
-      const body = await req.json();
-      bridgeUserUuid = body.bridge_user_uuid || null;
+      body = await req.json();
     } catch {
-      // No body or invalid JSON
+      // Empty body - will fail validation
     }
 
+    const validation = validateRequest(bridgeConnectRequestSchema, body);
+    if (!validation.success) {
+      console.error('[bridge-connect] Validation error:', validation.error);
+      return validationErrorResponse(validation.error, corsHeaders);
+    }
+
+    const { bridge_user_uuid } = validation.data;
     console.info('[bridge-connect] Creating connect session...');
-
-    if (!bridgeUserUuid) {
-      return errorResponse('bridge_user_uuid requis');
-    }
 
     // Authenticate user
     const authHeader = req.headers.get('Authorization');
@@ -65,7 +71,7 @@ Deno.serve(async (req) => {
     console.info('[bridge-connect] User email:', userEmail);
 
     // Get auth token first
-    const authData = await bridgeClient.getAuthToken(bridgeUserUuid);
+    const authData = await bridgeClient.getAuthToken(bridge_user_uuid);
     bridgeClient.setAccessToken(authData.access_token);
 
     // Create connect session
