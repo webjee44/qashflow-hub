@@ -19,6 +19,8 @@ export interface RevenueStream {
   monthly_price: number;
   churn_rate: number;
   growth_rate: number;
+  // Annual growth rate for years 2+
+  annual_growth_rate: number;
   created_at: string;
   updated_at: string;
 }
@@ -106,6 +108,7 @@ export function useRevenueStreams() {
           monthly_price: data.monthly_price || 0,
           churn_rate: data.churn_rate || 0.05,
           growth_rate: data.growth_rate || 0.10,
+          annual_growth_rate: data.annual_growth_rate ?? 0.10,
         })
         .select()
         .single();
@@ -221,6 +224,26 @@ export function useRevenueStreams() {
     return streams.reduce((sum, stream) => sum + getForecast(stream.id, month), 0);
   };
 
+  // Helper: get yearly revenue for a stream, with automatic projection for years 2+
+  const getYearlyRevenue = (streamId: string, yearIndex: number, year1Months: Date[]): number => {
+    const stream = streams.find(s => s.id === streamId);
+    if (!stream) return 0;
+
+    // Year 1: sum of monthly forecasts
+    const year1Total = year1Months.reduce((sum, month) => sum + getForecast(streamId, month), 0);
+    
+    if (yearIndex === 0) return year1Total;
+
+    // Years 2+: apply annual growth rate
+    const annualGrowthRate = stream.annual_growth_rate ?? 0.10;
+    return year1Total * Math.pow(1 + annualGrowthRate, yearIndex);
+  };
+
+  // Helper: get total yearly revenue across all streams
+  const getTotalYearlyRevenue = (yearIndex: number, year1Months: Date[]): number => {
+    return streams.reduce((sum, stream) => sum + getYearlyRevenue(stream.id, yearIndex, year1Months), 0);
+  };
+
   return {
     streams,
     forecasts,
@@ -231,5 +254,7 @@ export function useRevenueStreams() {
     upsertForecast,
     getForecast,
     getTotalRevenue,
+    getYearlyRevenue,
+    getTotalYearlyRevenue,
   };
 }
