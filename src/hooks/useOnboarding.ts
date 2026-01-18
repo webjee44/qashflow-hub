@@ -1,5 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState, useEffect, useCallback, useSyncExternalStore } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 
@@ -84,10 +83,22 @@ const ONBOARDING_STEPS: OnboardingStep[] = [
   },
 ];
 
-interface OnboardingProfile {
-  onboarding_completed: boolean | null;
-  onboarding_step: number | null;
-  bp_enabled: boolean | null;
+// Global state store for bpEnabled to share across components
+let globalBpEnabled = true;
+const listeners = new Set<() => void>();
+
+function subscribeToBpEnabled(callback: () => void) {
+  listeners.add(callback);
+  return () => listeners.delete(callback);
+}
+
+function getBpEnabledSnapshot() {
+  return globalBpEnabled;
+}
+
+function setBpEnabledGlobal(value: boolean) {
+  globalBpEnabled = value;
+  listeners.forEach(listener => listener());
 }
 
 interface UseOnboardingReturn {
@@ -108,16 +119,17 @@ interface UseOnboardingReturn {
 
 export function useOnboarding(): UseOnboardingReturn {
   const { user } = useAuth();
-  const queryClient = useQueryClient();
   const [isActive, setIsActive] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [isCompleted, setIsCompleted] = useState(true);
 
-  // Use React Query to share bpEnabled state across all components
-  const { data: profileData } = useQuery({
-    queryKey: ['onboarding-profile', user?.id],
-    queryFn: async (): Promise<OnboardingProfile | null> => {
-      if (!user) return null;
+  // Use useSyncExternalStore for cross-component state sharing
+  const bpEnabled = useSyncExternalStore(subscribeToBpEnabled, getBpEnabledSnapshot);
+
+  // Load onboarding state from profile
+  useEffect(() => {
+    async function loadOnboardingState() {
+      if (!user) return;
 
       const { data, error } = await supabase
         .from('profiles')
@@ -125,30 +137,22 @@ export function useOnboarding(): UseOnboardingReturn {
         .eq('id', user.id)
         .single();
 
-      if (error) return null;
-      return data;
-    },
-    enabled: !!user,
-    staleTime: 1000 * 60 * 5, // 5 minutes
-  });
+      if (!error && data) {
+        setIsCompleted(data.onboarding_completed ?? false);
+        setCurrentStep(data.onboarding_step ?? 0);
+        setBpEnabledGlobal(data.bp_enabled ?? true);
 
-  // Extract values from query data
-  const bpEnabled = profileData?.bp_enabled ?? true;
-
-  // Handle tour activation from localStorage
-  useEffect(() => {
-    if (profileData) {
-      setIsCompleted(profileData.onboarding_completed ?? false);
-      setCurrentStep(profileData.onboarding_step ?? 0);
-
-      const shouldShowTour = localStorage.getItem('show-onboarding-tour') === 'true';
-      if (shouldShowTour) {
-        localStorage.removeItem('show-onboarding-tour');
-        setIsActive(true);
-        setCurrentStep(0);
+        const shouldShowTour = localStorage.getItem('show-onboarding-tour') === 'true';
+        if (shouldShowTour) {
+          localStorage.removeItem('show-onboarding-tour');
+          setIsActive(true);
+          setCurrentStep(0);
+        }
       }
     }
-  }, [profileData]);
+
+    loadOnboardingState();
+  }, [user]);
 
   const saveProgress = useCallback(async (step: number, completed: boolean = false) => {
     if (!user) return;
@@ -206,9 +210,8 @@ export function useOnboarding(): UseOnboardingReturn {
       .update({ bp_enabled: true })
       .eq('id', user.id);
 
-    // Invalidate query to update all components
-    queryClient.invalidateQueries({ queryKey: ['onboarding-profile', user.id] });
-  }, [user, queryClient]);
+    setBpEnabledGlobal(true);
+  }, [user]);
 
   const toggleBP = useCallback(async (enabled: boolean) => {
     if (!user) return;
@@ -218,9 +221,8 @@ export function useOnboarding(): UseOnboardingReturn {
       .update({ bp_enabled: enabled })
       .eq('id', user.id);
 
-    // Invalidate query to update all components
-    queryClient.invalidateQueries({ queryKey: ['onboarding-profile', user.id] });
-  }, [user, queryClient]);
+    setBpEnabledGlobal(enabled);
+  }, [user]);
 
   return {
     isActive,
