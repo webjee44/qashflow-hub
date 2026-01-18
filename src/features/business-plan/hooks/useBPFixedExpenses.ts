@@ -1,10 +1,12 @@
 // ============================================
 // useBPFixedExpenses Hook
 // Uses fixedExpenseService for data operations
+// Now uses company_id instead of business_plan_id
 // ============================================
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
+import { useCompany } from '@/hooks/useCompany';
 import { toast } from 'sonner';
 import { 
   fixedExpenseService, 
@@ -21,26 +23,28 @@ import {
 export type { BPFixedExpense, FixedExpenseCategory, PaymentFrequency };
 export { FIXED_EXPENSE_CATEGORIES, PAYMENT_FREQUENCIES, DEFAULT_PAYMENT_MONTHS };
 
-export function useBPFixedExpenses(businessPlanId?: string) {
+export function useBPFixedExpenses() {
   const { user } = useAuth();
+  const { currentCompany } = useCompany();
   const queryClient = useQueryClient();
+  const companyId = currentCompany?.id;
 
   const { data: expenses = [], isLoading } = useQuery({
-    queryKey: ['bp_fixed_expenses', businessPlanId],
+    queryKey: ['bp_fixed_expenses', companyId],
     queryFn: async () => {
-      if (!businessPlanId) return [];
-      return fixedExpenseService.getByBusinessPlanId(businessPlanId);
+      if (!companyId) return [];
+      return fixedExpenseService.getByCompanyId(companyId);
     },
-    enabled: !!user && !!businessPlanId,
+    enabled: !!user && !!companyId,
   });
 
   const createExpense = useMutation({
     mutationFn: async (data: BPFixedExpenseInsert) => {
-      if (!user || !businessPlanId) throw new Error('Not authenticated or no BP');
-      return fixedExpenseService.create(user.id, businessPlanId, data);
+      if (!user || !companyId) throw new Error('Not authenticated or no company');
+      return fixedExpenseService.create(user.id, companyId, data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['bp_fixed_expenses', businessPlanId] });
+      queryClient.invalidateQueries({ queryKey: ['bp_fixed_expenses', companyId] });
       toast.success('Charge fixe créée');
     },
     onError: (error) => {
@@ -53,7 +57,7 @@ export function useBPFixedExpenses(businessPlanId?: string) {
       await fixedExpenseService.update(id, data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['bp_fixed_expenses', businessPlanId] });
+      queryClient.invalidateQueries({ queryKey: ['bp_fixed_expenses', companyId] });
       toast.success('Charge fixe mise à jour');
     },
     onError: (error) => {
@@ -66,7 +70,7 @@ export function useBPFixedExpenses(businessPlanId?: string) {
       await fixedExpenseService.delete(id);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['bp_fixed_expenses', businessPlanId] });
+      queryClient.invalidateQueries({ queryKey: ['bp_fixed_expenses', companyId] });
       toast.success('Charge fixe supprimée');
     },
     onError: (error) => {

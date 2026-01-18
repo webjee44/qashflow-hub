@@ -1,10 +1,12 @@
 // ============================================
 // useBPFinancings Hook
 // Uses financingService for data operations
+// Now uses company_id instead of business_plan_id
 // ============================================
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
+import { useCompany } from '@/hooks/useCompany';
 import { toast } from 'sonner';
 import { 
   financingService, 
@@ -15,26 +17,28 @@ import {
 // Re-export types for backward compatibility
 export type { BPFinancing };
 
-export function useBPFinancings(businessPlanId?: string) {
+export function useBPFinancings() {
   const { user } = useAuth();
+  const { currentCompany } = useCompany();
   const queryClient = useQueryClient();
+  const companyId = currentCompany?.id;
 
   const { data: financings = [], isLoading } = useQuery({
-    queryKey: ['bp_financings', businessPlanId],
+    queryKey: ['bp_financings', companyId],
     queryFn: async () => {
-      if (!businessPlanId) return [];
-      return financingService.getByBusinessPlanId(businessPlanId);
+      if (!companyId) return [];
+      return financingService.getByCompanyId(companyId);
     },
-    enabled: !!user && !!businessPlanId,
+    enabled: !!user && !!companyId,
   });
 
   const createFinancing = useMutation({
     mutationFn: async (data: BPFinancingInsert) => {
-      if (!user || !businessPlanId) throw new Error('Not authenticated or no BP');
-      return financingService.create(user.id, businessPlanId, data);
+      if (!user || !companyId) throw new Error('Not authenticated or no company');
+      return financingService.create(user.id, companyId, data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['bp_financings', businessPlanId] });
+      queryClient.invalidateQueries({ queryKey: ['bp_financings', companyId] });
       toast.success('Financement créé');
     },
     onError: (error) => {
@@ -47,7 +51,7 @@ export function useBPFinancings(businessPlanId?: string) {
       await financingService.update(id, data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['bp_financings', businessPlanId] });
+      queryClient.invalidateQueries({ queryKey: ['bp_financings', companyId] });
       toast.success('Financement mis à jour');
     },
     onError: (error) => {
@@ -60,7 +64,7 @@ export function useBPFinancings(businessPlanId?: string) {
       await financingService.delete(id);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['bp_financings', businessPlanId] });
+      queryClient.invalidateQueries({ queryKey: ['bp_financings', companyId] });
       toast.success('Financement supprimé');
     },
     onError: (error) => {

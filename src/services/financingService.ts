@@ -31,18 +31,18 @@ export type BPFinancingInsert = Partial<Omit<BPFinancing, 'id' | 'created_at' | 
 export type BPFinancingUpdate = Partial<Omit<BPFinancing, 'id' | 'user_id' | 'created_at' | 'updated_at'>>;
 
 export const financingService = {
-  async getByBusinessPlanId(businessPlanId: string): Promise<BPFinancing[]> {
+  async getByCompanyId(companyId: string): Promise<BPFinancing[]> {
     const { data, error } = await supabase
       .from('bp_financings')
       .select('*')
-      .eq('business_plan_id', businessPlanId)
+      .eq('company_id', companyId)
       .order('financing_type', { ascending: true });
 
     if (error) throw error;
     return (data || []) as BPFinancing[];
   },
 
-  async create(userId: string, businessPlanId: string, data: BPFinancingInsert): Promise<BPFinancing> {
+  async create(userId: string, companyId: string, data: BPFinancingInsert): Promise<BPFinancing> {
     // Calculate monthly payment for loans
     let monthlyPayment = 0;
     if (data.financing_type === 'loan' && data.amount && data.interest_rate && data.duration_months) {
@@ -54,7 +54,7 @@ export const financingService = {
       .from('bp_financings')
       .insert({
         user_id: userId,
-        business_plan_id: businessPlanId,
+        company_id: companyId,
         name: data.name || 'Nouveau financement',
         financing_type: data.financing_type || 'loan',
         amount: data.amount || 0,

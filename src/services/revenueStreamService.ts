@@ -36,23 +36,23 @@ export type BPRevenueStreamInsert = Partial<Omit<BPRevenueStream, 'id' | 'create
 export type BPRevenueStreamUpdate = Partial<Omit<BPRevenueStream, 'id' | 'user_id' | 'created_at' | 'updated_at'>>;
 
 export const revenueStreamService = {
-  async getByBusinessPlanId(businessPlanId: string): Promise<BPRevenueStream[]> {
+  async getByCompanyId(companyId: string): Promise<BPRevenueStream[]> {
     const { data, error } = await supabase
       .from('bp_revenue_streams')
       .select('*')
-      .eq('business_plan_id', businessPlanId)
+      .eq('company_id', companyId)
       .order('created_at', { ascending: true });
 
     if (error) throw error;
     return (data || []) as BPRevenueStream[];
   },
 
-  async create(userId: string, businessPlanId: string, data: BPRevenueStreamInsert): Promise<BPRevenueStream> {
+  async create(userId: string, companyId: string, data: BPRevenueStreamInsert): Promise<BPRevenueStream> {
     const { data: newStream, error } = await supabase
       .from('bp_revenue_streams')
       .insert({
         user_id: userId,
-        business_plan_id: businessPlanId,
+        company_id: companyId,
         name: data.name || 'Nouveau flux',
         description: data.description || null,
         color: data.color || 'hsl(142, 76%, 36%)',

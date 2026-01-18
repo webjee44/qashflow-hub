@@ -52,18 +52,18 @@ export type BPPersonnelInsert = Partial<Omit<BPPersonnel, 'id' | 'created_at' | 
 export type BPPersonnelUpdate = Partial<Omit<BPPersonnel, 'id' | 'user_id' | 'created_at' | 'updated_at'>>;
 
 export const personnelService = {
-  async getByBusinessPlanId(businessPlanId: string): Promise<BPPersonnel[]> {
+  async getByCompanyId(companyId: string): Promise<BPPersonnel[]> {
     const { data, error } = await supabase
       .from('bp_personnel')
       .select('*')
-      .eq('business_plan_id', businessPlanId)
+      .eq('company_id', companyId)
       .order('position', { ascending: true });
 
     if (error) throw error;
     return (data || []) as BPPersonnel[];
   },
 
-  async create(userId: string, businessPlanId: string, data: BPPersonnelInsert): Promise<BPPersonnel> {
+  async create(userId: string, companyId: string, data: BPPersonnelInsert): Promise<BPPersonnel> {
     const workerType = data.worker_type || 'employee';
     const isFreelance = workerType === 'freelance';
     
@@ -81,7 +81,7 @@ export const personnelService = {
       .from('bp_personnel')
       .insert({
         user_id: userId,
-        business_plan_id: businessPlanId,
+        company_id: companyId,
         position: data.position || 'Nouveau poste',
         gross_salary: isFreelance ? 0 : (data.gross_salary || 0),
         employer_charges_rate: chargesRate,

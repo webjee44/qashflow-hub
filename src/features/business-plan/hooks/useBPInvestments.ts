@@ -1,10 +1,12 @@
 // ============================================
 // useBPInvestments Hook
 // Uses investmentService for data operations
+// Now uses company_id instead of business_plan_id
 // ============================================
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
+import { useCompany } from '@/hooks/useCompany';
 import { toast } from 'sonner';
 import { 
   investmentService, 
@@ -17,26 +19,28 @@ import {
 export type { BPInvestment };
 export { INVESTMENT_CATEGORIES };
 
-export function useBPInvestments(businessPlanId?: string) {
+export function useBPInvestments() {
   const { user } = useAuth();
+  const { currentCompany } = useCompany();
   const queryClient = useQueryClient();
+  const companyId = currentCompany?.id;
 
   const { data: investments = [], isLoading } = useQuery({
-    queryKey: ['bp_investments', businessPlanId],
+    queryKey: ['bp_investments', companyId],
     queryFn: async () => {
-      if (!businessPlanId) return [];
-      return investmentService.getByBusinessPlanId(businessPlanId);
+      if (!companyId) return [];
+      return investmentService.getByCompanyId(companyId);
     },
-    enabled: !!user && !!businessPlanId,
+    enabled: !!user && !!companyId,
   });
 
   const createInvestment = useMutation({
     mutationFn: async (data: BPInvestmentInsert) => {
-      if (!user || !businessPlanId) throw new Error('Not authenticated or no BP');
-      return investmentService.create(user.id, businessPlanId, data);
+      if (!user || !companyId) throw new Error('Not authenticated or no company');
+      return investmentService.create(user.id, companyId, data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['bp_investments', businessPlanId] });
+      queryClient.invalidateQueries({ queryKey: ['bp_investments', companyId] });
       toast.success('Investissement créé');
     },
     onError: (error) => {
@@ -49,7 +53,7 @@ export function useBPInvestments(businessPlanId?: string) {
       await investmentService.update(id, data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['bp_investments', businessPlanId] });
+      queryClient.invalidateQueries({ queryKey: ['bp_investments', companyId] });
       toast.success('Investissement mis à jour');
     },
     onError: (error) => {
@@ -62,7 +66,7 @@ export function useBPInvestments(businessPlanId?: string) {
       await investmentService.delete(id);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['bp_investments', businessPlanId] });
+      queryClient.invalidateQueries({ queryKey: ['bp_investments', companyId] });
       toast.success('Investissement supprimé');
     },
     onError: (error) => {
