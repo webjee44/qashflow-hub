@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
+import { useCompany } from './useCompany';
 import { toast } from 'sonner';
 import { type RevenueModel } from '@/constants/bpConstants';
 
@@ -30,7 +31,9 @@ export interface BPRevenueStream {
 
 export function useBPRevenueStreams(businessPlanId?: string) {
   const { user } = useAuth();
+  const { currentCompany } = useCompany();
   const queryClient = useQueryClient();
+  const companyId = currentCompany?.id;
 
   const { data: streams = [], isLoading } = useQuery({
     queryKey: ['bp_revenue_streams', businessPlanId],
@@ -58,6 +61,7 @@ export function useBPRevenueStreams(businessPlanId?: string) {
         .insert({
           user_id: user.id,
           business_plan_id: businessPlanId,
+          company_id: companyId || null,
           name: data.name || 'Nouveau flux',
           description: data.description || null,
           color: data.color || 'hsl(142, 76%, 36%)',
