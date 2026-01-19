@@ -325,6 +325,7 @@ export type Database = {
           notes: string | null
           payment_frequency: string | null
           payment_months: number[] | null
+          pcg_subcategory: string | null
           start_date: string
           updated_at: string | null
           user_id: string
@@ -343,6 +344,7 @@ export type Database = {
           notes?: string | null
           payment_frequency?: string | null
           payment_months?: number[] | null
+          pcg_subcategory?: string | null
           start_date?: string
           updated_at?: string | null
           user_id: string
@@ -361,6 +363,7 @@ export type Database = {
           notes?: string | null
           payment_frequency?: string | null
           payment_months?: number[] | null
+          pcg_subcategory?: string | null
           start_date?: string
           updated_at?: string | null
           user_id?: string

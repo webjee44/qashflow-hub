@@ -26,6 +26,7 @@ export interface BPFixedExpense {
   notes: string | null;
   payment_frequency: PaymentFrequency;
   payment_months: number[] | null;
+  pcg_subcategory: string | null;
   created_at: string;
   updated_at: string;
 }

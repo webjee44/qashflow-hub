@@ -14,6 +14,7 @@ import {
   DEFAULT_PAYMENT_MONTHS,
   PaymentFrequency 
 } from '@/hooks/useBPFixedExpenses';
+import { PCG_SUBCATEGORIES } from '@/constants/bpConstants';
 import { useBPSettings } from '@/features/business-plan/hooks';
 import { format } from 'date-fns';
 
@@ -53,6 +54,7 @@ export function FixedExpenseDialog({ open, onOpenChange, expense, onSave }: Fixe
   const [notes, setNotes] = useState('');
   const [paymentFrequency, setPaymentFrequency] = useState<PaymentFrequency>('monthly');
   const [paymentMonths, setPaymentMonths] = useState<number[]>([]);
+  const [pcgSubcategory, setPcgSubcategory] = useState<string>('');
 
   useEffect(() => {
     if (expense) {
@@ -64,6 +66,7 @@ export function FixedExpenseDialog({ open, onOpenChange, expense, onSave }: Fixe
       setNotes(expense.notes || '');
       setPaymentFrequency(expense.payment_frequency || 'monthly');
       setPaymentMonths(expense.payment_months || DEFAULT_PAYMENT_MONTHS[expense.payment_frequency || 'monthly']);
+      setPcgSubcategory(expense.pcg_subcategory || '');
     } else {
       setName('');
       setCategory('other');
@@ -73,8 +76,16 @@ export function FixedExpenseDialog({ open, onOpenChange, expense, onSave }: Fixe
       setNotes('');
       setPaymentFrequency('monthly');
       setPaymentMonths([]);
+      setPcgSubcategory('');
     }
   }, [expense, open, settings.bp_start_date]);
+
+  // Reset PCG subcategory when category changes
+  useEffect(() => {
+    if (!expense) {
+      setPcgSubcategory('');
+    }
+  }, [category, expense]);
 
   // Mettre à jour les mois par défaut quand la fréquence change
   useEffect(() => {
@@ -104,9 +115,13 @@ export function FixedExpenseDialog({ open, onOpenChange, expense, onSave }: Fixe
       notes: notes || null,
       payment_frequency: paymentFrequency,
       payment_months: paymentFrequency !== 'monthly' ? paymentMonths : null,
+      pcg_subcategory: pcgSubcategory || null,
     });
     onOpenChange(false);
   };
+
+  // Get available PCG subcategories for current category
+  const availablePcgSubcategories = PCG_SUBCATEGORIES[category] || [];
 
   const frequencyInfo = PAYMENT_FREQUENCIES[paymentFrequency];
   const amountValue = parseFloat(amount) || 0;
@@ -157,6 +172,29 @@ export function FixedExpenseDialog({ open, onOpenChange, expense, onSave }: Fixe
               </Select>
             </div>
           </div>
+
+          {/* PCG Subcategory - optional */}
+          {availablePcgSubcategories.length > 0 && (
+            <div className="grid gap-2">
+              <Label className="flex items-center gap-2">
+                Compte PCG
+                <span className="text-xs text-muted-foreground font-normal">(optionnel)</span>
+              </Label>
+              <Select value={pcgSubcategory} onValueChange={setPcgSubcategory}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Non précisé" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Non précisé</SelectItem>
+                  {availablePcgSubcategories.map(({ code, label }) => (
+                    <SelectItem key={code} value={code}>
+                      {code} - {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           <div className="grid gap-2">
             <Label htmlFor="amount">

@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useBPFixedExpenses, BPFixedExpense, FIXED_EXPENSE_CATEGORIES, PAYMENT_FREQUENCIES } from '@/hooks/useBPFixedExpenses';
+import { getPCGSubcategoryLabel } from '@/constants/bpConstants';
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
@@ -143,7 +144,16 @@ export function FixedExpenseTable({ onEdit }: FixedExpenseTableProps) {
             
             return (
               <TableRow key={expense.id} className="group">
-                <TableCell className="font-medium">{expense.name}</TableCell>
+                <TableCell>
+                  <div className="flex flex-col">
+                    <span className="font-medium">{expense.name}</span>
+                    {expense.pcg_subcategory && (
+                      <span className="text-xs text-muted-foreground">
+                        {expense.pcg_subcategory} - {getPCGSubcategoryLabel(expense.category, expense.pcg_subcategory)}
+                      </span>
+                    )}
+                  </div>
+                </TableCell>
                 <TableCell>
                   <Badge variant="outline" className="gap-1">
                     {ICONS[expense.category]}
