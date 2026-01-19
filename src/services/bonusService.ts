@@ -25,29 +25,36 @@ export interface BPBonus {
 export type BPBonusInsert = Omit<BPBonus, 'id' | 'created_at' | 'updated_at' | 'business_plan_id'> & { business_plan_id?: string };
 export type BPBonusUpdate = Partial<Omit<BPBonus, 'id' | 'user_id' | 'business_plan_id' | 'created_at' | 'updated_at'>>;
 
+// Taux de charges patronales moyen pour les primes soumises
+export const EMPLOYER_CHARGES_RATE = 0.45; // ~45% du brut
+
 export const BONUS_TYPES = {
   ppv: { 
     label: 'Prime Macron (PPV)', 
     icon: 'Gift',
     exempt: true,
+    autoAmount: false,
     description: 'Prime de Partage de la Valeur - Exonérée jusqu\'à 3 000€ (ou 6 000€ avec accord d\'intéressement)'
   },
   classic: { 
     label: 'Prime classique', 
     icon: 'Banknote',
     exempt: false,
+    autoAmount: false,
     description: 'Prime soumise aux cotisations sociales et à l\'impôt'
   },
   '13th_month': { 
     label: '13ème mois', 
     icon: 'Calendar',
     exempt: false,
-    description: 'Prime de fin d\'année équivalente à un mois de salaire'
+    autoAmount: true,
+    description: 'Prime équivalente à un mois de salaire brut. Soumise aux cotisations patronales (~45%).'
   },
   performance: { 
     label: 'Prime de performance', 
     icon: 'TrendingUp',
     exempt: false,
+    autoAmount: false,
     description: 'Prime liée aux objectifs individuels ou collectifs'
   },
 } as const;

@@ -35,7 +35,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { BONUS_TYPES, BonusType, BPBonusInsert } from '@/services/bonusService';
+import { BONUS_TYPES, BonusType, BPBonusInsert, EMPLOYER_CHARGES_RATE } from '@/services/bonusService';
 import { BPPersonnel } from '@/services/personnelService';
 
 interface BonusDialogProps {
@@ -125,10 +125,31 @@ export function BonusDialog({
     setEntries(prev => prev.map(e => ({ ...e, selected: !allSelected })));
   };
 
+  // Vérifie si le type de prime a un montant automatique
+  const isAutoAmount = BONUS_TYPES[bonusType].autoAmount;
+
+  // Calcule le montant pour un salarié selon le type de prime
+  const getAmountForPerson = (person: BPPersonnel): number => {
+    if (isAutoAmount) {
+      return person.gross_salary || 0;
+    }
+    const entry = entries.find(e => e.personnelId === person.id);
+    return entry?.amount || 0;
+  };
+
   // Calculs
-  const selectedEntries = entries.filter(e => e.selected && e.amount > 0);
-  const totalAmount = selectedEntries.reduce((sum, e) => sum + e.amount, 0);
+  const selectedEmployees = employees.filter(p => {
+    const entry = entries.find(e => e.personnelId === p.id);
+    return entry?.selected;
+  });
+
+  const selectedWithAmounts = selectedEmployees.filter(p => getAmountForPerson(p) > 0);
+  const totalBrut = selectedWithAmounts.reduce((sum, p) => sum + getAmountForPerson(p), 0);
   const isExempt = BONUS_TYPES[bonusType].exempt;
+  
+  // Calcul des charges patronales estimées (pour primes non exonérées)
+  const estimatedCharges = !isExempt ? totalBrut * EMPLOYER_CHARGES_RATE : 0;
+  const totalCostEmployer = totalBrut + estimatedCharges;
 
   // Générer les mois disponibles (12 prochains mois)
   const availableMonths = useMemo(() => {
@@ -146,10 +167,10 @@ export function BonusDialog({
 
   // Soumission
   const handleSubmit = async () => {
-    const bonuses = selectedEntries.map(entry => ({
-      personnel_id: entry.personnelId,
+    const bonuses = selectedWithAmounts.map(person => ({
+      personnel_id: person.id,
       bonus_type: bonusType,
-      amount: entry.amount,
+      amount: getAmountForPerson(person),
       payment_month: paymentMonth,
       is_exempt: isExempt,
       notes: null,
@@ -223,28 +244,45 @@ export function BonusDialog({
 
           <Separator />
 
-          {/* Montant uniforme */}
-          <div className="flex items-end gap-2">
-            <div className="flex-1 space-y-2">
-              <Label>Même montant pour tous</Label>
-              <Input
-                type="number"
-                min="0"
-                step="100"
-                placeholder="Ex: 1000"
-                value={uniformAmount}
-                onChange={(e) => setUniformAmount(e.target.value)}
-              />
+          {/* Montant uniforme - Masqué pour 13ème mois (auto) */}
+          {!isAutoAmount && (
+            <div className="flex items-end gap-2">
+              <div className="flex-1 space-y-2">
+                <Label>Même montant pour tous</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="100"
+                  placeholder="Ex: 1000"
+                  value={uniformAmount}
+                  onChange={(e) => setUniformAmount(e.target.value)}
+                />
+              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={applyUniformAmount}
+                disabled={!uniformAmount}
+              >
+                Appliquer
+              </Button>
             </div>
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={applyUniformAmount}
-              disabled={!uniformAmount}
-            >
-              Appliquer
-            </Button>
-          </div>
+          )}
+
+          {/* Info pour 13ème mois */}
+          {isAutoAmount && (
+            <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+              <div className="flex items-start gap-2">
+                <Info className="h-4 w-4 text-blue-600 dark:text-blue-400 mt-0.5" />
+                <div className="text-sm text-blue-700 dark:text-blue-300">
+                  <p className="font-medium">Calcul automatique</p>
+                  <p className="text-blue-600 dark:text-blue-400">
+                    Le 13ème mois correspond à un mois de salaire brut. Les montants sont calculés automatiquement.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
           <Separator />
 
@@ -282,18 +320,27 @@ export function BonusDialog({
                         Salaire brut: {formatCurrency(person.gross_salary || 0)}
                       </p>
                     </div>
-                    <div className="w-32">
-                      <Input
-                        type="number"
-                        min="0"
-                        step="100"
-                        placeholder="Montant"
-                        value={entry.amount || ''}
-                        onChange={(e) => updateAmount(person.id, parseFloat(e.target.value) || 0)}
-                        disabled={!entry.selected}
-                        className="text-right"
-                      />
-                    </div>
+                    {isAutoAmount ? (
+                      <div className="w-32 text-right">
+                        <span className="font-medium text-primary">
+                          {formatCurrency(person.gross_salary || 0)}
+                        </span>
+                        <p className="text-xs text-muted-foreground">Auto</p>
+                      </div>
+                    ) : (
+                      <div className="w-32">
+                        <Input
+                          type="number"
+                          min="0"
+                          step="100"
+                          placeholder="Montant"
+                          value={entry.amount || ''}
+                          onChange={(e) => updateAmount(person.id, parseFloat(e.target.value) || 0)}
+                          disabled={!entry.selected}
+                          className="text-right"
+                        />
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -309,41 +356,76 @@ export function BonusDialog({
           </ScrollArea>
 
           {/* Résumé */}
-          {selectedEntries.length > 0 && (
+          {selectedWithAmounts.length > 0 && (
             <>
               <Separator />
-              <div className="bg-muted/50 rounded-lg p-4 space-y-2">
+              <div className="bg-muted/50 rounded-lg p-4 space-y-3">
                 <div className="flex justify-between items-center">
                   <span className="text-muted-foreground">
-                    {selectedEntries.length} salarié(s) sélectionné(s)
+                    {selectedWithAmounts.length} salarié(s) sélectionné(s)
                   </span>
-                  <span className="font-bold text-lg">{formatCurrency(totalAmount)}</span>
                 </div>
-                {isExempt && (
-                  <div className="flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400">
-                    <Check className="h-4 w-4" />
-                    <span>Montant exonéré de charges : {formatCurrency(totalAmount)}</span>
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger>
-                          <Info className="h-4 w-4" />
-                        </TooltipTrigger>
-                        <TooltipContent className="max-w-xs">
-                          <p>
-                            La Prime de Partage de la Valeur (PPV) est exonérée de cotisations 
-                            sociales jusqu'à 3 000€ par salarié (ou 6 000€ avec un accord 
-                            d'intéressement ou de participation).
-                          </p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
+                
+                {/* Résumé détaillé pour primes non exonérées */}
+                {!isExempt && (
+                  <div className="space-y-1.5 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Total brut</span>
+                      <span className="font-medium">{formatCurrency(totalBrut)}</span>
+                    </div>
+                    <div className="flex justify-between text-amber-600 dark:text-amber-400">
+                      <span className="flex items-center gap-1">
+                        Charges patronales (~{Math.round(EMPLOYER_CHARGES_RATE * 100)}%)
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger>
+                              <Info className="h-3.5 w-3.5" />
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-xs">
+                              <p>
+                                Estimation des cotisations patronales. Le taux réel dépend 
+                                du statut du salarié et de la taille de l'entreprise.
+                              </p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </span>
+                      <span>+ {formatCurrency(estimatedCharges)}</span>
+                    </div>
+                    <Separator />
+                    <div className="flex justify-between font-bold">
+                      <span>Coût total employeur</span>
+                      <span className="text-lg">{formatCurrency(totalCostEmployer)}</span>
+                    </div>
                   </div>
                 )}
-                {!isExempt && (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Banknote className="h-4 w-4" />
-                    <span>Soumis aux cotisations sociales</span>
-                  </div>
+
+                {/* Résumé pour primes exonérées */}
+                {isExempt && (
+                  <>
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground">Total</span>
+                      <span className="font-bold text-lg">{formatCurrency(totalBrut)}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400">
+                      <Check className="h-4 w-4" />
+                      <span>Montant exonéré de charges</span>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger>
+                            <Info className="h-4 w-4" />
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-xs">
+                            <p>
+                              La Prime de Partage de la Valeur (PPV) est exonérée de cotisations 
+                              sociales jusqu'à 3 000€ par salarié (ou 6 000€ avec un accord 
+                              d'intéressement ou de participation).
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
+                  </>
                 )}
               </div>
             </>
@@ -356,9 +438,9 @@ export function BonusDialog({
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={selectedEntries.length === 0 || isSubmitting}
+            disabled={selectedWithAmounts.length === 0 || isSubmitting}
           >
-            {isSubmitting ? 'Enregistrement...' : `Enregistrer ${selectedEntries.length} prime(s)`}
+            {isSubmitting ? 'Enregistrement...' : `Enregistrer ${selectedWithAmounts.length} prime(s)`}
           </Button>
         </DialogFooter>
       </DialogContent>
