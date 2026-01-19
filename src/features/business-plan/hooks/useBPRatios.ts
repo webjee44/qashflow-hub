@@ -56,8 +56,8 @@ export function useBPRatios() {
     // ═══════════════════════════════════════════════════════════════
     const grossMargin = years.map((_, i) => {
       const revenue = plData.totals.revenue[i] || 0;
-      const variable = plData.totals.variableExpenses[i] || 0;
-      return revenue > 0 ? ((revenue - variable) / revenue) * 100 : 0;
+      const cogs = plData.totals.cogs?.[i] || 0; // Utiliser COGS uniquement
+      return revenue > 0 ? ((revenue - cogs) / revenue) * 100 : 0;
     });
 
     const operatingMargin = years.map((_, i) => {
