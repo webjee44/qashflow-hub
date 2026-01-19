@@ -115,3 +115,77 @@ export const VARIABLE_CALCULATION_TYPES = {
 } as const;
 
 export type VariableCalculationType = keyof typeof VARIABLE_CALCULATION_TYPES;
+
+// ============================================
+// NOMENCLATURE PCG (Plan Comptable Général)
+// Conformément au règlement ANC n°2014-03
+// ============================================
+
+// Rubriques PCG pour le compte de résultat (classe 6)
+export const PCG_EXPENSE_CATEGORIES = {
+  purchases: { 
+    code: '60', 
+    label: 'Achats', 
+  },
+  external_services: { 
+    code: '61', 
+    label: 'Services extérieurs', 
+  },
+  other_external_services: { 
+    code: '62', 
+    label: 'Autres services extérieurs', 
+  },
+  taxes: { 
+    code: '63', 
+    label: 'Impôts, taxes et versements assimilés', 
+  },
+  personnel: {
+    code: '64',
+    label: 'Charges de personnel',
+  },
+  other_operating: { 
+    code: '65', 
+    label: 'Autres charges de gestion courante', 
+  },
+  financial: {
+    code: '66',
+    label: 'Charges financières',
+  },
+  depreciation: {
+    code: '68',
+    label: 'Dotations aux amortissements',
+  },
+} as const;
+
+export type PCGExpenseCategory = keyof typeof PCG_EXPENSE_CATEGORIES;
+
+// Table de correspondance : catégorie interne → rubrique PCG
+export const CATEGORY_TO_PCG_MAPPING: Record<string, PCGExpenseCategory> = {
+  // Charges fixes actuelles
+  rent: 'external_services',           // 61 - Locations
+  insurance: 'external_services',       // 61 - Primes d'assurance
+  software: 'other_operating',          // 65 - Licences logicielles
+  telecom: 'other_external_services',   // 62 - Frais postaux et télécom
+  marketing: 'other_external_services', // 62 - Publicité
+  utilities: 'external_services',       // 61 - Fournitures (eau, élec, gaz)
+  professional_fees: 'other_external_services', // 62 - Honoraires
+  banking: 'other_external_services',   // 62 - Services bancaires
+  travel: 'other_external_services',    // 62 - Déplacements
+  office: 'purchases',                  // 60 - Fournitures de bureau
+  other: 'other_operating',             // 65 - Autres
+  
+  // Charges variables actuelles
+  cogs: 'purchases',                    // 60 - Achats de marchandises
+  commission: 'other_external_services', // 62 - Commissions
+  shipping: 'purchases',                // 60 - Transports sur ventes
+  payment_fees: 'other_external_services', // 62 - Services bancaires
+};
+
+// Ordre d'affichage des rubriques PCG dans le P&L
+export const PCG_ORDER: PCGExpenseCategory[] = [
+  'purchases',
+  'external_services', 
+  'other_external_services',
+  'taxes',
+  'other_operating',
+];
