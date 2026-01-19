@@ -149,15 +149,21 @@ export function useBPRatios() {
 
     // ═══════════════════════════════════════════════════════════════
     // BREAK-EVEN ANALYSIS
+    // Coûts fixes = Charges fixes + Personnel + Dirigeants + Dotations + Crédit-bail + Taxes salaires
+    // Coûts variables = COGS uniquement (pour marge sur coût variable)
     // ═══════════════════════════════════════════════════════════════
     const breakEvenRevenue = years.map((_, i) => {
+      // Coûts fixes complets (aligné avec calcul EBE dans useProfitLoss)
       const fixedCosts = (plData.totals.fixedExpenses[i] || 0) + 
                          (plData.totals.personnelCosts[i] || 0) +
                          (plData.totals.directorsCosts[i] || 0) +
-                         (plData.totals.depreciation[i] || 0);
+                         (plData.totals.depreciation[i] || 0) +
+                         (plData.totals.leaseExpenses?.[i] || 0) +      // Crédit-bail
+                         (plData.totals.payrollTaxes?.[i] || 0);        // Taxes sur salaires
       const revenue = plData.totals.revenue[i] || 0;
-      const variableCosts = plData.totals.variableExpenses[i] || 0;
-      const contributionMarginRatio = revenue > 0 ? (revenue - variableCosts) / revenue : 0;
+      // Utiliser COGS uniquement pour le ratio de contribution marginale
+      const cogs = plData.totals.cogs?.[i] || 0;
+      const contributionMarginRatio = revenue > 0 ? (revenue - cogs) / revenue : 0;
       return contributionMarginRatio > 0 ? fixedCosts / contributionMarginRatio : 0;
     });
 
@@ -198,11 +204,15 @@ export function useBPRatios() {
   // Get break-even data for a specific year
   const getBreakEvenData = (yearIndex: number): BreakEvenData => {
     const revenue = plData.totals.revenue[yearIndex] || 0;
+    // Coûts fixes complets (aligné avec calcul break-even)
     const fixedCosts = (plData.totals.fixedExpenses[yearIndex] || 0) + 
                        (plData.totals.personnelCosts[yearIndex] || 0) +
                        (plData.totals.directorsCosts[yearIndex] || 0) +
-                       (plData.totals.depreciation[yearIndex] || 0);
-    const variableCosts = plData.totals.variableExpenses[yearIndex] || 0;
+                       (plData.totals.depreciation[yearIndex] || 0) +
+                       (plData.totals.leaseExpenses?.[yearIndex] || 0) +    // Crédit-bail
+                       (plData.totals.payrollTaxes?.[yearIndex] || 0);      // Taxes sur salaires
+    // COGS uniquement pour les coûts variables (marge sur coût variable)
+    const variableCosts = plData.totals.cogs?.[yearIndex] || 0;
 
     return {
       revenue,
