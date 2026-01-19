@@ -11,7 +11,7 @@ import { useCompany } from '@/hooks/useCompany';
 import { useBPSettings } from './useBPSettings';
 import { startOfMonth, addMonths, parseISO, format } from 'date-fns';
 import { calculateTaxByRegime, TVA_RATES_FR, TaxRegime, getGlobalChargesRate } from '@/lib/french-rates';
-import { PAYMENT_FREQUENCIES, DEFAULT_PAYMENT_MONTHS, FIXED_EXPENSE_CATEGORIES, VARIABLE_EXPENSE_CATEGORIES } from '@/constants/bpConstants';
+import { PAYMENT_FREQUENCIES, DEFAULT_PAYMENT_MONTHS, PCG_EXPENSE_CATEGORIES, CATEGORY_TO_PCG_MAPPING, PCG_ORDER, PCGExpenseCategory } from '@/constants/bpConstants';
 
 export interface PLRow {
   label: string;
@@ -459,67 +459,77 @@ export function useProfitLoss() {
       }, 0);
     });
 
-    if (variableExpenses.length > 0) {
-      rows.push({ label: 'Charges variables', type: 'header', values: [], isExpense: true, indent: 1 });
-      
-      // Regrouper les charges variables par catégorie
-      const variableByCategory = variableExpenses.reduce((acc, expense) => {
-        const category = expense.category || 'other';
-        if (!acc[category]) acc[category] = [];
-        acc[category].push(expense);
-        return acc;
-      }, {} as Record<string, typeof variableExpenses>);
+    // ========================================
+    // CHARGES D'EXPLOITATION - Nomenclature PCG
+    // ========================================
+    
+    // Regrouper toutes les charges (fixes + variables) par rubrique PCG
+    type ExpenseWithSource = { expense: any; source: 'fixed' | 'variable' };
+    const allExpenses: ExpenseWithSource[] = [
+      ...fixedExpenses.map(e => ({ expense: e, source: 'fixed' as const })),
+      ...variableExpenses.map(e => ({ expense: e, source: 'variable' as const })),
+    ];
 
-      const variableCategoryOrder = ['cogs', 'commission', 'shipping', 'payment_fees', 'other'];
+    const expensesByPCG = allExpenses.reduce((acc, item) => {
+      const category = item.expense.category || 'other';
+      const pcgCode = CATEGORY_TO_PCG_MAPPING[category] || 'other_operating';
+      if (!acc[pcgCode]) acc[pcgCode] = [];
+      acc[pcgCode].push(item);
+      return acc;
+    }, {} as Record<PCGExpenseCategory, ExpenseWithSource[]>);
+
+    // Afficher les charges par rubrique PCG (60, 61, 62, 63, 65)
+    PCG_ORDER.forEach(pcgCode => {
+      const items = expensesByPCG[pcgCode];
+      if (!items || items.length === 0) return;
       
-      variableCategoryOrder.forEach(category => {
-        const expenses = variableByCategory[category];
-        if (!expenses || expenses.length === 0) return;
-        
-        const categoryLabel = VARIABLE_EXPENSE_CATEGORIES[category as keyof typeof VARIABLE_EXPENSE_CATEGORIES]?.label || category;
-        const values = calculateYearlyValues(month => {
-          const revenueByStream = new Map<string | null, { amount: number; units: number }>();
-          streams.forEach(stream => {
-            const amount = getRevenueForecast(stream.id, month);
-            revenueByStream.set(stream.id, { amount, units: 1 });
-          });
-          return expenses.reduce((sum, e) => sum + calculateVariableExpenseForMonth(e, month, revenueByStream), 0);
-        });
-        rows.push({ label: categoryLabel, type: 'item', values, isExpense: true, indent: 2 });
+      const pcgInfo = PCG_EXPENSE_CATEGORIES[pcgCode];
+      const values = calculateYearlyValues(month => {
+        return items.reduce((sum, { expense, source }) => {
+          if (source === 'fixed') {
+            return sum + getFixedExpenseForMonth(expense, month);
+          } else {
+            const revenueByStream = new Map<string | null, { amount: number; units: number }>();
+            streams.forEach(stream => {
+              const amount = getRevenueForecast(stream.id, month);
+              revenueByStream.set(stream.id, { amount, units: 1 });
+            });
+            return sum + calculateVariableExpenseForMonth(expense, month, revenueByStream);
+          }
+        }, 0);
       });
       
-      rows.push({ label: 'Total charges variables', type: 'subtotal', values: variableExpenseValues, isExpense: true });
-    }
-
-    // Charges fixes - regroupées par catégorie comptable
-    rows.push({ label: 'Achats et charges externes', type: 'header', values: [], isExpense: true, indent: 1 });
-    
-    // Regrouper les charges fixes par catégorie
-    const expensesByCategory = fixedExpenses.reduce((acc, expense) => {
-      const category = expense.category || 'other';
-      if (!acc[category]) acc[category] = [];
-      acc[category].push(expense);
-      return acc;
-    }, {} as Record<string, typeof fixedExpenses>);
-
-    // Ordre d'affichage des catégories (même ordre que FIXED_EXPENSE_CATEGORIES)
-    const categoryOrder = ['rent', 'insurance', 'software', 'telecom', 'marketing', 'utilities', 'professional_fees', 'banking', 'travel', 'office', 'other'];
-    
-    categoryOrder.forEach(category => {
-      const expenses = expensesByCategory[category];
-      if (!expenses || expenses.length === 0) return;
-      
-      const categoryLabel = FIXED_EXPENSE_CATEGORIES[category as keyof typeof FIXED_EXPENSE_CATEGORIES]?.label || category;
-      const values = calculateYearlyValues(month => 
-        expenses.reduce((sum, e) => sum + getFixedExpenseForMonth(e, month), 0)
-      );
-      rows.push({ label: categoryLabel, type: 'item', values, isExpense: true, indent: 2 });
+      rows.push({ 
+        label: pcgInfo.label, 
+        type: 'item', 
+        values, 
+        isExpense: true, 
+        indent: 1 
+      });
     });
 
+    // Total des charges externes (achats + services)
+    const externalExpenseValues = calculateYearlyValues(month => {
+      const revenueByStream = new Map<string | null, { amount: number; units: number }>();
+      streams.forEach(stream => {
+        const amount = getRevenueForecast(stream.id, month);
+        revenueByStream.set(stream.id, { amount, units: 1 });
+      });
+      
+      return allExpenses.reduce((sum, { expense, source }) => {
+        if (source === 'fixed') {
+          return sum + getFixedExpenseForMonth(expense, month);
+        } else {
+          return sum + calculateVariableExpenseForMonth(expense, month, revenueByStream);
+        }
+      }, 0);
+    });
+    rows.push({ label: 'Total achats et charges externes', type: 'subtotal', values: externalExpenseValues, isExpense: true });
+
+    // Calcul des totaux pour les SIG (charges fixes = externalExpenseValues, charges variables déjà calculées)
     const fixedExpenseValues = calculateYearlyValues(month => 
       fixedExpenses.reduce((sum, e) => sum + getFixedExpenseForMonth(e, month), 0)
     );
-    rows.push({ label: 'Total charges fixes', type: 'subtotal', values: fixedExpenseValues, isExpense: true });
 
     // Charges de personnel
     rows.push({ label: 'Charges de personnel', type: 'header', values: [], isExpense: true, indent: 1 });
