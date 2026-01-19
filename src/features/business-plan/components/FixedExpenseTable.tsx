@@ -1,8 +1,10 @@
-import { Edit, Trash2, Building2, Shield, Laptop, Megaphone, Zap, MoreHorizontal, Briefcase, CalendarClock, Copy } from 'lucide-react';
+import { useState } from 'react';
+import { Edit, Trash2, Building2, Shield, Laptop, Megaphone, Zap, MoreHorizontal, Briefcase, CalendarClock, Copy, Filter, Phone, Landmark, Plane, Building, X } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useBPFixedExpenses, BPFixedExpense, FIXED_EXPENSE_CATEGORIES, PAYMENT_FREQUENCIES } from '@/hooks/useBPFixedExpenses';
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -18,6 +20,10 @@ const ICONS: Record<string, React.ReactNode> = {
   marketing: <Megaphone className="h-4 w-4" />,
   utilities: <Zap className="h-4 w-4" />,
   professional_fees: <Briefcase className="h-4 w-4" />,
+  telecom: <Phone className="h-4 w-4" />,
+  banking: <Landmark className="h-4 w-4" />,
+  travel: <Plane className="h-4 w-4" />,
+  office: <Building className="h-4 w-4" />,
   other: <MoreHorizontal className="h-4 w-4" />,
 };
 
@@ -25,6 +31,7 @@ const MONTH_NAMES = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août'
 
 export function FixedExpenseTable({ onEdit }: FixedExpenseTableProps) {
   const { expenses, deleteExpense, createExpense, isLoading, getMonthlyAmount, totalMonthlyExpenses } = useBPFixedExpenses();
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
 
   const handleDuplicate = (expense: BPFixedExpense) => {
     const { id, created_at, updated_at, user_id, company_id, ...expenseData } = expense;
@@ -46,8 +53,6 @@ export function FixedExpenseTable({ onEdit }: FixedExpenseTableProps) {
     return format(parseISO(dateStr), 'MMM yyyy', { locale: fr });
   };
 
-  const totalAnnual = totalMonthlyExpenses * 12;
-
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-48">
@@ -60,13 +65,60 @@ export function FixedExpenseTable({ onEdit }: FixedExpenseTableProps) {
     return null;
   }
 
-  // Sort expenses alphabetically by name
-  const sortedExpenses = [...expenses].sort((a, b) => 
+  // Filter and sort expenses
+  const filteredExpenses = categoryFilter === 'all' 
+    ? expenses 
+    : expenses.filter(e => e.category === categoryFilter);
+  
+  const sortedExpenses = [...filteredExpenses].sort((a, b) => 
     a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' })
   );
 
+  // Calculate totals based on filtered expenses
+  const filteredMonthlyTotal = filteredExpenses.reduce((sum, e) => sum + getMonthlyAmount(e), 0);
+  const filteredAnnualTotal = filteredMonthlyTotal * 12;
+
+  // Get unique categories from actual expenses for the filter dropdown
+  const usedCategories = [...new Set(expenses.map(e => e.category))].sort();
+
   return (
     <div className="space-y-4">
+      {/* Category Filter */}
+      <div className="flex items-center gap-2">
+        <Filter className="h-4 w-4 text-muted-foreground" />
+        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+          <SelectTrigger className="w-[200px]">
+            <SelectValue placeholder="Toutes les catégories" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Toutes les catégories</SelectItem>
+            {usedCategories.map((cat) => (
+              <SelectItem key={cat} value={cat}>
+                <span className="flex items-center gap-2">
+                  {ICONS[cat]}
+                  {FIXED_EXPENSE_CATEGORIES[cat as keyof typeof FIXED_EXPENSE_CATEGORIES]?.label || cat}
+                </span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {categoryFilter !== 'all' && (
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="h-8 w-8"
+            onClick={() => setCategoryFilter('all')}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        )}
+        {categoryFilter !== 'all' && (
+          <span className="text-sm text-muted-foreground">
+            {filteredExpenses.length} charge{filteredExpenses.length > 1 ? 's' : ''} sur {expenses.length}
+          </span>
+        )}
+      </div>
+
       <Table>
         <TableHeader>
           <TableRow>
@@ -175,12 +227,16 @@ export function FixedExpenseTable({ onEdit }: FixedExpenseTableProps) {
       {/* Summary */}
       <div className="flex justify-end gap-6 p-4 bg-muted/50 rounded-lg">
         <div className="text-right">
-          <p className="text-sm text-muted-foreground">Total mensuel (lissé)</p>
-          <p className="text-xl font-bold text-destructive">{formatCurrency(totalMonthlyExpenses)}</p>
+          <p className="text-sm text-muted-foreground">
+            {categoryFilter !== 'all' ? 'Total mensuel (filtré)' : 'Total mensuel (lissé)'}
+          </p>
+          <p className="text-xl font-bold text-destructive">{formatCurrency(filteredMonthlyTotal)}</p>
         </div>
         <div className="text-right">
-          <p className="text-sm text-muted-foreground">Total annuel</p>
-          <p className="text-xl font-bold text-destructive">{formatCurrency(totalAnnual)}</p>
+          <p className="text-sm text-muted-foreground">
+            {categoryFilter !== 'all' ? 'Total annuel (filtré)' : 'Total annuel'}
+          </p>
+          <p className="text-xl font-bold text-destructive">{formatCurrency(filteredAnnualTotal)}</p>
         </div>
       </div>
     </div>
