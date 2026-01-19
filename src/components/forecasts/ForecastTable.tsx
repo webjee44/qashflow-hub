@@ -314,11 +314,22 @@ export function ForecastTable() {
                         <TrendingUp className="w-4 h-4 text-success flex-shrink-0" />
                         <span className="text-sm text-muted-foreground">+</span>
                         <Input
-                          type="number"
+                          type="text"
+                          inputMode="decimal"
                           value={growthPercent}
-                          onChange={(e) => setGrowthPercent(e.target.value)}
+                          onChange={(e) => {
+                            // Allow digits, comma, and period
+                            const value = e.target.value.replace(/[^0-9,.-]/g, '');
+                            setGrowthPercent(value);
+                          }}
                           className="w-16 h-7 text-sm text-center"
                           autoFocus
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleSave(categoryId, monthIndex, 'growth');
+                            }
+                          }}
                         />
                         <span className="text-sm text-muted-foreground">% / mois</span>
                         <Button
