@@ -233,7 +233,7 @@ export function RevenueTable({ onEditStream }: RevenueTableProps) {
               <TableHead className="sticky left-0 bg-background z-10 min-w-[200px]">Flux de revenus</TableHead>
               {/* Year 1 monthly columns */}
               {year1Months.map((month, i) => (
-                <TableHead key={i} className="text-center min-w-[90px]">
+                <TableHead key={i} className="text-center min-w-[110px]">
                   {format(month, 'MMM yy', { locale: fr })}
                 </TableHead>
               ))}
@@ -345,7 +345,7 @@ export function RevenueTable({ onEditStream }: RevenueTableProps) {
                                   onBlur={() => handleInputBlur(stream.id, monthIndex)}
                                   onKeyDown={(e) => handleKeyDown(e, stream.id, monthIndex)}
                                   autoFocus
-                                  className="w-full h-8 text-center text-sm"
+                                  className="w-full h-8 text-center text-sm min-w-[100px]"
                                 />
                               ) : (
                                 <span>{value > 0 ? formatCurrency(value) : '-'}</span>
