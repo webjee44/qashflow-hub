@@ -17,6 +17,7 @@ export { useFixedExpenses } from './useFixedExpenses';
 export { useFundingPlan } from './useFundingPlan';
 export { useInvestments, type Investment } from './useInvestments';
 export { usePersonnel } from './usePersonnel';
+export { usePayrollTaxes, type PayrollTaxes } from './usePayrollTaxes';
 export { useProfitLoss } from './useProfitLoss';
 export { useRevenueStreams } from './useRevenueStreams';
 export { useScenarioOverrides } from './useScenarioOverrides';
