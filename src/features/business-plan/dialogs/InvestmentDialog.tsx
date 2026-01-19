@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Investment } from '@/hooks/useInvestments';
 import { INVESTMENT_CATEGORIES, calculateMonthlyDepreciation } from '@/lib/french-rates';
 import { format, addMonths } from 'date-fns';
+import { useBPSettings } from '@/features/business-plan/hooks/useBPSettings';
 
 interface InvestmentDialogProps {
   open: boolean;
@@ -17,9 +18,23 @@ interface InvestmentDialogProps {
 }
 
 export function InvestmentDialog({ open, onOpenChange, investment, onSave }: InvestmentDialogProps) {
+  const { settings } = useBPSettings();
+  
+  const getDefaultStartDate = () => {
+    if (settings.bp_start_date) return settings.bp_start_date;
+    const now = new Date();
+    const fiscalMonth = settings.fiscal_year_start_month || 1;
+    const fiscalDay = settings.fiscal_year_start_day || 1;
+    let fiscalYearStart = new Date(now.getFullYear(), fiscalMonth - 1, fiscalDay);
+    if (fiscalYearStart > now) {
+      fiscalYearStart = new Date(now.getFullYear() - 1, fiscalMonth - 1, fiscalDay);
+    }
+    return format(fiscalYearStart, 'yyyy-MM-dd');
+  };
+
   const [name, setName] = useState('');
   const [category, setCategory] = useState('equipment');
-  const [purchaseDate, setPurchaseDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [purchaseDate, setPurchaseDate] = useState(getDefaultStartDate());
   const [purchaseAmount, setPurchaseAmount] = useState('');
   const [depreciationYears, setDepreciationYears] = useState('5');
   const [depreciationMethod, setDepreciationMethod] = useState('linear');
@@ -37,13 +52,13 @@ export function InvestmentDialog({ open, onOpenChange, investment, onSave }: Inv
     } else {
       setName('');
       setCategory('equipment');
-      setPurchaseDate(format(new Date(), 'yyyy-MM-dd'));
+      setPurchaseDate(getDefaultStartDate());
       setPurchaseAmount('');
       setDepreciationYears('5');
       setDepreciationMethod('linear');
       setNotes('');
     }
-  }, [investment, open]);
+  }, [investment, open, settings.bp_start_date, settings.fiscal_year_start_month, settings.fiscal_year_start_day]);
 
   // Auto-set default years when category changes
   useEffect(() => {

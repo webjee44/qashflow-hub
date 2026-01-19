@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Briefcase } from 'lucide-react';
 import { BPPersonnel } from '@/hooks/useBPPersonnel';
 import { format } from 'date-fns';
+import { useBPSettings } from '@/features/business-plan/hooks/useBPSettings';
 
 interface FreelanceDialogProps {
   open: boolean;
@@ -16,10 +17,24 @@ interface FreelanceDialogProps {
 }
 
 export function FreelanceDialog({ open, onOpenChange, freelance, onSave }: FreelanceDialogProps) {
+  const { settings } = useBPSettings();
+  
+  const getDefaultStartDate = () => {
+    if (settings.bp_start_date) return settings.bp_start_date;
+    const now = new Date();
+    const fiscalMonth = settings.fiscal_year_start_month || 1;
+    const fiscalDay = settings.fiscal_year_start_day || 1;
+    let fiscalYearStart = new Date(now.getFullYear(), fiscalMonth - 1, fiscalDay);
+    if (fiscalYearStart > now) {
+      fiscalYearStart = new Date(now.getFullYear() - 1, fiscalMonth - 1, fiscalDay);
+    }
+    return format(fiscalYearStart, 'yyyy-MM-dd');
+  };
+
   const [position, setPosition] = useState('');
   const [dailyRate, setDailyRate] = useState('');
   const [estimatedDays, setEstimatedDays] = useState('20');
-  const [startDate, setStartDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [startDate, setStartDate] = useState(getDefaultStartDate());
   const [endDate, setEndDate] = useState('');
   const [notes, setNotes] = useState('');
 
@@ -37,13 +52,13 @@ export function FreelanceDialog({ open, onOpenChange, freelance, onSave }: Freel
         setPosition('');
         setDailyRate('');
         setEstimatedDays('20');
-        setStartDate(format(new Date(), 'yyyy-MM-dd'));
+        setStartDate(getDefaultStartDate());
         setEndDate('');
         setNotes('');
       }
     }
     onOpenChange(isOpen);
-  }, [freelance, onOpenChange]);
+  }, [freelance, onOpenChange, settings.bp_start_date, settings.fiscal_year_start_month, settings.fiscal_year_start_day]);
 
   const dailyRateValue = parseFloat(dailyRate) || 0;
   const estimatedDaysValue = parseFloat(estimatedDays) || 0;
