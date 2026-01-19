@@ -52,7 +52,7 @@ export default function Team() {
     totalEmployeeCost, 
     totalFreelanceCost,
     totalMonthlyCost 
-  } = useBPPersonnel(currentPlan?.id);
+  } = useBPPersonnel();
 
   // Separate dialogs for employees and freelancers
   const [employeeDialogOpen, setEmployeeDialogOpen] = useState(false);
@@ -346,7 +346,6 @@ export default function Team() {
                 ) : (
                   <PersonnelTable 
                     onEdit={handleEditEmployee} 
-                    businessPlanId={currentPlan?.id} 
                     bonuses={bonuses}
                     onEditBonus={handleEditBonus}
                     onDeleteBonus={handleDeleteBonus}
@@ -398,7 +397,7 @@ export default function Team() {
                     </div>
                   </div>
                 ) : (
-                  <FreelanceTable onEdit={handleEditFreelance} businessPlanId={currentPlan?.id} />
+                  <FreelanceTable onEdit={handleEditFreelance} />
                 )}
               </CardContent>
             </Card>

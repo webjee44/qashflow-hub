@@ -10,7 +10,6 @@ export interface BPFinancing {
   id: string;
   user_id: string;
   company_id: string | null;
-  business_plan_id: string | null;
   investment_id: string | null;
   financing_type: 'capital' | 'loan' | 'grant' | 'current_account';
   name: string;
@@ -26,7 +25,7 @@ export interface BPFinancing {
   updated_at: string;
 }
 
-export function useBPFinancings(businessPlanId?: string) {
+export function useBPFinancings() {
   const { user } = useAuth();
   const { currentCompany } = useCompany();
   const queryClient = useQueryClient();
@@ -65,7 +64,6 @@ export function useBPFinancings(businessPlanId?: string) {
         .insert({
           user_id: user.id,
           company_id: companyId,
-          business_plan_id: businessPlanId || null,
           name: data.name || 'Nouveau financement',
           financing_type: data.financing_type || 'loan',
           amount: data.amount || 0,
