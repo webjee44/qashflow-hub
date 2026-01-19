@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { 
   LayoutDashboard, 
   ArrowLeftRight, 
@@ -21,15 +22,16 @@ import {
   Sparkles
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useAppMode } from '@/hooks/useAppMode';
 import { useBPSettings } from '@/hooks/useBPSettings';
 import { useOnboarding } from '@/hooks/useOnboarding';
-import { Button } from '@/components/ui/button';
+import { useCompany } from '@/hooks/useCompany';
 import { BPSettingsDialog } from '@/components/businessplan/BPSettingsDialog';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Separator } from '@/components/ui/separator';
+import { supabase } from '@/integrations/supabase/client';
 import logo from '@/assets/logo.png';
 
 
@@ -39,33 +41,53 @@ interface NavItem {
   href: string;
   badge?: string;
   key?: string;
+  prefetchKeys?: string[]; // Query keys to prefetch on hover
 }
 
 const treasuryNavItems: NavItem[] = [
-  { icon: LayoutDashboard, label: 'Tableau de bord', href: '/dashboard' },
-  { icon: TrendingUp, label: 'Prévisions', href: '/previsions' },
-  { icon: ArrowLeftRight, label: 'Transactions', href: '/transactions' },
+  { icon: LayoutDashboard, label: 'Tableau de bord', href: '/dashboard', prefetchKeys: ['dashboard-stats'] },
+  { icon: TrendingUp, label: 'Prévisions', href: '/previsions', prefetchKeys: ['forecasts'] },
+  { icon: ArrowLeftRight, label: 'Transactions', href: '/transactions', prefetchKeys: ['transactions'] },
   { icon: Settings, label: 'Réglages', href: '/reglages-tresorerie' },
 ];
 
 const businessPlanNavItems: NavItem[] = [
-  { icon: DollarSign, label: 'Revenus', href: '/bp/revenus' },
-  { icon: Building2, label: 'Charges', href: '/bp/charges' },
-  { icon: Users, label: 'Équipe', href: '/bp/equipe' },
-  { icon: Package, label: 'Investissements', href: '/bp/investissements' },
-  { icon: Landmark, label: 'Financements', href: '/bp/financements', key: 'financing' },
-  { icon: Package, label: 'Stocks', href: '/bp/stocks', key: 'stocks' },
+  { icon: DollarSign, label: 'Revenus', href: '/bp/revenus', prefetchKeys: ['bp_revenue_streams', 'bp_revenue_forecasts'] },
+  { icon: Building2, label: 'Charges', href: '/bp/charges', prefetchKeys: ['bp_fixed_expenses', 'bp_variable_expenses'] },
+  { icon: Users, label: 'Équipe', href: '/bp/equipe', prefetchKeys: ['bp_personnel', 'bp_directors'] },
+  { icon: Package, label: 'Investissements', href: '/bp/investissements', prefetchKeys: ['bp_investments'] },
+  { icon: Landmark, label: 'Financements', href: '/bp/financements', key: 'financing', prefetchKeys: ['bp_financings'] },
+  { icon: Package, label: 'Stocks', href: '/bp/stocks', key: 'stocks', prefetchKeys: ['bp_stocks'] },
   { icon: FileSpreadsheet, label: 'Compte de résultat', href: '/bp/pnl' },
   { icon: Wallet, label: 'Bilan', href: '/bp/bilan' },
   { icon: Wallet, label: 'Trésorerie', href: '/bp/tresorerie' },
   { icon: Wallet, label: 'Plan de financement', href: '/bp/financement', key: 'funding' },
-  { icon: GitBranch, label: 'Scénarios', href: '/bp/scenarios' },
+  { icon: GitBranch, label: 'Scénarios', href: '/bp/scenarios', prefetchKeys: ['bp_scenarios'] },
 ];
 
 const bottomNavItems: NavItem[] = [
   { icon: Settings, label: 'Paramètres', href: '/parametres' },
   { icon: HelpCircle, label: 'Aide', href: '/aide' },
 ];
+
+// Lazy component preloaders
+const componentPreloaders: Record<string, () => Promise<unknown>> = {
+  '/bp/revenus': () => import('@/pages/BusinessPlan/RevenueAssumptions'),
+  '/bp/charges': () => import('@/pages/BusinessPlan/Expenses'),
+  '/bp/equipe': () => import('@/pages/BusinessPlan/Team'),
+  '/bp/investissements': () => import('@/pages/BusinessPlan/Investments'),
+  '/bp/financements': () => import('@/pages/BusinessPlan/Financings'),
+  '/bp/stocks': () => import('@/pages/BusinessPlan/Stocks'),
+  '/bp/pnl': () => import('@/pages/BusinessPlan/ProfitLoss'),
+  '/bp/bilan': () => import('@/pages/BusinessPlan/BalanceSheet'),
+  '/bp/tresorerie': () => import('@/pages/BusinessPlan/CashFlow'),
+  '/bp/financement': () => import('@/pages/BusinessPlan/FundingPlan'),
+  '/bp/scenarios': () => import('@/pages/BusinessPlan/Scenarios'),
+  '/dashboard': () => import('@/pages/Dashboard'),
+  '/transactions': () => import('@/pages/Transactions'),
+  '/previsions': () => import('@/pages/Forecasts'),
+  '/parametres': () => import('@/pages/Settings'),
+};
 
 export function Sidebar() {
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -74,8 +96,10 @@ export function Sidebar() {
   const { mode, setMode, isBusinessPlan } = useAppMode();
   const { settings } = useBPSettings();
   const { bpEnabled, isCompleted: onboardingCompleted } = useOnboarding();
+  const { currentCompany } = useCompany();
   const location = useLocation();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const currentPath = location.pathname;
   
   // bpEnabled = true means ONLY BP is shown (Treasury is disabled)
@@ -96,6 +120,39 @@ export function Sidebar() {
       return true;
     });
   }, [settings.show_stocks, settings.show_financing, settings.show_funding_plan]);
+
+  // Prefetch data on hover for instant navigation
+  const handleLinkHover = useCallback((item: NavItem) => {
+    if (!user || !currentCompany) return;
+
+    // Preload the lazy component
+    const preloader = componentPreloaders[item.href];
+    if (preloader) {
+      preloader();
+    }
+
+    // Prefetch query data - using simple fetch pattern
+    if (item.prefetchKeys) {
+      item.prefetchKeys.forEach(key => {
+        const queryKey = [key, currentCompany.id];
+        const existingData = queryClient.getQueryData(queryKey);
+        if (!existingData && key.startsWith('bp_')) {
+          // Prefetch BP data
+          queryClient.prefetchQuery({
+            queryKey,
+            queryFn: async () => {
+              const { data } = await supabase
+                .from(key as 'bp_revenue_streams' | 'bp_fixed_expenses' | 'bp_variable_expenses' | 'bp_personnel' | 'bp_directors' | 'bp_investments' | 'bp_financings' | 'bp_stocks' | 'bp_scenarios')
+                .select('*')
+                .eq('company_id', currentCompany.id);
+              return data || [];
+            },
+            staleTime: 1000 * 60 * 5,
+          });
+        }
+      });
+    }
+  }, [user, currentCompany, queryClient]);
 
   const handleModeChange = (checked: boolean) => {
     const newMode = checked ? 'business-plan' : 'treasury';
@@ -207,6 +264,7 @@ export function Sidebar() {
                 >
                   <Link
                     to={item.href}
+                    onMouseEnter={() => handleLinkHover(item)}
                     className={cn(
                       "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group relative overflow-hidden",
                       isActive 
@@ -246,6 +304,7 @@ export function Sidebar() {
             >
               <Link
                 to={item.href}
+                onMouseEnter={() => handleLinkHover(item)}
                 className={cn(
                   "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group relative overflow-hidden",
                   isActive 
@@ -284,6 +343,7 @@ export function Sidebar() {
           <Link
             key={item.href}
             to={item.href}
+            onMouseEnter={() => handleLinkHover(item)}
             className={cn(
               "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200",
               "text-muted-foreground hover:bg-muted hover:text-foreground"
