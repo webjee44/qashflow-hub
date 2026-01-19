@@ -7,13 +7,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Calendar, Info } from 'lucide-react';
-import { 
-  BPFixedExpense, 
-  FIXED_EXPENSE_CATEGORIES, 
-  PAYMENT_FREQUENCIES, 
+import {
+  BPFixedExpense,
+  FIXED_EXPENSE_CATEGORIES,
+  PAYMENT_FREQUENCIES,
   DEFAULT_PAYMENT_MONTHS,
-  PaymentFrequency 
+  PaymentFrequency,
 } from '@/hooks/useBPFixedExpenses';
+import { useBPSettings } from '@/hooks/useBPSettings';
 import { format } from 'date-fns';
 
 interface FixedExpenseDialogProps {
@@ -26,10 +27,29 @@ interface FixedExpenseDialogProps {
 const MONTH_NAMES = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
 
 export function FixedExpenseDialog({ open, onOpenChange, expense, onSave }: FixedExpenseDialogProps) {
+  const { settings } = useBPSettings();
+
+  const getDefaultStartDate = () => {
+    // Priorité : date de début du business plan
+    if (settings.bp_start_date) return settings.bp_start_date;
+
+    // Fallback : début de l'exercice fiscal courant
+    const now = new Date();
+    const fiscalMonth = settings.fiscal_year_start_month || 1;
+    const fiscalDay = settings.fiscal_year_start_day || 1;
+
+    let fiscalYearStart = new Date(now.getFullYear(), fiscalMonth - 1, fiscalDay);
+    if (fiscalYearStart > now) {
+      fiscalYearStart = new Date(now.getFullYear() - 1, fiscalMonth - 1, fiscalDay);
+    }
+
+    return format(fiscalYearStart, 'yyyy-MM-dd');
+  };
+
   const [name, setName] = useState('');
   const [category, setCategory] = useState<keyof typeof FIXED_EXPENSE_CATEGORIES>('other');
   const [amount, setAmount] = useState('');
-  const [startDate, setStartDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [startDate, setStartDate] = useState(getDefaultStartDate());
   const [endDate, setEndDate] = useState('');
   const [notes, setNotes] = useState('');
   const [paymentFrequency, setPaymentFrequency] = useState<PaymentFrequency>('monthly');
@@ -49,13 +69,13 @@ export function FixedExpenseDialog({ open, onOpenChange, expense, onSave }: Fixe
       setName('');
       setCategory('other');
       setAmount('');
-      setStartDate(format(new Date(), 'yyyy-MM-dd'));
+      setStartDate(getDefaultStartDate());
       setEndDate('');
       setNotes('');
       setPaymentFrequency('monthly');
       setPaymentMonths([]);
     }
-  }, [expense, open]);
+  }, [expense, open, settings.bp_start_date, settings.fiscal_year_start_month, settings.fiscal_year_start_day]);
 
   // Mettre à jour les mois par défaut quand la fréquence change
   useEffect(() => {
