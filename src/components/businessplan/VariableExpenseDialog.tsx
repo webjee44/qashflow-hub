@@ -188,12 +188,19 @@ export function VariableExpenseDialog({ open, onOpenChange, expense }: VariableE
                 <Label htmlFor="percentage">Pourcentage du CA (%)</Label>
                 <Input
                   id="percentage"
-                  type="number"
-                  step="0.1"
-                  min="0"
-                  max="100"
-                  value={formData.percentage}
-                  onChange={(e) => setFormData({ ...formData, percentage: parseFloat(e.target.value) || 0 })}
+                  type="text"
+                  inputMode="decimal"
+                  value={formData.percentage.toString().replace('.', ',')}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(',', '.');
+                    const parsed = parseFloat(value);
+                    if (!isNaN(parsed) && parsed >= 0 && parsed <= 100) {
+                      setFormData({ ...formData, percentage: parsed });
+                    } else if (e.target.value === '' || e.target.value === '0' || e.target.value === '0,') {
+                      setFormData({ ...formData, percentage: 0 });
+                    }
+                  }}
+                  placeholder="Ex: 2,5"
                 />
               </div>
             ) : (
@@ -201,11 +208,19 @@ export function VariableExpenseDialog({ open, onOpenChange, expense }: VariableE
                 <Label htmlFor="unit_cost">Coût par unité (€)</Label>
                 <Input
                   id="unit_cost"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={formData.unit_cost}
-                  onChange={(e) => setFormData({ ...formData, unit_cost: parseFloat(e.target.value) || 0 })}
+                  type="text"
+                  inputMode="decimal"
+                  value={formData.unit_cost.toString().replace('.', ',')}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(',', '.');
+                    const parsed = parseFloat(value);
+                    if (!isNaN(parsed) && parsed >= 0) {
+                      setFormData({ ...formData, unit_cost: parsed });
+                    } else if (e.target.value === '' || e.target.value === '0' || e.target.value === '0,') {
+                      setFormData({ ...formData, unit_cost: 0 });
+                    }
+                  }}
+                  placeholder="Ex: 1,50"
                 />
               </div>
             )}
