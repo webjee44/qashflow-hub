@@ -1,36 +1,41 @@
 // ============================================
 // Hook: useBPBonuses
 // Gestion des primes de partage de la valeur
+// Now uses company_id via personnel relationship
 // ============================================
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { bonusService, BPBonus, BPBonusInsert, BPBonusUpdate, BonusType } from '@/services/bonusService';
 import { useAuth } from '@/hooks/useAuth';
+import { useCompany } from '@/hooks/useCompany';
+import { useBPPersonnel } from './useBPPersonnel';
 import { toast } from 'sonner';
 
-export function useBPBonuses(businessPlanId: string | null) {
+export function useBPBonuses() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const { currentCompany } = useCompany();
+  const companyId = currentCompany?.id;
+  
+  // Get personnel to derive their IDs for querying bonuses
+  const { personnel } = useBPPersonnel();
+  const personnelIds = personnel.map(p => p.id);
 
-  const queryKey = ['bp-bonuses', businessPlanId];
+  const queryKey = ['bp-bonuses', companyId, personnelIds.join(',')];
 
   const { data: bonuses = [], isLoading, error } = useQuery({
     queryKey,
-    queryFn: () => bonusService.getByBusinessPlanId(businessPlanId!),
-    enabled: !!businessPlanId,
+    queryFn: () => bonusService.getByPersonnelIds(personnelIds),
+    enabled: !!companyId && personnelIds.length > 0,
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: Omit<BPBonusInsert, 'user_id' | 'business_plan_id'>) => {
-      if (!user?.id || !businessPlanId) throw new Error('User or business plan not found');
-      return bonusService.create({
-        ...data,
-        user_id: user.id,
-        business_plan_id: businessPlanId,
-      });
+    mutationFn: (data: Omit<BPBonusInsert, 'user_id'>) => {
+      if (!user?.id) throw new Error('User not found');
+      return bonusService.create(user.id, data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey });
+      queryClient.invalidateQueries({ queryKey: ['bp-bonuses'] });
       toast.success('Prime ajoutée');
     },
     onError: (error) => {
@@ -40,17 +45,12 @@ export function useBPBonuses(businessPlanId: string | null) {
   });
 
   const bulkCreateMutation = useMutation({
-    mutationFn: (bonuses: Omit<BPBonusInsert, 'user_id' | 'business_plan_id'>[]) => {
-      if (!user?.id || !businessPlanId) throw new Error('User or business plan not found');
-      const fullBonuses = bonuses.map(b => ({
-        ...b,
-        user_id: user.id,
-        business_plan_id: businessPlanId,
-      }));
-      return bonusService.bulkCreate(fullBonuses);
+    mutationFn: (bonuses: Omit<BPBonusInsert, 'user_id'>[]) => {
+      if (!user?.id) throw new Error('User not found');
+      return bonusService.bulkCreate(user.id, bonuses);
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey });
+      queryClient.invalidateQueries({ queryKey: ['bp-bonuses'] });
       toast.success(`${data.length} prime(s) ajoutée(s)`);
     },
     onError: (error) => {
@@ -63,7 +63,7 @@ export function useBPBonuses(businessPlanId: string | null) {
     mutationFn: ({ id, data }: { id: string; data: BPBonusUpdate }) => 
       bonusService.update(id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey });
+      queryClient.invalidateQueries({ queryKey: ['bp-bonuses'] });
       toast.success('Prime modifiée');
     },
     onError: (error) => {
@@ -75,7 +75,7 @@ export function useBPBonuses(businessPlanId: string | null) {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => bonusService.delete(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey });
+      queryClient.invalidateQueries({ queryKey: ['bp-bonuses'] });
       toast.success('Prime supprimée');
     },
     onError: (error) => {

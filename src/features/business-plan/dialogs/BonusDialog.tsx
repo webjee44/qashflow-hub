@@ -42,7 +42,7 @@ interface BonusDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   personnel: BPPersonnel[];
-  onSubmit: (bonuses: Omit<BPBonusInsert, 'user_id' | 'business_plan_id'>[]) => Promise<unknown>;
+  onSubmit: (bonuses: Omit<BPBonusInsert, 'user_id'>[]) => Promise<unknown>;
   isSubmitting?: boolean;
 }
 

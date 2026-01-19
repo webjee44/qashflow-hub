@@ -73,8 +73,8 @@ export default function Team() {
   const [editBonusDialogOpen, setEditBonusDialogOpen] = useState(false);
   const [selectedBonus, setSelectedBonus] = useState<BPBonus | null>(null);
   
-  // Hook primes
-  const { bonuses, bulkCreateBonuses, updateBonus, deleteBonus, isCreating: isBonusSaving, isUpdating: isBonusUpdating, isDeleting: isBonusDeleting } = useBPBonuses(currentPlan?.id ?? null);
+  // Hook primes - now uses company_id implicitly
+  const { bonuses, bulkCreateBonuses, updateBonus, deleteBonus, isCreating: isBonusSaving, isUpdating: isBonusUpdating, isDeleting: isBonusDeleting } = useBPBonuses();
 
   // Handlers pour les primes
   const handleEditBonus = (bonus: BPBonus) => {

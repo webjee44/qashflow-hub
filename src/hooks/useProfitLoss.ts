@@ -1,6 +1,6 @@
 // ============================================
 // useProfitLoss Hook - Re-export from BP module
-// This ensures the P&L page uses business_plan_id
+// Uses company_id for data filtering
 // ============================================
 
 export { useProfitLoss } from '@/features/business-plan/hooks/useProfitLoss';
