@@ -77,13 +77,15 @@ export function FixedExpenseTable({ onEdit }: FixedExpenseTableProps) {
             <TableHead className="text-right">Équiv. mensuel</TableHead>
             <TableHead>Début</TableHead>
             <TableHead>Fin</TableHead>
-            <TableHead className="w-[80px]"></TableHead>
+            <TableHead className="text-right">Total exercice</TableHead>
+            <TableHead className="w-[100px]"></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {sortedExpenses.map((expense) => {
             const frequencyInfo = PAYMENT_FREQUENCIES[expense.payment_frequency] || PAYMENT_FREQUENCIES.monthly;
             const monthlyAmount = getMonthlyAmount(expense);
+            const annualTotal = monthlyAmount * 12;
             const isNonMonthly = expense.payment_frequency !== 'monthly';
             const paymentMonthsDisplay = expense.payment_months?.map(m => MONTH_NAMES[m - 1]).join(', ');
             
@@ -127,6 +129,9 @@ export function FixedExpenseTable({ onEdit }: FixedExpenseTableProps) {
                 </TableCell>
                 <TableCell className="text-muted-foreground">
                   {expense.end_date ? formatDate(expense.end_date) : '–'}
+                </TableCell>
+                <TableCell className="text-right font-semibold text-destructive">
+                  {formatCurrency(annualTotal)}
                 </TableCell>
                 <TableCell>
                   <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
