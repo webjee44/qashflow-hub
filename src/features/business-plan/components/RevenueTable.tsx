@@ -138,25 +138,14 @@ export function RevenueTable({ onEditStream }: RevenueTableProps) {
     setGrowthPercent('5');
   };
 
-  const handleInputBlur = (e: React.FocusEvent) => {
-    if (!editingCell) return;
-    
-    // Check if the blur is going to a related element (popover content)
-    const relatedTarget = e.relatedTarget as HTMLElement;
-    if (relatedTarget?.closest('[data-radix-popper-content-wrapper]')) {
-      return; // Don't do anything if clicking inside popover
-    }
-    
+  const handleInputBlur = (streamId: string, monthIndex: number) => {
     const amount = parseFloat(inputValue) || 0;
     
     // Show popover only if there are remaining months after this one
-    if (editingCell.monthIndex < year1Months.length - 1 && amount > 0) {
-      // Use setTimeout to prevent immediate close from the outside click
-      setTimeout(() => {
-        setPendingSave({ ...editingCell, value: amount });
-        setShowCopyOption(true);
-        setShowGrowthInput(false);
-      }, 10);
+    if (monthIndex < year1Months.length - 1 && amount > 0) {
+      setPendingSave({ streamId, monthIndex, value: amount });
+      setShowCopyOption(true);
+      setShowGrowthInput(false);
     } else {
       handleSave('single');
     }
@@ -331,40 +320,36 @@ export function RevenueTable({ onEditStream }: RevenueTableProps) {
                           open={showPopover}
                           onOpenChange={(open) => {
                             if (!open && showPopover) {
-                              // Small delay to check if popover just opened
-                              setTimeout(() => {
-                                if (showCopyOption && pendingSave) {
-                                  handleSave('single');
-                                }
-                              }, 50);
+                              handleSave('single');
                             }
                           }}
-                          modal={true}
                         >
                           <PopoverTrigger asChild>
-                            <div>
+                            <div 
+                              className={cn(
+                                "w-full h-8 px-2 rounded text-sm transition-colors cursor-pointer",
+                                isEditing 
+                                  ? "" 
+                                  : value > 0 
+                                    ? "bg-success/10 text-success hover:bg-success/20" 
+                                    : "text-muted-foreground hover:bg-muted"
+                              )}
+                              onClick={() => !isEditing && !showPopover && handleCellClick(stream.id, monthIndex, value)}
+                            >
                               {isEditing ? (
                                 <Input
                                   type="number"
                                   value={inputValue}
                                   onChange={(e) => setInputValue(e.target.value)}
-                                  onBlur={(e) => handleInputBlur(e)}
+                                  onBlur={() => handleInputBlur(stream.id, monthIndex)}
                                   onKeyDown={handleKeyDown}
                                   autoFocus
                                   className="w-full h-8 text-center text-sm"
                                 />
                               ) : (
-                                <button
-                                  onClick={() => handleCellClick(stream.id, monthIndex, value)}
-                                  className={cn(
-                                    "w-full h-8 px-2 rounded text-sm transition-colors",
-                                    value > 0 
-                                      ? "bg-success/10 text-success hover:bg-success/20" 
-                                      : "text-muted-foreground hover:bg-muted"
-                                  )}
-                                >
+                                <span className="flex items-center justify-center h-full">
                                   {value > 0 ? formatCurrency(value) : '-'}
-                                </button>
+                                </span>
                               )}
                             </div>
                           </PopoverTrigger>
