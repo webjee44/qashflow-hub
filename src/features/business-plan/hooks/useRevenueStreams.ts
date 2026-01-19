@@ -48,6 +48,27 @@ export function useRevenueStreams() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // Fetch BP settings to get the correct start date
+  const { data: bpSettings } = useQuery({
+    queryKey: ['bp_settings', currentCompany?.id],
+    queryFn: async () => {
+      if (!currentCompany?.id) return null;
+      const { data } = await supabase
+        .from('bp_settings')
+        .select('bp_start_date, bp_years')
+        .eq('company_id', currentCompany.id)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!user && !!currentCompany?.id,
+  });
+
+  // Determine the correct start date (from settings or fallback to current date)
+  const bpStartDate = bpSettings?.bp_start_date 
+    ? startOfMonth(new Date(bpSettings.bp_start_date))
+    : startOfMonth(new Date());
+  const bpYears = bpSettings?.bp_years ?? 3;
+
   // Fetch revenue streams
   const { data: streams = [], isLoading: streamsLoading } = useQuery({
     queryKey: ['bp_revenue_streams', currentCompany?.id],
@@ -68,12 +89,13 @@ export function useRevenueStreams() {
     enabled: !!user,
   });
 
-  // Fetch revenue forecasts for next 24 months
+  // Fetch revenue forecasts - use BP start date instead of current date
   const { data: forecasts = [], isLoading: forecastsLoading } = useQuery({
-    queryKey: ['bp_revenue_forecasts', currentCompany?.id],
+    queryKey: ['bp_revenue_forecasts', currentCompany?.id, bpSettings?.bp_start_date],
     queryFn: async () => {
-      const startDate = format(startOfMonth(new Date()), 'yyyy-MM-dd');
-      const endDate = format(addMonths(startOfMonth(new Date()), 24), 'yyyy-MM-dd');
+      // Use BP start date from settings, covering the full plan duration
+      const startDate = format(bpStartDate, 'yyyy-MM-dd');
+      const endDate = format(addMonths(bpStartDate, bpYears * 12 + 12), 'yyyy-MM-dd');
 
       let query = supabase
         .from('bp_revenue_forecasts')
@@ -89,7 +111,7 @@ export function useRevenueStreams() {
       if (error) throw error;
       return (data || []) as RevenueForecast[];
     },
-    enabled: !!user,
+    enabled: !!user && !!bpSettings,
   });
 
   // Create stream mutation
@@ -206,9 +228,9 @@ export function useRevenueStreams() {
     const stream = streams.find(s => s.id === streamId);
     if (!stream) return 0;
 
-    // For subscription model, calculate MRR automatically
+    // For subscription model, calculate MRR automatically from BP start date
     if (stream.model === 'subscription') {
-      const startMonth = startOfMonth(new Date());
+      const startMonth = bpStartDate; // Use BP start date, not current date
       const targetMonth = startOfMonth(month);
       const monthsDiff = Math.round((targetMonth.getTime() - startMonth.getTime()) / (1000 * 60 * 60 * 24 * 30));
       
