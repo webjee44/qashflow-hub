@@ -1013,6 +1013,7 @@ export type Database = {
           created_at: string | null
           end_date: string | null
           id: string
+          is_cogs: boolean | null
           is_vat_deductible: boolean | null
           linked_revenue_stream_id: string | null
           name: string
@@ -1032,6 +1033,7 @@ export type Database = {
           created_at?: string | null
           end_date?: string | null
           id?: string
+          is_cogs?: boolean | null
           is_vat_deductible?: boolean | null
           linked_revenue_stream_id?: string | null
           name: string
@@ -1051,6 +1053,7 @@ export type Database = {
           created_at?: string | null
           end_date?: string | null
           id?: string
+          is_cogs?: boolean | null
           is_vat_deductible?: boolean | null
           linked_revenue_stream_id?: string | null
           name?: string

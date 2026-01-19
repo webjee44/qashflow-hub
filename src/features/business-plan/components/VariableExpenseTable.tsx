@@ -96,6 +96,7 @@ export function VariableExpenseTable() {
               <TableRow>
                 <TableHead>Nom</TableHead>
                 <TableHead>Catégorie</TableHead>
+                <TableHead>Impact</TableHead>
                 <TableHead>Type</TableHead>
                 <TableHead className="text-right">Valeur</TableHead>
                 <TableHead>Flux lié</TableHead>
@@ -117,6 +118,14 @@ export function VariableExpenseTable() {
                       >
                         {category && <DynamicIcon name={category.icon} className="h-3 w-3" />}
                         {category?.label || expense.category}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge 
+                        variant={expense.is_cogs !== false ? "default" : "secondary"}
+                        className="text-[10px] px-1.5"
+                      >
+                        {expense.is_cogs !== false ? "Marge brute" : "Exploitation"}
                       </Badge>
                     </TableCell>
                     <TableCell>
