@@ -11,7 +11,7 @@ import { useCompany } from '@/hooks/useCompany';
 import { useBPSettings } from './useBPSettings';
 import { startOfMonth, addMonths, parseISO, format } from 'date-fns';
 import { calculateTaxByRegime, TVA_RATES_FR, TaxRegime, getGlobalChargesRate } from '@/lib/french-rates';
-import { PAYMENT_FREQUENCIES, DEFAULT_PAYMENT_MONTHS } from '@/constants/bpConstants';
+import { PAYMENT_FREQUENCIES, DEFAULT_PAYMENT_MONTHS, FIXED_EXPENSE_CATEGORIES, VARIABLE_EXPENSE_CATEGORIES } from '@/constants/bpConstants';
 
 export interface PLRow {
   label: string;
@@ -461,25 +461,59 @@ export function useProfitLoss() {
 
     if (variableExpenses.length > 0) {
       rows.push({ label: 'Charges variables', type: 'header', values: [], isExpense: true, indent: 1 });
-      variableExpenses.forEach(expense => {
+      
+      // Regrouper les charges variables par catégorie
+      const variableByCategory = variableExpenses.reduce((acc, expense) => {
+        const category = expense.category || 'other';
+        if (!acc[category]) acc[category] = [];
+        acc[category].push(expense);
+        return acc;
+      }, {} as Record<string, typeof variableExpenses>);
+
+      const variableCategoryOrder = ['cogs', 'commission', 'shipping', 'payment_fees', 'other'];
+      
+      variableCategoryOrder.forEach(category => {
+        const expenses = variableByCategory[category];
+        if (!expenses || expenses.length === 0) return;
+        
+        const categoryLabel = VARIABLE_EXPENSE_CATEGORIES[category as keyof typeof VARIABLE_EXPENSE_CATEGORIES]?.label || category;
         const values = calculateYearlyValues(month => {
           const revenueByStream = new Map<string | null, { amount: number; units: number }>();
           streams.forEach(stream => {
             const amount = getRevenueForecast(stream.id, month);
             revenueByStream.set(stream.id, { amount, units: 1 });
           });
-          return calculateVariableExpenseForMonth(expense, month, revenueByStream);
+          return expenses.reduce((sum, e) => sum + calculateVariableExpenseForMonth(e, month, revenueByStream), 0);
         });
-        rows.push({ label: expense.name, type: 'item', values, isExpense: true, indent: 2 });
+        rows.push({ label: categoryLabel, type: 'item', values, isExpense: true, indent: 2 });
       });
+      
       rows.push({ label: 'Total charges variables', type: 'subtotal', values: variableExpenseValues, isExpense: true });
     }
 
-    // Charges fixes
+    // Charges fixes - regroupées par catégorie comptable
     rows.push({ label: 'Achats et charges externes', type: 'header', values: [], isExpense: true, indent: 1 });
-    fixedExpenses.forEach(expense => {
-      const values = calculateYearlyValues(month => getFixedExpenseForMonth(expense, month));
-      rows.push({ label: expense.name, type: 'item', values, isExpense: true, indent: 2 });
+    
+    // Regrouper les charges fixes par catégorie
+    const expensesByCategory = fixedExpenses.reduce((acc, expense) => {
+      const category = expense.category || 'other';
+      if (!acc[category]) acc[category] = [];
+      acc[category].push(expense);
+      return acc;
+    }, {} as Record<string, typeof fixedExpenses>);
+
+    // Ordre d'affichage des catégories (même ordre que FIXED_EXPENSE_CATEGORIES)
+    const categoryOrder = ['rent', 'insurance', 'software', 'telecom', 'marketing', 'utilities', 'professional_fees', 'banking', 'travel', 'office', 'other'];
+    
+    categoryOrder.forEach(category => {
+      const expenses = expensesByCategory[category];
+      if (!expenses || expenses.length === 0) return;
+      
+      const categoryLabel = FIXED_EXPENSE_CATEGORIES[category as keyof typeof FIXED_EXPENSE_CATEGORIES]?.label || category;
+      const values = calculateYearlyValues(month => 
+        expenses.reduce((sum, e) => sum + getFixedExpenseForMonth(e, month), 0)
+      );
+      rows.push({ label: categoryLabel, type: 'item', values, isExpense: true, indent: 2 });
     });
 
     const fixedExpenseValues = calculateYearlyValues(month => 
