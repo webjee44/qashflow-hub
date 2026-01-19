@@ -16,7 +16,6 @@ export interface BPFixedExpense {
   id: string;
   user_id: string;
   company_id: string | null;
-  business_plan_id: string | null;
   name: string;
   category: FixedExpenseCategory;
   monthly_amount: number;
@@ -35,7 +34,7 @@ export interface BPFixedExpense {
 export { FIXED_EXPENSE_CATEGORIES, PAYMENT_FREQUENCIES, DEFAULT_PAYMENT_MONTHS };
 export type { FixedExpenseCategory, PaymentFrequency };
 
-export function useBPFixedExpenses(businessPlanId?: string) {
+export function useBPFixedExpenses() {
   const { user } = useAuth();
   const { currentCompany } = useCompany();
   const queryClient = useQueryClient();
@@ -70,7 +69,6 @@ export function useBPFixedExpenses(businessPlanId?: string) {
         .insert({
           user_id: user.id,
           company_id: companyId,
-          business_plan_id: businessPlanId || null,
           name: data.name || 'Nouvelle charge',
           category: data.category || 'other',
           monthly_amount: data.monthly_amount || 0,

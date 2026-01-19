@@ -111,9 +111,9 @@ interface BulkExpenseRow {
 }
 
 export default function Expenses() {
-  const { currentPlan, isLoading: isLoadingBP } = useCurrentBusinessPlan();
+  const { isLoading: isLoadingBP } = useCurrentBusinessPlan();
   
-  const { expenses, createExpense, updateExpense } = useBPFixedExpenses(currentPlan?.id);
+  const { expenses, createExpense, updateExpense } = useBPFixedExpenses();
 
   const [expenseDialogOpen, setExpenseDialogOpen] = useState(false);
   const [selectedExpense, setSelectedExpense] = useState<BPFixedExpense | null>(null);
@@ -314,7 +314,7 @@ export default function Expenses() {
                     </div>
                   </div>
                 ) : (
-                  <FixedExpenseTable onEdit={handleEditExpense} businessPlanId={currentPlan?.id} />
+                  <FixedExpenseTable onEdit={handleEditExpense} />
                 )}
               </CardContent>
             </Card>

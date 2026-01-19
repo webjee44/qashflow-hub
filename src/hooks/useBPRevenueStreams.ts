@@ -9,7 +9,6 @@ export interface BPRevenueStream {
   id: string;
   user_id: string;
   company_id: string | null;
-  business_plan_id: string | null;
   name: string;
   description: string | null;
   color: string;
@@ -29,7 +28,7 @@ export interface BPRevenueStream {
   updated_at: string;
 }
 
-export function useBPRevenueStreams(businessPlanId?: string) {
+export function useBPRevenueStreams() {
   const { user } = useAuth();
   const { currentCompany } = useCompany();
   const queryClient = useQueryClient();
@@ -62,7 +61,6 @@ export function useBPRevenueStreams(businessPlanId?: string) {
         .insert({
           user_id: user.id,
           company_id: companyId,
-          business_plan_id: businessPlanId || null,
           name: data.name || 'Nouveau flux',
           description: data.description || null,
           color: data.color || 'hsl(142, 76%, 36%)',

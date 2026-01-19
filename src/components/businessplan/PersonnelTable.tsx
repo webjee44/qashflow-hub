@@ -10,14 +10,13 @@ import { BPBonus, BONUS_TYPES } from '@/services/bonusService';
 
 interface PersonnelTableProps {
   onEdit: (personnel: BPPersonnel) => void;
-  businessPlanId?: string;
   bonuses?: BPBonus[];
   onEditBonus?: (bonus: BPBonus) => void;
   onDeleteBonus?: (bonusId: string) => void;
 }
 
-export function PersonnelTable({ onEdit, businessPlanId, bonuses = [], onEditBonus, onDeleteBonus }: PersonnelTableProps) {
-  const { employees, deletePersonnel, getEmployeeMonthlyCost, totalEmployeeCost, isLoading } = useBPPersonnel(businessPlanId);
+export function PersonnelTable({ onEdit, bonuses = [], onEditBonus, onDeleteBonus }: PersonnelTableProps) {
+  const { employees, deletePersonnel, getEmployeeMonthlyCost, totalEmployeeCost, isLoading } = useBPPersonnel();
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('fr-FR', {

@@ -9,7 +9,6 @@ export interface BPInvestment {
   id: string;
   user_id: string;
   company_id: string | null;
-  business_plan_id: string | null;
   name: string;
   category: string;
   purchase_date: string;
@@ -31,7 +30,7 @@ export const INVESTMENT_CATEGORIES = {
   other: { label: 'Autres', icon: 'MoreHorizontal' },
 };
 
-export function useBPInvestments(businessPlanId?: string) {
+export function useBPInvestments() {
   const { user } = useAuth();
   const { currentCompany } = useCompany();
   const queryClient = useQueryClient();
@@ -63,7 +62,6 @@ export function useBPInvestments(businessPlanId?: string) {
         .insert({
           user_id: user.id,
           company_id: companyId,
-          business_plan_id: businessPlanId || null,
           name: data.name || 'Nouvel investissement',
           category: data.category || 'equipment',
           purchase_date: data.purchase_date || format(new Date(), 'yyyy-MM-dd'),

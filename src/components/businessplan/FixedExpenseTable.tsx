@@ -9,7 +9,6 @@ import { fr } from 'date-fns/locale';
 
 interface FixedExpenseTableProps {
   onEdit: (expense: BPFixedExpense) => void;
-  businessPlanId?: string;
 }
 
 const ICONS: Record<string, React.ReactNode> = {
@@ -24,8 +23,8 @@ const ICONS: Record<string, React.ReactNode> = {
 
 const MONTH_NAMES = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
 
-export function FixedExpenseTable({ onEdit, businessPlanId }: FixedExpenseTableProps) {
-  const { expenses, deleteExpense, isLoading, getMonthlyAmount, totalMonthlyExpenses } = useBPFixedExpenses(businessPlanId);
+export function FixedExpenseTable({ onEdit }: FixedExpenseTableProps) {
+  const { expenses, deleteExpense, isLoading, getMonthlyAmount, totalMonthlyExpenses } = useBPFixedExpenses();
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('fr-FR', {
