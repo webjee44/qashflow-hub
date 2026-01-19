@@ -107,8 +107,9 @@ export function RevenueTable({ onEditStream }: RevenueTableProps) {
       }
       await Promise.all(promises);
     } else if (mode === 'growth') {
-      // Save with progressive growth
-      const growth = parseFloat(growthPercent) || 0;
+      // Save with progressive growth - handle comma as decimal separator
+      const normalizedGrowth = growthPercent.replace(',', '.');
+      const growth = parseFloat(normalizedGrowth) || 0;
       let currentValue = amount;
       const promises = [];
       for (let i = monthIndex; i < year1Months.length; i++) {
@@ -391,11 +392,17 @@ export function RevenueTable({ onEditStream }: RevenueTableProps) {
                                   <TrendingUp className="w-4 h-4 text-success flex-shrink-0" />
                                   <span className="text-sm">+</span>
                                   <Input
-                                    type="number"
+                                    type="text"
+                                    inputMode="decimal"
                                     value={growthPercent}
-                                    onChange={(e) => setGrowthPercent(e.target.value)}
+                                    onChange={(e) => {
+                                      // Allow digits, comma, and period
+                                      const value = e.target.value.replace(/[^0-9,.-]/g, '');
+                                      setGrowthPercent(value);
+                                    }}
                                     className="w-16 h-7 text-center"
                                     autoFocus
+                                    placeholder="5"
                                     onKeyDown={(e) => {
                                       if (e.key === 'Enter') {
                                         e.preventDefault();
