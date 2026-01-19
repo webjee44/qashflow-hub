@@ -13,7 +13,7 @@ import { PageHeader } from '@/components/layout/PageHeader';
 
 export default function RevenueAssumptions() {
   const { currentPlan, isLoading: isLoadingBP } = useCurrentBusinessPlan();
-  const { streams, createStream, updateStream, isLoading } = useBPRevenueStreams(currentPlan?.id);
+  const { streams, createStream, updateStream, isLoading } = useBPRevenueStreams();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingStream, setEditingStream] = useState<BPRevenueStream | null>(null);
 

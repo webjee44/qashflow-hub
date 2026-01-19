@@ -11,10 +11,6 @@ import { useBPInvestments } from '@/hooks/useBPInvestments';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { format } from 'date-fns';
 
-interface BPWizardStep5FundingProps {
-  businessPlanId?: string;
-}
-
 const FINANCING_TYPES = {
   capital: { label: 'Capital', icon: PiggyBank, color: 'text-primary' },
   loan: { label: 'Emprunt bancaire', icon: Landmark, color: 'text-blue-600' },
@@ -22,7 +18,7 @@ const FINANCING_TYPES = {
   current_account: { label: 'Compte courant', icon: Wallet, color: 'text-green-600' },
 };
 
-export function BPWizardStep5Funding({ businessPlanId }: BPWizardStep5FundingProps) {
+export function BPWizardStep5Funding() {
   const { 
     financings, 
     isLoading, 
@@ -33,9 +29,9 @@ export function BPWizardStep5Funding({ businessPlanId }: BPWizardStep5FundingPro
     totalLoans,
     totalGrants,
     totalFunding 
-  } = useBPFinancings(businessPlanId);
+  } = useBPFinancings();
   
-  const { totalInvestments } = useBPInvestments(businessPlanId);
+  const { totalInvestments } = useBPInvestments();
   
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingFinancing, setEditingFinancing] = useState<BPFinancing | null>(null);
@@ -48,13 +44,6 @@ export function BPWizardStep5Funding({ businessPlanId }: BPWizardStep5FundingPro
     start_date: format(new Date(), 'yyyy-MM-dd'),
   });
 
-  if (!businessPlanId) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <p className="text-muted-foreground">Veuillez d'abord créer le business plan dans l'onglet Paramètres.</p>
-      </div>
-    );
-  }
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(amount);

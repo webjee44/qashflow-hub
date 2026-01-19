@@ -9,17 +9,13 @@ import { Plus, TrendingUp, Pencil, Trash2, Loader2 } from 'lucide-react';
 import { useBPRevenueStreams, BPRevenueStream } from '@/hooks/useBPRevenueStreams';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
-interface BPWizardStep2RevenueProps {
-  businessPlanId?: string;
-}
-
 const REVENUE_MODELS = {
   variable: { label: 'CA variable', description: 'Saisie mensuelle manuelle' },
   subscription: { label: 'Abonnement / SaaS', description: 'Modèle avec croissance et churn' },
 };
 
-export function BPWizardStep2Revenue({ businessPlanId }: BPWizardStep2RevenueProps) {
-  const { streams, isLoading, createStream, updateStream, deleteStream, totalMonthlyRevenue } = useBPRevenueStreams(businessPlanId);
+export function BPWizardStep2Revenue() {
+  const { streams, isLoading, createStream, updateStream, deleteStream, totalMonthlyRevenue } = useBPRevenueStreams();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingStream, setEditingStream] = useState<BPRevenueStream | null>(null);
   const [formData, setFormData] = useState({
@@ -30,14 +26,6 @@ export function BPWizardStep2Revenue({ businessPlanId }: BPWizardStep2RevenuePro
     growth_rate: 10,
     churn_rate: 5,
   });
-
-  if (!businessPlanId) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <p className="text-muted-foreground">Veuillez d'abord créer le business plan dans l'onglet Paramètres.</p>
-      </div>
-    );
-  }
 
   const handleOpenDialog = (stream?: BPRevenueStream) => {
     if (stream) {

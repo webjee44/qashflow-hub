@@ -31,11 +31,11 @@ interface BPWizardStep6SummaryProps {
 }
 
 export function BPWizardStep6Summary({ businessPlan, onFinalize, isLoading }: BPWizardStep6SummaryProps) {
-  const { streams, totalMonthlyRevenue } = useBPRevenueStreams(businessPlan?.id);
-  const { expenses, totalMonthlyExpenses } = useBPFixedExpenses(businessPlan?.id);
-  const { personnel, totalMonthlyCost: personnelCost } = useBPPersonnel(businessPlan?.id);
-  const { investments, totalInvestments } = useBPInvestments(businessPlan?.id);
-  const { financings, totalFunding } = useBPFinancings(businessPlan?.id);
+  const { streams, totalMonthlyRevenue } = useBPRevenueStreams();
+  const { expenses, totalMonthlyExpenses } = useBPFixedExpenses();
+  const { personnel, totalMonthlyCost: personnelCost } = useBPPersonnel();
+  const { investments, totalInvestments } = useBPInvestments();
+  const { financings, totalFunding } = useBPFinancings();
 
   if (!businessPlan) {
     return (

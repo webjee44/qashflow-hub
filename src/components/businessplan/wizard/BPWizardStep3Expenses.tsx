@@ -14,10 +14,6 @@ import { useBPPersonnel, BPPersonnel } from '@/hooks/useBPPersonnel';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { toast } from 'sonner';
 
-interface BPWizardStep3ExpensesProps {
-  businessPlanId?: string;
-}
-
 interface BulkExpenseRow {
   name: string;
   category: FixedExpenseCategory;
@@ -26,7 +22,7 @@ interface BulkExpenseRow {
 
 const emptyBulkRow = (): BulkExpenseRow => ({ name: '', category: 'other', monthly_amount: 0 });
 
-export function BPWizardStep3Expenses({ businessPlanId }: BPWizardStep3ExpensesProps) {
+export function BPWizardStep3Expenses() {
   const [activeTab, setActiveTab] = useState('fixed');
   const { 
     expenses, 
@@ -35,7 +31,7 @@ export function BPWizardStep3Expenses({ businessPlanId }: BPWizardStep3ExpensesP
     updateExpense, 
     deleteExpense, 
     totalMonthlyExpenses 
-  } = useBPFixedExpenses(businessPlanId);
+  } = useBPFixedExpenses();
   const { 
     personnel, 
     isLoading: personnelLoading, 
@@ -43,7 +39,7 @@ export function BPWizardStep3Expenses({ businessPlanId }: BPWizardStep3ExpensesP
     updatePersonnel, 
     deletePersonnel, 
     totalMonthlyCost: totalPersonnelCost 
-  } = useBPPersonnel(businessPlanId);
+  } = useBPPersonnel();
 
   const [expenseDialogOpen, setExpenseDialogOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState<BPFixedExpense | null>(null);
@@ -76,13 +72,6 @@ export function BPWizardStep3Expenses({ businessPlanId }: BPWizardStep3ExpensesP
     company_size: 'small',
   });
 
-  if (!businessPlanId) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <p className="text-muted-foreground">Veuillez d'abord créer le business plan dans l'onglet Paramètres.</p>
-      </div>
-    );
-  }
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(amount);

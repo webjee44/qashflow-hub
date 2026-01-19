@@ -157,23 +157,23 @@ export function BPWizardDialog({ open, onOpenChange, businessPlan, mode = 'creat
                 </TabsContent>
 
                 <TabsContent value="revenue" className="h-full m-0 p-6">
-                  <BPWizardStep2Revenue businessPlanId={currentBP?.id} />
+                  <BPWizardStep2Revenue />
                 </TabsContent>
 
                 <TabsContent value="expenses" className="h-full m-0 p-6">
-                  <BPWizardStep3Expenses businessPlanId={currentBP?.id} />
+                  <BPWizardStep3Expenses />
                 </TabsContent>
 
                 <TabsContent value="team" className="h-full m-0 p-6">
-                  <BPWizardStep4Team businessPlanId={currentBP?.id} />
+                  <BPWizardStep4Team />
                 </TabsContent>
 
                 <TabsContent value="investments" className="h-full m-0 p-6">
-                  <BPWizardStep5Investments businessPlanId={currentBP?.id} />
+                  <BPWizardStep5Investments />
                 </TabsContent>
 
                 <TabsContent value="funding" className="h-full m-0 p-6">
-                  <BPWizardStep6Funding businessPlanId={currentBP?.id} />
+                  <BPWizardStep6Funding />
                 </TabsContent>
 
                 <TabsContent value="summary" className="h-full m-0 p-6">

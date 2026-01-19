@@ -13,7 +13,6 @@ export interface BPPersonnel {
   id: string;
   user_id: string;
   company_id: string | null;
-  business_plan_id: string | null;
   position: string;
   gross_salary: number;
   employer_charges_rate: number;
