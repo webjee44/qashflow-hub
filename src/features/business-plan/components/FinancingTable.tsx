@@ -34,9 +34,11 @@ export function FinancingTable({ onEdit }: FinancingTableProps) {
   };
 
   const getRemainingMonths = (financing: Financing): number => {
-    const endDate = financing.end_date 
-      ? parseISO(financing.end_date) 
-      : addMonths(parseISO(financing.start_date), financing.duration_months);
+    const startDate = parseISO(financing.start_date);
+    const durationMonths = financing.duration_months || 0;
+    
+    // Calculate end date based on start + duration (ignore stored end_date which may be incorrect)
+    const endDate = addMonths(startDate, durationMonths);
     return Math.max(0, differenceInMonths(endDate, new Date()));
   };
 
