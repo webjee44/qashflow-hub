@@ -33,6 +33,7 @@ export interface PLData {
   rows: PLRow[];
   totals: {
     revenue: number[];
+    cogs: number[]; // Coût des ventes uniquement (impacte la marge brute)
     fixedExpenses: number[];
     variableExpenses: number[];
     personnelCosts: number[];
@@ -684,6 +685,7 @@ export function useProfitLoss() {
       rows,
       totals: {
         revenue: revenueValues,
+        cogs: cogsValues, // Coût des ventes uniquement (pour marge brute)
         fixedExpenses: fixedExpenseValues,
         variableExpenses: variableExpenseValues,
         personnelCosts: personnelValues,
