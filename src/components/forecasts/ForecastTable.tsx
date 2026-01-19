@@ -36,6 +36,7 @@ export function ForecastTable() {
   const [pendingSave, setPendingSave] = useState<{ categoryId: string; monthIndex: number; type: 'income' | 'expense' } | null>(null);
   const [growthPercent, setGrowthPercent] = useState<string>('5');
   const [showGrowthInput, setShowGrowthInput] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   
   // Collapsed groups state with localStorage persistence
@@ -97,46 +98,54 @@ export function ForecastTable() {
   };
 
   const handleSave = async (categoryId: string, monthIndex: number, mode: 'single' | 'copy' | 'growth' = 'single') => {
+    // Prevent duplicate saves
+    if (isSaving) return;
+    
+    setIsSaving(true);
     const value = parseFloat(editValue) || 0;
     
-    if (mode === 'copy') {
-      // Save to current month and all following months with same value
-      const promises = [];
-      for (let i = monthIndex; i < months.length; i++) {
-        promises.push(upsertForecast.mutateAsync({
+    try {
+      if (mode === 'copy') {
+        // Save to current month and all following months with same value
+        const promises = [];
+        for (let i = monthIndex; i < months.length; i++) {
+          promises.push(upsertForecast.mutateAsync({
+            categoryId,
+            month: months[i],
+            expectedAmount: value,
+          }));
+        }
+        await Promise.all(promises);
+      } else if (mode === 'growth') {
+        // Save with progressive growth - handle comma as decimal separator
+        const normalizedGrowth = growthPercent.replace(',', '.');
+        const growth = parseFloat(normalizedGrowth) || 0;
+        const promises = [];
+        let currentValue = value;
+        for (let i = monthIndex; i < months.length; i++) {
+          promises.push(upsertForecast.mutateAsync({
+            categoryId,
+            month: months[i],
+            expectedAmount: Math.round(currentValue),
+          }));
+          currentValue = currentValue * (1 + growth / 100);
+        }
+        await Promise.all(promises);
+      } else {
+        // Save only to current month
+        await upsertForecast.mutateAsync({
           categoryId,
-          month: months[i],
+          month: months[monthIndex],
           expectedAmount: value,
-        }));
+        });
       }
-      await Promise.all(promises);
-    } else if (mode === 'growth') {
-      // Save with progressive growth
-      const growth = parseFloat(growthPercent) || 0;
-      const promises = [];
-      let currentValue = value;
-      for (let i = monthIndex; i < months.length; i++) {
-        promises.push(upsertForecast.mutateAsync({
-          categoryId,
-          month: months[i],
-          expectedAmount: Math.round(currentValue),
-        }));
-        currentValue = currentValue * (1 + growth / 100);
-      }
-      await Promise.all(promises);
-    } else {
-      // Save only to current month
-      await upsertForecast.mutateAsync({
-        categoryId,
-        month: months[monthIndex],
-        expectedAmount: value,
-      });
+    } finally {
+      setEditingCell(null);
+      setShowCopyOption(false);
+      setPendingSave(null);
+      setShowGrowthInput(false);
+      setIsSaving(false);
     }
-    
-    setEditingCell(null);
-    setShowCopyOption(false);
-    setPendingSave(null);
-    setShowGrowthInput(false);
   };
 
   const handleInputBlur = (categoryId: string, monthIndex: number, type: 'income' | 'expense') => {
@@ -223,8 +232,9 @@ export function ForecastTable() {
           
           {/* Forecast (editable) */}
           <Popover open={showingCopyForThis} onOpenChange={(open) => {
-            if (!open && showingCopyForThis) {
-              // User clicked outside, save without copying
+            // Only trigger single save when user clicks outside (dismisses)
+            // Don't interfere when isSaving is true (button was clicked)
+            if (!open && showingCopyForThis && !isSaving) {
               handleSave(categoryId, monthIndex, 'single');
             }
           }}>
