@@ -853,6 +853,7 @@ export type Database = {
           is_pme: boolean | null
           projection_months: number | null
           show_financing: boolean | null
+          show_funding_plan: boolean | null
           show_stocks: boolean | null
           supplier_payment_delay: number | null
           tax_regime: string | null
@@ -872,6 +873,7 @@ export type Database = {
           is_pme?: boolean | null
           projection_months?: number | null
           show_financing?: boolean | null
+          show_funding_plan?: boolean | null
           show_stocks?: boolean | null
           supplier_payment_delay?: number | null
           tax_regime?: string | null
@@ -891,6 +893,7 @@ export type Database = {
           is_pme?: boolean | null
           projection_months?: number | null
           show_financing?: boolean | null
+          show_funding_plan?: boolean | null
           show_stocks?: boolean | null
           supplier_payment_delay?: number | null
           tax_regime?: string | null
