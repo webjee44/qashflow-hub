@@ -1,13 +1,13 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { motion } from 'framer-motion';
 import { format, addMonths, startOfMonth, setMonth, setDate, setYear, getYear, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { Trash2, Edit, TrendingUp, Info } from 'lucide-react';
+import { Trash2, Edit, TrendingUp, Info, Copy, Check } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useRevenueStreams, RevenueStream } from '@/hooks/useRevenueStreams';
 import { useBPSettings } from '@/hooks/useBPSettings';
 import { cn } from '@/lib/utils';
@@ -24,6 +24,12 @@ export function RevenueTable({ onEditStream }: RevenueTableProps) {
   const [editingName, setEditingName] = useState<string | null>(null);
   const [nameValue, setNameValue] = useState('');
   const nameInputRef = useRef<HTMLInputElement>(null);
+  
+  // Copy option states
+  const [showCopyOption, setShowCopyOption] = useState(false);
+  const [pendingSave, setPendingSave] = useState<{ streamId: string; monthIndex: number; value: number } | null>(null);
+  const [growthPercent, setGrowthPercent] = useState<string>('5');
+  const [showGrowthInput, setShowGrowthInput] = useState(false);
 
   // Calculate fiscal years based on settings
   const fiscalYears = useMemo(() => {
@@ -82,25 +88,85 @@ export function RevenueTable({ onEditStream }: RevenueTableProps) {
     setInputValue(currentValue === 0 ? '' : currentValue.toString());
   };
 
-  const handleSave = async () => {
-    if (!editingCell) return;
+  const handleSave = async (mode: 'single' | 'copy' | 'growth' = 'single') => {
+    const target = pendingSave || (editingCell ? { ...editingCell, value: parseFloat(inputValue) || 0 } : null);
+    if (!target) return;
 
-    const amount = parseFloat(inputValue) || 0;
-    await upsertForecast.mutateAsync({
-      streamId: editingCell.streamId,
-      month: year1Months[editingCell.monthIndex],
-      amount,
-    });
+    const { streamId, monthIndex, value } = target;
+    const amount = pendingSave ? value : (parseFloat(inputValue) || 0);
 
+    if (mode === 'copy') {
+      // Save same value for all remaining months of the year
+      const promises = [];
+      for (let i = monthIndex; i < year1Months.length; i++) {
+        promises.push(upsertForecast.mutateAsync({
+          streamId,
+          month: year1Months[i],
+          amount,
+        }));
+      }
+      await Promise.all(promises);
+    } else if (mode === 'growth') {
+      // Save with progressive growth
+      const growth = parseFloat(growthPercent) || 0;
+      let currentValue = amount;
+      const promises = [];
+      for (let i = monthIndex; i < year1Months.length; i++) {
+        promises.push(upsertForecast.mutateAsync({
+          streamId,
+          month: year1Months[i],
+          amount: Math.round(currentValue),
+        }));
+        currentValue = currentValue * (1 + growth / 100);
+      }
+      await Promise.all(promises);
+    } else {
+      // Single save
+      await upsertForecast.mutateAsync({
+        streamId,
+        month: year1Months[monthIndex],
+        amount,
+      });
+    }
+
+    // Reset states
     setEditingCell(null);
+    setPendingSave(null);
+    setShowCopyOption(false);
+    setShowGrowthInput(false);
     setInputValue('');
+    setGrowthPercent('5');
+  };
+
+  const handleInputBlur = () => {
+    if (!editingCell) return;
+    const amount = parseFloat(inputValue) || 0;
+    
+    // Show popover only if there are remaining months after this one
+    if (editingCell.monthIndex < year1Months.length - 1 && amount > 0) {
+      setPendingSave({ ...editingCell, value: amount });
+      setShowCopyOption(true);
+      setShowGrowthInput(false);
+    } else {
+      handleSave('single');
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
-      handleSave();
+      e.preventDefault();
+      const amount = parseFloat(inputValue) || 0;
+      if (editingCell && editingCell.monthIndex < year1Months.length - 1 && amount > 0) {
+        setPendingSave({ ...editingCell, value: amount });
+        setShowCopyOption(true);
+        setShowGrowthInput(false);
+      } else {
+        handleSave('single');
+      }
     } else if (e.key === 'Escape') {
       setEditingCell(null);
+      setPendingSave(null);
+      setShowCopyOption(false);
       setInputValue('');
     }
   };
@@ -247,32 +313,104 @@ export function RevenueTable({ onEditStream }: RevenueTableProps) {
                   {year1Months.map((month, monthIndex) => {
                     const value = getForecast(stream.id, month);
                     const isEditing = editingCell?.streamId === stream.id && editingCell?.monthIndex === monthIndex;
+                    const showPopover = showCopyOption && pendingSave?.streamId === stream.id && pendingSave?.monthIndex === monthIndex;
 
                     return (
                       <TableCell key={monthIndex} className="text-center p-1">
-                        {isEditing ? (
-                          <Input
-                            type="number"
-                            value={inputValue}
-                            onChange={(e) => setInputValue(e.target.value)}
-                            onBlur={handleSave}
-                            onKeyDown={handleKeyDown}
-                            autoFocus
-                            className="w-full h-8 text-center text-sm"
-                          />
-                        ) : (
-                          <button
-                            onClick={() => handleCellClick(stream.id, monthIndex, value)}
-                            className={cn(
-                              "w-full h-8 px-2 rounded text-sm transition-colors",
-                              value > 0 
-                                ? "bg-success/10 text-success hover:bg-success/20" 
-                                : "text-muted-foreground hover:bg-muted"
-                            )}
-                          >
-                            {value > 0 ? formatCurrency(value) : '-'}
-                          </button>
-                        )}
+                        <Popover 
+                          open={showPopover}
+                          onOpenChange={(open) => {
+                            if (!open && showPopover) {
+                              handleSave('single');
+                            }
+                          }}
+                        >
+                          <PopoverTrigger asChild>
+                            <div>
+                              {isEditing ? (
+                                <Input
+                                  type="number"
+                                  value={inputValue}
+                                  onChange={(e) => setInputValue(e.target.value)}
+                                  onBlur={handleInputBlur}
+                                  onKeyDown={handleKeyDown}
+                                  autoFocus
+                                  className="w-full h-8 text-center text-sm"
+                                />
+                              ) : (
+                                <button
+                                  onClick={() => handleCellClick(stream.id, monthIndex, value)}
+                                  className={cn(
+                                    "w-full h-8 px-2 rounded text-sm transition-colors",
+                                    value > 0 
+                                      ? "bg-success/10 text-success hover:bg-success/20" 
+                                      : "text-muted-foreground hover:bg-muted"
+                                  )}
+                                >
+                                  {value > 0 ? formatCurrency(value) : '-'}
+                                </button>
+                              )}
+                            </div>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-72 p-2" side="bottom" align="center">
+                            <div className="flex flex-col gap-1">
+                              <div className="text-xs text-muted-foreground px-2 py-1 border-b mb-1">
+                                Valeur: <strong>{formatCurrency(pendingSave?.value || 0)}</strong>
+                              </div>
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="justify-start gap-2" 
+                                onClick={() => handleSave('single')}
+                              >
+                                <Check className="w-4 h-4" />
+                                Ce mois uniquement
+                              </Button>
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="justify-start gap-2 text-primary" 
+                                onClick={() => handleSave('copy')}
+                              >
+                                <Copy className="w-4 h-4" />
+                                Copier sur les mois suivants ({year1Months.length - monthIndex - 1} mois)
+                              </Button>
+                              {!showGrowthInput ? (
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  className="justify-start gap-2 text-success" 
+                                  onClick={() => setShowGrowthInput(true)}
+                                >
+                                  <TrendingUp className="w-4 h-4" />
+                                  Copier + augmenter par mois
+                                </Button>
+                              ) : (
+                                <div className="flex items-center gap-2 px-2 py-1.5 bg-muted/50 rounded">
+                                  <TrendingUp className="w-4 h-4 text-success flex-shrink-0" />
+                                  <span className="text-sm">+</span>
+                                  <Input
+                                    type="number"
+                                    value={growthPercent}
+                                    onChange={(e) => setGrowthPercent(e.target.value)}
+                                    className="w-16 h-7 text-center"
+                                    autoFocus
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        handleSave('growth');
+                                      }
+                                    }}
+                                  />
+                                  <span className="text-sm">% / mois</span>
+                                  <Button size="sm" className="h-7 px-2" onClick={() => handleSave('growth')}>
+                                    OK
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
+                          </PopoverContent>
+                        </Popover>
                       </TableCell>
                     );
                   })}
