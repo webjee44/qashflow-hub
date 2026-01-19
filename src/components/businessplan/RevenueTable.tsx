@@ -91,54 +91,66 @@ export function RevenueTable({ onEditStream }: RevenueTableProps) {
     setPendingSave(null);
   };
 
+  // Track if we're currently saving to prevent double execution
+  const [isSaving, setIsSaving] = useState(false);
+
   const handleSave = async (mode: 'single' | 'copy' | 'growth' = 'single') => {
+    // Prevent duplicate saves
+    if (isSaving) return;
+
     const target = pendingSave || (editingCell ? { ...editingCell, value: parseFloat(inputValue) || 0 } : null);
     if (!target) return;
+
+    setIsSaving(true);
 
     const { streamId, monthIndex, value } = target;
     const amount = pendingSave ? value : (parseFloat(inputValue) || 0);
 
-    if (mode === 'copy') {
-      // Save same value for all remaining months of the year
-      const promises = [];
-      for (let i = monthIndex; i < year1Months.length; i++) {
-        promises.push(upsertForecast.mutateAsync({
+    try {
+      if (mode === 'copy') {
+        // Save same value for all remaining months of the year
+        const promises = [];
+        for (let i = monthIndex; i < year1Months.length; i++) {
+          promises.push(upsertForecast.mutateAsync({
+            streamId,
+            month: year1Months[i],
+            amount,
+          }));
+        }
+        await Promise.all(promises);
+      } else if (mode === 'growth') {
+        // Save with progressive growth - handle comma as decimal separator
+        const normalizedGrowth = growthPercent.replace(',', '.');
+        const growth = parseFloat(normalizedGrowth) || 0;
+        let currentValue = amount;
+        const promises = [];
+        for (let i = monthIndex; i < year1Months.length; i++) {
+          promises.push(upsertForecast.mutateAsync({
+            streamId,
+            month: year1Months[i],
+            amount: Math.round(currentValue),
+          }));
+          currentValue = currentValue * (1 + growth / 100);
+        }
+        await Promise.all(promises);
+      } else {
+        // Single save
+        await upsertForecast.mutateAsync({
           streamId,
-          month: year1Months[i],
+          month: year1Months[monthIndex],
           amount,
-        }));
+        });
       }
-      await Promise.all(promises);
-    } else if (mode === 'growth') {
-      // Save with progressive growth
-      const growth = parseFloat(growthPercent) || 0;
-      let currentValue = amount;
-      const promises = [];
-      for (let i = monthIndex; i < year1Months.length; i++) {
-        promises.push(upsertForecast.mutateAsync({
-          streamId,
-          month: year1Months[i],
-          amount: Math.round(currentValue),
-        }));
-        currentValue = currentValue * (1 + growth / 100);
-      }
-      await Promise.all(promises);
-    } else {
-      // Single save
-      await upsertForecast.mutateAsync({
-        streamId,
-        month: year1Months[monthIndex],
-        amount,
-      });
+    } finally {
+      // Reset states
+      setEditingCell(null);
+      setPendingSave(null);
+      setShowCopyOption(false);
+      setShowGrowthInput(false);
+      setInputValue('');
+      setGrowthPercent('5');
+      setIsSaving(false);
     }
-
-    // Reset states
-    setEditingCell(null);
-    setPendingSave(null);
-    setShowCopyOption(false);
-    setShowGrowthInput(false);
-    setInputValue('');
-    setGrowthPercent('5');
   };
 
   const handleInputBlur = (streamId: string, monthIndex: number) => {
@@ -322,7 +334,9 @@ export function RevenueTable({ onEditStream }: RevenueTableProps) {
                         <Popover 
                           open={showPopover}
                           onOpenChange={(open) => {
-                            if (!open && showPopover) {
+                            // Only trigger single save when user clicks outside (dismisses)
+                            // Don't interfere when isSaving is true (button was clicked)
+                            if (!open && showPopover && !isSaving) {
                               handleSave('single');
                             }
                           }}
