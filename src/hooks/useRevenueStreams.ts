@@ -228,9 +228,17 @@ export function useRevenueStreams() {
     const stream = streams.find(s => s.id === streamId);
     if (!stream) return 0;
 
-    // For subscription model, calculate MRR automatically from BP start date
+    const monthStr = format(startOfMonth(month), 'yyyy-MM-dd');
+    const manualForecast = forecasts.find(f => f.stream_id === streamId && f.month === monthStr);
+
+    // PRIORITY: Always use manual forecast if it exists (for ALL models)
+    if (manualForecast && manualForecast.amount != null && manualForecast.amount > 0) {
+      return manualForecast.amount;
+    }
+
+    // FALLBACK: For subscription model, calculate MRR automatically from BP start date
     if (stream.model === 'subscription') {
-      const startMonth = bpStartDate; // Use BP start date, not current date
+      const startMonth = bpStartDate;
       const targetMonth = startOfMonth(month);
       const monthsDiff = Math.round((targetMonth.getTime() - startMonth.getTime()) / (1000 * 60 * 60 * 24 * 30));
       
@@ -241,10 +249,8 @@ export function useRevenueStreams() {
       return subscribers * (stream.monthly_price || 0);
     }
 
-    // For variable model, use stored forecast (manual entry)
-    const monthStr = format(startOfMonth(month), 'yyyy-MM-dd');
-    const forecast = forecasts.find(f => f.stream_id === streamId && f.month === monthStr);
-    return forecast?.amount || 0;
+    // For variable model with no manual entry, return 0
+    return 0;
   };
 
   // Helper: get total revenue for a month
