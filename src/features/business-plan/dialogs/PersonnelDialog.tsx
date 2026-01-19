@@ -19,6 +19,7 @@ import {
 } from '@/lib/french-rates';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useBPSettings } from '@/features/business-plan/hooks/useBPSettings';
 
 interface PayslipImportData {
   gross_salary_monthly: number;
@@ -44,12 +45,26 @@ interface PersonnelDialogProps {
 }
 
 export function PersonnelDialog({ open, onOpenChange, personnel, onSave, defaultWorkerType = 'employee' }: PersonnelDialogProps) {
+  const { settings } = useBPSettings();
+  
+  const getDefaultStartDate = () => {
+    if (settings.bp_start_date) return settings.bp_start_date;
+    const now = new Date();
+    const fiscalMonth = settings.fiscal_year_start_month || 1;
+    const fiscalDay = settings.fiscal_year_start_day || 1;
+    let fiscalYearStart = new Date(now.getFullYear(), fiscalMonth - 1, fiscalDay);
+    if (fiscalYearStart > now) {
+      fiscalYearStart = new Date(now.getFullYear() - 1, fiscalMonth - 1, fiscalDay);
+    }
+    return format(fiscalYearStart, 'yyyy-MM-dd');
+  };
+
   const [workerType, setWorkerType] = useState<WorkerType>(defaultWorkerType);
   const [position, setPosition] = useState('');
   const [grossSalary, setGrossSalary] = useState('');
   const [dailyRate, setDailyRate] = useState('');
   const [estimatedDays, setEstimatedDays] = useState('');
-  const [startDate, setStartDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [startDate, setStartDate] = useState(getDefaultStartDate());
   const [endDate, setEndDate] = useState('');
   const [notes, setNotes] = useState('');
   const [contractType, setContractType] = useState('cdi');
@@ -89,7 +104,7 @@ export function PersonnelDialog({ open, onOpenChange, personnel, onSave, default
       setGrossSalary('');
       setDailyRate('');
       setEstimatedDays('20');
-      setStartDate(format(new Date(), 'yyyy-MM-dd'));
+      setStartDate(getDefaultStartDate());
       setEndDate('');
       setNotes('');
       setContractType(defaultWorkerType === 'freelance' ? 'freelance' : 'cdi');
@@ -100,7 +115,7 @@ export function PersonnelDialog({ open, onOpenChange, personnel, onSave, default
       setCustomAtMpRate(null);
       setCustomChargesRate(null);
     }
-  }, [personnel, open, defaultWorkerType]);
+  }, [personnel, open, defaultWorkerType, settings.bp_start_date, settings.fiscal_year_start_month, settings.fiscal_year_start_day]);
 
   const isFreelance = workerType === 'freelance';
   
