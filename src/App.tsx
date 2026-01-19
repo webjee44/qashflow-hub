@@ -68,7 +68,16 @@ const SuperAdminOrganizationDetail = lazy(() => import("./pages/SuperAdmin/Organ
 const SuperAdminSubscriptions = lazy(() => import("./pages/SuperAdmin/Subscriptions"));
 const SuperAdminAnalytics = lazy(() => import("./pages/SuperAdmin/Analytics"));
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5, // 5 minutes - données considérées fraîches
+      gcTime: 1000 * 60 * 30,   // 30 minutes en cache (anciennement cacheTime)
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+  },
+});
 
 const App = () => (
 <QueryClientProvider client={queryClient}>

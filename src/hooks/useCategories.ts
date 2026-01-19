@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { useCompany } from './useCompany';
@@ -35,39 +35,38 @@ const defaultCategories = [
   { name: 'Logiciels', color: 'hsl(221, 83%, 53%)', icon: 'Laptop', type: 'expense' as const, vat_rate: 0.20 },
 ];
 
+// Fetch function for categories
+async function fetchCategories(userId: string, companyId?: string | null): Promise<Category[]> {
+  let query = supabase
+    .from('categories')
+    .select('*')
+    .eq('user_id', userId)
+    .order('type', { ascending: true })
+    .order('name', { ascending: true });
+
+  if (companyId) {
+    query = query.or(`company_id.eq.${companyId},company_id.is.null`);
+  }
+
+  const { data, error } = await query;
+  if (error) throw error;
+  return data || [];
+}
+
 export function useCategories() {
   const { user } = useAuth();
   const { currentCompany } = useCompany();
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
 
-  const fetchCategories = async () => {
-    if (!user) return;
-    
-    try {
-      let query = supabase
-        .from('categories')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('type', { ascending: true })
-        .order('name', { ascending: true });
+  const queryKey = ['categories', user?.id, currentCompany?.id];
 
-      // Filter by company if one is selected
-      if (currentCompany) {
-        query = query.or(`company_id.eq.${currentCompany.id},company_id.is.null`);
-      }
-
-      const { data, error } = await query;
-
-      if (error) throw error;
-      setCategories(data || []);
-    } catch (error) {
-      logError('Error fetching categories:', error);
-      toast.error('Erreur lors du chargement des catégories');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Main query with React Query caching
+  const { data: categories = [], isLoading: loading, refetch } = useQuery({
+    queryKey,
+    queryFn: () => fetchCategories(user!.id, currentCompany?.id),
+    enabled: !!user,
+    staleTime: 1000 * 60 * 10, // 10 minutes cache for categories
+  });
 
   const initializeDefaultCategories = async () => {
     if (!user) return;
@@ -93,29 +92,24 @@ export function useCategories() {
 
       if (error) throw error;
       
-      await fetchCategories();
+      queryClient.invalidateQueries({ queryKey });
       toast.success('Catégories par défaut créées');
     } catch (error) {
       logError('Error initializing categories:', error);
     }
   };
 
-  useEffect(() => {
-    if (user) {
-      fetchCategories();
-    }
-  }, [user, currentCompany]);
-
-  const createCategory = async (category: {
-    name: string;
-    color: string;
-    icon: string;
-    type: 'income' | 'expense';
-    vat_rate?: number;
-  }) => {
-    if (!user) return null;
-
-    try {
+  // Create mutation
+  const createMutation = useMutation({
+    mutationFn: async (category: {
+      name: string;
+      color: string;
+      icon: string;
+      type: 'income' | 'expense';
+      vat_rate?: number;
+    }) => {
+      if (!user) throw new Error('User not authenticated');
+      
       const { data, error } = await supabase
         .from('categories')
         .insert({
@@ -128,19 +122,35 @@ export function useCategories() {
         .single();
 
       if (error) throw error;
-      
-      setCategories(prev => [...prev, data]);
-      toast.success('Catégorie créée avec succès');
       return data;
-    } catch (error) {
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey });
+      toast.success('Catégorie créée avec succès');
+    },
+    onError: (error) => {
       logError('Error creating category:', error);
       toast.error('Erreur lors de la création');
+    },
+  });
+
+  const createCategory = async (category: {
+    name: string;
+    color: string;
+    icon: string;
+    type: 'income' | 'expense';
+    vat_rate?: number;
+  }) => {
+    try {
+      return await createMutation.mutateAsync(category);
+    } catch {
       return null;
     }
   };
 
-  const updateCategory = async (id: string, updates: Partial<Category>) => {
-    try {
+  // Update mutation
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, updates }: { id: string; updates: Partial<Category> }) => {
       const { data, error } = await supabase
         .from('categories')
         .update(updates)
@@ -149,38 +159,58 @@ export function useCategories() {
         .single();
 
       if (error) throw error;
-      
-      setCategories(prev => prev.map(c => c.id === id ? data : c));
-      toast.success('Catégorie mise à jour');
       return data;
-    } catch (error) {
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey });
+      toast.success('Catégorie mise à jour');
+    },
+    onError: (error) => {
       logError('Error updating category:', error);
       toast.error('Erreur lors de la mise à jour');
+    },
+  });
+
+  const updateCategory = async (id: string, updates: Partial<Category>) => {
+    try {
+      return await updateMutation.mutateAsync({ id, updates });
+    } catch {
       return null;
     }
   };
 
-  const deleteCategory = async (id: string) => {
-    try {
+  // Delete mutation
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
       const { error } = await supabase
         .from('categories')
         .delete()
         .eq('id', id);
 
       if (error) throw error;
-      
-      setCategories(prev => prev.filter(c => c.id !== id));
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey });
       toast.success('Catégorie supprimée');
-    } catch (error) {
+    },
+    onError: (error) => {
       logError('Error deleting category:', error);
       toast.error('Erreur lors de la suppression');
+    },
+  });
+
+  const deleteCategory = async (id: string) => {
+    try {
+      await deleteMutation.mutateAsync(id);
+    } catch {
+      // Error handled in mutation
     }
   };
 
   const incomeCategories = categories.filter(c => c.type === 'income');
   const expenseCategories = categories.filter(c => c.type === 'expense');
 
-  // Get only parent/group categories (categories with no parent_id that have children)
+  // Get only parent/group categories
   const parentCategories = (type: 'income' | 'expense') => {
     const typeCats = type === 'income' ? incomeCategories : expenseCategories;
     const parentIds = new Set(typeCats.filter(c => c.parent_id).map(c => c.parent_id));
@@ -194,7 +224,6 @@ export function useCategories() {
     const childrenByParent = new Map<string, Category[]>();
     const topLevelCats: Category[] = [];
 
-    // First pass: identify children and their parents
     typeCats.forEach(cat => {
       if (cat.parent_id) {
         const existing = childrenByParent.get(cat.parent_id) || [];
@@ -203,24 +232,19 @@ export function useCategories() {
       }
     });
 
-    // Second pass: categorize
     typeCats.forEach(cat => {
       if (!cat.parent_id) {
-        // This is a top-level category
         if (childrenByParent.has(cat.id)) {
-          // It's a parent with children
           groups.push({
             group: cat,
             children: childrenByParent.get(cat.id)!.sort((a, b) => a.name.localeCompare(b.name))
           });
         } else {
-          // It's a standalone category
           topLevelCats.push(cat);
         }
       }
     });
 
-    // Add standalone categories as a "no group" section
     if (topLevelCats.length > 0) {
       groups.unshift({
         group: null,
@@ -228,24 +252,23 @@ export function useCategories() {
       });
     }
 
-    // Sort groups by name
     return groups.sort((a, b) => {
       if (!a.group) return -1;
       if (!b.group) return 1;
       return a.group.name.localeCompare(b.group.name);
     });
   };
-  // Create a group with selected categories
-  const createGroup = async (data: {
-    name: string;
-    color: string;
-    type: 'income' | 'expense';
-    categoryIds: string[];
-  }) => {
-    if (!user) return null;
 
-    try {
-      // 1. Create the group category
+  // Create group mutation
+  const createGroupMutation = useMutation({
+    mutationFn: async (data: {
+      name: string;
+      color: string;
+      type: 'income' | 'expense';
+      categoryIds: string[];
+    }) => {
+      if (!user) throw new Error('User not authenticated');
+
       const { data: groupData, error: groupError } = await supabase
         .from('categories')
         .insert({
@@ -263,7 +286,6 @@ export function useCategories() {
 
       if (groupError) throw groupError;
 
-      // 2. Update selected categories to belong to this group
       if (data.categoryIds.length > 0) {
         const { error: updateError } = await supabase
           .from('categories')
@@ -273,28 +295,45 @@ export function useCategories() {
         if (updateError) throw updateError;
       }
 
-      await fetchCategories();
-      toast.success('Groupe créé avec succès');
       return groupData;
-    } catch (error) {
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey });
+      toast.success('Groupe créé avec succès');
+    },
+    onError: (error) => {
       logError('Error creating group:', error);
       toast.error('Erreur lors de la création du groupe');
+    },
+  });
+
+  const createGroup = async (data: {
+    name: string;
+    color: string;
+    type: 'income' | 'expense';
+    categoryIds: string[];
+  }) => {
+    try {
+      return await createGroupMutation.mutateAsync(data);
+    } catch {
       return null;
     }
   };
 
-  // Update an existing group
-  const updateGroup = async (
-    groupId: string,
-    data: {
-      name: string;
-      color: string;
-      type: 'income' | 'expense';
-      categoryIds: string[];
-    }
-  ) => {
-    try {
-      // 1. Update the group itself
+  // Update group mutation
+  const updateGroupMutation = useMutation({
+    mutationFn: async ({
+      groupId,
+      data
+    }: {
+      groupId: string;
+      data: {
+        name: string;
+        color: string;
+        type: 'income' | 'expense';
+        categoryIds: string[];
+      };
+    }) => {
       const { error: groupError } = await supabase
         .from('categories')
         .update({
@@ -305,7 +344,6 @@ export function useCategories() {
 
       if (groupError) throw groupError;
 
-      // 2. Remove all categories from this group first
       const { error: removeError } = await supabase
         .from('categories')
         .update({ parent_id: null })
@@ -313,7 +351,6 @@ export function useCategories() {
 
       if (removeError) throw removeError;
 
-      // 3. Add selected categories to this group
       if (data.categoryIds.length > 0) {
         const { error: updateError } = await supabase
           .from('categories')
@@ -323,21 +360,38 @@ export function useCategories() {
         if (updateError) throw updateError;
       }
 
-      await fetchCategories();
-      toast.success('Groupe mis à jour');
       return true;
-    } catch (error) {
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey });
+      toast.success('Groupe mis à jour');
+    },
+    onError: (error) => {
       logError('Error updating group:', error);
       toast.error('Erreur lors de la mise à jour du groupe');
+    },
+  });
+
+  const updateGroup = async (
+    groupId: string,
+    data: {
+      name: string;
+      color: string;
+      type: 'income' | 'expense';
+      categoryIds: string[];
+    }
+  ) => {
+    try {
+      return await updateGroupMutation.mutateAsync({ groupId, data });
+    } catch {
       return null;
     }
   };
 
-  // Delete a group (optionally keeping or deleting children)
-  const deleteGroup = async (groupId: string, deleteChildren: boolean = false) => {
-    try {
+  // Delete group mutation
+  const deleteGroupMutation = useMutation({
+    mutationFn: async ({ groupId, deleteChildren }: { groupId: string; deleteChildren: boolean }) => {
       if (deleteChildren) {
-        // Delete all children first
         const { error: childError } = await supabase
           .from('categories')
           .delete()
@@ -345,7 +399,6 @@ export function useCategories() {
 
         if (childError) throw childError;
       } else {
-        // Unlink children (set parent_id to null)
         const { error: unlinkError } = await supabase
           .from('categories')
           .update({ parent_id: null })
@@ -354,23 +407,31 @@ export function useCategories() {
         if (unlinkError) throw unlinkError;
       }
 
-      // Delete the group
       const { error: groupError } = await supabase
         .from('categories')
         .delete()
         .eq('id', groupId);
 
       if (groupError) throw groupError;
-
-      await fetchCategories();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey });
       toast.success('Groupe supprimé');
-    } catch (error) {
+    },
+    onError: (error) => {
       logError('Error deleting group:', error);
       toast.error('Erreur lors de la suppression du groupe');
+    },
+  });
+
+  const deleteGroup = async (groupId: string, deleteChildren: boolean = false) => {
+    try {
+      await deleteGroupMutation.mutateAsync({ groupId, deleteChildren });
+    } catch {
+      // Error handled in mutation
     }
   };
 
-  // Check if a category is a group (has children)
   const isGroup = (categoryId: string) => {
     return categories.some(c => c.parent_id === categoryId);
   };
@@ -384,7 +445,7 @@ export function useCategories() {
     updateCategory,
     deleteCategory,
     initializeDefaultCategories,
-    refetch: fetchCategories,
+    refetch,
     getGroupedCategories,
     parentCategories,
     createGroup,
