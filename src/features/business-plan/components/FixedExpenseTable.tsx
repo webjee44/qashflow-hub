@@ -1,4 +1,4 @@
-import { Edit, Trash2, Building2, Shield, Laptop, Megaphone, Zap, MoreHorizontal, Briefcase, CalendarClock } from 'lucide-react';
+import { Edit, Trash2, Building2, Shield, Laptop, Megaphone, Zap, MoreHorizontal, Briefcase, CalendarClock, Copy } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -24,7 +24,15 @@ const ICONS: Record<string, React.ReactNode> = {
 const MONTH_NAMES = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
 
 export function FixedExpenseTable({ onEdit }: FixedExpenseTableProps) {
-  const { expenses, deleteExpense, isLoading, getMonthlyAmount, totalMonthlyExpenses } = useBPFixedExpenses();
+  const { expenses, deleteExpense, createExpense, isLoading, getMonthlyAmount, totalMonthlyExpenses } = useBPFixedExpenses();
+
+  const handleDuplicate = (expense: BPFixedExpense) => {
+    const { id, created_at, updated_at, user_id, company_id, ...expenseData } = expense;
+    createExpense.mutate({
+      ...expenseData,
+      name: `${expense.name} (copie)`,
+    });
+  };
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('fr-FR', {
@@ -122,6 +130,19 @@ export function FixedExpenseTable({ onEdit }: FixedExpenseTableProps) {
                 </TableCell>
                 <TableCell>
                   <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => handleDuplicate(expense)}
+                        >
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Dupliquer</TooltipContent>
+                    </Tooltip>
                     <Button
                       variant="ghost"
                       size="icon"
