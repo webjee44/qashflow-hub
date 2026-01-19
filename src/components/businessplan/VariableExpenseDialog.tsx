@@ -33,8 +33,11 @@ export function VariableExpenseDialog({ open, onOpenChange, expense }: VariableE
     category: 'cogs' as VariableExpenseCategory,
     calculation_type: 'percentage' as 'percentage' | 'per_unit',
     linked_revenue_stream_id: '' as string,
+    // Keep both the numeric value (for calculations/storage) and the raw text (for FR comma typing)
     percentage: 0,
+    percentage_text: '0',
     unit_cost: 0,
+    unit_cost_text: '0',
     vat_rate: 0.20,
     is_vat_deductible: true,
     start_date: new Date().toISOString().split('T')[0],
@@ -50,7 +53,9 @@ export function VariableExpenseDialog({ open, onOpenChange, expense }: VariableE
         calculation_type: expense.calculation_type,
         linked_revenue_stream_id: expense.linked_revenue_stream_id || '',
         percentage: expense.percentage,
+        percentage_text: String(expense.percentage ?? 0).replace('.', ','),
         unit_cost: expense.unit_cost,
+        unit_cost_text: String(expense.unit_cost ?? 0).replace('.', ','),
         vat_rate: expense.vat_rate,
         is_vat_deductible: expense.is_vat_deductible,
         start_date: expense.start_date,
@@ -64,7 +69,9 @@ export function VariableExpenseDialog({ open, onOpenChange, expense }: VariableE
         calculation_type: 'percentage',
         linked_revenue_stream_id: '',
         percentage: 0,
+        percentage_text: '0',
         unit_cost: 0,
+        unit_cost_text: '0',
         vat_rate: 0.20,
         is_vat_deductible: true,
         start_date: new Date().toISOString().split('T')[0],
@@ -190,15 +197,23 @@ export function VariableExpenseDialog({ open, onOpenChange, expense }: VariableE
                   id="percentage"
                   type="text"
                   inputMode="decimal"
-                  value={formData.percentage.toString().replace('.', ',')}
+                  value={formData.percentage_text}
                   onChange={(e) => {
-                    const value = e.target.value.replace(',', '.');
-                    const parsed = parseFloat(value);
-                    if (!isNaN(parsed) && parsed >= 0 && parsed <= 100) {
-                      setFormData({ ...formData, percentage: parsed });
-                    } else if (e.target.value === '' || e.target.value === '0' || e.target.value === '0,') {
-                      setFormData({ ...formData, percentage: 0 });
-                    }
+                    const raw = e.target.value;
+                    const cleaned = raw.replace(/[^\d,\.]/g, '').replace('.', ',');
+                    const parts = cleaned.split(',');
+                    const normalized = parts.length > 2 ? `${parts[0]},${parts.slice(1).join('')}` : cleaned;
+
+                    setFormData((prev) => {
+                      const next = { ...prev, percentage_text: normalized };
+                      const parsed = parseFloat(normalized.replace(',', '.'));
+                      if (normalized === '') {
+                        next.percentage = 0;
+                      } else if (!Number.isNaN(parsed) && parsed >= 0 && parsed <= 100) {
+                        next.percentage = parsed;
+                      }
+                      return next;
+                    });
                   }}
                   placeholder="Ex: 2,5"
                 />
@@ -210,15 +225,23 @@ export function VariableExpenseDialog({ open, onOpenChange, expense }: VariableE
                   id="unit_cost"
                   type="text"
                   inputMode="decimal"
-                  value={formData.unit_cost.toString().replace('.', ',')}
+                  value={formData.unit_cost_text}
                   onChange={(e) => {
-                    const value = e.target.value.replace(',', '.');
-                    const parsed = parseFloat(value);
-                    if (!isNaN(parsed) && parsed >= 0) {
-                      setFormData({ ...formData, unit_cost: parsed });
-                    } else if (e.target.value === '' || e.target.value === '0' || e.target.value === '0,') {
-                      setFormData({ ...formData, unit_cost: 0 });
-                    }
+                    const raw = e.target.value;
+                    const cleaned = raw.replace(/[^\d,\.]/g, '').replace('.', ',');
+                    const parts = cleaned.split(',');
+                    const normalized = parts.length > 2 ? `${parts[0]},${parts.slice(1).join('')}` : cleaned;
+
+                    setFormData((prev) => {
+                      const next = { ...prev, unit_cost_text: normalized };
+                      const parsed = parseFloat(normalized.replace(',', '.'));
+                      if (normalized === '') {
+                        next.unit_cost = 0;
+                      } else if (!Number.isNaN(parsed) && parsed >= 0) {
+                        next.unit_cost = parsed;
+                      }
+                      return next;
+                    });
                   }}
                   placeholder="Ex: 1,50"
                 />
