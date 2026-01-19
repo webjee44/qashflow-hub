@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
+import { useCompany } from './useCompany';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { getGlobalChargesRate } from '@/lib/french-rates';
@@ -48,23 +49,25 @@ export const CONTRACT_TYPES = {
 
 export function useBPPersonnel(businessPlanId?: string) {
   const { user } = useAuth();
+  const { currentCompany } = useCompany();
   const queryClient = useQueryClient();
+  const companyId = currentCompany?.id;
 
   const { data: personnel = [], isLoading } = useQuery({
-    queryKey: ['bp_personnel', businessPlanId],
+    queryKey: ['bp_personnel', companyId],
     queryFn: async () => {
-      if (!businessPlanId) return [];
+      if (!companyId) return [];
       
       const { data, error } = await supabase
         .from('bp_personnel')
         .select('*')
-        .eq('business_plan_id', businessPlanId)
+        .eq('company_id', companyId)
         .order('position', { ascending: true });
       
       if (error) throw error;
       return (data || []) as BPPersonnel[];
     },
-    enabled: !!user && !!businessPlanId,
+    enabled: !!user && !!companyId,
   });
 
   // Séparer salariés et freelances
@@ -73,7 +76,7 @@ export function useBPPersonnel(businessPlanId?: string) {
 
   const createPersonnel = useMutation({
     mutationFn: async (data: Partial<BPPersonnel>) => {
-      if (!user || !businessPlanId) throw new Error('Not authenticated or no BP');
+      if (!user || !companyId) throw new Error('Not authenticated or no company');
 
       const workerType = data.worker_type || 'employee';
       const isFreelance = workerType === 'freelance';
@@ -95,7 +98,8 @@ export function useBPPersonnel(businessPlanId?: string) {
         .from('bp_personnel')
         .insert({
           user_id: user.id,
-          business_plan_id: businessPlanId,
+          company_id: companyId,
+          business_plan_id: businessPlanId || null,
           position: data.position || 'Nouveau poste',
           gross_salary: isFreelance ? 0 : (data.gross_salary || 0),
           employer_charges_rate: finalChargesRate,
@@ -120,7 +124,7 @@ export function useBPPersonnel(businessPlanId?: string) {
       return newPerson;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['bp_personnel', businessPlanId] });
+      queryClient.invalidateQueries({ queryKey: ['bp_personnel', companyId] });
       toast.success('Membre ajouté');
     },
     onError: (error) => {
@@ -157,7 +161,7 @@ export function useBPPersonnel(businessPlanId?: string) {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['bp_personnel', businessPlanId] });
+      queryClient.invalidateQueries({ queryKey: ['bp_personnel', companyId] });
       toast.success('Membre mis à jour');
     },
     onError: (error) => {
@@ -175,7 +179,7 @@ export function useBPPersonnel(businessPlanId?: string) {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['bp_personnel', businessPlanId] });
+      queryClient.invalidateQueries({ queryKey: ['bp_personnel', companyId] });
       toast.success('Membre supprimé');
     },
     onError: (error) => {

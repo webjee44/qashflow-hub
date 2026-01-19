@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
+import { useCompany } from './useCompany';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import {
@@ -36,28 +37,30 @@ export type { FixedExpenseCategory, PaymentFrequency };
 
 export function useBPFixedExpenses(businessPlanId?: string) {
   const { user } = useAuth();
+  const { currentCompany } = useCompany();
   const queryClient = useQueryClient();
+  const companyId = currentCompany?.id;
 
   const { data: expenses = [], isLoading } = useQuery({
-    queryKey: ['bp_fixed_expenses', businessPlanId],
+    queryKey: ['bp_fixed_expenses', companyId],
     queryFn: async () => {
-      if (!businessPlanId) return [];
+      if (!companyId) return [];
       
       const { data, error } = await supabase
         .from('bp_fixed_expenses')
         .select('*')
-        .eq('business_plan_id', businessPlanId)
+        .eq('company_id', companyId)
         .order('category', { ascending: true });
       
       if (error) throw error;
       return (data || []) as BPFixedExpense[];
     },
-    enabled: !!user && !!businessPlanId,
+    enabled: !!user && !!companyId,
   });
 
   const createExpense = useMutation({
     mutationFn: async (data: Partial<BPFixedExpense>) => {
-      if (!user || !businessPlanId) throw new Error('Not authenticated or no BP');
+      if (!user || !companyId) throw new Error('Not authenticated or no company');
 
       const frequency = data.payment_frequency || 'monthly';
       const paymentMonths = data.payment_months || DEFAULT_PAYMENT_MONTHS[frequency];
@@ -66,7 +69,8 @@ export function useBPFixedExpenses(businessPlanId?: string) {
         .from('bp_fixed_expenses')
         .insert({
           user_id: user.id,
-          business_plan_id: businessPlanId,
+          company_id: companyId,
+          business_plan_id: businessPlanId || null,
           name: data.name || 'Nouvelle charge',
           category: data.category || 'other',
           monthly_amount: data.monthly_amount || 0,
@@ -85,7 +89,7 @@ export function useBPFixedExpenses(businessPlanId?: string) {
       return newExpense;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['bp_fixed_expenses', businessPlanId] });
+      queryClient.invalidateQueries({ queryKey: ['bp_fixed_expenses', companyId] });
       toast.success('Charge fixe créée');
     },
     onError: (error) => {
@@ -103,7 +107,7 @@ export function useBPFixedExpenses(businessPlanId?: string) {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['bp_fixed_expenses', businessPlanId] });
+      queryClient.invalidateQueries({ queryKey: ['bp_fixed_expenses', companyId] });
       toast.success('Charge fixe mise à jour');
     },
     onError: (error) => {
@@ -121,7 +125,7 @@ export function useBPFixedExpenses(businessPlanId?: string) {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['bp_fixed_expenses', businessPlanId] });
+      queryClient.invalidateQueries({ queryKey: ['bp_fixed_expenses', companyId] });
       toast.success('Charge fixe supprimée');
     },
     onError: (error) => {
