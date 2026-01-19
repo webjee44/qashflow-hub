@@ -16,6 +16,7 @@ export interface VariableExpense {
   unit_cost: number;
   vat_rate: number;
   is_vat_deductible: boolean;
+  is_cogs: boolean; // TRUE = Coût des ventes (impacte marge brute), FALSE = Charge d'exploitation
   start_date: string;
   end_date: string | null;
   notes: string | null;

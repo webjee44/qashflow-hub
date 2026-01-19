@@ -37,6 +37,7 @@ export function VariableExpenseDialog({ open, onOpenChange, expense }: VariableE
     unit_cost: 0,
     vat_rate: 0.20,
     is_vat_deductible: true,
+    is_cogs: true, // Par défaut = Coût des ventes (impacte la marge brute)
     start_date: new Date().toISOString().split('T')[0],
     end_date: '' as string,
     notes: '',
@@ -53,6 +54,7 @@ export function VariableExpenseDialog({ open, onOpenChange, expense }: VariableE
         unit_cost: expense.unit_cost,
         vat_rate: expense.vat_rate,
         is_vat_deductible: expense.is_vat_deductible,
+        is_cogs: expense.is_cogs ?? true,
         start_date: expense.start_date,
         end_date: expense.end_date || '',
         notes: expense.notes || '',
@@ -67,6 +69,7 @@ export function VariableExpenseDialog({ open, onOpenChange, expense }: VariableE
         unit_cost: 0,
         vat_rate: 0.20,
         is_vat_deductible: true,
+        is_cogs: true,
         start_date: new Date().toISOString().split('T')[0],
         end_date: '',
         notes: '',
@@ -86,6 +89,7 @@ export function VariableExpenseDialog({ open, onOpenChange, expense }: VariableE
       unit_cost: formData.calculation_type === 'per_unit' ? formData.unit_cost : 0,
       vat_rate: formData.vat_rate,
       is_vat_deductible: formData.is_vat_deductible,
+      is_cogs: formData.is_cogs,
       start_date: formData.start_date,
       end_date: formData.end_date || null,
       notes: formData.notes || null,
@@ -251,6 +255,26 @@ export function VariableExpenseDialog({ open, onOpenChange, expense }: VariableE
               <Label htmlFor="is_vat_deductible" className="cursor-pointer">
                 TVA déductible
               </Label>
+            </div>
+            
+            <div className="col-span-2 p-3 rounded-lg border bg-muted/30">
+              <div className="flex items-center justify-between">
+                <div className="flex flex-col">
+                  <Label htmlFor="is_cogs" className="cursor-pointer font-medium">
+                    Coût des ventes (impacte la marge brute)
+                  </Label>
+                  <span className="text-xs text-muted-foreground mt-1">
+                    {formData.is_cogs 
+                      ? "Cette charge est déduite du CA pour calculer la marge brute" 
+                      : "Cette charge est une charge d'exploitation (après marge brute)"}
+                  </span>
+                </div>
+                <Switch
+                  id="is_cogs"
+                  checked={formData.is_cogs}
+                  onCheckedChange={(checked) => setFormData({ ...formData, is_cogs: checked })}
+                />
+              </div>
             </div>
             
             <div>

@@ -447,17 +447,34 @@ export function useProfitLoss() {
     // ═══════════════════════════════════════════════════════════════
     rows.push({ label: 'CHARGES D\'EXPLOITATION', type: 'header', values: [], isExpense: true });
 
-    // Charges variables
-    const variableExpenseValues = calculateYearlyValues(month => {
+    // Charges variables - COGS uniquement (pour la marge brute)
+    const cogsExpenses = variableExpenses.filter(e => e.is_cogs !== false);
+    const cogsValues = calculateYearlyValues(month => {
       const revenueByStream = new Map<string | null, { amount: number; units: number }>();
       streams.forEach(stream => {
         const amount = getRevenueForecast(stream.id, month);
         revenueByStream.set(stream.id, { amount, units: 1 });
       });
-      return variableExpenses.reduce((total, expense) => {
+      return cogsExpenses.reduce((total, expense) => {
         return total + calculateVariableExpenseForMonth(expense, month, revenueByStream);
       }, 0);
     });
+
+    // Charges variables - Charges d'exploitation (hors COGS)
+    const operatingVariableExpenses = variableExpenses.filter(e => e.is_cogs === false);
+    const operatingVariableValues = calculateYearlyValues(month => {
+      const revenueByStream = new Map<string | null, { amount: number; units: number }>();
+      streams.forEach(stream => {
+        const amount = getRevenueForecast(stream.id, month);
+        revenueByStream.set(stream.id, { amount, units: 1 });
+      });
+      return operatingVariableExpenses.reduce((total, expense) => {
+        return total + calculateVariableExpenseForMonth(expense, month, revenueByStream);
+      }, 0);
+    });
+    
+    // Total charges variables (pour affichage)
+    const variableExpenseValues = years.map((_, i) => cogsValues[i] + operatingVariableValues[i]);
 
     // ========================================
     // CHARGES D'EXPLOITATION - Nomenclature PCG
@@ -576,10 +593,12 @@ export function useProfitLoss() {
     // ═══════════════════════════════════════════════════════════════
     // SOLDES INTERMÉDIAIRES DE GESTION (SIG)
     // ═══════════════════════════════════════════════════════════════
-    const grossMarginValues = years.map((_, i) => revenueValues[i] - variableExpenseValues[i]);
+    // Marge brute = CA - Coûts des ventes (COGS uniquement)
+    const grossMarginValues = years.map((_, i) => revenueValues[i] - cogsValues[i]);
     rows.push({ label: 'MARGE BRUTE', type: 'sig', values: grossMarginValues });
 
-    const vaValues = years.map((_, i) => grossMarginValues[i] - fixedExpenseValues[i]);
+    // Valeur Ajoutée = Marge brute - Charges fixes - Charges variables d'exploitation
+    const vaValues = years.map((_, i) => grossMarginValues[i] - fixedExpenseValues[i] - operatingVariableValues[i]);
     rows.push({ label: 'VALEUR AJOUTÉE', type: 'sig', values: vaValues });
 
     const ebeValues = years.map((_, i) => 
@@ -639,12 +658,12 @@ export function useProfitLoss() {
 
     const sumAll = (arr: number[]) => arr.reduce((a, b) => a + b, 0);
     const totalRevenue = sumAll(revenueValues);
-    const totalVariableExpenses = sumAll(variableExpenseValues);
+    const totalCogs = sumAll(cogsValues);
     
     const grandTotal = {
       revenue: totalRevenue,
       fixedExpenses: sumAll(fixedExpenseValues),
-      variableExpenses: totalVariableExpenses,
+      variableExpenses: sumAll(variableExpenseValues),
       personnelCosts: sumAll(personnelValues),
       directorsCosts: sumAll(directorTotalValues),
       depreciation: sumAll(depreciationValues),
@@ -655,7 +674,8 @@ export function useProfitLoss() {
       netResultBeforeTax: sumAll(rcaiValues),
       corporateTax: sumAll(taxValues),
       netResult: sumAll(netResultValues),
-      grossMarginPercent: totalRevenue > 0 ? ((totalRevenue - totalVariableExpenses) / totalRevenue) * 100 : 0,
+      // Marge brute = (CA - COGS) / CA - utilise uniquement les coûts des ventes
+      grossMarginPercent: totalRevenue > 0 ? ((totalRevenue - totalCogs) / totalRevenue) * 100 : 0,
       ebitdaMarginPercent: totalRevenue > 0 ? (sumAll(ebeValues) / totalRevenue) * 100 : 0,
     };
 
