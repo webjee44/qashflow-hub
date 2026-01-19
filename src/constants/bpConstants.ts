@@ -187,5 +187,79 @@ export const PCG_ORDER: PCGExpenseCategory[] = [
   'external_services', 
   'other_external_services',
   'taxes',
+  'personnel',
   'other_operating',
+  'depreciation',
+  'financial',
 ];
+
+// ============================================
+// SOUS-CATÉGORIES PCG (comptes détaillés)
+// Pour une saisie optionnelle plus précise
+// ============================================
+
+export const PCG_SUBCATEGORIES: Record<FixedExpenseCategory, { code: string; label: string }[]> = {
+  utilities: [
+    { code: '60611', label: 'Électricité' },
+    { code: '60612', label: 'Eau' },
+    { code: '60614', label: 'Carburants' },
+    { code: '60618', label: 'Chauffage (gaz, fioul)' },
+  ],
+  rent: [
+    { code: '6132', label: 'Locations immobilières' },
+    { code: '6135', label: 'Locations mobilières' },
+    { code: '6136', label: 'Malis sur emballages' },
+  ],
+  insurance: [
+    { code: '6161', label: 'Assurance multirisques' },
+    { code: '6162', label: 'Assurance RC Professionnelle' },
+    { code: '6163', label: 'Assurance transport' },
+  ],
+  software: [
+    { code: '6156', label: 'Maintenance logiciels' },
+    { code: '6511', label: 'Redevances logiciels (licences)' },
+  ],
+  telecom: [
+    { code: '6261', label: 'Téléphone fixe et mobile' },
+    { code: '6262', label: 'Accès Internet' },
+    { code: '6263', label: 'Affranchissements' },
+  ],
+  marketing: [
+    { code: '6231', label: 'Annonces et insertions' },
+    { code: '6233', label: 'Foires et expositions' },
+    { code: '6234', label: 'Cadeaux clients' },
+    { code: '6236', label: 'Catalogues et publications' },
+  ],
+  professional_fees: [
+    { code: '6226', label: 'Honoraires comptables' },
+    { code: '6227', label: 'Frais d\'actes et contentieux' },
+    { code: '6228', label: 'Honoraires divers (avocat, conseil)' },
+  ],
+  banking: [
+    { code: '6271', label: 'Frais sur titres' },
+    { code: '6275', label: 'Commissions cartes bancaires' },
+    { code: '6278', label: 'Autres frais bancaires' },
+  ],
+  travel: [
+    { code: '6251', label: 'Voyages et déplacements' },
+    { code: '6255', label: 'Frais de déménagement' },
+    { code: '6256', label: 'Missions (repas, hébergement)' },
+    { code: '6257', label: 'Réceptions' },
+  ],
+  office: [
+    { code: '6063', label: 'Petit équipement et outillage' },
+    { code: '6064', label: 'Fournitures administratives' },
+  ],
+  other: [
+    { code: '6238', label: 'Publications diverses' },
+    { code: '6281', label: 'Cotisations professionnelles' },
+  ],
+};
+
+// Helper to get PCG subcategory label from code
+export function getPCGSubcategoryLabel(category: string, code: string): string | undefined {
+  const subcategories = PCG_SUBCATEGORIES[category as FixedExpenseCategory];
+  if (!subcategories) return undefined;
+  const found = subcategories.find(s => s.code === code);
+  return found?.label;
+}
