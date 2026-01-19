@@ -41,6 +41,7 @@ export const revenueStreamService = {
       .from('bp_revenue_streams')
       .select('*')
       .eq('company_id', companyId)
+      .eq('is_active', true)
       .order('created_at', { ascending: true });
 
     if (error) throw error;
