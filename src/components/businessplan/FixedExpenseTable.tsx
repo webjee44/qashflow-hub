@@ -60,9 +60,8 @@ export function FixedExpenseTable({ onEdit, businessPlanId }: FixedExpenseTableP
           <TableRow>
             <TableHead>Nom</TableHead>
             <TableHead>Catégorie</TableHead>
-            <TableHead>Périodicité</TableHead>
             <TableHead className="text-right">Montant</TableHead>
-            <TableHead className="text-right">Mensuel</TableHead>
+            <TableHead>Périodicité</TableHead>
             <TableHead>Début</TableHead>
             <TableHead>Fin</TableHead>
             <TableHead className="w-[80px]"></TableHead>
@@ -71,7 +70,6 @@ export function FixedExpenseTable({ onEdit, businessPlanId }: FixedExpenseTableP
         <TableBody>
           {expenses.map((expense) => {
             const frequencyInfo = PAYMENT_FREQUENCIES[expense.payment_frequency] || PAYMENT_FREQUENCIES.monthly;
-            const monthlyAmount = getMonthlyAmount(expense);
             const isNonMonthly = expense.payment_frequency !== 'monthly';
             const paymentMonthsDisplay = expense.payment_months?.map(m => MONTH_NAMES[m - 1]).join(', ');
             
@@ -83,6 +81,12 @@ export function FixedExpenseTable({ onEdit, businessPlanId }: FixedExpenseTableP
                     {ICONS[expense.category]}
                     {FIXED_EXPENSE_CATEGORIES[expense.category as keyof typeof FIXED_EXPENSE_CATEGORIES]?.label || expense.category}
                   </Badge>
+                </TableCell>
+                <TableCell className="text-right font-semibold text-destructive">
+                  {formatCurrency(Number(expense.monthly_amount))}
+                  {isNonMonthly && (
+                    <span className="text-xs text-muted-foreground ml-1">/{frequencyInfo.label.toLowerCase().slice(0, 4)}</span>
+                  )}
                 </TableCell>
                 <TableCell>
                   {isNonMonthly ? (
@@ -100,15 +104,6 @@ export function FixedExpenseTable({ onEdit, businessPlanId }: FixedExpenseTableP
                   ) : (
                     <span className="text-muted-foreground text-sm">Mensuel</span>
                   )}
-                </TableCell>
-                <TableCell className="text-right font-semibold text-destructive">
-                  {formatCurrency(Number(expense.monthly_amount))}
-                  {isNonMonthly && (
-                    <span className="text-xs text-muted-foreground ml-1">/{frequencyInfo.label.toLowerCase().slice(0, 4)}</span>
-                  )}
-                </TableCell>
-                <TableCell className="text-right text-muted-foreground">
-                  {isNonMonthly ? formatCurrency(monthlyAmount) : '–'}
                 </TableCell>
                 <TableCell className="text-muted-foreground">
                   {formatDate(expense.start_date)}
