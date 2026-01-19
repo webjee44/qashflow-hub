@@ -21,6 +21,7 @@ export interface BPSettings {
   bp_years: number;
   show_stocks: boolean;
   show_financing: boolean;
+  show_funding_plan: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -38,6 +39,7 @@ const DEFAULT_SETTINGS = {
   bp_years: 3,
   show_stocks: true,
   show_financing: true,
+  show_funding_plan: true,
 };
 
 export function useBPSettings() {

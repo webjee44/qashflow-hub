@@ -7,7 +7,7 @@ import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useBPSettings } from '@/hooks/useBPSettings';
-import { Package, Wallet, Calendar, Building2 } from 'lucide-react';
+import { Package, Wallet, Calendar, Building2, Landmark, FileSpreadsheet } from 'lucide-react';
 
 const MONTHS = [
   { value: 1, label: 'Janvier' },
@@ -61,6 +61,7 @@ export function BPSettingsDialog({ open, onOpenChange }: BPSettingsDialogProps) 
   const [isPme, setIsPme] = useState(true);
   const [showStocks, setShowStocks] = useState(true);
   const [showFinancing, setShowFinancing] = useState(true);
+  const [showFundingPlan, setShowFundingPlan] = useState(true);
 
   useEffect(() => {
     if (settings) {
@@ -74,6 +75,7 @@ export function BPSettingsDialog({ open, onOpenChange }: BPSettingsDialogProps) 
       setIsPme(settings.is_pme ?? true);
       setShowStocks(settings.show_stocks ?? true);
       setShowFinancing(settings.show_financing ?? true);
+      setShowFundingPlan(settings.show_funding_plan ?? true);
     }
   }, [settings, open]);
 
@@ -97,6 +99,7 @@ export function BPSettingsDialog({ open, onOpenChange }: BPSettingsDialogProps) 
       is_pme: isPme,
       show_stocks: showStocks,
       show_financing: showFinancing,
+      show_funding_plan: showFundingPlan,
     });
     onOpenChange(false);
   };
@@ -220,13 +223,13 @@ export function BPSettingsDialog({ open, onOpenChange }: BPSettingsDialogProps) 
 
             <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
               <div className="flex items-center gap-3">
-                <Wallet className="h-5 w-5 text-muted-foreground" />
+                <Landmark className="h-5 w-5 text-muted-foreground" />
                 <div>
                   <Label htmlFor="showFinancing" className="font-medium cursor-pointer">
-                    Financements à venir
+                    Financements
                   </Label>
                   <p className="text-xs text-muted-foreground">
-                    Activer le plan de financement (emprunts, apports, etc.)
+                    Gérer les emprunts, apports en capital et subventions
                   </p>
                 </div>
               </div>
@@ -234,6 +237,25 @@ export function BPSettingsDialog({ open, onOpenChange }: BPSettingsDialogProps) 
                 id="showFinancing"
                 checked={showFinancing}
                 onCheckedChange={setShowFinancing}
+              />
+            </div>
+
+            <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
+              <div className="flex items-center gap-3">
+                <FileSpreadsheet className="h-5 w-5 text-muted-foreground" />
+                <div>
+                  <Label htmlFor="showFundingPlan" className="font-medium cursor-pointer">
+                    Plan de financement
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Tableau des besoins et ressources sur plusieurs années
+                  </p>
+                </div>
+              </div>
+              <Switch
+                id="showFundingPlan"
+                checked={showFundingPlan}
+                onCheckedChange={setShowFundingPlan}
               />
             </div>
           </div>

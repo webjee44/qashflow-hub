@@ -92,10 +92,10 @@ export function Sidebar() {
     return businessPlanNavItems.filter(item => {
       if (item.key === 'stocks' && !settings.show_stocks) return false;
       if (item.key === 'financing' && !settings.show_financing) return false;
-      if (item.key === 'funding' && !settings.show_financing) return false;
+      if (item.key === 'funding' && !settings.show_funding_plan) return false;
       return true;
     });
-  }, [settings.show_stocks, settings.show_financing]);
+  }, [settings.show_stocks, settings.show_financing, settings.show_funding_plan]);
 
   const handleModeChange = (checked: boolean) => {
     const newMode = checked ? 'business-plan' : 'treasury';
