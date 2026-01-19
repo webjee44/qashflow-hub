@@ -1,6 +1,7 @@
 // ============================================
 // Bonus Service
 // Gestion des primes de partage de la valeur (PPV)
+// Now uses company_id via personnel relationship
 // ============================================
 
 import { supabase } from '@/integrations/supabase/client';
@@ -10,7 +11,7 @@ export type BonusType = 'ppv' | 'classic' | '13th_month' | 'performance';
 export interface BPBonus {
   id: string;
   user_id: string;
-  business_plan_id: string;
+  business_plan_id: string; // Still in DB but not used for filtering
   personnel_id: string;
   bonus_type: BonusType;
   amount: number;
@@ -21,7 +22,7 @@ export interface BPBonus {
   updated_at: string | null;
 }
 
-export type BPBonusInsert = Omit<BPBonus, 'id' | 'created_at' | 'updated_at'>;
+export type BPBonusInsert = Omit<BPBonus, 'id' | 'created_at' | 'updated_at' | 'business_plan_id'> & { business_plan_id?: string };
 export type BPBonusUpdate = Partial<Omit<BPBonus, 'id' | 'user_id' | 'business_plan_id' | 'created_at' | 'updated_at'>>;
 
 export const BONUS_TYPES = {
@@ -52,11 +53,13 @@ export const BONUS_TYPES = {
 } as const;
 
 export const bonusService = {
-  async getByBusinessPlanId(businessPlanId: string): Promise<BPBonus[]> {
+  // Get bonuses by personnel IDs (derived from company personnel)
+  async getByPersonnelIds(personnelIds: string[]): Promise<BPBonus[]> {
+    if (personnelIds.length === 0) return [];
     const { data, error } = await supabase
       .from('bp_bonuses')
       .select('*')
-      .eq('business_plan_id', businessPlanId)
+      .in('personnel_id', personnelIds)
       .order('payment_month', { ascending: true });
 
     if (error) throw error;
@@ -74,10 +77,16 @@ export const bonusService = {
     return (data || []) as BPBonus[];
   },
 
-  async create(data: BPBonusInsert): Promise<BPBonus> {
+  async create(userId: string, data: Omit<BPBonusInsert, 'user_id'>): Promise<BPBonus> {
+    // business_plan_id is required by DB but not used for filtering
+    // We set a placeholder value since it's not relevant anymore
     const { data: newBonus, error } = await supabase
       .from('bp_bonuses')
-      .insert(data)
+      .insert({
+        ...data,
+        user_id: userId,
+        business_plan_id: data.business_plan_id || '00000000-0000-0000-0000-000000000000', // Legacy field
+      })
       .select()
       .single();
 
@@ -85,12 +94,18 @@ export const bonusService = {
     return newBonus as BPBonus;
   },
 
-  async bulkCreate(bonuses: BPBonusInsert[]): Promise<BPBonus[]> {
+  async bulkCreate(userId: string, bonuses: Omit<BPBonusInsert, 'user_id'>[]): Promise<BPBonus[]> {
     if (bonuses.length === 0) return [];
+    
+    const insertData = bonuses.map(b => ({
+      ...b,
+      user_id: userId,
+      business_plan_id: b.business_plan_id || '00000000-0000-0000-0000-000000000000', // Legacy field
+    }));
     
     const { data, error } = await supabase
       .from('bp_bonuses')
-      .insert(bonuses)
+      .insert(insertData)
       .select();
 
     if (error) throw error;
