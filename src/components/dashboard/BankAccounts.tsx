@@ -47,7 +47,7 @@ export function BankAccounts() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
-      const { data, error } = await supabase.functions.invoke('bridge-sync', {
+      const { data, error } = await supabase.functions.invoke('bridge-accounts', {
         headers: { Authorization: `Bearer ${session.access_token}` },
         body: {
           action: 'get-accounts',
@@ -96,7 +96,7 @@ export function BankAccounts() {
       const { data, error } = await supabase.functions.invoke('bridge-sync', {
         headers: { Authorization: `Bearer ${session.access_token}` },
         body: {
-          action: 'sync-transactions',
+          action: 'full-sync',
           bridge_user_uuid: bridgeUserUuid,
           company_id: currentCompany?.id,
         },
