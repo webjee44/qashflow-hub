@@ -12,11 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { motion } from 'framer-motion';
 
-interface BPWizardStep4TeamProps {
-  businessPlanId?: string;
-}
-
-export function BPWizardStep4Team({ businessPlanId }: BPWizardStep4TeamProps) {
+export function BPWizardStep4Team() {
   const { 
     personnel, 
     isLoading: personnelLoading, 
@@ -24,7 +20,7 @@ export function BPWizardStep4Team({ businessPlanId }: BPWizardStep4TeamProps) {
     updatePersonnel, 
     deletePersonnel, 
     totalMonthlyCost: totalPersonnelCost 
-  } = useBPPersonnel(businessPlanId);
+  } = useBPPersonnel();
 
   const [personnelDialogOpen, setPersonnelDialogOpen] = useState(false);
   const [editingPersonnel, setEditingPersonnel] = useState<BPPersonnel | null>(null);
@@ -35,14 +31,6 @@ export function BPWizardStep4Team({ businessPlanId }: BPWizardStep4TeamProps) {
     is_executive: false,
     company_size: 'small',
   });
-
-  if (!businessPlanId) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <p className="text-muted-foreground">Veuillez d'abord créer le business plan dans l'onglet Paramètres.</p>
-      </div>
-    );
-  }
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(amount);

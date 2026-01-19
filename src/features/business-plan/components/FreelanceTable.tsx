@@ -7,11 +7,10 @@ import { fr } from 'date-fns/locale';
 
 interface FreelanceTableProps {
   onEdit: (personnel: BPPersonnel) => void;
-  businessPlanId?: string;
 }
 
-export function FreelanceTable({ onEdit, businessPlanId }: FreelanceTableProps) {
-  const { freelancers, deletePersonnel, getFreelanceMonthlyCost, totalFreelanceCost, isLoading } = useBPPersonnel(businessPlanId);
+export function FreelanceTable({ onEdit }: FreelanceTableProps) {
+  const { freelancers, deletePersonnel, getFreelanceMonthlyCost, totalFreelanceCost, isLoading } = useBPPersonnel();
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('fr-FR', {

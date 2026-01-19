@@ -12,11 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
-interface BPWizardStep4InvestmentsProps {
-  businessPlanId?: string;
-}
-
-export function BPWizardStep4Investments({ businessPlanId }: BPWizardStep4InvestmentsProps) {
+export function BPWizardStep4Investments() {
   const { 
     investments, 
     isLoading, 
@@ -25,7 +21,7 @@ export function BPWizardStep4Investments({ businessPlanId }: BPWizardStep4Invest
     deleteInvestment, 
     totalInvestments,
     yearlyDepreciation 
-  } = useBPInvestments(businessPlanId);
+  } = useBPInvestments();
   
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingInvestment, setEditingInvestment] = useState<BPInvestment | null>(null);
@@ -39,13 +35,6 @@ export function BPWizardStep4Investments({ businessPlanId }: BPWizardStep4Invest
     notes: '',
   });
 
-  if (!businessPlanId) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <p className="text-muted-foreground">Veuillez d'abord créer le business plan dans l'onglet Paramètres.</p>
-      </div>
-    );
-  }
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(amount);
