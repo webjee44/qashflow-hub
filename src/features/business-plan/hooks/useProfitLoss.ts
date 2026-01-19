@@ -10,8 +10,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { useCompany } from '@/hooks/useCompany';
 import { useBPSettings } from './useBPSettings';
 import { startOfMonth, addMonths, parseISO, format } from 'date-fns';
-import { calculateTaxByRegime, TVA_RATES_FR, TaxRegime, getGlobalChargesRate } from '@/lib/french-rates';
-import { PAYMENT_FREQUENCIES, DEFAULT_PAYMENT_MONTHS, PCG_EXPENSE_CATEGORIES, CATEGORY_TO_PCG_MAPPING, PCG_ORDER, PCGExpenseCategory } from '@/constants/bpConstants';
+import { calculateTaxByRegime, TVA_RATES_FR, TaxRegime, getGlobalChargesRate, URSSAF_RATES_2026 } from '@/lib/french-rates';
+import { PAYMENT_FREQUENCIES, DEFAULT_PAYMENT_MONTHS, PCG_EXPENSE_CATEGORIES, CATEGORY_TO_PCG_MAPPING, PCG_ORDER, PCGExpenseCategory, FIXED_EXPENSE_CATEGORIES } from '@/constants/bpConstants';
 
 export interface PLRow {
   label: string;
@@ -40,6 +40,7 @@ export interface PLData {
     directorsCosts: number[];
     depreciation: number[];
     leaseExpenses: number[];
+    payrollTaxes: number[]; // Taxes sur salaires (apprentissage + formation)
     ebitda: number[];
     operatingResult: number[];
     financialResult: number[];
@@ -55,6 +56,7 @@ export interface PLData {
     directorsCosts: number;
     depreciation: number;
     leaseExpenses: number;
+    payrollTaxes: number;
     ebitda: number;
     operatingResult: number;
     financialResult: number;
@@ -585,9 +587,52 @@ export function useProfitLoss() {
       rows.push({ label: 'Loyers de crédit-bail', type: 'item', values: leaseExpenseValues, isExpense: true });
     }
 
-    // Total charges d'exploitation
+    // ═══════════════════════════════════════════════════════════════
+    // TAXES SUR SALAIRES (calcul automatique)
+    // Taxe d'apprentissage (0.68%) + Formation continue (0.55% ou 1%)
+    // ═══════════════════════════════════════════════════════════════
+    const getPayrollTaxesForMonth = (month: Date) => {
+      const rates = URSSAF_RATES_2026.employer;
+      
+      // Filter active employees (excluding freelancers and interns)
+      const activeEmployees = personnel.filter(p => {
+        if (!isPersonnelActiveForMonth(p, month)) return false;
+        if (p.worker_type !== 'employee') return false;
+        if (p.contract_type === 'internship' || p.contract_type === 'intern') return false;
+        return true;
+      });
+      
+      // Calculate total gross salaries
+      const grossSalaries = activeEmployees.reduce((sum, p) => 
+        sum + (Number(p.gross_salary) || 0), 0
+      );
+      
+      // Headcount for formation rate determination
+      const headcount = activeEmployees.length;
+      const isSmallCompany = headcount < 11;
+      
+      // Taxe d'apprentissage: 0.68% of gross salaries
+      const apprentissage = grossSalaries * rates.apprentissage;
+      
+      // Formation continue: 0.55% (<11 employees) or 1% (≥11 employees)
+      const formationRate = isSmallCompany ? rates.formation.small : rates.formation.large;
+      const formation = grossSalaries * formationRate;
+      
+      return { apprentissage, formation, total: apprentissage + formation };
+    };
+
+    const payrollTaxesValues = calculateYearlyValues(month => getPayrollTaxesForMonth(month).total);
+    
+    // Ajouter les taxes sur salaires dans les charges (PCG 63)
+    // Elles sont automatiques et séparées des taxes manuelles
+    if (payrollTaxesValues.some(v => v > 0)) {
+      rows.push({ label: 'Taxes sur salaires (auto)', type: 'item', values: payrollTaxesValues, isExpense: true, indent: 1 });
+    }
+
+    // Total charges d'exploitation (inclut les taxes sur salaires)
     const totalExpenseValues = years.map((_, i) => 
-      variableExpenseValues[i] + fixedExpenseValues[i] + personnelValues[i] + directorTotalValues[i] + depreciationValues[i] + leaseExpenseValues[i]
+      variableExpenseValues[i] + fixedExpenseValues[i] + personnelValues[i] + directorTotalValues[i] + 
+      depreciationValues[i] + leaseExpenseValues[i] + payrollTaxesValues[i]
     );
     rows.push({ label: 'Total charges d\'exploitation', type: 'subtotal', values: totalExpenseValues, isExpense: true });
 
@@ -602,8 +647,9 @@ export function useProfitLoss() {
     const vaValues = years.map((_, i) => grossMarginValues[i] - fixedExpenseValues[i] - operatingVariableValues[i]);
     rows.push({ label: 'VALEUR AJOUTÉE', type: 'sig', values: vaValues });
 
+    // EBE = VA - Personnel - Dirigeants - Crédit-bail - Taxes sur salaires
     const ebeValues = years.map((_, i) => 
-      vaValues[i] - personnelValues[i] - directorTotalValues[i] - leaseExpenseValues[i]
+      vaValues[i] - personnelValues[i] - directorTotalValues[i] - leaseExpenseValues[i] - payrollTaxesValues[i]
     );
     rows.push({ label: 'EXCÉDENT BRUT D\'EXPLOITATION (EBE)', type: 'sig', values: ebeValues });
 
@@ -669,6 +715,7 @@ export function useProfitLoss() {
       directorsCosts: sumAll(directorTotalValues),
       depreciation: sumAll(depreciationValues),
       leaseExpenses: sumAll(leaseExpenseValues),
+      payrollTaxes: sumAll(payrollTaxesValues),
       ebitda: sumAll(ebeValues),
       operatingResult: sumAll(operatingResultValues),
       financialResult: sumAll(financialResultValues),
@@ -692,6 +739,7 @@ export function useProfitLoss() {
         directorsCosts: directorTotalValues,
         depreciation: depreciationValues,
         leaseExpenses: leaseExpenseValues,
+        payrollTaxes: payrollTaxesValues,
         ebitda: ebeValues,
         operatingResult: operatingResultValues,
         financialResult: financialResultValues,

@@ -16,6 +16,7 @@ export const FIXED_EXPENSE_CATEGORIES = {
   banking: { label: 'Frais bancaires', icon: 'CreditCard' },
   travel: { label: 'Déplacements & Transport', icon: 'Car' },
   office: { label: 'Fournitures de bureau', icon: 'Pencil' },
+  taxes: { label: 'Impôts & Taxes', icon: 'Receipt' },
   other: { label: 'Autres charges fixes', icon: 'MoreHorizontal' },
 } as const;
 
@@ -172,6 +173,7 @@ export const CATEGORY_TO_PCG_MAPPING: Record<string, PCGExpenseCategory> = {
   banking: 'other_external_services',   // 62 - Services bancaires
   travel: 'other_external_services',    // 62 - Déplacements
   office: 'purchases',                  // 60 - Fournitures de bureau
+  taxes: 'taxes',                       // 63 - Impôts et taxes
   other: 'other_operating',             // 65 - Autres
   
   // Charges variables actuelles
@@ -249,6 +251,15 @@ export const PCG_SUBCATEGORIES: Record<FixedExpenseCategory, { code: string; lab
   office: [
     { code: '6063', label: 'Petit équipement et outillage' },
     { code: '6064', label: 'Fournitures administratives' },
+  ],
+  taxes: [
+    { code: '6312', label: 'Taxe d\'apprentissage' },
+    { code: '6313', label: 'Participation formation continue' },
+    { code: '6331', label: 'Versement mobilité (transport)' },
+    { code: '6351', label: 'CFE - Contribution Foncière Entreprises' },
+    { code: '6352', label: 'CVAE - Cotisation Valeur Ajoutée' },
+    { code: '6354', label: 'Taxes foncières' },
+    { code: '6358', label: 'Autres impôts et taxes' },
   ],
   other: [
     { code: '6238', label: 'Publications diverses' },
