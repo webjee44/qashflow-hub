@@ -1,8 +1,10 @@
-import { Edit, Trash2, Building2, Shield, Laptop, Megaphone, Zap, MoreHorizontal, Briefcase, CalendarClock } from 'lucide-react';
+import { useState } from 'react';
+import { Edit, Trash2, Building2, Shield, Laptop, Megaphone, Zap, MoreHorizontal, Briefcase, CalendarClock, X, Filter } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useBPFixedExpenses, BPFixedExpense, FIXED_EXPENSE_CATEGORIES, PAYMENT_FREQUENCIES } from '@/hooks/useBPFixedExpenses';
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -25,6 +27,7 @@ const MONTH_NAMES = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août'
 
 export function FixedExpenseTable({ onEdit }: FixedExpenseTableProps) {
   const { expenses, deleteExpense, isLoading, getMonthlyAmount, totalMonthlyExpenses } = useBPFixedExpenses();
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('fr-FR', {
@@ -38,7 +41,17 @@ export function FixedExpenseTable({ onEdit }: FixedExpenseTableProps) {
     return format(parseISO(dateStr), 'MMM yyyy', { locale: fr });
   };
 
-  const totalAnnual = totalMonthlyExpenses * 12;
+  // Filter expenses by category
+  const filteredExpenses = categoryFilter === 'all'
+    ? expenses
+    : expenses.filter(e => e.category === categoryFilter);
+
+  // Get unique categories from actual expenses for filter dropdown
+  const usedCategories = [...new Set(expenses.map(e => e.category))].filter(Boolean);
+
+  // Calculate totals for filtered expenses
+  const filteredMonthlyTotal = filteredExpenses.reduce((sum, expense) => sum + getMonthlyAmount(expense), 0);
+  const filteredAnnualTotal = filteredMonthlyTotal * 12;
 
   if (isLoading) {
     return (
@@ -54,6 +67,41 @@ export function FixedExpenseTable({ onEdit }: FixedExpenseTableProps) {
 
   return (
     <div className="space-y-4">
+      {/* Category Filter */}
+      {usedCategories.length > 1 && (
+        <div className="flex items-center gap-2">
+          <Filter className="h-4 w-4 text-muted-foreground" />
+          <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Filtrer par catégorie" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Toutes les catégories</SelectItem>
+              {usedCategories.map((cat) => (
+                <SelectItem key={cat} value={cat!}>
+                  {FIXED_EXPENSE_CATEGORIES[cat as keyof typeof FIXED_EXPENSE_CATEGORIES]?.label || cat}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {categoryFilter !== 'all' && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setCategoryFilter('all')}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          )}
+          {categoryFilter !== 'all' && (
+            <span className="text-sm text-muted-foreground">
+              {filteredExpenses.length} charge{filteredExpenses.length > 1 ? 's' : ''}
+            </span>
+          )}
+        </div>
+      )}
+
       <Table>
         <TableHeader>
           <TableRow>
@@ -67,7 +115,7 @@ export function FixedExpenseTable({ onEdit }: FixedExpenseTableProps) {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {expenses.map((expense) => {
+          {filteredExpenses.map((expense) => {
             const frequencyInfo = PAYMENT_FREQUENCIES[expense.payment_frequency] || PAYMENT_FREQUENCIES.monthly;
             const isNonMonthly = expense.payment_frequency !== 'monthly';
             const paymentMonthsDisplay = expense.payment_months?.map(m => MONTH_NAMES[m - 1]).join(', ');
@@ -139,12 +187,16 @@ export function FixedExpenseTable({ onEdit }: FixedExpenseTableProps) {
       {/* Summary */}
       <div className="flex justify-end gap-6 p-4 bg-muted/50 rounded-lg">
         <div className="text-right">
-          <p className="text-sm text-muted-foreground">Total mensuel (lissé)</p>
-          <p className="text-xl font-bold text-destructive">{formatCurrency(totalMonthlyExpenses)}</p>
+          <p className="text-sm text-muted-foreground">
+            Total mensuel {categoryFilter !== 'all' ? '(filtré)' : '(lissé)'}
+          </p>
+          <p className="text-xl font-bold text-destructive">{formatCurrency(filteredMonthlyTotal)}</p>
         </div>
         <div className="text-right">
-          <p className="text-sm text-muted-foreground">Total annuel</p>
-          <p className="text-xl font-bold text-destructive">{formatCurrency(totalAnnual)}</p>
+          <p className="text-sm text-muted-foreground">
+            Total annuel {categoryFilter !== 'all' ? '(filtré)' : ''}
+          </p>
+          <p className="text-xl font-bold text-destructive">{formatCurrency(filteredAnnualTotal)}</p>
         </div>
       </div>
     </div>
