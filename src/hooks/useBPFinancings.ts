@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
+import { useCompany } from './useCompany';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { calculateLoanPayment } from '@/lib/french-rates';
@@ -27,28 +28,30 @@ export interface BPFinancing {
 
 export function useBPFinancings(businessPlanId?: string) {
   const { user } = useAuth();
+  const { currentCompany } = useCompany();
   const queryClient = useQueryClient();
+  const companyId = currentCompany?.id;
 
   const { data: financings = [], isLoading } = useQuery({
-    queryKey: ['bp_financings', businessPlanId],
+    queryKey: ['bp_financings', companyId],
     queryFn: async () => {
-      if (!businessPlanId) return [];
+      if (!companyId) return [];
       
       const { data, error } = await supabase
         .from('bp_financings')
         .select('*')
-        .eq('business_plan_id', businessPlanId)
+        .eq('company_id', companyId)
         .order('financing_type', { ascending: true });
       
       if (error) throw error;
       return (data || []) as BPFinancing[];
     },
-    enabled: !!user && !!businessPlanId,
+    enabled: !!user && !!companyId,
   });
 
   const createFinancing = useMutation({
     mutationFn: async (data: Partial<BPFinancing>) => {
-      if (!user || !businessPlanId) throw new Error('Not authenticated or no BP');
+      if (!user || !companyId) throw new Error('Not authenticated or no company');
 
       // Calculate monthly payment for loans
       let monthlyPayment = 0;
@@ -61,7 +64,8 @@ export function useBPFinancings(businessPlanId?: string) {
         .from('bp_financings')
         .insert({
           user_id: user.id,
-          business_plan_id: businessPlanId,
+          company_id: companyId,
+          business_plan_id: businessPlanId || null,
           name: data.name || 'Nouveau financement',
           financing_type: data.financing_type || 'loan',
           amount: data.amount || 0,
@@ -81,7 +85,7 @@ export function useBPFinancings(businessPlanId?: string) {
       return newFinancing;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['bp_financings', businessPlanId] });
+      queryClient.invalidateQueries({ queryKey: ['bp_financings', companyId] });
       toast.success('Financement créé');
     },
     onError: (error) => {
@@ -99,7 +103,7 @@ export function useBPFinancings(businessPlanId?: string) {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['bp_financings', businessPlanId] });
+      queryClient.invalidateQueries({ queryKey: ['bp_financings', companyId] });
       toast.success('Financement mis à jour');
     },
     onError: (error) => {
@@ -117,7 +121,7 @@ export function useBPFinancings(businessPlanId?: string) {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['bp_financings', businessPlanId] });
+      queryClient.invalidateQueries({ queryKey: ['bp_financings', companyId] });
       toast.success('Financement supprimé');
     },
     onError: (error) => {

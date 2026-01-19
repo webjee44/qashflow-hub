@@ -36,32 +36,33 @@ export function useBPRevenueStreams(businessPlanId?: string) {
   const companyId = currentCompany?.id;
 
   const { data: streams = [], isLoading } = useQuery({
-    queryKey: ['bp_revenue_streams', businessPlanId],
+    queryKey: ['bp_revenue_streams', companyId],
     queryFn: async () => {
-      if (!businessPlanId) return [];
+      if (!companyId) return [];
       
       const { data, error } = await supabase
         .from('bp_revenue_streams')
         .select('*')
-        .eq('business_plan_id', businessPlanId)
+        .eq('company_id', companyId)
+        .eq('is_active', true)
         .order('created_at', { ascending: true });
       
       if (error) throw error;
       return (data || []) as BPRevenueStream[];
     },
-    enabled: !!user && !!businessPlanId,
+    enabled: !!user && !!companyId,
   });
 
   const createStream = useMutation({
     mutationFn: async (data: Partial<BPRevenueStream>) => {
-      if (!user || !businessPlanId) throw new Error('Not authenticated or no BP');
+      if (!user || !companyId) throw new Error('Not authenticated or no company');
 
       const { data: newStream, error } = await supabase
         .from('bp_revenue_streams')
         .insert({
           user_id: user.id,
-          business_plan_id: businessPlanId,
-          company_id: companyId || null,
+          company_id: companyId,
+          business_plan_id: businessPlanId || null,
           name: data.name || 'Nouveau flux',
           description: data.description || null,
           color: data.color || 'hsl(142, 76%, 36%)',
@@ -85,7 +86,7 @@ export function useBPRevenueStreams(businessPlanId?: string) {
       return newStream;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['bp_revenue_streams', businessPlanId] });
+      queryClient.invalidateQueries({ queryKey: ['bp_revenue_streams', companyId] });
       toast.success('Flux de revenus créé');
     },
     onError: (error) => {
@@ -103,7 +104,7 @@ export function useBPRevenueStreams(businessPlanId?: string) {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['bp_revenue_streams', businessPlanId] });
+      queryClient.invalidateQueries({ queryKey: ['bp_revenue_streams', companyId] });
       toast.success('Flux mis à jour');
     },
     onError: (error) => {
@@ -113,15 +114,16 @@ export function useBPRevenueStreams(businessPlanId?: string) {
 
   const deleteStream = useMutation({
     mutationFn: async (id: string) => {
+      // Soft delete by setting is_active to false
       const { error } = await supabase
         .from('bp_revenue_streams')
-        .delete()
+        .update({ is_active: false })
         .eq('id', id);
 
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['bp_revenue_streams', businessPlanId] });
+      queryClient.invalidateQueries({ queryKey: ['bp_revenue_streams', companyId] });
       toast.success('Flux supprimé');
     },
     onError: (error) => {
