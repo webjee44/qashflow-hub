@@ -332,7 +332,7 @@ export default function Auth() {
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-5" autoComplete="on">
             {mode === 'signup' && (
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
@@ -345,7 +345,7 @@ export default function Auth() {
                   <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                   <Input
                     id="fullName"
-                    name="name"
+                    name="fullName"
                     type="text"
                     autoComplete="name"
                     placeholder="Jean Dupont"
@@ -364,9 +364,9 @@ export default function Auth() {
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                   <Input
                     id="email"
-                    name="email"
+                    name="username"
                     type="email"
-                    autoComplete={mode === 'signup' ? 'email' : 'username'}
+                    autoComplete="username email"
                     placeholder="vous@entreprise.com"
                     value={email}
                     onChange={(e) => {
@@ -406,6 +406,7 @@ export default function Auth() {
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                    tabIndex={-1}
                   >
                     {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                   </button>
