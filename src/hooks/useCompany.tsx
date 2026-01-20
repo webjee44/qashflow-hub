@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 export interface Company {
   id: string;
   user_id: string;
+  organization_id: string | null;
   name: string;
   is_default: boolean;
   initial_balance: number;
@@ -142,6 +143,14 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
   const createCompany = async (data: { name: string; initial_balance?: number; is_default?: boolean }): Promise<Company> => {
     if (!user?.id) throw new Error('Non authentifié');
 
+    // Récupérer l'organization_id de l'utilisateur
+    const { data: membership } = await supabase
+      .from('organization_members')
+      .select('organization_id')
+      .eq('user_id', user.id)
+      .limit(1)
+      .single();
+
     // If this is the first company or is_default is true, make it default
     const isDefault = data.is_default || companies.length === 0;
 
@@ -157,6 +166,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
       .from('companies')
       .insert({
         user_id: user.id,
+        organization_id: membership?.organization_id || null,
         name: data.name,
         initial_balance: data.initial_balance || 0,
         is_default: isDefault,
