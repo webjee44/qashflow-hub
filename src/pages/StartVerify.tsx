@@ -67,6 +67,7 @@ export default function StartVerify() {
       }
 
       // Update profile with company name and phone
+      // Note: Company is already created by the handle_new_user trigger
       if (data.user) {
         await supabase.from('profiles').upsert({
           id: data.user.id,
@@ -74,14 +75,6 @@ export default function StartVerify() {
           onboarding_completed: false,
           onboarding_step: 0,
           bp_enabled: true,
-        });
-
-        // Create company
-        await supabase.from('companies').insert({
-          name: companyName || 'Ma Société',
-          user_id: data.user.id,
-          is_default: true,
-          initial_balance: 0,
         });
       }
 
