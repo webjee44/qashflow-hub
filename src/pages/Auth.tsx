@@ -86,10 +86,27 @@ export default function Auth() {
   }, [searchParams, toast]);
 
   useEffect(() => {
-    if (user && mode !== 'reset' && !isCheckingSession) {
-      // Redirect to BP module by default (BP is always active)
-      navigate('/bp/revenus');
-    }
+    const handleRedirect = async () => {
+      if (user && mode !== 'reset' && !isCheckingSession) {
+        // Vérifier si l'utilisateur est superadmin
+        const { data: roleData } = await supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', user.id)
+          .eq('role', 'superadmin')
+          .maybeSingle();
+
+        if (roleData) {
+          // Superadmin -> page d'administration
+          navigate('/superadmin');
+        } else {
+          // Utilisateur normal -> application
+          navigate('/bp/revenus');
+        }
+      }
+    };
+
+    handleRedirect();
   }, [user, navigate, mode, isCheckingSession]);
 
   const validateForm = () => {
