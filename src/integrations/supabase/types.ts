@@ -1330,6 +1330,38 @@ export type Database = {
           },
         ]
       }
+      company_members: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          invited_by: string | null
+          user_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          invited_by?: string | null
+          user_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          invited_by?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_members_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       company_secrets: {
         Row: {
           company_id: string
@@ -1740,6 +1772,10 @@ export type Database = {
       }
     }
     Functions: {
+      add_company_member_by_email: {
+        Args: { _company_id: string; _email: string }
+        Returns: string
+      }
       assign_superadmin_role: {
         Args: { user_email: string }
         Returns: undefined
@@ -1749,6 +1785,17 @@ export type Database = {
         Returns: boolean
       }
       generate_org_slug: { Args: { org_name: string }; Returns: string }
+      get_company_members_with_email: {
+        Args: { _company_id: string }
+        Returns: {
+          company_id: string
+          created_at: string
+          email: string
+          id: string
+          invited_by: string
+          user_id: string
+        }[]
+      }
       get_superadmin_global_stats: {
         Args: never
         Returns: {
@@ -1776,6 +1823,10 @@ export type Database = {
           slug: string
           subscription_status: string
         }[]
+      }
+      has_company_access: {
+        Args: { _company_id: string; _user_id: string }
+        Returns: boolean
       }
       has_org_role: {
         Args: {

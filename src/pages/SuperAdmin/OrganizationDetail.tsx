@@ -1,17 +1,19 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Building2, Users, FileText, Calendar, CreditCard, UserCog, Loader2 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { ArrowLeft, Building2, Users, FileText, Calendar, CreditCard, UserCog, Loader2, ChevronDown, ChevronRight } from 'lucide-react';
 import { SuperAdminLayout } from '@/components/superadmin/SuperAdminLayout';
 import { useSuperAdminOrgStats } from '@/hooks/useSuperAdmin';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-
+import { CompanyMembersManager } from '@/components/superadmin/CompanyMembersManager';
 const planColors: Record<string, string> = {
   free: 'bg-muted text-muted-foreground',
   pro: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
@@ -30,8 +32,41 @@ export default function SuperAdminOrganizationDetail() {
   const navigate = useNavigate();
   const { data: orgStats, isLoading } = useSuperAdminOrgStats();
   const [isImpersonating, setIsImpersonating] = useState(false);
+  const [companiesOpen, setCompaniesOpen] = useState(true);
 
   const organization = orgStats?.find((org) => org.organization_id === id);
+
+  // Fetch companies for this organization
+  const { data: companies = [], isLoading: isLoadingCompanies } = useQuery({
+    queryKey: ['superadmin-org-companies', id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('companies')
+        .select('id, name, user_id')
+        .eq('organization_id', id)
+        .is('deleted_at', null)
+        .order('name');
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!id,
+  });
+
+  // Fetch owner email
+  const { data: ownerEmail } = useQuery({
+    queryKey: ['user-email', organization?.owner_id],
+    queryFn: async () => {
+      if (!organization?.owner_id) return null;
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('id', organization.owner_id)
+        .single();
+      // Fallback: get from auth if needed
+      return data?.full_name || 'Propriétaire';
+    },
+    enabled: !!organization?.owner_id,
+  });
 
   const handleImpersonate = async () => {
     if (!organization?.owner_id) {
@@ -249,6 +284,54 @@ export default function SuperAdminOrganizationDetail() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Company Members Management */}
+        <Collapsible open={companiesOpen} onOpenChange={setCompaniesOpen}>
+          <Card>
+            <CardHeader className="pb-3">
+              <CollapsibleTrigger className="flex items-center justify-between w-full">
+                <div>
+                  <CardTitle className="flex items-center gap-2 text-left">
+                    <Building2 className="w-5 h-5" />
+                    Gestion des accès par société
+                  </CardTitle>
+                  <CardDescription className="text-left mt-1">
+                    Ajouter ou retirer des utilisateurs sur chaque société
+                  </CardDescription>
+                </div>
+                {companiesOpen ? (
+                  <ChevronDown className="w-5 h-5 text-muted-foreground" />
+                ) : (
+                  <ChevronRight className="w-5 h-5 text-muted-foreground" />
+                )}
+              </CollapsibleTrigger>
+            </CardHeader>
+            <CollapsibleContent>
+              <CardContent className="pt-0">
+                {isLoadingCompanies ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Skeleton className="h-48" />
+                    <Skeleton className="h-48" />
+                  </div>
+                ) : companies.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-8">
+                    Aucune société dans cette organisation
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {companies.map((company) => (
+                      <CompanyMembersManager 
+                        key={company.id} 
+                        company={company}
+                        ownerEmail={ownerEmail || undefined}
+                      />
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
       </div>
     </SuperAdminLayout>
   );
