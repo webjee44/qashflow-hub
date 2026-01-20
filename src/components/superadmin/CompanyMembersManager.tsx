@@ -73,7 +73,11 @@ export function CompanyMembersManager({ company, ownerEmail }: CompanyMembersMan
       queryClient.invalidateQueries({ queryKey: ['company-members', company.id] });
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erreur lors de l\'ajout du membre');
+      if (error.message?.includes('not found')) {
+        toast.error(`Aucun compte existant avec cet email. L'utilisateur doit d'abord créer un compte sur qashflow.`);
+      } else {
+        toast.error(error.message || 'Erreur lors de l\'ajout du membre');
+      }
     },
   });
 
