@@ -4,7 +4,6 @@ import {
   LayoutDashboard,
   Building2,
   CreditCard,
-  BarChart3,
   ArrowLeft,
   Shield,
 } from 'lucide-react';
@@ -13,7 +12,6 @@ const navItems = [
   { to: '/superadmin', icon: LayoutDashboard, label: 'Dashboard', exact: true },
   { to: '/superadmin/organizations', icon: Building2, label: 'Organisations' },
   { to: '/superadmin/subscriptions', icon: CreditCard, label: 'Abonnements' },
-  { to: '/superadmin/analytics', icon: BarChart3, label: 'Analytics' },
 ];
 
 export function SuperAdminSidebar() {

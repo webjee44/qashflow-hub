@@ -31,14 +31,16 @@ export default function SuperAdminSubscriptions() {
     setRefreshing(false);
   };
 
+  // Get Pro plan price from PLANS
+  const proPlanPrice = PLANS.pro?.price || 49;
+
   // Calculate stats
   const stats = {
     totalOrgs: organizations?.length || 0,
     paidOrgs: organizations?.filter(o => o.plan !== 'free').length || 0,
     activeSubscriptions: organizations?.filter(o => o.subscription_status === 'active').length || 0,
     mrr: organizations?.reduce((acc, org) => {
-      if (org.plan === 'pro') return acc + 29;
-      if (org.plan === 'business') return acc + 79;
+      if (org.plan === 'pro') return acc + proPlanPrice;
       return acc;
     }, 0) || 0,
   };
@@ -46,7 +48,6 @@ export default function SuperAdminSubscriptions() {
   const planColors: Record<string, string> = {
     free: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300',
     pro: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300',
-    business: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300',
   };
 
   const statusColors: Record<string, string> = {

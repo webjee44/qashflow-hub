@@ -243,11 +243,6 @@ export default function SuperAdminOrganizationDetail() {
                 <span className="text-muted-foreground">Entreprises max</span>
                 <span className="font-medium">{organization.max_companies}</span>
               </div>
-              <div className="pt-4 border-t">
-                <p className="text-sm text-muted-foreground">
-                  L'intégration Stripe permettra bientôt de gérer l'abonnement directement.
-                </p>
-              </div>
             </CardContent>
           </Card>
 
@@ -259,12 +254,6 @@ export default function SuperAdminOrganizationDetail() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <Button variant="outline" className="w-full justify-start" disabled>
-                Voir les membres
-              </Button>
-              <Button variant="outline" className="w-full justify-start" disabled>
-                Voir les entreprises
-              </Button>
               <Button 
                 variant="outline" 
                 className="w-full justify-start"
@@ -277,9 +266,6 @@ export default function SuperAdminOrganizationDetail() {
                   <UserCog className="w-4 h-4 mr-2" />
                 )}
                 Se connecter en tant que propriétaire
-              </Button>
-              <Button variant="destructive" className="w-full justify-start" disabled>
-                Suspendre l'organisation
               </Button>
             </CardContent>
           </Card>
