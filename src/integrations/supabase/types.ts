@@ -1784,6 +1784,10 @@ export type Database = {
         Args: { p_company_id: string; p_secret_type?: string }
         Returns: boolean
       }
+      delete_organization_cascade: {
+        Args: { _org_id: string }
+        Returns: undefined
+      }
       generate_org_slug: { Args: { org_name: string }; Returns: string }
       get_company_members_with_email: {
         Args: { _company_id: string }

@@ -4,7 +4,8 @@ import { Search, Building2, Eye } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { SuperAdminLayout } from '@/components/superadmin/SuperAdminLayout';
-import { useSuperAdminOrgStats } from '@/hooks/useSuperAdmin';
+import { useSuperAdminOrgStats, useDeleteOrganization } from '@/hooks/useSuperAdmin';
+import { DeleteOrganizationDialog } from '@/components/superadmin/DeleteOrganizationDialog';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
@@ -41,10 +42,15 @@ const statusColors: Record<string, string> = {
 export default function SuperAdminOrganizations() {
   const navigate = useNavigate();
   const { data: orgStats, isLoading } = useSuperAdminOrgStats();
+  const deleteOrganization = useDeleteOrganization();
   const [search, setSearch] = useState('');
   const [planFilter, setPlanFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [demoFilter, setDemoFilter] = useState<string>('all');
+
+  const handleDelete = async (orgId: string) => {
+    await deleteOrganization.mutateAsync(orgId);
+  };
 
   const filteredOrgs = orgStats?.filter((org) => {
     const matchesSearch =
@@ -143,7 +149,7 @@ export default function SuperAdminOrganizations() {
                   <TableHead className="text-center">Entreprises</TableHead>
                   <TableHead className="text-center">BP</TableHead>
                   <TableHead>Créée le</TableHead>
-                  <TableHead className="w-[50px]"></TableHead>
+                  <TableHead className="w-[100px]"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -179,14 +185,23 @@ export default function SuperAdminOrganizations() {
                       {format(new Date(org.created_at), 'dd MMM yyyy', { locale: fr })}
                     </TableCell>
                     <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={() => navigate(`/superadmin/organizations/${org.organization_id}`)}
-                      >
-                        <Eye className="w-4 h-4" />
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={() => navigate(`/superadmin/organizations/${org.organization_id}`)}
+                        >
+                          <Eye className="w-4 h-4" />
+                        </Button>
+                        <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                          <DeleteOrganizationDialog
+                            organization={org}
+                            onDelete={handleDelete}
+                            isDeleting={deleteOrganization.isPending}
+                          />
+                        </div>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

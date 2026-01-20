@@ -1,7 +1,8 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { logError } from '@/lib/logger';
+import { toast } from 'sonner';
 
 interface GlobalStats {
   total_users: number;
@@ -88,5 +89,28 @@ export function useSuperAdminOrgStats() {
       return (data as OrgStats[]) || [];
     },
     enabled: !!isSuperAdmin,
+  });
+}
+
+export function useDeleteOrganization() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (orgId: string) => {
+      const { error } = await supabase.rpc('delete_organization_cascade', { _org_id: orgId });
+      
+      if (error) {
+        logError('Error deleting organization:', error);
+        throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['superadmin-org-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['superadmin-global-stats'] });
+      toast.success('Organisation supprimée avec succès');
+    },
+    onError: (error: Error) => {
+      toast.error(`Erreur lors de la suppression: ${error.message}`);
+    },
   });
 }
