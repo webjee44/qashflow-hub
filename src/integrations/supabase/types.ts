@@ -1822,11 +1822,16 @@ export type Database = {
           member_count: number
           name: string
           organization_id: string
+          owner_email: string
           owner_id: string
           plan: string
           slug: string
           subscription_status: string
         }[]
+      }
+      get_user_email_for_superadmin: {
+        Args: { _user_id: string }
+        Returns: string
       }
       has_company_access: {
         Args: { _company_id: string; _user_id: string }

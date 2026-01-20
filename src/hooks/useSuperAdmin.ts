@@ -12,13 +12,14 @@ interface GlobalStats {
   total_transactions: number;
 }
 
-interface OrgStats {
+export interface OrgStats {
   organization_id: string;
   name: string;
   slug: string;
   plan: string;
   subscription_status: string;
   owner_id: string;
+  owner_email: string | null;
   created_at: string;
   max_members: number;
   max_companies: number;
