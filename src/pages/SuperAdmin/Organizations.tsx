@@ -55,7 +55,8 @@ export default function SuperAdminOrganizations() {
   const filteredOrgs = orgStats?.filter((org) => {
     const matchesSearch =
       org.name.toLowerCase().includes(search.toLowerCase()) ||
-      org.slug.toLowerCase().includes(search.toLowerCase());
+      org.slug.toLowerCase().includes(search.toLowerCase()) ||
+      (org.owner_email && org.owner_email.toLowerCase().includes(search.toLowerCase()));
     const matchesPlan = planFilter === 'all' || org.plan === planFilter;
     const matchesStatus = statusFilter === 'all' || org.subscription_status === statusFilter;
     const matchesDemo = demoFilter === 'all' || 
@@ -143,6 +144,7 @@ export default function SuperAdminOrganizations() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Organisation</TableHead>
+                  <TableHead>Admin</TableHead>
                   <TableHead>Plan</TableHead>
                   <TableHead>Statut</TableHead>
                   <TableHead className="text-center">Membres</TableHead>
@@ -160,6 +162,9 @@ export default function SuperAdminOrganizations() {
                         <p className="font-medium">{org.name}</p>
                         <p className="text-xs text-muted-foreground">{org.slug}</p>
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      <p className="text-sm text-muted-foreground">{org.owner_email || '—'}</p>
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-1.5">

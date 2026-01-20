@@ -13,6 +13,7 @@ interface OrgCardProps {
     slug: string;
     plan: string;
     subscription_status: string;
+    owner_email?: string;
     created_at: string;
     member_count: number;
     company_count: number;
@@ -47,7 +48,9 @@ export function OrgCard({ organization }: OrgCardProps) {
             </div>
             <div>
               <h3 className="font-semibold text-foreground">{organization.name}</h3>
-              <p className="text-sm text-muted-foreground">@{organization.slug}</p>
+              <p className="text-sm text-muted-foreground">
+                {organization.owner_email || `@${organization.slug}`}
+              </p>
             </div>
           </div>
           <div className="flex gap-2">
