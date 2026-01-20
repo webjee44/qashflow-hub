@@ -1,4 +1,4 @@
-import { Users, Building2, FileText, Receipt, TrendingUp } from 'lucide-react';
+import { Users, Building2, FileText, Receipt } from 'lucide-react';
 import { SuperAdminLayout } from '@/components/superadmin/SuperAdminLayout';
 import { StatsCard } from '@/components/superadmin/StatsCard';
 import { useSuperAdminGlobalStats, useSuperAdminOrgStats } from '@/hooks/useSuperAdmin';
@@ -91,19 +91,6 @@ export default function SuperAdminDashboard() {
               ))}
             </div>
           )}
-        </div>
-
-        {/* Quick Actions */}
-        <div className="bg-muted/50 rounded-lg p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <TrendingUp className="w-5 h-5 text-primary" />
-            <h2 className="text-lg font-semibold text-foreground">
-              Actions rapides
-            </h2>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            L'intégration Stripe sera bientôt disponible pour gérer les abonnements directement depuis ce dashboard.
-          </p>
         </div>
       </div>
     </SuperAdminLayout>

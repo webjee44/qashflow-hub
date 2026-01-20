@@ -66,7 +66,6 @@ const SuperAdminDashboard = lazy(() => import("./pages/SuperAdmin/Dashboard"));
 const SuperAdminOrganizations = lazy(() => import("./pages/SuperAdmin/Organizations"));
 const SuperAdminOrganizationDetail = lazy(() => import("./pages/SuperAdmin/OrganizationDetail"));
 const SuperAdminSubscriptions = lazy(() => import("./pages/SuperAdmin/Subscriptions"));
-const SuperAdminAnalytics = lazy(() => import("./pages/SuperAdmin/Analytics"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -160,11 +159,6 @@ const App = () => (
                 <Route path="/superadmin/subscriptions" element={
                   <SuperAdminRoute>
                     <Suspense fallback={<PageLoader />}><SuperAdminSubscriptions /></Suspense>
-                  </SuperAdminRoute>
-                } />
-                <Route path="/superadmin/analytics" element={
-                  <SuperAdminRoute>
-                    <Suspense fallback={<PageLoader />}><SuperAdminAnalytics /></Suspense>
                   </SuperAdminRoute>
                 } />
                 
