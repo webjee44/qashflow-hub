@@ -99,6 +99,7 @@ export function PersonnelDialog({ open, onOpenChange, personnel, onSave, default
         setCustomChargesRate(personnel.employer_charges_rate);
       }
     } else {
+      // Reset ALL state for new personnel
       setWorkerType(defaultWorkerType);
       setPosition('');
       setGrossSalary('');
@@ -110,6 +111,7 @@ export function PersonnelDialog({ open, onOpenChange, personnel, onSave, default
       setContractType(defaultWorkerType === 'freelance' ? 'freelance' : 'cdi');
       setIsExecutive(false);
       setCompanySize('small');
+      setShowDetails(false);
       setImportedData(null);
       setCustomMutuelle(null);
       setCustomAtMpRate(null);
