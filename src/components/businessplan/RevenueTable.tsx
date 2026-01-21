@@ -17,6 +17,14 @@ interface RevenueTableProps {
   onEditStream: (stream: RevenueStream) => void;
 }
 
+// Type alias for compatibility with BPRevenueStream
+type EditableStream = RevenueStream & { 
+  has_purchase_cost?: boolean; 
+  purchase_price?: number;
+  vat_rate?: number;
+  bad_debt_rate?: number;
+};
+
 export function RevenueTable({ onEditStream }: RevenueTableProps) {
   const { streams, getForecast, upsertForecast, deleteStream, updateStream, getYearlyRevenue, getTotalYearlyRevenue, isLoading } = useRevenueStreams();
   const { settings } = useBPSettings();

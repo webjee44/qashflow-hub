@@ -5,8 +5,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { RevenueStream } from '@/hooks/useRevenueStreams';
-import { Users, TrendingUp, TrendingDown } from 'lucide-react';
+import { Users, TrendingUp, TrendingDown, ShoppingCart } from 'lucide-react';
 
 interface RevenueStreamDialogProps {
   open: boolean;
@@ -34,6 +35,10 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
   const [growthRateYear2, setGrowthRateYear2] = useState('10');
   const [growthRateYear3, setGrowthRateYear3] = useState('10');
 
+  // Purchase cost fields
+  const [hasPurchaseCost, setHasPurchaseCost] = useState(false);
+  const [purchasePrice, setPurchasePrice] = useState('');
+
   useEffect(() => {
     if (stream) {
       setName(stream.name);
@@ -47,6 +52,8 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
       setGrowthRate(((stream.growth_rate || 0.10) * 100).toString());
       setGrowthRateYear2(((stream.growth_rate_year2 ?? stream.annual_growth_rate ?? 0.10) * 100).toString());
       setGrowthRateYear3(((stream.growth_rate_year3 ?? stream.annual_growth_rate ?? 0.10) * 100).toString());
+      setHasPurchaseCost(stream.has_purchase_cost ?? false);
+      setPurchasePrice(stream.purchase_price?.toString() || '');
     } else {
       setName('');
       setDescription('');
@@ -57,6 +64,8 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
       setGrowthRate('10');
       setGrowthRateYear2('10');
       setGrowthRateYear3('10');
+      setHasPurchaseCost(false);
+      setPurchasePrice('');
     }
   }, [stream, open]);
 
@@ -84,9 +93,17 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
       growth_rate_year2: rate2,
       growth_rate_year3: rate3,
       growth_rate_year4: rate3, // Use rate3 for year4 as fallback
+      has_purchase_cost: hasPurchaseCost,
+      purchase_price: parseFloat(purchasePrice) || 0,
     });
     onOpenChange(false);
   };
+
+  // Calculate margin preview
+  const sellingPrice = parseFloat(monthlyPrice) || 0;
+  const purchaseCost = parseFloat(purchasePrice) || 0;
+  const marginAmount = sellingPrice - purchaseCost;
+  const marginPercent = sellingPrice > 0 ? (marginAmount / sellingPrice) * 100 : 0;
 
   // Calculate preview for subscription model
   const subscribers = parseInt(initialSubscribers) || 0;
@@ -143,6 +160,62 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
                 ? 'Saisissez le CA mois par mois dans le tableau' 
                 : 'Calcul automatique basé sur les abonnés et le prix mensuel'}
             </p>
+          </div>
+
+          {/* Purchase cost section */}
+          <div className="grid gap-4 p-4 bg-muted/30 rounded-lg border">
+            <div className="flex items-center justify-between">
+              <Label className="flex items-center gap-2">
+                <ShoppingCart className="h-4 w-4 text-primary" />
+                Ce produit a un coût d'achat
+              </Label>
+              <Switch
+                checked={hasPurchaseCost}
+                onCheckedChange={setHasPurchaseCost}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground -mt-2">
+              Activez pour les produits revendus (négoce) ou fabriqués (production)
+            </p>
+            
+            {hasPurchaseCost && (
+              <div className="space-y-4 pt-2 border-t">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="sellingPrice">Prix de vente HT (€)</Label>
+                    <Input
+                      id="sellingPrice"
+                      type="number"
+                      value={monthlyPrice}
+                      onChange={(e) => setMonthlyPrice(e.target.value)}
+                      placeholder="100"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="purchasePrice">Prix d'achat HT (€)</Label>
+                    <Input
+                      id="purchasePrice"
+                      type="number"
+                      value={purchasePrice}
+                      onChange={(e) => setPurchasePrice(e.target.value)}
+                      placeholder="60"
+                    />
+                  </div>
+                </div>
+                
+                {sellingPrice > 0 && purchaseCost > 0 && (
+                  <div className="flex items-center justify-between p-3 bg-background rounded-md border">
+                    <span className="text-sm text-muted-foreground">Marge brute unitaire</span>
+                    <div className="text-right">
+                      <span className="font-semibold">{formatCurrency(marginAmount)}</span>
+                      <span className={`ml-2 text-sm ${marginPercent >= 30 ? 'text-success' : marginPercent >= 15 ? 'text-warning' : 'text-destructive'}`}>
+                        ({marginPercent.toFixed(1)}%)
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Year-specific growth rates (3-year BP: N+1 and N+2) */}

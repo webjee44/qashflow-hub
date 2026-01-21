@@ -24,6 +24,9 @@ export interface BPRevenueStream {
   growth_rate_year2: number;
   growth_rate_year3: number;
   growth_rate_year4: number;
+  // Purchase cost fields
+  has_purchase_cost: boolean;
+  purchase_price: number;
   created_at: string;
   updated_at: string;
 }
@@ -76,6 +79,8 @@ export function useBPRevenueStreams() {
           growth_rate_year2: data.growth_rate_year2 ?? 0.10,
           growth_rate_year3: data.growth_rate_year3 ?? 0.10,
           growth_rate_year4: data.growth_rate_year4 ?? 0.10,
+          has_purchase_cost: data.has_purchase_cost ?? false,
+          purchase_price: data.purchase_price ?? 0,
         })
         .select()
         .single();
