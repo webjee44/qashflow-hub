@@ -271,6 +271,7 @@ export function BPSettingsDialog({ open, onOpenChange }: BPSettingsDialogProps) 
               <Input
                 id="initialCash"
                 type="number"
+                step="any"
                 value={initialCash}
                 onChange={(e) => setInitialCash(e.target.value)}
                 placeholder="0"
@@ -282,6 +283,8 @@ export function BPSettingsDialog({ open, onOpenChange }: BPSettingsDialogProps) 
                 <Input
                   id="customerDelay"
                   type="number"
+                  step="1"
+                  min="0"
                   value={customerDelay}
                   onChange={(e) => setCustomerDelay(e.target.value)}
                   placeholder="30"
@@ -292,6 +295,8 @@ export function BPSettingsDialog({ open, onOpenChange }: BPSettingsDialogProps) 
                 <Input
                   id="supplierDelay"
                   type="number"
+                  step="1"
+                  min="0"
                   value={supplierDelay}
                   onChange={(e) => setSupplierDelay(e.target.value)}
                   placeholder="30"
