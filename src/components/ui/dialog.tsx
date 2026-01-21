@@ -41,14 +41,20 @@ const DialogContent = React.forwardRef<
       <DialogPrimitive.Content
         ref={ref}
         className={cn(
-          "relative grid w-full max-w-[32rem] gap-4 border bg-background p-6 shadow-lg duration-200 max-h-[calc(100vh-2rem)] overflow-y-auto overscroll-contain data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:rounded-lg",
+          "relative grid w-full max-w-[32rem] gap-4 border bg-background p-6 shadow-lg duration-200 max-h-[calc(100vh-2rem)] overflow-y-auto data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:rounded-lg",
           className,
         )}
         onPointerDownOutside={(e) => {
           const target = e.target as HTMLElement;
           // Radix Popper contents (Select/Popover/Dropdown/etc.) are portaled outside the Dialog.
           // Prevent the dialog from treating interactions inside those portals as "outside" clicks.
-          if (target?.closest("[data-radix-popper-content-wrapper]")) {
+          if (
+            target?.closest("[data-radix-popper-content-wrapper]") ||
+            target?.closest("[data-radix-select-content]") ||
+            target?.closest("[data-radix-dropdown-menu-content]") ||
+            target?.closest("[data-radix-popover-content]") ||
+            target?.closest("[data-radix-menu-content]")
+          ) {
             e.preventDefault();
             return;
           }
@@ -56,7 +62,13 @@ const DialogContent = React.forwardRef<
         }}
         onInteractOutside={(e) => {
           const target = e.target as HTMLElement;
-          if (target?.closest("[data-radix-popper-content-wrapper]")) {
+          if (
+            target?.closest("[data-radix-popper-content-wrapper]") ||
+            target?.closest("[data-radix-select-content]") ||
+            target?.closest("[data-radix-dropdown-menu-content]") ||
+            target?.closest("[data-radix-popover-content]") ||
+            target?.closest("[data-radix-menu-content]")
+          ) {
             e.preventDefault();
             return;
           }
