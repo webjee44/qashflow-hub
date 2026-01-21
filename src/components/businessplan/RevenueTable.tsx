@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { format, addMonths, startOfMonth, setMonth, setDate, setYear, getYear, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { Trash2, Edit, TrendingUp, Info, Copy, Check } from 'lucide-react';
+import { Trash2, Edit, TrendingUp, Info, Copy, Check, Pencil } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -344,16 +344,17 @@ export function RevenueTable({ onEditStream }: RevenueTableProps) {
                           <PopoverTrigger asChild>
                             <div 
                               className={cn(
-                                "w-full h-8 px-2 rounded text-sm transition-colors flex items-center justify-center",
+                                "group/cell relative w-full h-8 px-2 rounded text-sm transition-all duration-200 flex items-center justify-center",
                                 !isEditing && (value > 0 
-                                  ? "bg-success/10 text-success hover:bg-success/20 cursor-pointer" 
-                                  : "text-muted-foreground hover:bg-muted cursor-pointer")
+                                  ? "bg-success/10 text-success hover:bg-success/20 hover:ring-2 hover:ring-success/30 hover:shadow-sm cursor-pointer" 
+                                  : "text-muted-foreground hover:bg-primary/10 hover:ring-2 hover:ring-primary/30 hover:text-primary hover:shadow-sm cursor-pointer")
                               )}
                               onClick={() => !isEditing && !showPopover && handleCellClick(stream.id, monthIndex, value)}
                             >
                               {isEditing ? (
                                 <Input
                                   type="number"
+                                  step="any"
                                   value={inputValue}
                                   onChange={(e) => setInputValue(e.target.value)}
                                   onBlur={() => handleInputBlur(stream.id, monthIndex)}
@@ -362,7 +363,10 @@ export function RevenueTable({ onEditStream }: RevenueTableProps) {
                                   className="w-full h-8 text-center text-sm min-w-[100px]"
                                 />
                               ) : (
-                                <span>{value > 0 ? formatCurrency(value) : '-'}</span>
+                                <>
+                                  <span>{value > 0 ? formatCurrency(value) : '-'}</span>
+                                  <Pencil className="absolute right-1 top-1/2 -translate-y-1/2 h-3 w-3 opacity-0 group-hover/cell:opacity-60 transition-opacity duration-200" />
+                                </>
                               )}
                             </div>
                           </PopoverTrigger>
