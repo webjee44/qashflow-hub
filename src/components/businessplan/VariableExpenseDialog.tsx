@@ -270,7 +270,7 @@ export function VariableExpenseDialog({ open, onOpenChange, expense }: VariableE
             <div>
               <Label htmlFor="vat_rate">Taux de TVA</Label>
               <Select
-                value={formData.vat_rate.toString()}
+                value={VAT_RATES.find(r => parseFloat(r.value) === formData.vat_rate)?.value || '0.20'}
                 onValueChange={(v) => setFormData({ ...formData, vat_rate: parseFloat(v) })}
               >
                 <SelectTrigger>
