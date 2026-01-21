@@ -165,55 +165,37 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
           {/* Purchase cost section */}
           <div className="grid gap-4 p-4 bg-muted/30 rounded-lg border">
             <div className="flex items-center justify-between">
-              <Label className="flex items-center gap-2">
-                <ShoppingCart className="h-4 w-4 text-primary" />
-                Ce produit a un coût d'achat
+              <Label htmlFor="hasPurchaseCost" className="flex-1 cursor-pointer">
+                Appliquer un coût d'achat sur ce flux
               </Label>
               <Switch
+                id="hasPurchaseCost"
                 checked={hasPurchaseCost}
                 onCheckedChange={setHasPurchaseCost}
               />
             </div>
-            <p className="text-xs text-muted-foreground -mt-2">
-              Activez pour les produits revendus (négoce) ou fabriqués (production)
-            </p>
             
             {hasPurchaseCost && (
-              <div className="space-y-4 pt-2 border-t">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="sellingPrice">Prix de vente HT (€)</Label>
-                    <Input
-                      id="sellingPrice"
-                      type="number"
-                      value={monthlyPrice}
-                      onChange={(e) => setMonthlyPrice(e.target.value)}
-                      placeholder="100"
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="purchasePrice">Prix d'achat HT (€)</Label>
-                    <Input
-                      id="purchasePrice"
-                      type="number"
-                      value={purchasePrice}
-                      onChange={(e) => setPurchasePrice(e.target.value)}
-                      placeholder="60"
-                    />
-                  </div>
+              <div className="flex items-center gap-3 pt-2 border-t">
+                <Label htmlFor="purchasePercent" className="text-sm whitespace-nowrap">
+                  % des achats
+                </Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="purchasePercent"
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={purchasePrice}
+                    onChange={(e) => setPurchasePrice(e.target.value)}
+                    placeholder="60"
+                    className="w-20"
+                  />
+                  <span className="text-sm text-muted-foreground">%</span>
                 </div>
-                
-                {sellingPrice > 0 && purchaseCost > 0 && (
-                  <div className="flex items-center justify-between p-3 bg-background rounded-md border">
-                    <span className="text-sm text-muted-foreground">Marge brute unitaire</span>
-                    <div className="text-right">
-                      <span className="font-semibold">{formatCurrency(marginAmount)}</span>
-                      <span className={`ml-2 text-sm ${marginPercent >= 30 ? 'text-success' : marginPercent >= 15 ? 'text-warning' : 'text-destructive'}`}>
-                        ({marginPercent.toFixed(1)}%)
-                      </span>
-                    </div>
-                  </div>
-                )}
+                <span className="text-xs text-muted-foreground ml-auto">
+                  = Marge brute de {(100 - (parseFloat(purchasePrice) || 0)).toFixed(0)}%
+                </span>
               </div>
             )}
           </div>

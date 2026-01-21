@@ -386,19 +386,14 @@ export function useProfitLoss() {
   };
 
   // Calculate purchase costs from revenue streams (COGS from products)
+  // purchase_price now represents a percentage of revenue (e.g., 60 = 60% of CA)
   const getPurchaseCostForMonth = (month: Date): number => {
     return streams.reduce((sum, stream) => {
       if (!stream.has_purchase_cost || !stream.purchase_price) return sum;
       
       const revenue = getRevenueForecast(stream.id, month);
-      const sellingPrice = stream.monthly_price || 0;
-      
-      if (sellingPrice === 0) return sum;
-      
-      // Calculate units sold from revenue
-      const unitsSold = revenue / sellingPrice;
-      // COGS = units sold × purchase price
-      const purchaseCost = unitsSold * stream.purchase_price;
+      // COGS = revenue × purchase percentage
+      const purchaseCost = revenue * (stream.purchase_price / 100);
       
       return sum + purchaseCost;
     }, 0);
