@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Financing } from '@/hooks/useFinancings';
 import { useInvestments } from '@/hooks/useInvestments';
+import { useBPSettings } from '@/hooks/useBPSettings';
 import { FINANCING_TYPES, calculateLoanPayment } from '@/lib/french-rates';
 import { format, addMonths } from 'date-fns';
 import { Landmark, FileText } from 'lucide-react';
@@ -20,6 +21,19 @@ interface FinancingDialogProps {
 
 export function FinancingDialog({ open, onOpenChange, financing, onSave }: FinancingDialogProps) {
   const { investments } = useInvestments();
+  const { settings } = useBPSettings();
+  
+  const getDefaultStartDate = () => {
+    if (settings.bp_start_date) return settings.bp_start_date;
+    const now = new Date();
+    const fiscalMonth = settings.fiscal_year_start_month || 1;
+    const fiscalDay = settings.fiscal_year_start_day || 1;
+    let fiscalYearStart = new Date(now.getFullYear(), fiscalMonth - 1, fiscalDay);
+    if (fiscalYearStart > now) {
+      fiscalYearStart = new Date(now.getFullYear() - 1, fiscalMonth - 1, fiscalDay);
+    }
+    return format(fiscalYearStart, 'yyyy-MM-dd');
+  };
   
   const [financingType, setFinancingType] = useState<'loan' | 'lease' | 'current_account'>('loan');
   const [name, setName] = useState('');
@@ -28,7 +42,7 @@ export function FinancingDialog({ open, onOpenChange, financing, onSave }: Finan
   const [interestRate, setInterestRate] = useState('3.5');
   const [durationMonths, setDurationMonths] = useState('60');
   const [monthlyPayment, setMonthlyPayment] = useState('');
-  const [startDate, setStartDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [startDate, setStartDate] = useState(getDefaultStartDate());
   const [endDate, setEndDate] = useState('');
   const [notes, setNotes] = useState('');
 
@@ -52,11 +66,11 @@ export function FinancingDialog({ open, onOpenChange, financing, onSave }: Finan
       setInterestRate('3.5');
       setDurationMonths('60');
       setMonthlyPayment('');
-      setStartDate(format(new Date(), 'yyyy-MM-dd'));
+      setStartDate(getDefaultStartDate());
       setEndDate('');
       setNotes('');
     }
-  }, [financing, open]);
+  }, [financing, open, settings]);
 
   // Auto-calculate loan monthly payment
   useEffect(() => {

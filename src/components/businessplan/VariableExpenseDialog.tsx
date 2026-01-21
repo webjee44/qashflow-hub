@@ -8,7 +8,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { VariableExpense, VARIABLE_EXPENSE_CATEGORIES, VariableExpenseCategory, useVariableExpenses } from '@/hooks/useVariableExpenses';
 import { useRevenueStreams } from '@/hooks/useRevenueStreams';
+import { useBPSettings } from '@/hooks/useBPSettings';
 import { Loader2, Percent, Hash } from 'lucide-react';
+import { format } from 'date-fns';
 
 interface VariableExpenseDialogProps {
   open: boolean;
@@ -27,6 +29,19 @@ const VAT_RATES = [
 export function VariableExpenseDialog({ open, onOpenChange, expense }: VariableExpenseDialogProps) {
   const { createExpense, updateExpense } = useVariableExpenses();
   const { streams } = useRevenueStreams();
+  const { settings } = useBPSettings();
+  
+  const getDefaultStartDate = () => {
+    if (settings.bp_start_date) return settings.bp_start_date;
+    const now = new Date();
+    const fiscalMonth = settings.fiscal_year_start_month || 1;
+    const fiscalDay = settings.fiscal_year_start_day || 1;
+    let fiscalYearStart = new Date(now.getFullYear(), fiscalMonth - 1, fiscalDay);
+    if (fiscalYearStart > now) {
+      fiscalYearStart = new Date(now.getFullYear() - 1, fiscalMonth - 1, fiscalDay);
+    }
+    return format(fiscalYearStart, 'yyyy-MM-dd');
+  };
   
   const [formData, setFormData] = useState({
     name: '',
@@ -41,7 +56,7 @@ export function VariableExpenseDialog({ open, onOpenChange, expense }: VariableE
     vat_rate: 0.20,
     is_vat_deductible: true,
     is_cogs: true, // Par défaut = Coût des ventes
-    start_date: new Date().toISOString().split('T')[0],
+    start_date: getDefaultStartDate(),
     end_date: '' as string,
     notes: '',
   });
@@ -77,12 +92,12 @@ export function VariableExpenseDialog({ open, onOpenChange, expense }: VariableE
         vat_rate: 0.20,
         is_vat_deductible: true,
         is_cogs: true,
-        start_date: new Date().toISOString().split('T')[0],
+        start_date: getDefaultStartDate(),
         end_date: '',
         notes: '',
       });
     }
-  }, [expense, open]);
+  }, [expense, open, settings]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

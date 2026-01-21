@@ -7,6 +7,7 @@ import { useState, useMemo } from 'react';
 import { format, startOfMonth } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Gift, Info, Users, Check, Banknote } from 'lucide-react';
+import { useBPSettings } from '@/features/business-plan/hooks/useBPSettings';
 import {
   Dialog,
   DialogContent,
@@ -59,10 +60,23 @@ export function BonusDialog({
   onSubmit,
   isSubmitting = false,
 }: BonusDialogProps) {
+  const { settings } = useBPSettings();
+  
+  const getDefaultPaymentMonth = () => {
+    const today = new Date();
+    // Si la date du BP est dans le futur, utiliser le premier mois du BP
+    if (settings.bp_start_date) {
+      const bpStart = new Date(settings.bp_start_date);
+      if (bpStart > today) {
+        return format(startOfMonth(bpStart), 'yyyy-MM-dd');
+      }
+    }
+    // Sinon utiliser le mois courant
+    return format(startOfMonth(today), 'yyyy-MM-dd');
+  };
+  
   const [bonusType, setBonusType] = useState<BonusType>('ppv');
-  const [paymentMonth, setPaymentMonth] = useState<string>(
-    format(startOfMonth(new Date()), 'yyyy-MM-dd')
-  );
+  const [paymentMonth, setPaymentMonth] = useState<string>(getDefaultPaymentMonth());
   const [uniformAmount, setUniformAmount] = useState<string>('');
   const [entries, setEntries] = useState<PersonnelBonusEntry[]>([]);
 
