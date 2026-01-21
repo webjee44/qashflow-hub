@@ -197,7 +197,8 @@ export function calculateDetailedCharges(
   return charges;
 }
 
-// Calcul du taux global de charges
+// Calcul du taux global de charges (SANS mutuelle forfaitaire)
+// La mutuelle est un forfait fixe (150€), pas un pourcentage du salaire
 export function getGlobalChargesRate(
   grossSalary: number,
   isExecutive: boolean,
@@ -206,8 +207,13 @@ export function getGlobalChargesRate(
 ): number {
   if (grossSalary <= 0) return 0;
   const charges = calculateDetailedCharges(grossSalary, isExecutive, companySize, contractType);
-  return charges.total / grossSalary;
+  // Exclure la mutuelle forfaitaire du calcul du taux
+  const chargesWithoutMutuelle = charges.total - charges.mutuelle;
+  return chargesWithoutMutuelle / grossSalary;
 }
+
+// Constante pour la mutuelle forfaitaire (utilisée séparément)
+export const MUTUELLE_FORFAIT = URSSAF_RATES_2026.employer.mutuelle_forfait_moyen;
 
 // Calcul de l'IS (Impôt sur les Sociétés)
 export function calculateIS(resultatAvantIS: number, isPME: boolean): number {

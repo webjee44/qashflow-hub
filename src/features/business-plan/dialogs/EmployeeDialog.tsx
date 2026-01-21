@@ -100,7 +100,7 @@ export function EmployeeDialog({ open, onOpenChange, employee, onSave }: Employe
           setCustomChargesRate(employee.employer_charges_rate);
         }
       } else {
-        // New employee - show choice
+        // New employee - show choice and reset ALL state
         setStep('choice');
         setPosition('');
         setGrossSalary('');
@@ -110,6 +110,7 @@ export function EmployeeDialog({ open, onOpenChange, employee, onSave }: Employe
         setContractType('cdi');
         setIsExecutive(false);
         setCompanySize('small');
+        setShowDetails(false);
         setImportedData(null);
         setCustomMutuelle(null);
         setCustomAtMpRate(null);

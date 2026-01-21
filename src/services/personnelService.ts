@@ -145,10 +145,13 @@ export const personnelService = {
   },
 
   // Utility methods
+  // Note: employer_charges_rate n'inclut PAS la mutuelle forfaitaire
+  // On l'ajoute séparément pour le coût total
   getEmployeeMonthlyCost(person: BPPersonnel): number {
     const salary = Number(person.gross_salary);
-    const charges = salary * Number(person.employer_charges_rate);
-    return salary + charges;
+    const chargesWithoutMutuelle = salary * Number(person.employer_charges_rate);
+    const mutuelle = person.mutuelle_employer_amount ?? 150; // Forfait moyen si non spécifié
+    return salary + chargesWithoutMutuelle + mutuelle;
   },
 
   getFreelanceMonthlyCost(person: BPPersonnel): number {

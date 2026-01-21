@@ -47,8 +47,16 @@ export function PersonnelTable({ onEdit, bonuses = [], onEditBonus, onDeleteBonu
     return getBonusesForPerson(personnelId).reduce((sum, b) => sum + b.amount, 0);
   };
 
+  // Mutuelle forfaitaire (150€/mois par défaut si non importée)
+  const MUTUELLE_FORFAIT = 150;
+  
   const totalGrossSalaries = employees.reduce((sum, p) => sum + Number(p.gross_salary), 0);
-  const totalCharges = employees.reduce((sum, p) => sum + (Number(p.gross_salary) * Number(p.employer_charges_rate)), 0);
+  // Charges proportionnelles (sans mutuelle)
+  const totalProportionalCharges = employees.reduce((sum, p) => sum + (Number(p.gross_salary) * Number(p.employer_charges_rate)), 0);
+  // Mutuelle forfaitaire par salarié
+  const totalMutuelle = employees.reduce((sum, p) => sum + (p.mutuelle_employer_amount ?? MUTUELLE_FORFAIT), 0);
+  // Total des charges = proportionnelles + mutuelle
+  const totalCharges = totalProportionalCharges + totalMutuelle;
   const totalBonuses = bonuses.reduce((sum, b) => sum + b.amount, 0);
 
   if (isLoading) {
@@ -81,7 +89,12 @@ export function PersonnelTable({ onEdit, bonuses = [], onEditBonus, onDeleteBonu
         </TableHeader>
         <TableBody>
           {employees.map((person) => {
-            const charges = Number(person.gross_salary) * Number(person.employer_charges_rate);
+            // Charges proportionnelles (sans mutuelle)
+            const proportionalCharges = Number(person.gross_salary) * Number(person.employer_charges_rate);
+            // Mutuelle forfaitaire
+            const mutuelle = person.mutuelle_employer_amount ?? MUTUELLE_FORFAIT;
+            // Total des charges
+            const charges = proportionalCharges + mutuelle;
             const total = getEmployeeMonthlyCost(person);
             const contractInfo = CONTRACT_TYPES[person.contract_type as keyof typeof CONTRACT_TYPES];
             const isIntern = person.worker_type === 'intern' || person.contract_type === 'stage';
