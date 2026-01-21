@@ -33,11 +33,22 @@ export function FinancingTable({ onEdit }: FinancingTableProps) {
     return investments.find(inv => inv.id === investmentId)?.name;
   };
 
-  const getRemainingMonths = (financing: Financing): number => {
-    const endDate = financing.end_date 
-      ? parseISO(financing.end_date) 
-      : addMonths(parseISO(financing.start_date), financing.duration_months);
-    return Math.max(0, differenceInMonths(endDate, new Date()));
+  // Pour un BP prévisionnel, on affiche la durée totale du financement
+  // plutôt que le temps restant par rapport à aujourd'hui
+  const getDurationDisplay = (financing: Financing): { total: number; label: string } => {
+    const durationMonths = financing.duration_months || 0;
+    if (durationMonths === 0) return { total: 0, label: '—' };
+    
+    const years = Math.floor(durationMonths / 12);
+    const months = durationMonths % 12;
+    
+    if (years > 0 && months > 0) {
+      return { total: durationMonths, label: `${years} an${years > 1 ? 's' : ''} ${months} mois` };
+    } else if (years > 0) {
+      return { total: durationMonths, label: `${years} an${years > 1 ? 's' : ''}` };
+    } else {
+      return { total: durationMonths, label: `${months} mois` };
+    }
   };
 
   const getRemainingCapital = (financing: Financing): number => {
@@ -90,16 +101,15 @@ export function FinancingTable({ onEdit }: FinancingTableProps) {
             <TableHead>Lié à</TableHead>
             <TableHead className="text-right">Mensualité</TableHead>
             <TableHead className="text-right">Restant dû</TableHead>
-            <TableHead>Durée restante</TableHead>
+            <TableHead>Durée</TableHead>
             <TableHead className="w-[80px]"></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {financings.map((financing) => {
             const investmentName = getInvestmentName(financing.investment_id);
-            const remainingMonths = getRemainingMonths(financing);
+            const duration = getDurationDisplay(financing);
             const remainingCapital = getRemainingCapital(financing);
-            const isEnded = remainingMonths <= 0;
 
             return (
               <TableRow key={financing.id} className="group">
@@ -139,7 +149,7 @@ export function FinancingTable({ onEdit }: FinancingTableProps) {
                 </TableCell>
                 <TableCell className="text-right">
                   {financing.financing_type === 'loan' ? (
-                    <span className={isEnded ? 'text-muted-foreground' : ''}>
+                    <span className={remainingCapital <= 0 ? 'text-muted-foreground' : ''}>
                       {formatCurrency(remainingCapital)}
                     </span>
                   ) : (
@@ -147,11 +157,7 @@ export function FinancingTable({ onEdit }: FinancingTableProps) {
                   )}
                 </TableCell>
                 <TableCell>
-                  {isEnded ? (
-                    <Badge variant="secondary" className="text-xs">Terminé</Badge>
-                  ) : (
-                    <span className="text-muted-foreground">{remainingMonths} mois</span>
-                  )}
+                  <span className="text-muted-foreground">{duration.label}</span>
                 </TableCell>
                 <TableCell>
                   <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
