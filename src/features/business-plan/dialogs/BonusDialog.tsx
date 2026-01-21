@@ -3,7 +3,7 @@
 // Saisie rapide des primes pour tous les salariés
 // ============================================
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { format, startOfMonth } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Gift, Info, Users, Check, Banknote } from 'lucide-react';
@@ -76,9 +76,16 @@ export function BonusDialog({
   };
   
   const [bonusType, setBonusType] = useState<BonusType>('ppv');
-  const [paymentMonth, setPaymentMonth] = useState<string>(getDefaultPaymentMonth());
+  const [paymentMonth, setPaymentMonth] = useState<string>('');
   const [uniformAmount, setUniformAmount] = useState<string>('');
   const [entries, setEntries] = useState<PersonnelBonusEntry[]>([]);
+  
+  // Initialiser le mois de paiement par défaut
+  useEffect(() => {
+    if (!paymentMonth) {
+      setPaymentMonth(getDefaultPaymentMonth());
+    }
+  }, [settings]);
 
   // Filtrer seulement les salariés (pas les freelances)
   const employees = useMemo(() => 
