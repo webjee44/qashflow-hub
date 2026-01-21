@@ -42,9 +42,16 @@ export function FinancingDialog({ open, onOpenChange, financing, onSave }: Finan
   const [interestRate, setInterestRate] = useState('3.5');
   const [durationMonths, setDurationMonths] = useState('60');
   const [monthlyPayment, setMonthlyPayment] = useState('');
-  const [startDate, setStartDate] = useState(getDefaultStartDate());
+  const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [notes, setNotes] = useState('');
+  
+  // Initialiser la date par défaut au premier rendu
+  useEffect(() => {
+    if (!startDate && !financing) {
+      setStartDate(getDefaultStartDate());
+    }
+  }, [settings]);
 
   useEffect(() => {
     if (financing) {

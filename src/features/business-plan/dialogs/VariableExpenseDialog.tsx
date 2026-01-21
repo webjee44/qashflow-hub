@@ -53,7 +53,7 @@ export function VariableExpenseDialog({ open, onOpenChange, expense }: VariableE
     vat_rate: 0.20,
     is_vat_deductible: true,
     is_cogs: true, // Par défaut = Coût des ventes (impacte la marge brute)
-    start_date: getDefaultStartDate(),
+    start_date: '',
     end_date: '' as string,
     notes: '',
   });
