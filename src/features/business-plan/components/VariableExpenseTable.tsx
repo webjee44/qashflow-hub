@@ -133,7 +133,7 @@ export function VariableExpenseTable() {
                         {expense.calculation_type === 'percentage' ? (
                           <>
                             <Percent className="h-3 w-3" />
-                            <span className="text-xs">% du CA</span>
+                            <span className="text-xs">du CA</span>
                           </>
                         ) : (
                           <>
