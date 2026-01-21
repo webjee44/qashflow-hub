@@ -73,20 +73,19 @@ export function useRevenueStreams() {
   const { data: streams = [], isLoading: streamsLoading } = useQuery({
     queryKey: ['bp_revenue_streams', currentCompany?.id],
     queryFn: async () => {
-      let query = supabase
+      if (!currentCompany?.id) return [];
+      
+      const { data, error } = await supabase
         .from('bp_revenue_streams')
         .select('*')
+        .eq('company_id', currentCompany.id)
+        .eq('is_active', true)
         .order('created_at', { ascending: true });
 
-      if (currentCompany?.id) {
-        query = query.eq('company_id', currentCompany.id);
-      }
-
-      const { data, error } = await query;
       if (error) throw error;
       return (data || []) as RevenueStream[];
     },
-    enabled: !!user,
+    enabled: !!user && !!currentCompany?.id,
   });
 
   // Fetch revenue forecasts - use BP start date instead of current date
