@@ -665,12 +665,14 @@ export type Database = {
           growth_rate_year2: number | null
           growth_rate_year3: number | null
           growth_rate_year4: number | null
+          has_purchase_cost: boolean | null
           id: string
           initial_subscribers: number | null
           is_active: boolean | null
           model: string | null
           monthly_price: number | null
           name: string
+          purchase_price: number | null
           updated_at: string | null
           user_id: string
           vat_rate: number | null
@@ -688,12 +690,14 @@ export type Database = {
           growth_rate_year2?: number | null
           growth_rate_year3?: number | null
           growth_rate_year4?: number | null
+          has_purchase_cost?: boolean | null
           id?: string
           initial_subscribers?: number | null
           is_active?: boolean | null
           model?: string | null
           monthly_price?: number | null
           name: string
+          purchase_price?: number | null
           updated_at?: string | null
           user_id: string
           vat_rate?: number | null
@@ -711,12 +715,14 @@ export type Database = {
           growth_rate_year2?: number | null
           growth_rate_year3?: number | null
           growth_rate_year4?: number | null
+          has_purchase_cost?: boolean | null
           id?: string
           initial_subscribers?: number | null
           is_active?: boolean | null
           model?: string | null
           monthly_price?: number | null
           name?: string
+          purchase_price?: number | null
           updated_at?: string | null
           user_id?: string
           vat_rate?: number | null

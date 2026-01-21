@@ -385,6 +385,25 @@ export function useProfitLoss() {
     return (expense.unit_cost || 0);
   };
 
+  // Calculate purchase costs from revenue streams (COGS from products)
+  const getPurchaseCostForMonth = (month: Date): number => {
+    return streams.reduce((sum, stream) => {
+      if (!stream.has_purchase_cost || !stream.purchase_price) return sum;
+      
+      const revenue = getRevenueForecast(stream.id, month);
+      const sellingPrice = stream.monthly_price || 0;
+      
+      if (sellingPrice === 0) return sum;
+      
+      // Calculate units sold from revenue
+      const unitsSold = revenue / sellingPrice;
+      // COGS = units sold × purchase price
+      const purchaseCost = unitsSold * stream.purchase_price;
+      
+      return sum + purchaseCost;
+    }, 0);
+  };
+
   // Build fiscal years from settings
   const getFiscalYears = (): FiscalYear[] => {
     const startDate = settings.bp_start_date ? new Date(settings.bp_start_date) : new Date();
@@ -451,6 +470,7 @@ export function useProfitLoss() {
     rows.push({ label: 'CHARGES D\'EXPLOITATION', type: 'header', values: [], isExpense: true });
 
     // Charges variables - COGS uniquement (pour la marge brute)
+    // Includes: variable expenses with is_cogs=true + purchase costs from revenue streams
     const cogsExpenses = variableExpenses.filter(e => e.is_cogs !== false);
     const cogsValues = calculateYearlyValues(month => {
       const revenueByStream = new Map<string | null, { amount: number; units: number }>();
@@ -458,9 +478,16 @@ export function useProfitLoss() {
         const amount = getRevenueForecast(stream.id, month);
         revenueByStream.set(stream.id, { amount, units: 1 });
       });
-      return cogsExpenses.reduce((total, expense) => {
+      
+      // COGS from variable expenses
+      const variableCogs = cogsExpenses.reduce((total, expense) => {
         return total + calculateVariableExpenseForMonth(expense, month, revenueByStream);
       }, 0);
+      
+      // COGS from revenue stream purchase costs
+      const purchaseCogs = getPurchaseCostForMonth(month);
+      
+      return variableCogs + purchaseCogs;
     });
 
     // Charges variables - Charges d'exploitation (hors COGS)
