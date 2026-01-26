@@ -61,8 +61,8 @@ export function CompanyList() {
       let bridgeUserUuid = company.bridge_user_uuid;
       
       if (!bridgeUserUuid) {
-        // Create Bridge user
-        const { data: createData, error: createError } = await supabase.functions.invoke('bridge-sync', {
+        // Create Bridge user via bridge-auth function
+        const { data: createData, error: createError } = await supabase.functions.invoke('bridge-auth', {
           headers: { Authorization: `Bearer ${session.access_token}` },
           body: { action: 'create-user' },
         });
@@ -81,11 +81,10 @@ export function CompanyList() {
           .eq('id', company.id);
       }
 
-      // Create Connect session
-      const { data: connectData, error: connectError } = await supabase.functions.invoke('bridge-sync', {
+      // Create Connect session via bridge-connect function
+      const { data: connectData, error: connectError } = await supabase.functions.invoke('bridge-connect', {
         headers: { Authorization: `Bearer ${session.access_token}` },
         body: { 
-          action: 'create-connect-session',
           bridge_user_uuid: bridgeUserUuid,
         },
       });
