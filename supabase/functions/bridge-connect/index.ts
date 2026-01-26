@@ -46,7 +46,7 @@ Deno.serve(async (req) => {
       return validationErrorResponse(validation.error, corsHeaders);
     }
 
-    const { bridge_user_uuid } = validation.data;
+    const { bridge_user_uuid, redirect_url } = validation.data;
     console.info('[bridge-connect] Creating connect session...');
 
     // Authenticate user
@@ -74,8 +74,8 @@ Deno.serve(async (req) => {
     const authData = await bridgeClient.getAuthToken(bridge_user_uuid);
     bridgeClient.setAccessToken(authData.access_token);
 
-    // Create connect session
-    const connectUrl = await bridgeClient.createConnectSession(userEmail);
+    // Create connect session with redirect URL for callback after bank connection
+    const connectUrl = await bridgeClient.createConnectSession(userEmail, redirect_url);
 
     return successResponse({ connect_url: connectUrl });
 
