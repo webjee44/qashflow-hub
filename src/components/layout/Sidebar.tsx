@@ -93,7 +93,7 @@ export function Sidebar() {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [bpSettingsOpen, setBpSettingsOpen] = useState(false);
   const { user, signOut } = useAuth();
-  const { mode, setMode, isBusinessPlan } = useAppMode();
+  const { mode, setMode, isBusinessPlan, isTreasury } = useAppMode();
   const { settings } = useBPSettings();
   const { bpEnabled, isCompleted: onboardingCompleted } = useOnboarding();
   const { currentCompany } = useCompany();
@@ -201,24 +201,30 @@ export function Sidebar() {
       {isCollapsed && (
         <div className="px-2 py-3 border-b border-border flex flex-col items-center gap-2">
           <div className="p-2 rounded-lg bg-primary/10">
-            <FileSpreadsheet className="h-5 w-5 text-primary" />
+            {isBusinessPlan ? (
+              <FileSpreadsheet className="h-5 w-5 text-primary" />
+            ) : (
+              <Wallet className="h-5 w-5 text-primary" />
+            )}
           </div>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                onClick={() => setBpSettingsOpen(true)}
-                className="p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
-              >
-                <SlidersHorizontal className="h-4 w-4" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="right">Paramètres du BP</TooltipContent>
-          </Tooltip>
+          {isBusinessPlan && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => setBpSettingsOpen(true)}
+                  className="p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                >
+                  <SlidersHorizontal className="h-4 w-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right">Paramètres du BP</TooltipContent>
+            </Tooltip>
+          )}
         </div>
       )}
 
-      {/* BP Settings Button (expanded) */}
-      {!isCollapsed && (
+      {/* BP Settings Button (expanded) - Only in BP mode */}
+      {!isCollapsed && isBusinessPlan && (
         <div className="px-4 py-3 border-b border-border space-y-1">
           <button
             data-tour-bp="settings"
@@ -243,8 +249,8 @@ export function Sidebar() {
 
       {/* Main Navigation */}
       <nav className="flex-1 p-4 space-y-1 overflow-y-auto overflow-x-hidden">
-        {/* Treasury Section - Only shown when Treasury is enabled */}
-        {showTreasuryModule && (
+        {/* Treasury Section - Only shown in Treasury mode */}
+        {isTreasury && showTreasuryModule && (
           <>
             {!isCollapsed && (
               <div className="px-2 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
@@ -281,58 +287,61 @@ export function Sidebar() {
                 </motion.div>
               );
             })}
-            <Separator className="my-3" />
           </>
         )}
         
-        {/* Business Plan Section - Always shown */}
-        {!isCollapsed && (
-          <div className="px-2 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            Business Plan
-          </div>
-        )}
-        {filteredBPNavItems.map((item, index) => {
-          const isActive = currentPath === item.href;
-          return (
-            <motion.div
-              key={item.href}
-              initial={{ x: -20, opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              transition={{ delay: 0.05 * (showTreasuryModule ? treasuryNavItems.length + index : index) }}
-            >
-              <Link
-                to={item.href}
-                onMouseEnter={() => handleLinkHover(item)}
-                className={cn(
-                  "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group relative overflow-hidden",
-                  isActive 
-                    ? "bg-primary text-primary-foreground shadow-md" 
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                )}
-              >
-                <item.icon size={20} className={cn(
-                  "transition-transform group-hover:scale-110 shrink-0",
-                  isActive && "drop-shadow-sm"
-                )} />
-                {!isCollapsed && (
-                  <>
-                    <span className="font-medium">{item.label}</span>
-                    {item.badge && (
-                      <span className={cn(
-                        "ml-auto text-xs font-semibold px-2 py-0.5 rounded-full",
-                        isActive 
-                          ? "bg-primary-foreground/20 text-primary-foreground" 
-                          : "bg-primary/10 text-primary"
-                      )}>
-                        {item.badge}
-                      </span>
+        {/* Business Plan Section - Only shown in BP mode */}
+        {isBusinessPlan && (
+          <>
+            {!isCollapsed && (
+              <div className="px-2 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Business Plan
+              </div>
+            )}
+            {filteredBPNavItems.map((item, index) => {
+              const isActive = currentPath === item.href;
+              return (
+                <motion.div
+                  key={item.href}
+                  initial={{ x: -20, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  transition={{ delay: 0.05 * index }}
+                >
+                  <Link
+                    to={item.href}
+                    onMouseEnter={() => handleLinkHover(item)}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group relative overflow-hidden",
+                      isActive 
+                        ? "bg-primary text-primary-foreground shadow-md" 
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
                     )}
-                  </>
-                )}
-              </Link>
-            </motion.div>
-          );
-        })}
+                  >
+                    <item.icon size={20} className={cn(
+                      "transition-transform group-hover:scale-110 shrink-0",
+                      isActive && "drop-shadow-sm"
+                    )} />
+                    {!isCollapsed && (
+                      <>
+                        <span className="font-medium">{item.label}</span>
+                        {item.badge && (
+                          <span className={cn(
+                            "ml-auto text-xs font-semibold px-2 py-0.5 rounded-full",
+                            isActive 
+                              ? "bg-primary-foreground/20 text-primary-foreground" 
+                              : "bg-primary/10 text-primary"
+                          )}>
+                            {item.badge}
+                          </span>
+                        )}
+                      </>
+                    )}
+                  </Link>
+                </motion.div>
+              );
+            })}
+          </>
+        )}
       </nav>
 
       {/* Bottom Navigation */}
