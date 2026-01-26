@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Building2, Plus, Pencil, Trash2, Star, Landmark, Loader2, RefreshCw } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -21,10 +22,29 @@ import {
 
 export function CompanyList() {
   const { companies, isLoading, deleteCompany, updateCompany, refetch } = useCompany();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCompany, setEditingCompany] = useState<Company | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [syncingBridge, setSyncingBridge] = useState<string | null>(null);
+
+  // Handle Bridge callback - auto-sync when returning from Bridge
+  useEffect(() => {
+    const bridgeCallback = searchParams.get('bridge_callback');
+    const companyId = searchParams.get('company_id');
+    
+    if (bridgeCallback === 'success' && companyId && companies.length > 0) {
+      // Clear the query params
+      setSearchParams({});
+      
+      // Find the company and trigger sync
+      const company = companies.find(c => c.id === companyId);
+      if (company?.bridge_user_uuid) {
+        toast.success('Connexion Bridge réussie ! Synchronisation en cours...');
+        handleFullSync(company);
+      }
+    }
+  }, [searchParams, companies]);
 
   const handleEdit = (company: Company) => {
     setEditingCompany(company);
@@ -81,11 +101,15 @@ export function CompanyList() {
           .eq('id', company.id);
       }
 
+      // Build redirect URL to return to settings after Bridge connection
+      const redirectUrl = `${window.location.origin}/parametres?bridge_callback=success&company_id=${company.id}`;
+
       // Create Connect session via bridge-connect function
       const { data: connectData, error: connectError } = await supabase.functions.invoke('bridge-connect', {
         headers: { Authorization: `Bearer ${session.access_token}` },
         body: { 
           bridge_user_uuid: bridgeUserUuid,
+          redirect_url: redirectUrl,
         },
       });
 

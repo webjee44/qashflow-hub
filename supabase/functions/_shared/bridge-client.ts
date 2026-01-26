@@ -161,13 +161,21 @@ export class BridgeClient {
   // Connect Session Methods
   // ============================================
 
-  async createConnectSession(userEmail: string): Promise<string> {
+  async createConnectSession(userEmail: string, redirectUrl?: string): Promise<string> {
     console.info('[BridgeClient] Creating connect session for:', userEmail);
+    
+    const payload: Record<string, string> = { user_email: userEmail };
+    
+    // Add redirect URL if provided - Bridge will redirect here after connection
+    if (redirectUrl) {
+      payload.redirect_url = redirectUrl;
+      console.info('[BridgeClient] Redirect URL set to:', redirectUrl);
+    }
     
     const response = await fetch(`${BRIDGE_API_URL}/aggregation/connect-sessions`, {
       method: 'POST',
       headers: this.getAuthHeaders(),
-      body: JSON.stringify({ user_email: userEmail }),
+      body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
