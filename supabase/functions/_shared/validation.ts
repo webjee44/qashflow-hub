@@ -25,12 +25,12 @@ export const bridgeAccountsRequestSchema = z.object({
 export type BridgeAccountsRequest = z.infer<typeof bridgeAccountsRequestSchema>;
 
 export const bridgeSyncRequestSchema = z.object({
-  action: z.enum(['full-sync', 'cron-sync']).default('full-sync'),
+  action: z.enum(['full-sync', 'cron-sync', 'sync-accounts']).default('full-sync'),
   bridge_user_uuid: z.string().uuid().optional(),
   company_id: z.string().uuid().optional(),
 }).refine(
   (data) => data.action === 'cron-sync' || (data.bridge_user_uuid && data.company_id),
-  { message: 'bridge_user_uuid et company_id requis pour full-sync' }
+  { message: 'bridge_user_uuid et company_id requis' }
 );
 
 export type BridgeSyncRequest = z.infer<typeof bridgeSyncRequestSchema>;
