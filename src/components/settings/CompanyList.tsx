@@ -260,8 +260,13 @@ export function CompanyList() {
                       <div className="flex items-center gap-3 mt-1 flex-wrap">
                         {company.bridge_user_uuid ? (
                           <div className="flex items-center gap-1">
-                            <Landmark className="w-3 h-3 text-blue-500" />
-                            <span className="text-sm text-muted-foreground">Bridge connecté</span>
+                            <Landmark className="w-3 h-3 text-primary" />
+                            <span className="text-sm text-muted-foreground">
+                              Bridge connecté
+                              {company.bridge_accounts_count > 0 && (
+                                <> • {company.bridge_accounts_count} compte{company.bridge_accounts_count > 1 ? 's' : ''}</>
+                              )}
+                            </span>
                           </div>
                         ) : null}
                         {company.bank_balance !== null && company.bank_balance !== undefined && (

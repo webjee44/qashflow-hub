@@ -14,6 +14,7 @@ export interface Company {
   bank_balance: number | null;
   bank_balance_updated_at: string | null;
   bridge_user_uuid: string | null;
+  bridge_accounts_count: number;
   created_at: string;
   updated_at: string;
 }
