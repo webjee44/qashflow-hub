@@ -4,16 +4,17 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { CompanyList } from '@/components/settings/CompanyList';
 import { OrganizationCard } from '@/components/settings/OrganizationCard';
+import { BankAccountsCard } from '@/components/settings/BankAccountsCard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { Building2, User, Play, Wallet } from 'lucide-react';
+import { Building2, User, Play, Wallet, Landmark } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useOnboarding } from '@/hooks/useOnboarding';
 
-const VALID_TABS = ['organization', 'companies', 'profile'] as const;
+const VALID_TABS = ['organization', 'companies', 'accounts', 'profile'] as const;
 type TabValue = typeof VALID_TABS[number];
 
 export default function Settings() {
@@ -64,6 +65,10 @@ export default function Settings() {
               <Building2 className="w-4 h-4" />
               Sociétés
             </TabsTrigger>
+            <TabsTrigger value="accounts" className="gap-2">
+              <Landmark className="w-4 h-4" />
+              Comptes bancaires
+            </TabsTrigger>
             <TabsTrigger value="profile" className="gap-2">
               <User className="w-4 h-4" />
               Profil
@@ -76,6 +81,10 @@ export default function Settings() {
 
           <TabsContent value="companies">
             <CompanyList />
+          </TabsContent>
+
+          <TabsContent value="accounts">
+            <BankAccountsCard />
           </TabsContent>
 
           <TabsContent value="profile">
