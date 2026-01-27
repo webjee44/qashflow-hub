@@ -29,12 +29,29 @@ async function syncBridgeAccounts(
 ): Promise<number> {
   let syncedCount = 0;
 
+  const getItemId = (account: BridgeAccount): number | null => {
+    const anyAccount = account as any;
+    const candidate =
+      anyAccount.item_id ??
+      anyAccount.bridge_item_id ??
+      anyAccount.bank_id ??
+      anyAccount.bank?.id;
+
+    return typeof candidate === 'number' && Number.isFinite(candidate) ? candidate : null;
+  };
+
   for (const account of accounts) {
+    const itemId = getItemId(account);
+    if (!itemId) {
+      console.error('[bridge-sync] Missing item id for account (cannot upsert due to NOT NULL bridge_item_id):', account);
+      continue;
+    }
+
     const { error } = await supabaseAdmin
       .from('bridge_accounts')
       .upsert({
         bridge_account_id: account.id,
-        bridge_item_id: account.bank_id, // Use bank_id as item reference
+        bridge_item_id: itemId,
         bridge_user_uuid: bridgeUserUuid,
         company_id: companyId,
         name: account.name || null,
@@ -246,7 +263,7 @@ Deno.serve(async (req) => {
     // ============================================
     // Action: full-sync (User auth required)
     // ============================================
-    if (action === 'full-sync') {
+    if (action === 'sync-accounts' || action === 'full-sync') {
       if (!bridge_user_uuid || !company_id) {
         return errorResponse('bridge_user_uuid et company_id requis');
       }
@@ -270,7 +287,7 @@ Deno.serve(async (req) => {
       }
 
       const userId = claimsData.claims.sub as string;
-      console.info('[bridge-sync] Starting full sync for user:', userId);
+      console.info(`[bridge-sync] Starting ${action} for user:`, userId);
 
       // Get auth token
       await bridgeClient.getAuthToken(bridge_user_uuid);
@@ -297,12 +314,20 @@ Deno.serve(async (req) => {
       }
 
       // Sync bridge accounts to database
-      await syncBridgeAccounts(
+      const syncedAccounts = await syncBridgeAccounts(
         supabaseAdmin,
         company_id,
         bridge_user_uuid,
         allAccounts
       );
+
+      if (action === 'sync-accounts') {
+        return successResponse({
+          accounts: allAccounts.length,
+          syncedAccounts,
+          totalBalance,
+        });
+      }
 
       // Get transactions
       const allTransactions = await bridgeClient.fetchAllTransactions(90);
@@ -321,6 +346,7 @@ Deno.serve(async (req) => {
 
       return successResponse({ 
         accounts: allAccounts.length,
+        syncedAccounts,
         totalBalance,
         inserted, 
         updated 

@@ -285,7 +285,7 @@ export function BankAccountsCard() {
         const { data, error } = await supabase.functions.invoke('bridge-sync', {
           headers: { Authorization: `Bearer ${session.access_token}` },
           body: { 
-            action: 'full-sync',
+            action: accounts.length === 0 ? 'sync-accounts' : 'full-sync',
             bridge_user_uuid: company.bridge_user_uuid,
             company_id: company.id,
           },
