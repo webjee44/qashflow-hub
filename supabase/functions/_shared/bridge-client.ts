@@ -23,9 +23,17 @@ export interface BridgeAccount {
   type: string;
   status: string;
   bank_id: number;
+  item_id?: number;
   updated_at: string;
   iban: string | null;
   data_access: string;
+}
+
+export interface BridgeBank {
+  id: number;
+  name: string;
+  country_code: string;
+  logo_url?: string;
 }
 
 export interface BridgeAccountsResponse {
@@ -276,6 +284,55 @@ export class BridgeClient {
 
     console.info(`[BridgeClient] Fetched ${allAccounts.length} accounts`);
     return allAccounts;
+  }
+
+  // ============================================
+  // Bank Methods
+  // ============================================
+
+  async fetchBank(bankId: number): Promise<BridgeBank | null> {
+    console.info(`[BridgeClient] Fetching bank ${bankId}...`);
+    
+    try {
+      const response = await fetch(`${BRIDGE_API_URL}/banks/${bankId}`, {
+        headers: this.getBaseHeaders(),
+      });
+
+      if (!response.ok) {
+        console.error(`[BridgeClient] Bank fetch error: ${response.status}`);
+        return null;
+      }
+
+      const bank = await response.json() as BridgeBank;
+      console.info(`[BridgeClient] Fetched bank: ${bank.name}`);
+      return bank;
+    } catch (error) {
+      console.error('[BridgeClient] Bank fetch error:', error);
+      return null;
+    }
+  }
+
+  async fetchBanks(bankIds: number[]): Promise<Map<number, BridgeBank>> {
+    const bankMap = new Map<number, BridgeBank>();
+    const uniqueIds = [...new Set(bankIds)];
+    
+    console.info(`[BridgeClient] Fetching ${uniqueIds.length} unique banks...`);
+    
+    // Fetch banks in parallel (max 5 concurrent)
+    const batchSize = 5;
+    for (let i = 0; i < uniqueIds.length; i += batchSize) {
+      const batch = uniqueIds.slice(i, i + batchSize);
+      const results = await Promise.all(batch.map(id => this.fetchBank(id)));
+      
+      results.forEach((bank, index) => {
+        if (bank) {
+          bankMap.set(batch[index], bank);
+        }
+      });
+    }
+    
+    console.info(`[BridgeClient] Fetched ${bankMap.size} banks`);
+    return bankMap;
   }
 
   // ============================================
