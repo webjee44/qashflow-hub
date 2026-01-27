@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Landmark, Loader2, Check, X, Building2 } from 'lucide-react';
+import { Landmark, Loader2, Check, X, Building2, Plus, RefreshCw } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -14,7 +13,7 @@ import {
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
-import { useCompany, Company } from '@/hooks/useCompany';
+import { useCompany } from '@/hooks/useCompany';
 import { toast } from 'sonner';
 
 interface BridgeAccount {
@@ -41,6 +40,8 @@ export function BankAccountsCard() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   // Get unique bridge_user_uuids from companies
   const bridgeUserUuids = [...new Set(
@@ -177,7 +178,132 @@ export function BankAccountsCard() {
       console.error('Save error:', error);
       toast.error('Erreur lors de la sauvegarde');
     } finally {
-      setIsSaving(false);
+    setIsSaving(false);
+    }
+  };
+
+  const handleConnectBridge = async () => {
+    setIsConnecting(true);
+    
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error('Vous devez être connecté');
+        return;
+      }
+
+      // Get or create a Bridge user
+      // Use the first company's bridge_user_uuid if exists, otherwise create new
+      let bridgeUserUuid = bridgeUserUuids[0];
+      
+      if (!bridgeUserUuid) {
+        // Create Bridge user via bridge-auth function
+        const { data: createData, error: createError } = await supabase.functions.invoke('bridge-auth', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+          body: { action: 'create-user' },
+        });
+
+        if (createError || !createData?.success) {
+          toast.error(createData?.error || 'Erreur lors de la création de l\'utilisateur Bridge');
+          return;
+        }
+
+        bridgeUserUuid = createData.user.uuid;
+        
+        // Save the Bridge user UUID to the first company
+        if (companies.length > 0) {
+          await supabase
+            .from('companies')
+            .update({ bridge_user_uuid: bridgeUserUuid })
+            .eq('id', companies[0].id);
+        }
+      }
+
+      const redirectUrl = `${window.location.origin}/parametres?tab=accounts&bridge_callback=success`;
+
+      // Create Connect session
+      const { data: connectData, error: connectError } = await supabase.functions.invoke('bridge-connect', {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+        body: { 
+          bridge_user_uuid: bridgeUserUuid,
+          redirect_url: redirectUrl,
+        },
+      });
+
+      if (connectError || !connectData?.success) {
+        toast.error(connectData?.error || 'Erreur lors de la création de la session Bridge');
+        return;
+      }
+
+      localStorage.setItem('bridgePendingSync', 'true');
+      toast.success('Redirection vers Bridge…');
+
+      const inIframe = (() => {
+        try {
+          return window.self !== window.top;
+        } catch {
+          return true;
+        }
+      })();
+
+      if (inIframe) {
+        window.open(connectData.connect_url, '_blank', 'noopener,noreferrer');
+      } else {
+        window.location.assign(connectData.connect_url);
+      }
+    } catch (error) {
+      console.error('Bridge connect error:', error);
+      toast.error('Erreur lors de la connexion Bridge');
+    } finally {
+      setIsConnecting(false);
+    }
+  };
+
+  const handleFullSync = async () => {
+    if (bridgeUserUuids.length === 0) {
+      toast.error('Connectez d\'abord une banque');
+      return;
+    }
+
+    setIsSyncing(true);
+    
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error('Vous devez être connecté');
+        return;
+      }
+
+      let totalInserted = 0;
+      let totalUpdated = 0;
+      let totalAccounts = 0;
+
+      // Sync all bridge users
+      for (const bridgeUserUuid of bridgeUserUuids) {
+        const { data, error } = await supabase.functions.invoke('bridge-sync', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+          body: { 
+            action: 'full-sync',
+            bridge_user_uuid: bridgeUserUuid,
+          },
+        });
+
+        if (!error && data?.success) {
+          totalInserted += data.inserted || 0;
+          totalUpdated += data.updated || 0;
+          totalAccounts += data.accounts || 0;
+        }
+      }
+
+      toast.success(`${totalAccounts} comptes • ${totalInserted} nouvelles transactions, ${totalUpdated} mises à jour`);
+      
+      // Reload accounts
+      window.location.reload();
+    } catch (error) {
+      console.error('Full sync error:', error);
+      toast.error('Erreur lors de la synchronisation');
+    } finally {
+      setIsSyncing(false);
     }
   };
 
@@ -213,16 +339,25 @@ export function BankAccountsCard() {
             Comptes bancaires
           </CardTitle>
           <CardDescription>
-            Gérez la répartition de vos comptes bancaires entre les sociétés
+            Connectez vos banques et gérez la répartition entre vos sociétés
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="text-center py-8 text-muted-foreground">
-            <Landmark className="w-12 h-12 mx-auto mb-3 opacity-50" />
-            <p>Aucun compte bancaire connecté.</p>
-            <p className="text-sm mt-1">
-              Connectez vos banques depuis l'onglet Sociétés.
-            </p>
+          <div className="text-center py-8">
+            <Landmark className="w-12 h-12 mx-auto mb-3 text-muted-foreground opacity-50" />
+            <p className="text-muted-foreground mb-4">Aucun compte bancaire connecté.</p>
+            <Button 
+              onClick={handleConnectBridge} 
+              disabled={isConnecting}
+              className="gap-2"
+            >
+              {isConnecting ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Plus className="w-4 h-4" />
+              )}
+              Connecter une banque
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -231,7 +366,7 @@ export function BankAccountsCard() {
 
   return (
     <Card className="bg-card border-border">
-      <CardHeader className="flex flex-row items-start justify-between">
+      <CardHeader className="flex flex-row items-start justify-between gap-4">
         <div>
           <CardTitle className="flex items-center gap-2">
             <Landmark className="w-5 h-5 text-primary" />
@@ -241,25 +376,48 @@ export function BankAccountsCard() {
             Activez/désactivez les comptes et assignez-les à vos sociétés
           </CardDescription>
         </div>
-        {hasChanges && (
+        <div className="flex items-center gap-2">
           <Button
-            onClick={handleSave}
-            disabled={isSaving}
+            variant="outline"
+            onClick={handleConnectBridge}
+            disabled={isConnecting}
             className="gap-2"
           >
-            {isSaving ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Enregistrement...
-              </>
+            {isConnecting ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
-              <>
-                <Check className="w-4 h-4" />
-                Enregistrer
-              </>
+              <Plus className="w-4 h-4" />
             )}
+            Ajouter banque
           </Button>
-        )}
+          <Button
+            variant="outline"
+            onClick={handleFullSync}
+            disabled={isSyncing}
+            className="gap-2"
+          >
+            {isSyncing ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <RefreshCw className="w-4 h-4" />
+            )}
+            Synchroniser
+          </Button>
+          {hasChanges && (
+            <Button
+              onClick={handleSave}
+              disabled={isSaving}
+              className="gap-2"
+            >
+              {isSaving ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Check className="w-4 h-4" />
+              )}
+              Enregistrer
+            </Button>
+          )}
+        </div>
       </CardHeader>
       <CardContent>
         <div className="space-y-3">
