@@ -1,10 +1,11 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Landmark, Loader2, Check, X, Building2, Plus, RefreshCw, ChevronDown, ChevronRight } from 'lucide-react';
+import { Landmark, Loader2, Check, X, Building2, Plus, RefreshCw, ChevronDown, ChevronRight, Pencil } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
+import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -233,6 +234,29 @@ export function BankAccountsCard() {
       return next;
     });
     setHasChanges(true);
+  };
+
+  const handleBankNameUpdate = async (bridgeItemId: number, newName: string) => {
+    try {
+      const { error } = await supabase
+        .from('bridge_accounts')
+        .update({ bank_name: newName })
+        .eq('bridge_item_id', bridgeItemId);
+
+      if (error) throw error;
+
+      // Update local state
+      setAccounts(prev => prev.map(account => 
+        account.bridge_item_id === bridgeItemId 
+          ? { ...account, bank_name: newName }
+          : account
+      ));
+
+      toast.success('Nom de banque mis à jour');
+    } catch (error) {
+      console.error('Error updating bank name:', error);
+      toast.error('Erreur lors de la mise à jour');
+    }
   };
 
   const handleSave = async () => {
@@ -584,6 +608,7 @@ export function BankAccountsCard() {
           onCompanyChange={handleCompanyChange}
           formatBalance={formatBalance}
           formatIban={formatIban}
+          onBankNameUpdate={handleBankNameUpdate}
         />
 
         {hasChanges && (
@@ -606,6 +631,7 @@ function BankAccountsList({
   onCompanyChange,
   formatBalance,
   formatIban,
+  onBankNameUpdate,
 }: {
   accounts: BridgeAccount[];
   assignments: Map<number, AccountAssignment>;
@@ -615,11 +641,15 @@ function BankAccountsList({
   onCompanyChange: (bridgeAccountId: number, companyId: string) => void;
   formatBalance: (balance: number | null) => string;
   formatIban: (iban: string | null) => string;
+  onBankNameUpdate: (bridgeItemId: number, newName: string) => Promise<void>;
 }) {
   const bankGroups = useMemo(() => groupAccountsByBank(accounts), [accounts]);
   const [expandedBanks, setExpandedBanks] = useState<Set<string>>(() => 
     new Set(bankGroups.map(g => g.bankName))
   );
+  const [editingBankId, setEditingBankId] = useState<number | null>(null);
+  const [editingName, setEditingName] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const toggleBank = (bankName: string) => {
     setExpandedBanks(prev => {
@@ -633,36 +663,102 @@ function BankAccountsList({
     });
   };
 
+  const handleStartEdit = (e: React.MouseEvent, group: BankGroup) => {
+    e.stopPropagation();
+    const firstAccount = group.accounts[0];
+    if (firstAccount) {
+      setEditingBankId(firstAccount.bridge_item_id);
+      setEditingName(group.bankName);
+      setTimeout(() => inputRef.current?.focus(), 0);
+    }
+  };
+
+  const handleSaveEdit = async () => {
+    if (editingBankId && editingName.trim()) {
+      await onBankNameUpdate(editingBankId, editingName.trim());
+    }
+    setEditingBankId(null);
+    setEditingName('');
+  };
+
+  const handleCancelEdit = () => {
+    setEditingBankId(null);
+    setEditingName('');
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSaveEdit();
+    } else if (e.key === 'Escape') {
+      handleCancelEdit();
+    }
+  };
+
   return (
     <div className="space-y-4">
       {bankGroups.map((group) => {
         const isExpanded = expandedBanks.has(group.bankName);
+        const firstAccount = group.accounts[0];
+        const bridgeItemId = firstAccount?.bridge_item_id;
+        const isEditing = editingBankId === bridgeItemId;
         
         return (
           <Collapsible 
-            key={group.bankName} 
+            key={`${group.bankName}-${bridgeItemId}`} 
             open={isExpanded}
-            onOpenChange={() => toggleBank(group.bankName)}
+            onOpenChange={() => !isEditing && toggleBank(group.bankName)}
           >
-            <CollapsibleTrigger className="w-full">
-              <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer">
-                <div className="flex items-center gap-3">
+            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
+              <div className="flex items-center gap-3 flex-1">
+                <CollapsibleTrigger className="flex items-center gap-3 flex-1">
                   {isExpanded ? (
                     <ChevronDown className="w-4 h-4 text-muted-foreground" />
                   ) : (
                     <ChevronRight className="w-4 h-4 text-muted-foreground" />
                   )}
                   <Landmark className="w-5 h-5 text-primary" />
-                  <span className="font-semibold text-foreground">{group.bankName}</span>
-                  <Badge variant="secondary" className="text-xs">
-                    {group.accounts.length} compte{group.accounts.length > 1 ? 's' : ''}
-                  </Badge>
-                </div>
-                <span className="font-semibold text-foreground">
-                  {formatBalance(group.totalBalance)}
-                </span>
+                </CollapsibleTrigger>
+                
+                {/* Editable bank name */}
+                {isEditing ? (
+                  <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                    <Input
+                      ref={inputRef}
+                      value={editingName}
+                      onChange={(e) => setEditingName(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      onBlur={handleSaveEdit}
+                      className="h-7 w-40 text-sm font-semibold"
+                      autoFocus
+                    />
+                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={handleSaveEdit}>
+                      <Check className="w-4 h-4 text-primary" />
+                    </Button>
+                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={handleCancelEdit}>
+                      <X className="w-4 h-4 text-muted-foreground" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div 
+                    className="flex items-center gap-2 group cursor-pointer hover:text-primary transition-colors"
+                    onDoubleClick={(e) => handleStartEdit(e, group)}
+                    title="Double-cliquez pour modifier"
+                  >
+                    <span className="font-semibold text-foreground group-hover:text-primary transition-colors">
+                      {group.bankName}
+                    </span>
+                    <Pencil className="w-3.5 h-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </div>
+                )}
+                
+                <Badge variant="secondary" className="text-xs">
+                  {group.accounts.length} compte{group.accounts.length > 1 ? 's' : ''}
+                </Badge>
               </div>
-            </CollapsibleTrigger>
+              <span className="font-semibold text-foreground">
+                {formatBalance(group.totalBalance)}
+              </span>
+            </div>
             
             <CollapsibleContent>
               <div className="mt-2 ml-4 space-y-2 border-l-2 border-muted pl-4">
