@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Landmark, Loader2, Check, X, Building2, Plus, RefreshCw } from 'lucide-react';
+import { Landmark, Loader2, Check, X, Building2, Plus, RefreshCw, ChevronDown, ChevronRight } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import {
@@ -19,6 +20,7 @@ import { toast } from 'sonner';
 interface BridgeAccount {
   id: string;
   bridge_account_id: number;
+  bridge_item_id: number;
   name: string | null;
   iban: string | null;
   balance: number | null;
@@ -26,6 +28,46 @@ interface BridgeAccount {
   bridge_user_uuid: string;
   company_id: string;
 }
+
+interface BankGroup {
+  bankName: string;
+  accounts: BridgeAccount[];
+  totalBalance: number;
+}
+
+// Extract bank name from account name (format: "BankName - AccountName")
+const extractBankName = (accountName: string | null): string => {
+  if (!accountName) return 'Banque inconnue';
+  const parts = accountName.split(' - ');
+  return parts.length > 1 ? parts[0].trim() : 'Banque inconnue';
+};
+
+// Group accounts by bank
+const groupAccountsByBank = (accounts: BridgeAccount[]): BankGroup[] => {
+  const groups = new Map<number, BankGroup>();
+  
+  accounts.forEach(account => {
+    const itemId = account.bridge_item_id;
+    if (!groups.has(itemId)) {
+      groups.set(itemId, {
+        bankName: extractBankName(account.name),
+        accounts: [],
+        totalBalance: 0,
+      });
+    }
+    const group = groups.get(itemId)!;
+    group.accounts.push(account);
+    group.totalBalance += account.balance || 0;
+  });
+  
+  // Sort groups by bank name and accounts within each group
+  return Array.from(groups.values())
+    .sort((a, b) => a.bankName.localeCompare(b.bankName))
+    .map(group => ({
+      ...group,
+      accounts: group.accounts.sort((a, b) => (a.name || '').localeCompare(b.name || '')),
+    }));
+};
 
 interface AccountAssignment {
   bridge_account_id: number;
@@ -63,7 +105,7 @@ export function BankAccountsCard() {
         // Fetch all Bridge accounts for all bridge_user_uuids
         const { data: bridgeAccounts, error: accountsError } = await supabase
           .from('bridge_accounts')
-          .select('id, bridge_account_id, name, iban, balance, account_type, bridge_user_uuid, company_id')
+          .select('id, bridge_account_id, bridge_item_id, name, iban, balance, account_type, bridge_user_uuid, company_id')
           .in('bridge_user_uuid', bridgeUserUuids);
 
         if (accountsError) throw accountsError;
@@ -528,95 +570,16 @@ export function BankAccountsCard() {
         </div>
       </CardHeader>
       <CardContent>
-        <div className="space-y-3">
-          {accounts.map((account, index) => {
-            const assignment = assignments.get(account.bridge_account_id);
-            const isEnabled = assignment?.is_enabled ?? false;
-            const companyId = assignment?.company_id || 'none';
-
-            return (
-              <motion.div
-                key={account.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05 }}
-                className={`flex items-center gap-4 p-4 rounded-lg border transition-colors ${
-                  isEnabled 
-                    ? 'border-border bg-card' 
-                    : 'border-dashed border-muted bg-muted/30 opacity-60'
-                }`}
-              >
-                {/* Toggle */}
-                <Switch
-                  checked={isEnabled}
-                  onCheckedChange={(checked) => handleToggle(account.bridge_account_id, checked)}
-                />
-
-                {/* Account info */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-foreground truncate">
-                      {account.name || 'Compte sans nom'}
-                    </span>
-                    {account.account_type && (
-                      <Badge variant="outline" className="text-xs capitalize">
-                        {account.account_type}
-                      </Badge>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
-                    {account.iban && (
-                      <span className="font-mono text-xs">
-                        {formatIban(account.iban)}
-                      </span>
-                    )}
-                    <span className="font-medium text-primary">
-                      {formatBalance(account.balance)}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Company selector */}
-                <div className="w-48">
-                  <Select
-                    value={companyId}
-                    onValueChange={(value) => handleCompanyChange(account.bridge_account_id, value)}
-                    disabled={!isEnabled}
-                  >
-                    <SelectTrigger className="bg-background">
-                      <SelectValue placeholder="Assigner à...">
-                        {companyId !== 'none' ? (
-                          <span className="flex items-center gap-2">
-                            <Building2 className="w-3 h-3" />
-                            {companies.find(c => c.id === companyId)?.name || 'Société'}
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground">Non assigné</span>
-                        )}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent className="bg-popover border-border z-50">
-                      <SelectItem value="none">
-                        <span className="flex items-center gap-2 text-muted-foreground">
-                          <X className="w-3 h-3" />
-                          Non assigné
-                        </span>
-                      </SelectItem>
-                      {companiesWithBridge.map((company) => (
-                        <SelectItem key={company.id} value={company.id}>
-                          <span className="flex items-center gap-2">
-                            <Building2 className="w-3 h-3" />
-                            {company.name}
-                          </span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </motion.div>
-            );
-          })}
-        </div>
+        <BankAccountsList 
+          accounts={accounts}
+          assignments={assignments}
+          companies={companies}
+          companiesWithBridge={companiesWithBridge}
+          onToggle={handleToggle}
+          onCompanyChange={handleCompanyChange}
+          formatBalance={formatBalance}
+          formatIban={formatIban}
+        />
 
         {hasChanges && (
           <div className="mt-4 p-3 rounded-lg bg-primary/10 border border-primary/20 text-sm text-primary">
@@ -625,5 +588,176 @@ export function BankAccountsCard() {
         )}
       </CardContent>
     </Card>
+  );
+}
+
+// Separate component for the accounts list grouped by bank
+function BankAccountsList({
+  accounts,
+  assignments,
+  companies,
+  companiesWithBridge,
+  onToggle,
+  onCompanyChange,
+  formatBalance,
+  formatIban,
+}: {
+  accounts: BridgeAccount[];
+  assignments: Map<number, AccountAssignment>;
+  companies: { id: string; name: string }[];
+  companiesWithBridge: { id: string; name: string }[];
+  onToggle: (bridgeAccountId: number, enabled: boolean) => void;
+  onCompanyChange: (bridgeAccountId: number, companyId: string) => void;
+  formatBalance: (balance: number | null) => string;
+  formatIban: (iban: string | null) => string;
+}) {
+  const bankGroups = useMemo(() => groupAccountsByBank(accounts), [accounts]);
+  const [expandedBanks, setExpandedBanks] = useState<Set<string>>(() => 
+    new Set(bankGroups.map(g => g.bankName))
+  );
+
+  const toggleBank = (bankName: string) => {
+    setExpandedBanks(prev => {
+      const next = new Set(prev);
+      if (next.has(bankName)) {
+        next.delete(bankName);
+      } else {
+        next.add(bankName);
+      }
+      return next;
+    });
+  };
+
+  return (
+    <div className="space-y-4">
+      {bankGroups.map((group) => {
+        const isExpanded = expandedBanks.has(group.bankName);
+        
+        return (
+          <Collapsible 
+            key={group.bankName} 
+            open={isExpanded}
+            onOpenChange={() => toggleBank(group.bankName)}
+          >
+            <CollapsibleTrigger className="w-full">
+              <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer">
+                <div className="flex items-center gap-3">
+                  {isExpanded ? (
+                    <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                  )}
+                  <Landmark className="w-5 h-5 text-primary" />
+                  <span className="font-semibold text-foreground">{group.bankName}</span>
+                  <Badge variant="secondary" className="text-xs">
+                    {group.accounts.length} compte{group.accounts.length > 1 ? 's' : ''}
+                  </Badge>
+                </div>
+                <span className="font-semibold text-foreground">
+                  {formatBalance(group.totalBalance)}
+                </span>
+              </div>
+            </CollapsibleTrigger>
+            
+            <CollapsibleContent>
+              <div className="mt-2 ml-4 space-y-2 border-l-2 border-muted pl-4">
+                {group.accounts.map((account, index) => {
+                  const assignment = assignments.get(account.bridge_account_id);
+                  const isEnabled = assignment?.is_enabled ?? false;
+                  const companyId = assignment?.company_id || 'none';
+                  
+                  // Extract account name without bank prefix
+                  const displayName = account.name?.includes(' - ') 
+                    ? account.name.split(' - ').slice(1).join(' - ')
+                    : account.name || 'Compte sans nom';
+
+                  return (
+                    <motion.div
+                      key={account.id}
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: index * 0.03 }}
+                      className={`flex items-center gap-4 p-3 rounded-lg border transition-colors ${
+                        isEnabled 
+                          ? 'border-border bg-card' 
+                          : 'border-dashed border-muted bg-muted/30 opacity-60'
+                      }`}
+                    >
+                      {/* Toggle */}
+                      <Switch
+                        checked={isEnabled}
+                        onCheckedChange={(checked) => onToggle(account.bridge_account_id, checked)}
+                      />
+
+                      {/* Account info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-foreground truncate">
+                            {displayName}
+                          </span>
+                          {account.account_type && (
+                            <Badge variant="outline" className="text-xs capitalize">
+                              {account.account_type}
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
+                          {account.iban && (
+                            <span className="font-mono text-xs">
+                              {formatIban(account.iban)}
+                            </span>
+                          )}
+                          <span className="font-medium text-primary">
+                            {formatBalance(account.balance)}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Company selector */}
+                      <div className="w-48">
+                        <Select
+                          value={companyId}
+                          onValueChange={(value) => onCompanyChange(account.bridge_account_id, value)}
+                          disabled={!isEnabled}
+                        >
+                          <SelectTrigger className="bg-background">
+                            <SelectValue placeholder="Assigner à...">
+                              {companyId !== 'none' ? (
+                                <span className="flex items-center gap-2">
+                                  <Building2 className="w-3 h-3" />
+                                  {companies.find(c => c.id === companyId)?.name || 'Société'}
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground">Non assigné</span>
+                              )}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent className="bg-popover border-border z-50">
+                            <SelectItem value="none">
+                              <span className="flex items-center gap-2 text-muted-foreground">
+                                <X className="w-3 h-3" />
+                                Non assigné
+                              </span>
+                            </SelectItem>
+                            {companiesWithBridge.map((company) => (
+                              <SelectItem key={company.id} value={company.id}>
+                                <span className="flex items-center gap-2">
+                                  <Building2 className="w-3 h-3" />
+                                  {company.name}
+                                </span>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+        );
+      })}
+    </div>
   );
 }
