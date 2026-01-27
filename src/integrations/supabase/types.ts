@@ -1434,6 +1434,35 @@ export type Database = {
           },
         ]
       }
+      company_bridge_accounts: {
+        Row: {
+          bridge_account_id: number
+          company_id: string
+          created_at: string
+          id: string
+        }
+        Insert: {
+          bridge_account_id: number
+          company_id: string
+          created_at?: string
+          id?: string
+        }
+        Update: {
+          bridge_account_id?: number
+          company_id?: string
+          created_at?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_bridge_accounts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       company_members: {
         Row: {
           company_id: string

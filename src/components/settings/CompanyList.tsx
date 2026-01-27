@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Building2, Plus, Pencil, Trash2, Star, Landmark, Loader2, RefreshCw, Link } from 'lucide-react';
+import { Building2, Plus, Pencil, Trash2, Star, Landmark, Loader2, RefreshCw, Link, Settings2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useCompany, Company } from '@/hooks/useCompany';
 import { CompanyDialog } from './CompanyDialog';
 import { LinkBridgeDialog } from './LinkBridgeDialog';
+import { ManageAccountsDialog } from './ManageAccountsDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import {
@@ -30,6 +31,8 @@ export function CompanyList() {
   const [syncingBridge, setSyncingBridge] = useState<string | null>(null);
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
   const [linkTargetCompany, setLinkTargetCompany] = useState<Company | null>(null);
+  const [manageAccountsOpen, setManageAccountsOpen] = useState(false);
+  const [manageAccountsCompany, setManageAccountsCompany] = useState<Company | null>(null);
 
   // Get unique Bridge connections (by bridge_user_uuid) for linking
   // Group companies by bridge_user_uuid and pick one representative per connection
@@ -320,6 +323,18 @@ export function CompanyList() {
                         <Button
                           variant="outline"
                           size="sm"
+                          onClick={() => {
+                            setManageAccountsCompany(company);
+                            setManageAccountsOpen(true);
+                          }}
+                          className="gap-1.5"
+                        >
+                          <Settings2 className="w-4 h-4" />
+                          Gérer comptes
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
                           onClick={() => handleConnectBridge(company)}
                           disabled={syncingBridge === company.id}
                           className="gap-1.5"
@@ -423,6 +438,13 @@ export function CompanyList() {
         onOpenChange={setLinkDialogOpen}
         targetCompany={linkTargetCompany}
         companiesWithBridge={uniqueBridgeConnections}
+        onSuccess={refetch}
+      />
+
+      <ManageAccountsDialog
+        open={manageAccountsOpen}
+        onOpenChange={setManageAccountsOpen}
+        company={manageAccountsCompany}
         onSuccess={refetch}
       />
 
