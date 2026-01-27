@@ -238,19 +238,31 @@ export function BankAccountsCard() {
 
   const handleBankNameUpdate = async (bridgeItemId: number, newName: string) => {
     try {
-      const { error } = await supabase
+      console.log('Updating bank name:', { bridgeItemId, newName });
+      
+      const { data, error } = await supabase
         .from('bridge_accounts')
         .update({ bank_name: newName })
-        .eq('bridge_item_id', bridgeItemId);
+        .eq('bridge_item_id', bridgeItemId)
+        .select();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase error:', error);
+        throw error;
+      }
 
-      // Update local state
-      setAccounts(prev => prev.map(account => 
-        account.bridge_item_id === bridgeItemId 
-          ? { ...account, bank_name: newName }
-          : account
-      ));
+      console.log('Update result:', data);
+
+      // Update local state - ensure we're creating new array reference
+      setAccounts(prevAccounts => {
+        const updatedAccounts = prevAccounts.map(account => 
+          account.bridge_item_id === bridgeItemId 
+            ? { ...account, bank_name: newName }
+            : account
+        );
+        console.log('Updated accounts state:', updatedAccounts.filter(a => a.bridge_item_id === bridgeItemId));
+        return updatedAccounts;
+      });
 
       toast.success('Nom de banque mis à jour');
     } catch (error) {
