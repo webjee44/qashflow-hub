@@ -709,8 +709,8 @@ function BankAccountsList({
             onOpenChange={() => !isEditing && toggleBank(group.bankName)}
           >
             <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
-              <div className="flex items-center gap-3 flex-1">
-                <CollapsibleTrigger className="flex items-center gap-3 flex-1">
+              <div className="flex items-center gap-2 flex-1">
+                <CollapsibleTrigger className="flex items-center gap-2">
                   {isExpanded ? (
                     <ChevronDown className="w-4 h-4 text-muted-foreground" />
                   ) : (
@@ -719,7 +719,7 @@ function BankAccountsList({
                   <Landmark className="w-5 h-5 text-primary" />
                 </CollapsibleTrigger>
                 
-                {/* Editable bank name */}
+                {/* Editable bank name - aligned next to icon */}
                 {isEditing ? (
                   <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
                     <Input
@@ -751,7 +751,7 @@ function BankAccountsList({
                   </div>
                 )}
                 
-                <Badge variant="secondary" className="text-xs">
+                <Badge variant="secondary" className="text-xs ml-2">
                   {group.accounts.length} compte{group.accounts.length > 1 ? 's' : ''}
                 </Badge>
               </div>
