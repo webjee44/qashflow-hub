@@ -31,7 +31,7 @@ interface CompanyContextType {
   refetch: () => void;
 }
 
-const CompanyContext = createContext<CompanyContextType | undefined>(undefined);
+export const CompanyContext = createContext<CompanyContextType | undefined>(undefined);
 
 const STORAGE_KEY = 'selected_company_id';
 
