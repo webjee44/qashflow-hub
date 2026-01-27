@@ -21,6 +21,42 @@ import {
 // ============================================
 // Helper: Sync transactions for a company
 // ============================================
+async function syncBridgeAccounts(
+  supabaseAdmin: any,
+  companyId: string,
+  bridgeUserUuid: string,
+  accounts: BridgeAccount[]
+): Promise<number> {
+  let syncedCount = 0;
+
+  for (const account of accounts) {
+    const { error } = await supabaseAdmin
+      .from('bridge_accounts')
+      .upsert({
+        bridge_account_id: account.id,
+        bridge_item_id: account.bank_id, // Use bank_id as item reference
+        bridge_user_uuid: bridgeUserUuid,
+        company_id: companyId,
+        name: account.name || null,
+        iban: account.iban || null,
+        balance: account.balance || 0,
+        account_type: account.type || null,
+        status: account.status || 'active',
+        last_sync_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }, { 
+        onConflict: 'bridge_account_id',
+        ignoreDuplicates: false 
+      });
+
+    if (!error) syncedCount++;
+    else console.error('[bridge-sync] Failed to upsert account:', error);
+  }
+
+  console.info(`[bridge-sync] Synced ${syncedCount}/${accounts.length} bridge accounts`);
+  return syncedCount;
+}
+
 async function syncCompanyTransactions(
   supabaseAdmin: any,
   bridgeClient: BridgeClient,
@@ -170,6 +206,14 @@ Deno.serve(async (req) => {
             })
             .eq('id', company.id);
 
+          // Sync bridge accounts to database
+          await syncBridgeAccounts(
+            supabaseAdmin,
+            company.id,
+            company.bridge_user_uuid!,
+            allAccounts
+          );
+
           // Get transactions
           const allTransactions = await bridgeClient.fetchAllTransactions(90);
 
@@ -251,6 +295,14 @@ Deno.serve(async (req) => {
       } else {
         console.info('[bridge-sync] Company balance updated successfully');
       }
+
+      // Sync bridge accounts to database
+      await syncBridgeAccounts(
+        supabaseAdmin,
+        company_id,
+        bridge_user_uuid,
+        allAccounts
+      );
 
       // Get transactions
       const allTransactions = await bridgeClient.fetchAllTransactions(90);

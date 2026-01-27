@@ -260,7 +260,9 @@ export function BankAccountsCard() {
   };
 
   const handleFullSync = async () => {
-    if (bridgeUserUuids.length === 0) {
+    const companiesWithBridgeConnection = companies.filter(c => c.bridge_user_uuid);
+    
+    if (companiesWithBridgeConnection.length === 0) {
       toast.error('Connectez d\'abord une banque');
       return;
     }
@@ -278,26 +280,29 @@ export function BankAccountsCard() {
       let totalUpdated = 0;
       let totalAccounts = 0;
 
-      // Sync all bridge users
-      for (const bridgeUserUuid of bridgeUserUuids) {
+      // Sync each company with bridge connection
+      for (const company of companiesWithBridgeConnection) {
         const { data, error } = await supabase.functions.invoke('bridge-sync', {
           headers: { Authorization: `Bearer ${session.access_token}` },
           body: { 
             action: 'full-sync',
-            bridge_user_uuid: bridgeUserUuid,
+            bridge_user_uuid: company.bridge_user_uuid,
+            company_id: company.id,
           },
         });
 
-        if (!error && data?.success) {
+        if (error) {
+          console.error(`Sync error for ${company.name}:`, error);
+        } else if (data?.success) {
           totalInserted += data.inserted || 0;
           totalUpdated += data.updated || 0;
           totalAccounts += data.accounts || 0;
         }
       }
 
-      toast.success(`${totalAccounts} comptes • ${totalInserted} nouvelles transactions, ${totalUpdated} mises à jour`);
+      toast.success(`${totalAccounts} comptes synchronisés • ${totalInserted} nouvelles transactions, ${totalUpdated} mises à jour`);
       
-      // Reload accounts
+      // Reload the page to refresh accounts list
       window.location.reload();
     } catch (error) {
       console.error('Full sync error:', error);
