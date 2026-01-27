@@ -118,24 +118,16 @@ export function CompanyList() {
         return;
       }
 
-      // Open Bridge Connect in a new window
-      const popup = window.open(connectData.connect_url, '_blank', 'width=600,height=800');
-      
-      if (!popup) {
-        toast.error('Popup bloquée. Cliquez sur le lien pour ouvrir Bridge Connect.', {
-          description: 'Autorisez les popups pour ce site',
-          action: {
-            label: 'Ouvrir Bridge',
-            onClick: () => window.open(connectData.connect_url, '_blank'),
-          },
-          duration: 10000,
-        });
-      } else {
-        toast.success('Fenêtre Bridge Connect ouverte !', {
-          description: '1. Sélectionnez votre banque\n2. Connectez-vous avec vos identifiants\n3. Revenez ici et cliquez "Sync Bridge"',
-          duration: 15000,
-        });
-      }
+      // IMPORTANT: open in the SAME TAB so the callback redirect lands back in the app
+      // (opening in a popup/iframe can cause the app to be displayed inside Bridge UI instead
+      // of navigating the main window).
+      localStorage.setItem('bridgePendingCompanyId', company.id);
+      toast.success('Redirection vers Bridge…', {
+        description: 'Vous reviendrez automatiquement ici après la connexion.',
+        duration: 6000,
+      });
+      window.location.assign(connectData.connect_url);
+      return;
       
       await refetch();
     } catch (error) {
