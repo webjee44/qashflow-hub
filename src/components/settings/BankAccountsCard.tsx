@@ -850,7 +850,7 @@ function BankAccountsList({
                                 Non assigné
                               </span>
                             </SelectItem>
-                            {companiesWithBridge.map((company) => (
+                            {companies.map((company) => (
                               <SelectItem key={company.id} value={company.id}>
                                 <span className="flex items-center gap-2">
                                   <Building2 className="w-3 h-3" />
