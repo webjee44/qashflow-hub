@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Building2, Plus, Pencil, Trash2, Star, Landmark, Wallet } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,10 +23,15 @@ const formatCurrency = (amount: number | null) => {
 };
 
 export function CompanyList() {
-  const { companies, isLoading, deleteCompany, updateCompany } = useCompany();
+  const { companies, isLoading, deleteCompany, updateCompany, refetch } = useCompany();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCompany, setEditingCompany] = useState<Company | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+
+  // Ensure we always display fresh balances/accounts counts when opening this tab
+  useEffect(() => {
+    refetch();
+  }, [refetch]);
 
   const handleEdit = (company: Company) => {
     setEditingCompany(company);
