@@ -170,10 +170,11 @@ export class BridgeClient {
       user_email: userEmail,
     };
     
-    // Add redirect URL if provided - Bridge will redirect here after connection
+    // Bridge v2025-01-15 expects callback_url (not redirect_url)
+    // callback_url = where Bridge redirects after Connect session completion
     if (redirectUrl) {
-      payload.redirect_url = redirectUrl;
-      console.info('[BridgeClient] Redirect URL set to:', redirectUrl);
+      payload.callback_url = redirectUrl;
+      console.info('[BridgeClient] Callback URL set to:', redirectUrl);
     }
     
     console.info('[BridgeClient] Connect session payload:', JSON.stringify(payload));
