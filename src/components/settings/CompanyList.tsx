@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Building2, Plus, Pencil, Trash2, Star, Landmark } from 'lucide-react';
+import { Building2, Plus, Pencil, Trash2, Star } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -110,24 +110,6 @@ export function CompanyList() {
                           <Badge variant="secondary" className="gap-1">
                             <Star className="w-3 h-3" />
                             Par défaut
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-3 mt-1 flex-wrap">
-                        {company.bridge_user_uuid && (
-                          <div className="flex items-center gap-1">
-                            <Landmark className="w-3 h-3 text-primary" />
-                            <span className="text-sm text-muted-foreground">
-                              Bridge connecté
-                              {company.bridge_accounts_count > 0 && (
-                                <> • {company.bridge_accounts_count} compte{company.bridge_accounts_count > 1 ? 's' : ''}</>
-                              )}
-                            </span>
-                          </div>
-                        )}
-                        {company.bank_balance !== null && company.bank_balance !== undefined && (
-                          <Badge variant="outline" className="text-xs font-normal">
-                            Solde: {Number(company.bank_balance).toLocaleString('fr-FR')}€
                           </Badge>
                         )}
                       </div>
