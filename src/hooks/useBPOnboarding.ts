@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useContext } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
-import { useCompany } from './useCompany';
+import { CompanyContext } from './useCompany';
 import { useNavigate } from 'react-router-dom';
 
 export interface BPOnboardingStep {
@@ -108,7 +108,8 @@ interface UseBPOnboardingReturn {
 
 export function useBPOnboarding(): UseBPOnboardingReturn {
   const { user } = useAuth();
-  const { currentCompany } = useCompany();
+  const companyContext = useContext(CompanyContext);
+  const currentCompany = companyContext?.currentCompany ?? null;
   const navigate = useNavigate();
   const [isActive, setIsActive] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
