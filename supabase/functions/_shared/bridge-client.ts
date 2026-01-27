@@ -164,13 +164,18 @@ export class BridgeClient {
   async createConnectSession(userEmail: string, redirectUrl?: string): Promise<string> {
     console.info('[BridgeClient] Creating connect session for:', userEmail);
     
-    const payload: Record<string, string> = { user_email: userEmail };
+    // Bridge API uses prefill_email (not user_email) for connect sessions
+    const payload: Record<string, unknown> = {
+      prefill_email: userEmail,
+    };
     
     // Add redirect URL if provided - Bridge will redirect here after connection
     if (redirectUrl) {
       payload.redirect_url = redirectUrl;
       console.info('[BridgeClient] Redirect URL set to:', redirectUrl);
     }
+    
+    console.info('[BridgeClient] Connect session payload:', JSON.stringify(payload));
     
     const response = await fetch(`${BRIDGE_API_URL}/aggregation/connect-sessions`, {
       method: 'POST',
