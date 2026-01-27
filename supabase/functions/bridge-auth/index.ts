@@ -104,6 +104,47 @@ Deno.serve(async (req) => {
       return successResponse({ access_token: authData.access_token, expires_at: authData.expires_at });
     }
 
+    // ============================================
+    // Action: delete-user
+    // ============================================
+    if (action === 'delete-user') {
+      if (!bridge_user_uuid) {
+        return errorResponse('bridge_user_uuid requis');
+      }
+
+      console.info('[bridge-auth] Deleting Bridge user:', bridge_user_uuid);
+      
+      // Delete user from Bridge API
+      await bridgeClient.deleteUser(bridge_user_uuid);
+      
+      // Clean up local database
+      const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+      const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+      
+      // Delete bridge accounts linked to this user
+      const { error: deleteAccountsError } = await supabaseAdmin
+        .from('bridge_accounts')
+        .delete()
+        .eq('bridge_user_uuid', bridge_user_uuid);
+      
+      if (deleteAccountsError) {
+        console.error('[bridge-auth] Error deleting bridge_accounts:', deleteAccountsError);
+      }
+      
+      // Clear bridge_user_uuid from companies
+      const { error: updateCompaniesError } = await supabaseAdmin
+        .from('companies')
+        .update({ bridge_user_uuid: null, bridge_accounts_count: 0 })
+        .eq('bridge_user_uuid', bridge_user_uuid);
+      
+      if (updateCompaniesError) {
+        console.error('[bridge-auth] Error updating companies:', updateCompaniesError);
+      }
+      
+      console.info('[bridge-auth] Bridge user deleted and local data cleaned');
+      return successResponse({ deleted: true });
+    }
+
     return errorResponse(`Action non reconnue: ${action}`);
 
   } catch (error) {
