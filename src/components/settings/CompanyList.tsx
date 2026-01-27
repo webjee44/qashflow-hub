@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Building2, Plus, Pencil, Trash2, Star, Landmark, Loader2, RefreshCw } from 'lucide-react';
+import { Building2, Plus, Pencil, Trash2, Star, Landmark, Loader2, RefreshCw, Link } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useCompany, Company } from '@/hooks/useCompany';
 import { CompanyDialog } from './CompanyDialog';
+import { LinkBridgeDialog } from './LinkBridgeDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import {
@@ -27,6 +28,11 @@ export function CompanyList() {
   const [editingCompany, setEditingCompany] = useState<Company | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [syncingBridge, setSyncingBridge] = useState<string | null>(null);
+  const [linkDialogOpen, setLinkDialogOpen] = useState(false);
+  const [linkTargetCompany, setLinkTargetCompany] = useState<Company | null>(null);
+
+  // Companies that already have Bridge connected (for linking)
+  const companiesWithBridge = companies.filter(c => c.bridge_user_uuid);
 
   // Handle Bridge callback - auto-sync when returning from Bridge
   // Check both URL params (legacy) and localStorage for company ID
@@ -344,6 +350,22 @@ export function CompanyList() {
                       </Button>
                     )}
                     
+                    {/* Link existing Bridge connection (only show if other companies have Bridge) */}
+                    {!company.bridge_user_uuid && companiesWithBridge.length > 0 && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setLinkTargetCompany(company);
+                          setLinkDialogOpen(true);
+                        }}
+                        className="gap-1.5"
+                      >
+                        <Link className="w-4 h-4" />
+                        Lier existant
+                      </Button>
+                    )}
+                    
                     {!company.is_default && (
                       <Button
                         variant="ghost"
@@ -381,6 +403,14 @@ export function CompanyList() {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         company={editingCompany}
+      />
+
+      <LinkBridgeDialog
+        open={linkDialogOpen}
+        onOpenChange={setLinkDialogOpen}
+        targetCompany={linkTargetCompany}
+        companiesWithBridge={companiesWithBridge}
+        onSuccess={refetch}
       />
 
       <AlertDialog open={!!deleteConfirmId} onOpenChange={() => setDeleteConfirmId(null)}>
