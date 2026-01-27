@@ -192,9 +192,15 @@ export function BankAccountsCard() {
         return;
       }
 
-      // Get or create a Bridge user
-      // Use the first company's bridge_user_uuid if exists, otherwise create new
-      let bridgeUserUuid = bridgeUserUuids[0];
+      // Refetch companies to get latest bridge_user_uuid state
+      const { data: freshCompanies } = await supabase
+        .from('companies')
+        .select('id, bridge_user_uuid')
+        .not('deleted_at', 'is', null)
+        .or('deleted_at.is.null');
+      
+      // Get fresh bridge_user_uuid from refetched data
+      let bridgeUserUuid = freshCompanies?.find(c => c.bridge_user_uuid)?.bridge_user_uuid || null;
       
       if (!bridgeUserUuid) {
         // Create Bridge user via bridge-auth function
@@ -211,11 +217,12 @@ export function BankAccountsCard() {
         bridgeUserUuid = createData.user.uuid;
         
         // Save the Bridge user UUID to the first company
-        if (companies.length > 0) {
+        const targetCompanyId = freshCompanies?.[0]?.id || companies[0]?.id;
+        if (targetCompanyId) {
           await supabase
             .from('companies')
             .update({ bridge_user_uuid: bridgeUserUuid })
-            .eq('id', companies[0].id);
+            .eq('id', targetCompanyId);
         }
       }
 
