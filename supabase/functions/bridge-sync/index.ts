@@ -160,12 +160,13 @@ Deno.serve(async (req) => {
           const allAccounts = await bridgeClient.fetchAllAccounts();
           const totalBalance = bridgeClient.calculateTotalBalance(allAccounts);
 
-          // Update company balance
+          // Update company balance and accounts count
           await supabaseAdmin
             .from('companies')
             .update({ 
               bank_balance: totalBalance,
-              bank_balance_updated_at: new Date().toISOString()
+              bank_balance_updated_at: new Date().toISOString(),
+              bridge_accounts_count: allAccounts.length
             })
             .eq('id', company.id);
 
@@ -235,12 +236,13 @@ Deno.serve(async (req) => {
       const totalBalance = bridgeClient.calculateTotalBalance(allAccounts);
       console.info(`[bridge-sync] Total balance: ${totalBalance.toLocaleString('fr-FR')}€`);
 
-      // Update company balance
+      // Update company balance and accounts count
       const { error: updateError } = await supabaseAdmin
         .from('companies')
         .update({ 
           bank_balance: totalBalance,
-          bank_balance_updated_at: new Date().toISOString()
+          bank_balance_updated_at: new Date().toISOString(),
+          bridge_accounts_count: allAccounts.length
         })
         .eq('id', company_id);
 
