@@ -767,10 +767,8 @@ function BankAccountsList({
                   const isEnabled = assignment?.is_enabled ?? false;
                   const companyId = assignment?.company_id || 'none';
                   
-                  // Extract account name without bank prefix
-                  const displayName = account.name?.includes(' - ') 
-                    ? account.name.split(' - ').slice(1).join(' - ')
-                    : account.name || 'Compte sans nom';
+                  // Show full account name for clarity - don't truncate
+                  const displayName = account.name || 'Compte sans nom';
 
                   return (
                     <motion.div
