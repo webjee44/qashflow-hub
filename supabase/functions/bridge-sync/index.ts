@@ -84,9 +84,19 @@ async function syncBridgeAccounts(
       continue;
     }
 
-    // Get bank name from the fetched bank data
+    // Get bank name from the fetched bank data (as default)
     const bank = bankMap.get(account.bank_id);
-    const bankName = bank?.name || null;
+    const defaultBankName = bank?.name || null;
+
+    // Check if account already exists with a custom bank_name
+    const { data: existingAccount } = await supabaseAdmin
+      .from('bridge_accounts')
+      .select('bank_name')
+      .eq('bridge_account_id', account.id)
+      .maybeSingle();
+
+    // Preserve user-edited bank_name if it exists
+    const bankNameToUse = existingAccount?.bank_name || defaultBankName;
 
     const { error } = await supabaseAdmin
       .from('bridge_accounts')
@@ -101,7 +111,7 @@ async function syncBridgeAccounts(
         account_type: account.type || null,
         status: account.status || 'active',
         bank_id: account.bank_id || null,
-        bank_name: bankName,
+        bank_name: bankNameToUse,
         last_sync_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }, { 
