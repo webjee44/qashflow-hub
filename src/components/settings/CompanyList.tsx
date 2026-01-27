@@ -31,8 +31,21 @@ export function CompanyList() {
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
   const [linkTargetCompany, setLinkTargetCompany] = useState<Company | null>(null);
 
-  // Companies that already have Bridge connected (for linking)
-  const companiesWithBridge = companies.filter(c => c.bridge_user_uuid);
+  // Get unique Bridge connections (by bridge_user_uuid) for linking
+  // Group companies by bridge_user_uuid and pick one representative per connection
+  const uniqueBridgeConnections = companies.reduce((acc, company) => {
+    if (company.bridge_user_uuid && !acc.some(c => c.bridge_user_uuid === company.bridge_user_uuid)) {
+      // Calculate total accounts across all companies sharing this bridge_user_uuid
+      const totalAccounts = companies
+        .filter(c => c.bridge_user_uuid === company.bridge_user_uuid)
+        .reduce((sum, c) => sum + (c.bridge_accounts_count || 0), 0);
+      acc.push({
+        ...company,
+        bridge_accounts_count: totalAccounts,
+      });
+    }
+    return acc;
+  }, [] as Company[]);
 
   // Handle Bridge callback - auto-sync when returning from Bridge
   // Check both URL params (legacy) and localStorage for company ID
@@ -350,8 +363,8 @@ export function CompanyList() {
                       </Button>
                     )}
                     
-                    {/* Link existing Bridge connection (only show if other companies have Bridge) */}
-                    {!company.bridge_user_uuid && companiesWithBridge.length > 0 && (
+                    {/* Link existing Bridge connection (only show if unique Bridge connections exist) */}
+                    {!company.bridge_user_uuid && uniqueBridgeConnections.length > 0 && (
                       <Button
                         variant="outline"
                         size="sm"
@@ -409,7 +422,7 @@ export function CompanyList() {
         open={linkDialogOpen}
         onOpenChange={setLinkDialogOpen}
         targetCompany={linkTargetCompany}
-        companiesWithBridge={companiesWithBridge}
+        companiesWithBridge={uniqueBridgeConnections}
         onSuccess={refetch}
       />
 
