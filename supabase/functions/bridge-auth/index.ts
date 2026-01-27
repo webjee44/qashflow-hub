@@ -74,8 +74,22 @@ Deno.serve(async (req) => {
     // Action: create-user
     // ============================================
     if (action === 'create-user') {
-      const user = await bridgeClient.createUser(userId);
-      return successResponse({ user });
+      try {
+        const user = await bridgeClient.createUser(userId);
+        return successResponse({ user });
+      } catch (createError) {
+        // Handle 409 - user already exists: fetch existing user instead
+        const errorMsg = createError instanceof Error ? createError.message : '';
+        if (errorMsg.includes('409') || errorMsg.includes('already_exists')) {
+          console.info('[bridge-auth] User already exists, fetching existing user...');
+          // Get existing user by external_user_id via Bridge API
+          const existingUser = await bridgeClient.getUserByExternalId(userId);
+          if (existingUser) {
+            return successResponse({ user: existingUser });
+          }
+        }
+        throw createError;
+      }
     }
 
     // ============================================

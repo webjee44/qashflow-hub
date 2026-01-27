@@ -128,6 +128,30 @@ export class BridgeClient {
     return user;
   }
 
+  async getUserByExternalId(externalUserId: string): Promise<BridgeUser | null> {
+    console.info('[BridgeClient] Fetching user by external ID:', externalUserId);
+    
+    const response = await fetch(
+      `${BRIDGE_API_URL}/aggregation/users?external_user_id=${encodeURIComponent(externalUserId)}`,
+      { headers: this.getBaseHeaders() }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[BridgeClient] Get user error:', response.status, errorText);
+      return null;
+    }
+
+    const data = await response.json();
+    const users = data.resources || data;
+    if (Array.isArray(users) && users.length > 0) {
+      console.info('[BridgeClient] Found existing user:', users[0].uuid);
+      return users[0] as BridgeUser;
+    }
+    
+    return null;
+  }
+
   async getAuthToken(userUuid: string): Promise<BridgeAuthToken> {
     console.info('[BridgeClient] Getting auth token for:', userUuid);
     
