@@ -335,22 +335,46 @@ export function BankAccountsCard() {
     );
   }
 
+  // Check if any company has a bridge connection (for showing sync button)
+  const hasAnyBridgeConnection = companies.some(c => c.bridge_user_uuid);
+
   if (accounts.length === 0) {
     return (
       <Card className="bg-card border-border">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Landmark className="w-5 h-5 text-primary" />
-            Comptes bancaires
-          </CardTitle>
-          <CardDescription>
-            Connectez vos banques et gérez la répartition entre vos sociétés
-          </CardDescription>
+        <CardHeader className="flex flex-row items-start justify-between gap-4">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <Landmark className="w-5 h-5 text-primary" />
+              Comptes bancaires
+            </CardTitle>
+            <CardDescription>
+              Connectez vos banques et gérez la répartition entre vos sociétés
+            </CardDescription>
+          </div>
+          {hasAnyBridgeConnection && (
+            <Button
+              variant="outline"
+              onClick={handleFullSync}
+              disabled={isSyncing}
+              className="gap-2"
+            >
+              {isSyncing ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <RefreshCw className="w-4 h-4" />
+              )}
+              Synchroniser
+            </Button>
+          )}
         </CardHeader>
         <CardContent>
           <div className="text-center py-8">
             <Landmark className="w-12 h-12 mx-auto mb-3 text-muted-foreground opacity-50" />
-            <p className="text-muted-foreground mb-4">Aucun compte bancaire connecté.</p>
+            <p className="text-muted-foreground mb-4">
+              {hasAnyBridgeConnection 
+                ? "Cliquez sur Synchroniser pour récupérer vos comptes." 
+                : "Aucun compte bancaire connecté."}
+            </p>
             <Button 
               onClick={handleConnectBridge} 
               disabled={isConnecting}
@@ -361,7 +385,7 @@ export function BankAccountsCard() {
               ) : (
                 <Plus className="w-4 h-4" />
               )}
-              Connecter une banque
+              {hasAnyBridgeConnection ? "Ajouter une banque" : "Connecter une banque"}
             </Button>
           </div>
         </CardContent>
