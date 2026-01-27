@@ -401,18 +401,35 @@ Deno.serve(async (req) => {
     const rawBody = await req.text();
     const signatureHeader = req.headers.get('bridge-signature');
 
-    // Verify signature
-    const isValid = await verifyBridgeSignature(rawBody, signatureHeader, webhookSecret);
-    if (!isValid) {
-      console.warn('[bridge-webhook] Invalid signature, rejecting request');
-      return new Response(JSON.stringify({ error: 'Invalid signature' }), {
-        status: 401,
+    // Parse payload first to check for TEST_EVENT
+    let payload: any;
+    try {
+      payload = JSON.parse(rawBody);
+    } catch {
+      console.error('[bridge-webhook] Invalid JSON payload');
+      return new Response(JSON.stringify({ error: 'Invalid JSON' }), {
+        status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    // Parse webhook payload
-    const payload = JSON.parse(rawBody);
+    // Allow TEST_EVENT without signature validation (Bridge doesn't sign test events)
+    const isTestEvent = payload?.type === 'TEST_EVENT';
+    
+    if (!isTestEvent) {
+      // Verify signature for real events
+      const isValid = await verifyBridgeSignature(rawBody, signatureHeader, webhookSecret);
+      if (!isValid) {
+        console.warn('[bridge-webhook] Invalid signature, rejecting request');
+        return new Response(JSON.stringify({ error: 'Invalid signature' }), {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    } else {
+      console.info('[bridge-webhook] TEST_EVENT received - skipping signature validation');
+    }
+
     const { type, content } = payload;
 
     console.info(`[bridge-webhook] Received event: ${type}`);
