@@ -29,13 +29,18 @@ export function CompanyList() {
   const [syncingBridge, setSyncingBridge] = useState<string | null>(null);
 
   // Handle Bridge callback - auto-sync when returning from Bridge
+  // Check both URL params (legacy) and localStorage for company ID
   useEffect(() => {
     const bridgeCallback = searchParams.get('bridge_callback');
-    const companyId = searchParams.get('company_id');
+    // Try URL param first, then localStorage
+    const companyIdFromUrl = searchParams.get('company_id');
+    const companyIdFromStorage = localStorage.getItem('bridgePendingCompanyId');
+    const companyId = companyIdFromUrl || companyIdFromStorage;
     
     if (bridgeCallback === 'success' && companyId && companies.length > 0) {
-      // Clear the query params
+      // Clear the query params and localStorage
       setSearchParams({});
+      localStorage.removeItem('bridgePendingCompanyId');
       
       // Find the company and trigger sync
       const company = companies.find(c => c.id === companyId);
@@ -102,7 +107,9 @@ export function CompanyList() {
       }
 
       // Build redirect URL to return to settings after Bridge connection
-      const redirectUrl = `${window.location.origin}/parametres?bridge_callback=success&company_id=${company.id}`;
+      // Use simple base URL - company ID is stored in localStorage
+      // Bridge whitelist typically requires exact URL match without query params
+      const redirectUrl = `${window.location.origin}/parametres?bridge_callback=success`;
 
       // Create Connect session via bridge-connect function
       const { data: connectData, error: connectError } = await supabase.functions.invoke('bridge-connect', {
