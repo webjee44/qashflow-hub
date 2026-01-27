@@ -1081,6 +1081,101 @@ export type Database = {
           },
         ]
       }
+      bridge_accounts: {
+        Row: {
+          account_type: string | null
+          balance: number | null
+          bridge_account_id: number
+          bridge_item_id: number
+          bridge_user_uuid: string
+          company_id: string
+          created_at: string | null
+          iban: string | null
+          id: string
+          last_sync_at: string | null
+          name: string | null
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          account_type?: string | null
+          balance?: number | null
+          bridge_account_id: number
+          bridge_item_id: number
+          bridge_user_uuid: string
+          company_id: string
+          created_at?: string | null
+          iban?: string | null
+          id?: string
+          last_sync_at?: string | null
+          name?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          account_type?: string | null
+          balance?: number | null
+          bridge_account_id?: number
+          bridge_item_id?: number
+          bridge_user_uuid?: string
+          company_id?: string
+          created_at?: string | null
+          iban?: string | null
+          id?: string
+          last_sync_at?: string | null
+          name?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bridge_accounts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bridge_sync_queue: {
+        Row: {
+          attempts: number | null
+          bridge_account_id: number
+          created_at: string | null
+          event_type: string
+          id: string
+          last_error: string | null
+          max_attempts: number | null
+          payload: Json
+          processed_at: string | null
+          status: string | null
+        }
+        Insert: {
+          attempts?: number | null
+          bridge_account_id: number
+          created_at?: string | null
+          event_type: string
+          id?: string
+          last_error?: string | null
+          max_attempts?: number | null
+          payload: Json
+          processed_at?: string | null
+          status?: string | null
+        }
+        Update: {
+          attempts?: number | null
+          bridge_account_id?: number
+          created_at?: string | null
+          event_type?: string
+          id?: string
+          last_error?: string | null
+          max_attempts?: number | null
+          payload?: Json
+          processed_at?: string | null
+          status?: string | null
+        }
+        Relationships: []
+      }
       business_plans: {
         Row: {
           bp_start_date: string | null
