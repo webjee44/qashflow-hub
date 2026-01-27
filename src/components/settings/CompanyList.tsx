@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Building2, Plus, Pencil, Trash2, Star } from 'lucide-react';
+import { Building2, Plus, Pencil, Trash2, Star, Landmark, Wallet } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -16,6 +16,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+
+const formatCurrency = (amount: number | null) => {
+  if (amount === null || amount === undefined) return null;
+  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(amount);
+};
 
 export function CompanyList() {
   const { companies, isLoading, deleteCompany, updateCompany } = useCompany();
@@ -111,6 +116,20 @@ export function CompanyList() {
                             <Star className="w-3 h-3" />
                             Par défaut
                           </Badge>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
+                        {company.bridge_accounts_count > 0 && (
+                          <span className="flex items-center gap-1">
+                            <Landmark className="w-3.5 h-3.5" />
+                            {company.bridge_accounts_count} compte{company.bridge_accounts_count > 1 ? 's' : ''}
+                          </span>
+                        )}
+                        {company.bank_balance !== null && (
+                          <span className="flex items-center gap-1 font-medium text-foreground">
+                            <Wallet className="w-3.5 h-3.5" />
+                            {formatCurrency(company.bank_balance)}
+                          </span>
                         )}
                       </div>
                     </div>
