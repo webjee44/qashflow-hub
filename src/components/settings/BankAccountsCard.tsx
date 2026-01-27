@@ -340,7 +340,18 @@ export function BankAccountsCard() {
         }
       }
 
-      const redirectUrl = `${window.location.origin}/parametres?tab=accounts&bridge_callback=success`;
+      // Build redirect URL - use current origin for published apps
+      // For Lovable preview, prefer the published URL if available
+      const currentOrigin = window.location.origin;
+      const isLovablePreview = currentOrigin.includes('lovableproject.com') || currentOrigin.includes('id-preview--');
+      
+      // Use published URL for Bridge callback if we're in preview
+      const baseUrl = isLovablePreview 
+        ? (import.meta.env.VITE_PUBLISHED_URL || 'https://pennylane-cash-flow-buddy.lovable.app')
+        : currentOrigin;
+      
+      const redirectUrl = `${baseUrl}/parametres?tab=accounts&bridge_callback=success`;
+      console.log('[Bridge] Redirect URL:', redirectUrl);
 
       // Create Connect session
       const { data: connectData, error: connectError } = await supabase.functions.invoke('bridge-connect', {
