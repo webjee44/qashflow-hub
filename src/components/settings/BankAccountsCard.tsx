@@ -99,6 +99,78 @@ export function BankAccountsCard() {
     loadData();
   }, [bridgeUserUuids.join(',')]);
 
+  // Auto-sync after Bridge connection (check localStorage flag)
+  useEffect(() => {
+    const pendingSync = localStorage.getItem('bridgePendingSync');
+    if (pendingSync !== 'true') return;
+    
+    // Clear the flag immediately to prevent multiple syncs
+    localStorage.removeItem('bridgePendingSync');
+    
+    const autoSync = async () => {
+      const companiesWithBridge = companies.filter(c => c.bridge_user_uuid);
+      if (companiesWithBridge.length === 0) {
+        // Refetch to get latest bridge_user_uuid
+        const { data: freshCompanies } = await supabase
+          .from('companies')
+          .select('id, bridge_user_uuid')
+          .not('bridge_user_uuid', 'is', null);
+        
+        if (!freshCompanies || freshCompanies.length === 0) {
+          return;
+        }
+        
+        await runAutoSync(freshCompanies);
+      } else {
+        await runAutoSync(companiesWithBridge);
+      }
+    };
+    
+    autoSync();
+  }, [companies]);
+
+  const runAutoSync = async (companiesWithBridge: Array<{ id: string; bridge_user_uuid: string | null }>) => {
+    setIsSyncing(true);
+    toast.info('Synchronisation automatique des comptes...');
+    
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error('Session expirée');
+        return;
+      }
+
+      let totalAccounts = 0;
+      
+      for (const company of companiesWithBridge) {
+        if (!company.bridge_user_uuid) continue;
+        
+        const { data, error } = await supabase.functions.invoke('bridge-sync', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+          body: { 
+            action: 'full-sync',
+            bridge_user_uuid: company.bridge_user_uuid,
+            company_id: company.id,
+          },
+        });
+
+        if (!error && data?.success) {
+          totalAccounts += data.accounts || 0;
+        }
+      }
+
+      toast.success(`${totalAccounts} comptes synchronisés !`);
+      
+      // Reload to refresh the accounts list
+      window.location.reload();
+    } catch (error) {
+      console.error('Auto sync error:', error);
+      toast.error('Erreur lors de la synchronisation automatique');
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   const handleToggle = (bridgeAccountId: number, enabled: boolean) => {
     setAssignments(prev => {
       const next = new Map(prev);
