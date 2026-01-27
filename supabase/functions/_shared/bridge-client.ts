@@ -128,6 +128,29 @@ export class BridgeClient {
     return user;
   }
 
+  async deleteUser(userUuid: string): Promise<boolean> {
+    console.info('[BridgeClient] Deleting user:', userUuid);
+    
+    const response = await fetch(`${BRIDGE_API_URL}/aggregation/users/${userUuid}`, {
+      method: 'DELETE',
+      headers: this.getBaseHeaders(),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[BridgeClient] Delete user error:', response.status, errorText);
+      // 404 means user already deleted - treat as success
+      if (response.status === 404) {
+        console.info('[BridgeClient] User already deleted or not found');
+        return true;
+      }
+      throw new Error(`Bridge delete user failed: ${response.status} - ${errorText}`);
+    }
+
+    console.info('[BridgeClient] User deleted successfully');
+    return true;
+  }
+
   async getUserByExternalId(externalUserId: string): Promise<BridgeUser | null> {
     console.info('[BridgeClient] Fetching user by external ID:', externalUserId);
     

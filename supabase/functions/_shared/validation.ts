@@ -7,11 +7,11 @@ import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
 // ========== Bridge Schemas ==========
 
 export const bridgeAuthRequestSchema = z.object({
-  action: z.enum(['create-user', 'get-auth-token']).default('get-auth-token'),
+  action: z.enum(['create-user', 'get-auth-token', 'delete-user']).default('get-auth-token'),
   bridge_user_uuid: z.string().uuid().optional(),
 }).refine(
   (data) => data.action === 'create-user' || data.bridge_user_uuid,
-  { message: 'bridge_user_uuid requis pour get-auth-token' }
+  { message: 'bridge_user_uuid requis pour get-auth-token et delete-user' }
 );
 
 export type BridgeAuthRequest = z.infer<typeof bridgeAuthRequestSchema>;
