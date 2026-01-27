@@ -25,6 +25,7 @@ interface BridgeAccount {
   iban: string | null;
   balance: number | null;
   account_type: string | null;
+  bank_name: string | null;
   bridge_user_uuid: string;
   company_id: string;
 }
@@ -35,14 +36,7 @@ interface BankGroup {
   totalBalance: number;
 }
 
-// Extract bank name from account name (format: "BankName - AccountName")
-const extractBankName = (accountName: string | null): string => {
-  if (!accountName) return 'Banque inconnue';
-  const parts = accountName.split(' - ');
-  return parts.length > 1 ? parts[0].trim() : 'Banque inconnue';
-};
-
-// Group accounts by bank
+// Group accounts by bank (using bank_name from DB, fallback to bridge_item_id grouping)
 const groupAccountsByBank = (accounts: BridgeAccount[]): BankGroup[] => {
   const groups = new Map<number, BankGroup>();
   
@@ -50,7 +44,8 @@ const groupAccountsByBank = (accounts: BridgeAccount[]): BankGroup[] => {
     const itemId = account.bridge_item_id;
     if (!groups.has(itemId)) {
       groups.set(itemId, {
-        bankName: extractBankName(account.name),
+        // Use bank_name from database if available, otherwise fallback
+        bankName: account.bank_name || 'Banque',
         accounts: [],
         totalBalance: 0,
       });
@@ -68,7 +63,6 @@ const groupAccountsByBank = (accounts: BridgeAccount[]): BankGroup[] => {
       accounts: group.accounts.sort((a, b) => (a.name || '').localeCompare(b.name || '')),
     }));
 };
-
 interface AccountAssignment {
   bridge_account_id: number;
   company_id: string | null;
@@ -105,7 +99,7 @@ export function BankAccountsCard() {
         // Fetch all Bridge accounts for all bridge_user_uuids
         const { data: bridgeAccounts, error: accountsError } = await supabase
           .from('bridge_accounts')
-          .select('id, bridge_account_id, bridge_item_id, name, iban, balance, account_type, bridge_user_uuid, company_id')
+          .select('id, bridge_account_id, bridge_item_id, name, iban, balance, account_type, bank_name, bridge_user_uuid, company_id')
           .in('bridge_user_uuid', bridgeUserUuids);
 
         if (accountsError) throw accountsError;

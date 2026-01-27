@@ -23,11 +23,16 @@ import {
 // ============================================
 async function syncBridgeAccounts(
   supabaseAdmin: any,
+  bridgeClient: BridgeClient,
   companyId: string,
   bridgeUserUuid: string,
   accounts: BridgeAccount[]
 ): Promise<number> {
   let syncedCount = 0;
+
+  // Collect all bank_ids and fetch bank names
+  const bankIds = accounts.map(a => a.bank_id).filter(id => id != null);
+  const bankMap = await bridgeClient.fetchBanks(bankIds);
 
   const getItemId = (account: BridgeAccount): number | null => {
     const anyAccount = account as any;
@@ -47,6 +52,10 @@ async function syncBridgeAccounts(
       continue;
     }
 
+    // Get bank name from the fetched bank data
+    const bank = bankMap.get(account.bank_id);
+    const bankName = bank?.name || null;
+
     const { error } = await supabaseAdmin
       .from('bridge_accounts')
       .upsert({
@@ -59,6 +68,8 @@ async function syncBridgeAccounts(
         balance: account.balance || 0,
         account_type: account.type || null,
         status: account.status || 'active',
+        bank_id: account.bank_id || null,
+        bank_name: bankName,
         last_sync_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }, { 
@@ -223,9 +234,10 @@ Deno.serve(async (req) => {
             })
             .eq('id', company.id);
 
-          // Sync bridge accounts to database
+          // Sync bridge accounts to database (with bank names)
           await syncBridgeAccounts(
             supabaseAdmin,
+            bridgeClient,
             company.id,
             company.bridge_user_uuid!,
             allAccounts
@@ -313,9 +325,10 @@ Deno.serve(async (req) => {
         console.info('[bridge-sync] Company balance updated successfully');
       }
 
-      // Sync bridge accounts to database
+      // Sync bridge accounts to database (with bank names)
       const syncedAccounts = await syncBridgeAccounts(
         supabaseAdmin,
+        bridgeClient,
         company_id,
         bridge_user_uuid,
         allAccounts
