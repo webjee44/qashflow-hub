@@ -19,6 +19,38 @@ import {
 } from '../_shared/validation.ts';
 
 // ============================================
+// Helper: Calculate assigned balance and count
+// ============================================
+async function getAssignedAccountsStats(
+  supabaseAdmin: any,
+  companyId: string,
+  allAccounts: BridgeAccount[]
+): Promise<{ assignedCount: number; assignedBalance: number }> {
+  // Fetch assigned accounts for this company
+  const { data: assignedAccounts } = await supabaseAdmin
+    .from('company_bridge_accounts')
+    .select('bridge_account_id')
+    .eq('company_id', companyId);
+
+  // If no explicit assignments, return 0 (Option A: force user to configure)
+  if (!assignedAccounts || assignedAccounts.length === 0) {
+    return { assignedCount: 0, assignedBalance: 0 };
+  }
+
+  // Filter accounts to only those assigned
+  const assignedAccountIds = new Set(
+    assignedAccounts.map((a: { bridge_account_id: number }) => a.bridge_account_id)
+  );
+  const filteredAccounts = allAccounts.filter(a => assignedAccountIds.has(a.id));
+  const assignedBalance = filteredAccounts.reduce((sum, a) => sum + (a.balance || 0), 0);
+
+  return { 
+    assignedCount: filteredAccounts.length, 
+    assignedBalance 
+  };
+}
+
+// ============================================
 // Helper: Sync transactions for a company
 // ============================================
 async function syncBridgeAccounts(
@@ -222,17 +254,6 @@ Deno.serve(async (req) => {
 
           // Get accounts
           const allAccounts = await bridgeClient.fetchAllAccounts();
-          const totalBalance = bridgeClient.calculateTotalBalance(allAccounts);
-
-          // Update company balance and accounts count
-          await supabaseAdmin
-            .from('companies')
-            .update({ 
-              bank_balance: totalBalance,
-              bank_balance_updated_at: new Date().toISOString(),
-              bridge_accounts_count: allAccounts.length
-            })
-            .eq('id', company.id);
 
           // Sync bridge accounts to database (with bank names)
           await syncBridgeAccounts(
@@ -242,6 +263,25 @@ Deno.serve(async (req) => {
             company.bridge_user_uuid!,
             allAccounts
           );
+
+          // Calculate balance and count based on assigned accounts only
+          const { assignedCount, assignedBalance } = await getAssignedAccountsStats(
+            supabaseAdmin,
+            company.id,
+            allAccounts
+          );
+
+          // Update company with assigned accounts stats
+          await supabaseAdmin
+            .from('companies')
+            .update({ 
+              bank_balance: assignedBalance,
+              bank_balance_updated_at: new Date().toISOString(),
+              bridge_accounts_count: assignedCount
+            })
+            .eq('id', company.id);
+
+          console.info(`[bridge-sync] Company ${company.id}: ${assignedCount} assigned accounts, balance: ${assignedBalance.toLocaleString('fr-FR')}€`);
 
           // Get transactions
           const allTransactions = await bridgeClient.fetchAllTransactions(90);
@@ -306,24 +346,7 @@ Deno.serve(async (req) => {
 
       // Get accounts and balances
       const allAccounts = await bridgeClient.fetchAllAccounts();
-      const totalBalance = bridgeClient.calculateTotalBalance(allAccounts);
-      console.info(`[bridge-sync] Total balance: ${totalBalance.toLocaleString('fr-FR')}€`);
-
-      // Update company balance and accounts count
-      const { error: updateError } = await supabaseAdmin
-        .from('companies')
-        .update({ 
-          bank_balance: totalBalance,
-          bank_balance_updated_at: new Date().toISOString(),
-          bridge_accounts_count: allAccounts.length
-        })
-        .eq('id', company_id);
-
-      if (updateError) {
-        console.error('[bridge-sync] Failed to update company balance:', updateError);
-      } else {
-        console.info('[bridge-sync] Company balance updated successfully');
-      }
+      console.info(`[bridge-sync] Fetched ${allAccounts.length} accounts from Bridge`);
 
       // Sync bridge accounts to database (with bank names)
       const syncedAccounts = await syncBridgeAccounts(
@@ -334,11 +357,37 @@ Deno.serve(async (req) => {
         allAccounts
       );
 
+      // Calculate balance and count based on assigned accounts only
+      const { assignedCount, assignedBalance } = await getAssignedAccountsStats(
+        supabaseAdmin,
+        company_id,
+        allAccounts
+      );
+
+      console.info(`[bridge-sync] Assigned accounts: ${assignedCount}, balance: ${assignedBalance.toLocaleString('fr-FR')}€`);
+
+      // Update company with assigned accounts stats
+      const { error: updateError } = await supabaseAdmin
+        .from('companies')
+        .update({ 
+          bank_balance: assignedBalance,
+          bank_balance_updated_at: new Date().toISOString(),
+          bridge_accounts_count: assignedCount
+        })
+        .eq('id', company_id);
+
+      if (updateError) {
+        console.error('[bridge-sync] Failed to update company balance:', updateError);
+      } else {
+        console.info('[bridge-sync] Company balance updated successfully');
+      }
+
       if (action === 'sync-accounts') {
         return successResponse({
           accounts: allAccounts.length,
           syncedAccounts,
-          totalBalance,
+          assignedCount,
+          totalBalance: assignedBalance,
         });
       }
 
@@ -360,7 +409,8 @@ Deno.serve(async (req) => {
       return successResponse({ 
         accounts: allAccounts.length,
         syncedAccounts,
-        totalBalance,
+        assignedCount,
+        totalBalance: assignedBalance,
         inserted, 
         updated 
       });
