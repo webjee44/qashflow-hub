@@ -133,7 +133,24 @@ export function CompanyList() {
         description: 'Vous reviendrez automatiquement ici après la connexion.',
         duration: 6000,
       });
-      window.location.assign(connectData.connect_url);
+
+      // In Preview, the app runs inside an iframe; Bridge blocks being framed (X-Frame-Options/CSP),
+      // which surfaces as "refused to connect / blocked".
+      // So: if we are in an iframe, open Bridge in a new tab/window.
+      const inIframe = (() => {
+        try {
+          return window.self !== window.top;
+        } catch {
+          return true;
+        }
+      })();
+
+      if (inIframe) {
+        window.open(connectData.connect_url, '_blank', 'noopener,noreferrer');
+      } else {
+        // Published / non-iframe contexts: keep same-tab navigation so callback lands back in the app.
+        window.location.assign(connectData.connect_url);
+      }
       return;
       
       await refetch();
