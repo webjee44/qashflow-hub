@@ -1,28 +1,23 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, Building2, Percent, ListPlus, X, Loader2, FileDown, Briefcase, Store, Code, Stethoscope, Utensils } from 'lucide-react';
+import { Plus, Building2, Percent, FileSpreadsheet, Loader2, FileDown, Briefcase, Store, Code, Stethoscope, Utensils } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from '@/components/ui/dropdown-menu';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { FixedExpenseTable } from '@/components/businessplan/FixedExpenseTable';
 import { FixedExpenseDialog } from '@/components/businessplan/FixedExpenseDialog';
 import { VariableExpenseTable } from '@/components/businessplan/VariableExpenseTable';
 import { SectionNotes } from '@/components/businessplan/SectionNotes';
 import { BPExportDialog } from '@/components/businessplan/BPExportDialog';
+import { BulkEditExpenseDialog } from '@/components/businessplan/BulkEditExpenseDialog';
 import { useBPFixedExpenses, BPFixedExpense } from '@/hooks/useBPFixedExpenses';
 import { FIXED_EXPENSE_CATEGORIES, type FixedExpenseCategory } from '@/constants/bpConstants';
 import { useCurrentBusinessPlan } from '@/hooks/useCurrentBusinessPlan';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { toast } from 'sonner';
-
-const EXPENSE_CATEGORIES = Object.entries(FIXED_EXPENSE_CATEGORIES).map(([value, { label }]) => ({
-  value: value as FixedExpenseCategory,
-  label,
-}));
+import { useQueryClient } from '@tanstack/react-query';
 
 // Templates de charges fixes par type d'activité
 const EXPENSE_TEMPLATES = {
@@ -104,22 +99,15 @@ const EXPENSE_TEMPLATES = {
 
 type TemplateKey = keyof typeof EXPENSE_TEMPLATES;
 
-interface BulkExpenseRow {
-  name: string;
-  category: FixedExpenseCategory;
-  monthly_amount: string;
-}
-
 export default function Expenses() {
   const { isLoading: isLoadingBP } = useCurrentBusinessPlan();
+  const queryClient = useQueryClient();
   
   const { expenses, createExpense, updateExpense } = useBPFixedExpenses();
 
   const [expenseDialogOpen, setExpenseDialogOpen] = useState(false);
   const [selectedExpense, setSelectedExpense] = useState<BPFixedExpense | null>(null);
-  const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
-  const [bulkRows, setBulkRows] = useState<BulkExpenseRow[]>([{ name: '', category: 'other', monthly_amount: '' }]);
-  const [isBulkSaving, setIsBulkSaving] = useState(false);
+  const [bulkEditDialogOpen, setBulkEditDialogOpen] = useState(false);
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateKey | null>(null);
   const [isApplyingTemplate, setIsApplyingTemplate] = useState(false);
@@ -132,52 +120,6 @@ export default function Expenses() {
       </div>
     );
   }
-
-  const handleOpenBulkDialog = () => {
-    setBulkRows([{ name: '', category: 'other', monthly_amount: '' }]);
-    setBulkDialogOpen(true);
-  };
-
-  const handleBulkRowChange = (index: number, field: keyof BulkExpenseRow, value: string) => {
-    setBulkRows(prev => prev.map((row, i) => i === index ? { ...row, [field]: value } : row));
-  };
-
-  const handleAddBulkRow = () => {
-    if (bulkRows.length < 10) {
-      setBulkRows(prev => [...prev, { name: '', category: 'other', monthly_amount: '' }]);
-    }
-  };
-
-  const handleRemoveBulkRow = (index: number) => {
-    if (bulkRows.length > 1) {
-      setBulkRows(prev => prev.filter((_, i) => i !== index));
-    }
-  };
-
-  const handleSubmitBulk = async () => {
-    const validRows = bulkRows.filter(row => row.name.trim() && row.monthly_amount);
-    if (validRows.length === 0) {
-      toast.error('Veuillez remplir au moins une ligne');
-      return;
-    }
-    
-    setIsBulkSaving(true);
-    try {
-      for (const row of validRows) {
-        await createExpense.mutateAsync({
-          name: row.name.trim(),
-          category: row.category || 'other',
-          monthly_amount: parseFloat(row.monthly_amount) || 0,
-        });
-      }
-      toast.success(`${validRows.length} charge(s) ajoutée(s)`);
-      setBulkDialogOpen(false);
-    } catch (error) {
-      toast.error("Erreur lors de l'ajout des charges");
-    } finally {
-      setIsBulkSaving(false);
-    }
-  };
 
   // Template handlers
   const handleSelectTemplate = (key: TemplateKey) => {
@@ -286,10 +228,10 @@ export default function Expenses() {
                     size="sm" 
                     variant="outline"
                     className="gap-2"
-                    onClick={handleOpenBulkDialog}
+                    onClick={() => setBulkEditDialogOpen(true)}
                   >
-                    <ListPlus className="h-4 w-4" />
-                    Ajout en masse
+                    <FileSpreadsheet className="h-4 w-4" />
+                    Édition en masse
                   </Button>
                   <Button 
                     size="sm" 
@@ -344,74 +286,15 @@ export default function Expenses() {
         onSave={handleSaveExpense}
       />
 
-      {/* Bulk Add Dialog */}
-      <Dialog open={bulkDialogOpen} onOpenChange={setBulkDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Ajout en masse de charges fixes</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            {bulkRows.map((row, index) => (
-              <div key={index} className="flex gap-2 items-center">
-                <Input
-                  placeholder="Nom de la charge"
-                  value={row.name}
-                  onChange={(e) => handleBulkRowChange(index, 'name', e.target.value)}
-                  className="flex-1"
-                />
-                <Select
-                  value={row.category}
-                  onValueChange={(val) => handleBulkRowChange(index, 'category', val)}
-                >
-                  <SelectTrigger className="w-[150px]">
-                    <SelectValue placeholder="Catégorie" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {EXPENSE_CATEGORIES.map((cat) => (
-                      <SelectItem key={cat.value} value={cat.value}>
-                        {cat.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Input
-                  type="number"
-                  placeholder="Montant/mois"
-                  value={row.monthly_amount}
-                  onChange={(e) => handleBulkRowChange(index, 'monthly_amount', e.target.value)}
-                  className="w-[120px]"
-                />
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => handleRemoveBulkRow(index)}
-                  disabled={bulkRows.length === 1}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            ))}
-          </div>
-          <Button
-            variant="outline"
-            onClick={handleAddBulkRow}
-            disabled={bulkRows.length >= 10}
-            className="w-full"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Ajouter une ligne
-          </Button>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setBulkDialogOpen(false)}>
-              Annuler
-            </Button>
-            <Button onClick={handleSubmitBulk} disabled={isBulkSaving}>
-              {isBulkSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Ajouter {bulkRows.filter(r => r.name.trim() && r.monthly_amount).length} charge(s)
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Bulk Edit Excel Dialog */}
+      <BulkEditExpenseDialog
+        open={bulkEditDialogOpen}
+        onOpenChange={setBulkEditDialogOpen}
+        expenses={expenses}
+        onComplete={() => {
+          queryClient.invalidateQueries({ queryKey: ['bp_fixed_expenses'] });
+        }}
+      />
 
       {/* Template Confirmation Dialog */}
       <Dialog open={templateDialogOpen} onOpenChange={setTemplateDialogOpen}>
