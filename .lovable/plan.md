@@ -1,272 +1,265 @@
 
-
-# Plan : Gestion complète des Ruptures Conventionnelles
+# Plan : Import intelligent de tableau d'amortissement par IA
 
 ## Objectif
 
-Implémenter un système complet de gestion des départs (rupture conventionnelle, licenciement, démission, etc.) avec :
-- Champs conditionnels dans le formulaire employé
-- Calcul automatique des charges sur indemnités selon la réglementation française 2026
-- Intégration complète dans le Compte de Résultat (P&L) et la Trésorerie
+Permettre à l'utilisateur d'importer un tableau d'amortissement PDF (de n'importe quelle banque) et utiliser l'IA pour extraire automatiquement les données du prêt afin de pré-remplir le formulaire de nouveau financement.
+
+## Analyse des deux PDF exemples
+
+| Champ | PDF Banque Populaire | PDF CIC |
+|-------|---------------------|---------|
+| **Montant emprunté** | 100 000 € | 40 000 € |
+| **Taux** | Non visible directement | 3.64% |
+| **Mensualité** | ~2 155 € (avec assurance) | ~1 100 € |
+| **Durée** | ~60 mois | Variable (déblocages multiples) |
+| **Banque** | Banque Populaire Grand Ouest | CIC Ouest |
+| **Référence prêt** | 09078465 | 30047 14121 00020355504 |
+
+Les structures sont très différentes, mais l'IA (Gemini) peut les analyser.
 
 ---
 
-## 1. Règles fiscales et sociales françaises 2026
-
-### Indemnités de rupture conventionnelle
-
-| Élément | Règle |
-|---------|-------|
-| **Exonération cotisations sociales** | Jusqu'à 2× PASS (≈96 120€ en 2026) |
-| **Exonération impôt sur le revenu** | Jusqu'à 6× PASS (≈288 360€) |
-| **Forfait social employeur** | **20%** sur la part exonérée de cotisations (depuis 2013) |
-| **CSG/CRDS salarié** | Sur la partie excédant l'indemnité légale |
-
-### Contribution patronale spécifique
-
-Pour simplifier tout en restant précis, le système appliquera :
-- **Forfait social 20%** sur le montant brut de l'indemnité (hypothèse : indemnité < 2 PASS)
-- L'utilisateur saisit le **montant brut négocié** avec le salarié
-- Le système calcule automatiquement le **coût employeur total** = Brut + 20%
-
-### Types de départ supportés
-
-| Type | Indemnité ? | Charges employeur |
-|------|-------------|-------------------|
-| Démission | Non | 0 |
-| Fin de CDD | Oui (10% précarité) | Incluse dans salaire |
-| Rupture conventionnelle | Oui | Forfait social 20% |
-| Licenciement économique | Oui | Forfait social 20% |
-| Licenciement personnel | Oui | Forfait social 20% |
-| Départ retraite | Oui | Charges classiques |
-
----
-
-## 2. Modifications de la base de données
-
-Ajout de 2 colonnes à `bp_personnel` :
-
-```sql
-ALTER TABLE bp_personnel
-ADD COLUMN departure_type TEXT DEFAULT NULL
-  CHECK (departure_type IN (
-    'resignation',           -- Démission
-    'end_of_contract',       -- Fin CDD
-    'conventional_termination', -- Rupture conventionnelle
-    'economic_dismissal',    -- Licenciement économique
-    'personal_dismissal',    -- Licenciement pour motif personnel
-    'retirement',            -- Départ retraite
-    NULL                     -- Pas de départ prévu
-  )),
-ADD COLUMN severance_amount NUMERIC DEFAULT NULL;
-```
-
----
-
-## 3. Mise à jour des constantes (`bpConstants.ts`)
-
-Ajouter les types de départ avec leurs règles de calcul :
-
-```typescript
-export const DEPARTURE_TYPES = {
-  resignation: { 
-    label: 'Démission', 
-    hasSeverance: false,
-    employerContributionRate: 0,
-  },
-  end_of_contract: { 
-    label: 'Fin de CDD', 
-    hasSeverance: false, // Précarité incluse dans salaire
-    employerContributionRate: 0,
-  },
-  conventional_termination: { 
-    label: 'Rupture conventionnelle', 
-    hasSeverance: true,
-    employerContributionRate: 0.20, // Forfait social 20%
-  },
-  economic_dismissal: { 
-    label: 'Licenciement économique', 
-    hasSeverance: true,
-    employerContributionRate: 0.20,
-  },
-  personal_dismissal: { 
-    label: 'Licenciement personnel', 
-    hasSeverance: true,
-    employerContributionRate: 0.20,
-  },
-  retirement: { 
-    label: 'Départ retraite', 
-    hasSeverance: true,
-    employerContributionRate: 0.45, // Charges classiques
-  },
-} as const;
-```
-
----
-
-## 4. Mise à jour du Dialog Employé (`EmployeeDialog.tsx`)
-
-### Nouveau comportement UX
-
-Quand une **date de fin** est saisie, une nouvelle section "Départ" apparaît :
+## Architecture technique
 
 ```text
-┌─────────────────────────────────────────────────────────────────┐
-│ 📅 Date de fin                                                   │
-│ ┌────────────────────┐                                          │
-│ │ 2026-06-30         │ ← Déjà existant                          │
-│ └────────────────────┘                                          │
-│                                                                 │
-│ ┌───────────────────────────────────────────────────────────┐   │
-│ │ 🚪 Conditions de départ                                    │   │
-│ │ ────────────────────────────────────────────────────────  │   │
-│ │                                                           │   │
-│ │ Type de départ                                            │   │
-│ │ ┌────────────────────────────┐                            │   │
-│ │ │ Rupture conventionnelle ▼  │                            │   │
-│ │ └────────────────────────────┘                            │   │
-│ │                                                           │   │
-│ │ Indemnité brute négociée (€)     [Si type avec indemnité] │   │
-│ │ ┌────────────────────┐                                    │   │
-│ │ │ 8 500              │                                    │   │
-│ │ └────────────────────┘                                    │   │
-│ │                                                           │   │
-│ │ ┌─────────────────────────────────────────────────────┐   │   │
-│ │ │ 💰 Coût employeur estimé                            │   │   │
-│ │ │ ─────────────────────────────────────────────────── │   │   │
-│ │ │ Indemnité brute           8 500 €                   │   │   │
-│ │ │ Forfait social (20%)    + 1 700 €                   │   │   │
-│ │ │ ─────────────────────────────────────────────       │   │   │
-│ │ │ Coût total employeur     10 200 €                   │   │   │
-│ │ │                                                     │   │   │
-│ │ │ ℹ️ Versé en juin 2026                               │   │   │
-│ │ └─────────────────────────────────────────────────────┘   │   │
-│ └───────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        FinancingDialog.tsx                              │
+│  ┌───────────────────────────────────────────────────────────────────┐  │
+│  │  📄 Importer un tableau d'amortissement PDF                       │  │
+│  │  ┌─────────────────────────────────────────────────────────────┐  │  │
+│  │  │  [Glissez un PDF ici ou cliquez pour sélectionner]          │  │  │
+│  │  └─────────────────────────────────────────────────────────────┘  │  │
+│  │                                                                   │  │
+│  │  ⏳ Analyse en cours... (si parsing)                              │  │
+│  │                                                                   │  │
+│  │  ✅ Données extraites :                                           │  │
+│  │  • Montant : 40 000 €                                             │  │
+│  │  • Taux : 3.64%                                                   │  │
+│  │  • Mensualité : 1 100 €                                           │  │
+│  │  • Durée estimée : 48 mois                                        │  │
+│  │  • Nom : PRET TRANSITION NUMERIQUE CIC                            │  │
+│  │                                                                   │  │
+│  │  [Appliquer ces valeurs]                                          │  │
+│  └───────────────────────────────────────────────────────────────────┘  │
+│                                                                         │
+│  ─── OU saisissez manuellement ───────────────────────────────────────  │
+│                                                                         │
+│  [Formulaire existant pré-rempli si données extraites]                  │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
-
-### État du formulaire
-
-Ajouter dans le state :
-```typescript
-const [departureType, setDepartureType] = useState<string | null>(null);
-const [severanceAmount, setSeveranceAmount] = useState('');
-```
-
-Réinitialiser quand `endDate` devient vide.
 
 ---
 
-## 5. Affichage dans le tableau Personnel (`PersonnelTable.tsx`)
+## 1. Edge Function : `parse-amortization-schedule`
 
-Ajouter un badge et l'indemnité si départ prévu :
+Créer une nouvelle Edge Function basée sur le pattern de `parse-payslip` :
+
+```typescript
+// supabase/functions/parse-amortization-schedule/index.ts
+
+interface AmortizationData {
+  loan_name: string | null;           // Nom du prêt
+  bank_name: string | null;           // Nom de la banque
+  loan_reference: string | null;      // Référence du prêt
+  initial_amount: number;             // Capital emprunté
+  interest_rate: number | null;       // Taux d'intérêt annuel (%)
+  duration_months: number | null;     // Durée totale en mois
+  monthly_payment: number | null;     // Mensualité (hors/avec assurance)
+  monthly_insurance: number | null;   // Assurance mensuelle si séparée
+  start_date: string | null;          // Date de première échéance
+  outstanding_capital: number | null; // Capital restant dû actuel
+  total_interest: number | null;      // Total des intérêts à payer
+  loan_type: 'loan' | 'lease' | null; // Type détecté
+  confidence_score: number;           // Score de confiance 0-1
+}
+```
+
+**Prompt IA optimisé** pour extraire les données de n'importe quel format de tableau :
 
 ```text
-┌────────────────────┬──────────┬─────────────┬────────────┬──────────────────┐
-│ Nom / Poste        │ Contrat  │ Salaire     │ Début      │ Fin              │
-├────────────────────┼──────────┼─────────────┼────────────┼──────────────────┤
-│ Marie Martin       │ CDI      │ 2 800 €     │ Mar 2025   │ Juin 2026        │
-│ Assistante         │          │             │            │ 🏷️ Rupt. conv.   │
-│                    │          │             │            │ 8 500 € brut     │
-└────────────────────┴──────────┴─────────────┴────────────┴──────────────────┘
-```
+Tu es un expert en analyse de tableaux d'amortissement bancaires français.
+Analyse ce document PDF et extrais les informations du prêt au format JSON.
 
----
+RÈGLES IMPORTANTES:
+- Cherche le montant INITIAL emprunté (pas le restant dû)
+- Le taux est généralement en % annuel
+- La mensualité peut inclure ou non l'assurance
+- La durée peut être calculée = nombre de lignes d'échéances
+- Pour la date, prends la première échéance visible
 
-## 6. Intégration dans le P&L (`useProfitLoss.ts`)
+Formats de tableaux courants:
+- Banque Populaire : colonnes N°, Date, Terme, Échéance, Intérêts, Capital amorti
+- CIC : colonnes Date, Type, Capital dû, Capital, Intérêts, Échéance
+- LCL, SG, BNP : formats similaires avec variations
 
-### Nouvelle fonction de calcul
-
-```typescript
-// Calcul des indemnités de départ pour un mois donné
-const getSeverancePaymentsForMonth = (month: Date) => {
-  const monthStart = startOfMonth(month);
-  
-  return personnel.reduce((sum, person) => {
-    // Vérifier si c'est le mois de départ
-    if (!person.end_date || !person.severance_amount) return sum;
-    
-    const endDate = parseISO(person.end_date);
-    if (startOfMonth(endDate).getTime() !== monthStart.getTime()) return sum;
-    
-    // Calculer le coût employeur
-    const departureConfig = DEPARTURE_TYPES[person.departure_type];
-    const employerRate = departureConfig?.employerContributionRate ?? 0.20;
-    const severance = Number(person.severance_amount) || 0;
-    const employerCost = severance * (1 + employerRate);
-    
-    return sum + employerCost;
-  }, 0);
-};
-```
-
-### Position dans le P&L
-
-Les indemnités seront affichées dans la section **Charges de personnel** :
-
-```text
-Charges de personnel
-├── Salaires bruts                    120 000 €
-├── Charges sociales patronales        54 000 €
-├── Indemnités de départ               10 200 €  ← NOUVEAU
-└── Total personnel salarié           184 200 €
-```
-
-### Mise à jour des totaux
-
-- Ajouter `severancePayments: number[]` dans `PLData.totals`
-- Inclure dans le calcul de `personnelValues` ou créer une ligne séparée
-- Impacter l'EBE et le résultat net
-
----
-
-## 7. Intégration dans la Trésorerie (`useBPCashFlow.ts`)
-
-Les indemnités représentent un décaissement réel :
-
-```typescript
-// Dans le calcul des outflows
-const severanceOutflow = getSeverancePaymentsForMonth(month);
-outflows[i] += severanceOutflow;
-```
-
----
-
-## 8. Mise à jour du service (`personnelService.ts`)
-
-Ajouter les champs dans l'interface et les méthodes CRUD :
-
-```typescript
-export interface BPPersonnel {
-  // ... champs existants
-  departure_type: string | null;
-  severance_amount: number | null;
+JSON attendu:
+{
+  "loan_name": "<nom/type du prêt>",
+  "bank_name": "<nom de la banque>",
+  "loan_reference": "<numéro de référence>",
+  "initial_amount": <montant en euros>,
+  "interest_rate": <taux annuel en %, ex: 3.64>,
+  "duration_months": <durée totale en mois>,
+  "monthly_payment": <mensualité principale en euros>,
+  "monthly_insurance": <assurance mensuelle si visible>,
+  "start_date": "<YYYY-MM-DD de première échéance>",
+  "outstanding_capital": <capital restant dû actuel si visible>,
+  "total_interest": <total des intérêts si visible>,
+  "loan_type": "loan" ou "lease",
+  "confidence_score": <0 à 1>
 }
 ```
 
 ---
 
-## 9. Fichiers à modifier
+## 2. Modification du FinancingDialog
 
-| Fichier | Modifications |
-|---------|---------------|
-| `supabase/migrations/xxx.sql` | Ajout colonnes `departure_type` et `severance_amount` |
-| `src/constants/bpConstants.ts` | Ajout `DEPARTURE_TYPES` avec taux |
-| `src/lib/french-rates.ts` | Ajout constante `SEVERANCE_FORFAIT_SOCIAL = 0.20` |
-| `src/services/personnelService.ts` | Mise à jour interface et helpers |
-| `src/features/business-plan/dialogs/EmployeeDialog.tsx` | Section départ conditionnelle |
-| `src/features/business-plan/components/PersonnelTable.tsx` | Badge départ + indemnité |
-| `src/features/business-plan/hooks/useProfitLoss.ts` | Calcul indemnités dans P&L |
-| `src/features/business-plan/hooks/useBPCashFlow.ts` | Décaissement indemnités |
-| `src/integrations/supabase/types.ts` | Auto-généré après migration |
+### Nouveau state
+
+```typescript
+const [pdfFile, setPdfFile] = useState<File | null>(null);
+const [isParsing, setIsParsing] = useState(false);
+const [parsedData, setParsedData] = useState<AmortizationData | null>(null);
+const [parseError, setParseError] = useState<string | null>(null);
+```
+
+### Zone de drop PDF
+
+Ajouter au début du formulaire une zone d'import :
+
+```tsx
+{/* Import PDF Section */}
+<div className="border-2 border-dashed rounded-lg p-4 text-center">
+  <input
+    type="file"
+    accept=".pdf"
+    onChange={handleFileChange}
+    className="hidden"
+    id="pdf-upload"
+  />
+  <label htmlFor="pdf-upload" className="cursor-pointer">
+    <FileUp className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+    <p className="text-sm font-medium">Importer un tableau d'amortissement</p>
+    <p className="text-xs text-muted-foreground">PDF de votre banque</p>
+  </label>
+</div>
+
+{isParsing && (
+  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+    <Loader2 className="h-4 w-4 animate-spin" />
+    Analyse IA en cours...
+  </div>
+)}
+
+{parsedData && (
+  <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
+    <p className="font-medium text-green-700 dark:text-green-400 mb-2">
+      ✅ Données extraites
+    </p>
+    <div className="text-sm space-y-1">
+      <p>Montant : {formatCurrency(parsedData.initial_amount)}</p>
+      <p>Taux : {parsedData.interest_rate}%</p>
+      <p>Mensualité : {formatCurrency(parsedData.monthly_payment)}</p>
+    </div>
+    <Button 
+      variant="outline" 
+      size="sm" 
+      className="mt-2"
+      onClick={applyParsedData}
+    >
+      Appliquer ces valeurs
+    </Button>
+  </div>
+)}
+```
+
+### Fonction d'upload et parsing
+
+```typescript
+const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const file = e.target.files?.[0];
+  if (!file || file.type !== 'application/pdf') {
+    toast.error('Veuillez sélectionner un fichier PDF');
+    return;
+  }
+
+  setIsParsing(true);
+  setParseError(null);
+  setParsedData(null);
+
+  try {
+    // Convert to base64
+    const base64 = await fileToBase64(file);
+    
+    // Call edge function
+    const { data, error } = await supabase.functions.invoke('parse-amortization-schedule', {
+      body: { pdf_base64: base64 }
+    });
+
+    if (error) throw error;
+    if (data.error) throw new Error(data.error);
+
+    setParsedData(data);
+    toast.success('Tableau analysé avec succès');
+  } catch (err) {
+    setParseError(err.message);
+    toast.error('Erreur lors de l\'analyse du PDF');
+  } finally {
+    setIsParsing(false);
+  }
+};
+
+const applyParsedData = () => {
+  if (!parsedData) return;
+  
+  setName(parsedData.loan_name || `${parsedData.bank_name} - Prêt`);
+  setAmount(parsedData.initial_amount.toString());
+  setInterestRate(parsedData.interest_rate?.toString() || '3.5');
+  setDurationMonths(parsedData.duration_months?.toString() || '60');
+  if (parsedData.start_date) setStartDate(parsedData.start_date);
+  
+  // Store in notes for reference
+  setNotes(`Réf: ${parsedData.loan_reference || '-'}\nBanque: ${parsedData.bank_name || '-'}`);
+  
+  toast.success('Valeurs appliquées au formulaire');
+};
+```
 
 ---
 
-## 10. Résumé des avantages
+## 3. Fichiers à créer/modifier
 
-- **Précision fiscale** : Forfait social 20% conforme à la réglementation 2026
-- **UX intuitive** : Section départ uniquement visible si date de fin renseignée
-- **Intégration complète** : P&L + Trésorerie mis à jour automatiquement
-- **Flexibilité** : Supporte tous les types de départ courants
-- **Visibilité** : Badge dans le tableau pour repérer les départs à venir
+| Fichier | Action |
+|---------|--------|
+| `supabase/functions/parse-amortization-schedule/index.ts` | **Créer** - Edge Function IA |
+| `supabase/config.toml` | **Modifier** - Ajouter la fonction |
+| `src/components/businessplan/FinancingDialog.tsx` | **Modifier** - Ajouter zone import |
+| `src/features/business-plan/dialogs/FinancingDialog.tsx` | **Modifier** - Même chose |
 
+---
+
+## 4. Gestion des erreurs
+
+- **PDF illisible** : Message explicite "Le PDF n'a pas pu être analysé, veuillez saisir manuellement"
+- **Taux limite IA (429)** : "Trop de requêtes, réessayez dans quelques instants"
+- **Crédits épuisés (402)** : "Crédits IA épuisés"
+- **Confiance faible** : Afficher un warning si `confidence_score < 0.7`
+
+---
+
+## 5. UX améliorée
+
+- **Preview immédiat** : Afficher les données extraites avant application
+- **Modification possible** : L'utilisateur peut corriger les valeurs après application
+- **Feedback visuel** : Spinner pendant l'analyse, checkmark après succès
+- **Fallback manuel** : Le formulaire reste accessible même sans import
+
+---
+
+## Résumé des avantages
+
+- **Gain de temps** : Plus besoin de recopier manuellement les données
+- **Réduction d'erreurs** : L'IA extrait les montants exacts
+- **Format universel** : Fonctionne avec n'importe quelle banque française
+- **Non bloquant** : Si l'IA échoue, la saisie manuelle reste possible
