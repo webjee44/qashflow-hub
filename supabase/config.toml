@@ -53,3 +53,6 @@ verify_jwt = false
 
 [functions.admin-bridge-delete]
 verify_jwt = false
+
+[functions.parse-amortization-schedule]
+verify_jwt = false
