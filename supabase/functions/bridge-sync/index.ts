@@ -62,10 +62,6 @@ async function syncBridgeAccounts(
 ): Promise<number> {
   let syncedCount = 0;
 
-  // Collect all bank_ids and fetch bank names
-  const bankIds = accounts.map(a => a.bank_id).filter(id => id != null);
-  const bankMap = await bridgeClient.fetchBanks(bankIds);
-
   const getItemId = (account: BridgeAccount): number | null => {
     const anyAccount = account as any;
     const candidate =
@@ -84,20 +80,6 @@ async function syncBridgeAccounts(
       continue;
     }
 
-    // Get bank name from the fetched bank data (as default)
-    const bank = bankMap.get(account.bank_id);
-    const defaultBankName = bank?.name || null;
-
-    // Check if account already exists with a custom bank_name
-    const { data: existingAccount } = await supabaseAdmin
-      .from('bridge_accounts')
-      .select('bank_name')
-      .eq('bridge_account_id', account.id)
-      .maybeSingle();
-
-    // Preserve user-edited bank_name if it exists
-    const bankNameToUse = existingAccount?.bank_name || defaultBankName;
-
     const { error } = await supabaseAdmin
       .from('bridge_accounts')
       .upsert({
@@ -111,7 +93,8 @@ async function syncBridgeAccounts(
         account_type: account.type || null,
         status: account.status || 'active',
         bank_id: account.bank_id || null,
-        bank_name: bankNameToUse,
+        // IMPORTANT: bank_name is 100% manual.
+        // We do NOT fetch or set it from Bridge to avoid overwriting user edits.
         last_sync_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }, { 
