@@ -239,7 +239,7 @@ export function RevenueTable({ onEditStream }: RevenueTableProps) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="sticky left-0 bg-background z-10 min-w-[200px]">Flux de revenus</TableHead>
+              <TableHead className="sticky left-0 bg-background z-10 min-w-[280px]">Flux de revenus</TableHead>
               {/* Year 1 monthly columns */}
               {year1Months.map((month, i) => (
                 <TableHead key={i} className="text-center min-w-[90px]">
@@ -294,11 +294,11 @@ export function RevenueTable({ onEditStream }: RevenueTableProps) {
                           className="h-7 w-full max-w-[150px] text-sm font-medium"
                         />
                       ) : (
-                        <div className="flex flex-col">
+                        <div className="flex flex-col min-w-0">
                           <span 
-                            className="font-medium cursor-pointer hover:text-primary transition-colors"
+                            className="font-medium text-base cursor-pointer hover:text-primary transition-colors truncate"
                             onDoubleClick={() => handleNameDoubleClick(stream)}
-                            title="Double-cliquez pour renommer"
+                            title={stream.name}
                           >
                             {stream.name}
                           </span>
