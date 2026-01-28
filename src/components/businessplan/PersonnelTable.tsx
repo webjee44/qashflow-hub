@@ -76,7 +76,7 @@ export function PersonnelTable({ onEdit, bonuses = [], onEditBonus, onDeleteBonu
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Poste</TableHead>
+            <TableHead className="min-w-[200px]">Nom / Poste</TableHead>
             <TableHead>Contrat</TableHead>
             <TableHead className="text-right">Salaire brut</TableHead>
             <TableHead className="text-right">Charges</TableHead>
@@ -104,19 +104,24 @@ export function PersonnelTable({ onEdit, bonuses = [], onEditBonus, onDeleteBonu
             return (
               <TableRow key={person.id} className="group">
                 <TableCell>
-                  <div className="flex items-center gap-2">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isIntern ? 'bg-amber-500/10' : 'bg-primary/10'}`}>
+                  <div className="flex items-center gap-3">
+                    <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${isIntern ? 'bg-amber-500/10' : 'bg-primary/10'}`}>
                       {isIntern ? (
                         <GraduationCap className="h-4 w-4 text-amber-500" />
                       ) : (
                         <User className="h-4 w-4 text-primary" />
                       )}
                     </div>
-                    <div>
-                      <span className="font-medium">{person.position}</span>
-                      {person.is_executive && (
-                        <Badge variant="secondary" className="ml-2 text-xs">Cadre</Badge>
+                    <div className="min-w-0">
+                      {person.name && (
+                        <p className="font-semibold text-base truncate">{person.name}</p>
                       )}
+                      <div className="flex items-center gap-2">
+                        <span className={person.name ? "text-sm text-muted-foreground" : "font-medium"}>{person.position}</span>
+                        {person.is_executive && (
+                          <Badge variant="secondary" className="text-xs">Cadre</Badge>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </TableCell>
