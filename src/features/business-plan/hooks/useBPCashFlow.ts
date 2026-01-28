@@ -42,18 +42,21 @@ export function useBPCashFlow() {
     const monthlyRevenue: number[] = [];
     const monthlyFixedExpenses: number[] = [];
     const monthlyPersonnelCosts: number[] = [];
+    const monthlySeverancePayments: number[] = [];
 
     plData.years.forEach((year, yearIndex) => {
       const monthCount = year.months.length;
       const yearRevenue = plData.totals.revenue[yearIndex] || 0;
       const yearFixed = plData.totals.fixedExpenses[yearIndex] || 0;
       const yearPersonnel = plData.totals.personnelCosts[yearIndex] || 0;
+      const yearSeverance = plData.totals.severancePayments?.[yearIndex] || 0;
 
       // Distribute yearly values evenly across months
       for (let i = 0; i < monthCount; i++) {
         monthlyRevenue.push(yearRevenue / monthCount);
         monthlyFixedExpenses.push(yearFixed / monthCount);
         monthlyPersonnelCosts.push(yearPersonnel / monthCount);
+        monthlySeverancePayments.push(yearSeverance / monthCount);
       }
     });
 
@@ -61,6 +64,9 @@ export function useBPCashFlow() {
     const loanDisbursements = showFinancing ? months.map(month => getLoanDisbursements(month)) : months.map(() => 0);
     const loanPayments = showFinancing ? months.map(month => getMonthlyLoanPayments(month)) : months.map(() => 0);
     const leasePayments = showFinancing ? months.map(month => getMonthlyLeasePayments(month)) : months.map(() => 0);
+    
+    // Severance payments (no delay - paid on departure date)
+    const severancePayments = monthlySeverancePayments;
 
     // Apply payment delays
     // Inflows = revenue shifted by customer delay + loan disbursements
@@ -71,7 +77,7 @@ export function useBPCashFlow() {
       return revenue + loans;
     });
 
-    // Outflows = expenses shifted by supplier delay + financing payments
+    // Outflows = expenses shifted by supplier delay + financing payments + severance
     const outflows = months.map((_, i) => {
       const sourceIndex = i - supplierDelay;
       let expenses = 0;
@@ -80,7 +86,9 @@ export function useBPCashFlow() {
       }
       // Add financing payments (not delayed - they're contractual)
       const financing = (loanPayments[i] || 0) + (leasePayments[i] || 0);
-      return expenses + financing;
+      // Add severance payments (not delayed - paid on departure)
+      const severance = severancePayments[i] || 0;
+      return expenses + financing + severance;
     });
 
     // Net flow for each month
@@ -109,6 +117,7 @@ export function useBPCashFlow() {
       loanDisbursements,
       loanPayments,
       leasePayments,
+      severancePayments,
     };
   }, [plData, settings, getLoanDisbursements, getMonthlyLoanPayments, getMonthlyLeasePayments]);
 
