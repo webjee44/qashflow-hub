@@ -401,11 +401,9 @@ serve(async (req) => {
       setFillColor(COLORS.primary);
       doc.rect(0, 0, pageWidth, 70, 'F');
       
-      // Decorative geometric element
-      doc.setGState({ opacity: 0.1 });
-      doc.setFillColor(255, 255, 255);
+      // Decorative geometric element (using lighter color instead of opacity)
+      doc.setFillColor(245, 247, 250); // Light version of primary for subtle effect
       doc.circle(pageWidth - 40, 35, 60, 'F');
-      doc.setGState({ opacity: 1 });
       
       // Title
       setColor(COLORS.white);
