@@ -149,6 +149,13 @@ export function useBPOnboarding(): UseBPOnboardingReturn {
 
   // Check if tour should start
   useEffect(() => {
+    // Check if tour was already completed
+    const tourCompleted = localStorage.getItem('bp-tour-completed') === 'true';
+    if (tourCompleted) {
+      setIsCompleted(true);
+      return;
+    }
+
     const shouldShowTour = localStorage.getItem('show-bp-onboarding-tour') === 'true';
     if (shouldShowTour) {
       localStorage.removeItem('show-bp-onboarding-tour');
@@ -197,11 +204,13 @@ export function useBPOnboarding(): UseBPOnboardingReturn {
   const skipTour = useCallback(() => {
     setIsActive(false);
     setIsCompleted(true);
+    localStorage.setItem('bp-tour-completed', 'true');
   }, []);
 
   const completeTour = useCallback(() => {
     setIsActive(false);
     setIsCompleted(true);
+    localStorage.setItem('bp-tour-completed', 'true');
   }, []);
 
   const dismissWizard = useCallback(() => {
