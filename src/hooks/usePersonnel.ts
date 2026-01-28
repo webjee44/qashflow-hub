@@ -15,6 +15,7 @@ export interface Personnel {
   id: string;
   user_id: string;
   company_id: string | null;
+  name: string | null;
   position: string;
   gross_salary: number;
   employer_charges_rate: number;

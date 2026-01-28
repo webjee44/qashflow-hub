@@ -63,6 +63,7 @@ export function EmployeeDialog({ open, onOpenChange, employee, onSave }: Employe
   const [step, setStep] = useState<DialogStep>('choice');
   
   // Form state
+  const [name, setName] = useState('');
   const [position, setPosition] = useState('');
   const [grossSalary, setGrossSalary] = useState('');
   const [startDate, setStartDate] = useState(getDefaultStartDate());
@@ -86,6 +87,7 @@ export function EmployeeDialog({ open, onOpenChange, employee, onSave }: Employe
       if (employee) {
         // Edit mode - go directly to form
         setStep('form');
+        setName(employee.name || '');
         setPosition(employee.position);
         setGrossSalary((employee.gross_salary * 12).toString());
         setStartDate(employee.start_date);
@@ -102,6 +104,7 @@ export function EmployeeDialog({ open, onOpenChange, employee, onSave }: Employe
       } else {
         // New employee - show choice and reset ALL state
         setStep('choice');
+        setName('');
         setPosition('');
         setGrossSalary('');
         setStartDate(getDefaultStartDate());
@@ -200,6 +203,7 @@ export function EmployeeDialog({ open, onOpenChange, employee, onSave }: Employe
   const handleSave = () => {
     onSave({
       id: employee?.id,
+      name: name || null,
       position,
       worker_type: 'employee',
       gross_salary: grossSalaryMonthly,
@@ -344,14 +348,26 @@ export function EmployeeDialog({ open, onOpenChange, employee, onSave }: Employe
             </div>
           )}
 
-          <div className="grid gap-2">
-            <Label htmlFor="position">Intitulé du poste</Label>
-            <Input
-              id="position"
-              value={position}
-              onChange={(e) => setPosition(e.target.value)}
-              placeholder="Ex: Développeur Full Stack"
-            />
+          {/* Nom et Poste */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="name">Nom du salarié</Label>
+              <Input
+                id="name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Ex: Jean Dupont"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="position">Intitulé du poste</Label>
+              <Input
+                id="position"
+                value={position}
+                onChange={(e) => setPosition(e.target.value)}
+                placeholder="Ex: Développeur Full Stack"
+              />
+            </div>
           </div>
 
           {/* Paramètres URSSAF */}

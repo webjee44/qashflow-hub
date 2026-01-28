@@ -41,7 +41,7 @@ export function FreelanceTable({ onEdit }: FreelanceTableProps) {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Mission</TableHead>
+            <TableHead className="min-w-[200px]">Nom / Mission</TableHead>
             <TableHead className="text-right">TJM</TableHead>
             <TableHead className="text-right">Jours/mois</TableHead>
             <TableHead className="text-right">Coût mensuel</TableHead>
@@ -57,11 +57,16 @@ export function FreelanceTable({ onEdit }: FreelanceTableProps) {
             return (
               <TableRow key={person.id} className="group">
                 <TableCell>
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-full bg-orange-500/10 flex items-center justify-center">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-orange-500/10 flex items-center justify-center shrink-0">
                       <Briefcase className="h-4 w-4 text-orange-500" />
                     </div>
-                    <span className="font-medium">{person.position}</span>
+                    <div className="min-w-0">
+                      {person.name && (
+                        <p className="font-semibold text-base truncate">{person.name}</p>
+                      )}
+                      <span className={person.name ? "text-sm text-muted-foreground" : "font-medium"}>{person.position}</span>
+                    </div>
                   </div>
                 </TableCell>
                 <TableCell className="text-right">

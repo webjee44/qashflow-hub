@@ -31,6 +31,7 @@ export function FreelanceDialog({ open, onOpenChange, freelance, onSave }: Freel
     return format(fiscalYearStart, 'yyyy-MM-dd');
   };
 
+  const [name, setName] = useState('');
   const [position, setPosition] = useState('');
   const [dailyRate, setDailyRate] = useState('');
   const [estimatedDays, setEstimatedDays] = useState('20');
@@ -42,6 +43,7 @@ export function FreelanceDialog({ open, onOpenChange, freelance, onSave }: Freel
   const handleOpenChange = useCallback((isOpen: boolean) => {
     if (isOpen) {
       if (freelance) {
+        setName(freelance.name || '');
         setPosition(freelance.position);
         setDailyRate(freelance.daily_rate?.toString() || '');
         setEstimatedDays(freelance.estimated_days_per_month?.toString() || '20');
@@ -49,6 +51,7 @@ export function FreelanceDialog({ open, onOpenChange, freelance, onSave }: Freel
         setEndDate(freelance.end_date || '');
         setNotes(freelance.notes || '');
       } else {
+        setName('');
         setPosition('');
         setDailyRate('');
         setEstimatedDays('20');
@@ -70,6 +73,7 @@ export function FreelanceDialog({ open, onOpenChange, freelance, onSave }: Freel
   const handleSave = () => {
     onSave({
       id: freelance?.id,
+      name: name || null,
       position,
       worker_type: 'freelance',
       daily_rate: dailyRateValue,
@@ -93,14 +97,26 @@ export function FreelanceDialog({ open, onOpenChange, freelance, onSave }: Freel
         </DialogHeader>
 
         <div className="grid gap-4 py-4">
-          <div className="grid gap-2">
-            <Label htmlFor="position">Mission / Prestation</Label>
-            <Input
-              id="position"
-              value={position}
-              onChange={(e) => setPosition(e.target.value)}
-              placeholder="Ex: Développement application mobile"
-            />
+          {/* Nom et Mission */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="freelance-name">Nom / Société</Label>
+              <Input
+                id="freelance-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Ex: Acme Dev SARL"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="position">Mission / Prestation</Label>
+              <Input
+                id="position"
+                value={position}
+                onChange={(e) => setPosition(e.target.value)}
+                placeholder="Ex: Développement mobile"
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
