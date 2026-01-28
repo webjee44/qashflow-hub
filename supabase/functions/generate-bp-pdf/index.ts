@@ -151,11 +151,12 @@ serve(async (req) => {
     };
 
     const formatCurrency = (value: number): string => {
+      // Replace non-breaking spaces with regular spaces for PDF compatibility
       return new Intl.NumberFormat('fr-FR', { 
         style: 'currency', 
         currency: 'EUR', 
         maximumFractionDigits: 0 
-      }).format(value);
+      }).format(value).replace(/\u00A0/g, ' ');
     };
 
     const formatPercent = (value: number): string => {
@@ -725,13 +726,14 @@ serve(async (req) => {
         const persHeaders = ['Poste', 'Date embauche', 'Brut mensuel', 'Charges', 'Coût total'];
         const persRows = financialData.personnel.map(p => {
           const salary = p.gross_salary || 0;
-          const charges = salary * (p.employer_charges_rate || 45) / 100;
+          const chargesRate = p.employer_charges_rate || 45;
+          const charges = salary * chargesRate / 100;
           const mutuelle = p.mutuelle_employer_amount || 0;
           return [
             p.position || '-',
             formatShortDate(p.start_date),
             formatCurrency(salary),
-            `${p.employer_charges_rate || 45}%`,
+            `${chargesRate.toFixed(1)}%`,
             formatCurrency(salary + charges + mutuelle)
           ];
         });
@@ -754,12 +756,13 @@ serve(async (req) => {
         const dirHeaders = ['Nom', 'Statut', 'Rémunération', 'Charges', 'Coût total'];
         const dirRows = financialData.directors.map(d => {
           const remun = d.monthly_remuneration || 0;
-          const charges = remun * (d.charges_rate || 45) / 100;
+          const chargesRate = d.charges_rate || 45;
+          const charges = remun * chargesRate / 100;
           return [
             d.name || '-',
             d.status || '-',
             formatCurrency(remun),
-            `${d.charges_rate || 45}%`,
+            `${chargesRate.toFixed(1)}%`,
             formatCurrency(remun + charges)
           ];
         });
