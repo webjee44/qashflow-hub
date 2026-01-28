@@ -10,8 +10,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { useCompany } from '@/hooks/useCompany';
 import { useBPSettings } from './useBPSettings';
 import { startOfMonth, addMonths, parseISO, format } from 'date-fns';
-import { calculateTaxByRegime, TVA_RATES_FR, TaxRegime, getGlobalChargesRate, URSSAF_RATES_2026 } from '@/lib/french-rates';
-import { PAYMENT_FREQUENCIES, DEFAULT_PAYMENT_MONTHS, PCG_EXPENSE_CATEGORIES, CATEGORY_TO_PCG_MAPPING, PCG_ORDER, PCGExpenseCategory, FIXED_EXPENSE_CATEGORIES } from '@/constants/bpConstants';
+import { calculateTaxByRegime, TVA_RATES_FR, TaxRegime, getGlobalChargesRate, URSSAF_RATES_2026, SEVERANCE_FORFAIT_SOCIAL } from '@/lib/french-rates';
+import { PAYMENT_FREQUENCIES, DEFAULT_PAYMENT_MONTHS, PCG_EXPENSE_CATEGORIES, CATEGORY_TO_PCG_MAPPING, PCG_ORDER, PCGExpenseCategory, FIXED_EXPENSE_CATEGORIES, DEPARTURE_TYPES } from '@/constants/bpConstants';
 
 export interface PLRow {
   label: string;
@@ -41,6 +41,7 @@ export interface PLData {
     depreciation: number[];
     leaseExpenses: number[];
     payrollTaxes: number[]; // Taxes sur salaires (apprentissage + formation)
+    severancePayments: number[]; // Indemnités de départ
     ebitda: number[];
     operatingResult: number[];
     financialResult: number[];
@@ -231,6 +232,26 @@ export function useProfitLoss() {
       return sum + (salary * rate);
     }, 0);
     return { grossSalaries, employerCharges, total: grossSalaries + employerCharges };
+  };
+
+  // Calculate severance payments for a month (departure indemnities)
+  const getSeverancePaymentsForMonth = (month: Date) => {
+    const monthStart = startOfMonth(month);
+    
+    return personnel.reduce((sum, person) => {
+      if (!person.end_date || !person.severance_amount || !person.departure_type) return sum;
+      
+      const endDate = parseISO(person.end_date);
+      if (startOfMonth(endDate).getTime() !== monthStart.getTime()) return sum;
+      
+      // Calculate employer cost (severance + forfait social)
+      const departureConfig = DEPARTURE_TYPES[person.departure_type as keyof typeof DEPARTURE_TYPES];
+      const employerRate = departureConfig?.employerContributionRate ?? SEVERANCE_FORFAIT_SOCIAL;
+      const severance = Number(person.severance_amount) || 0;
+      const employerCost = severance * (1 + employerRate);
+      
+      return sum + employerCost;
+    }, 0);
   };
 
   const getDirectorsBreakdownForMonth = (month: Date) => {
@@ -583,7 +604,15 @@ export function useProfitLoss() {
     rows.push({ label: 'Charges sociales patronales', type: 'item', values: chargesValues, isExpense: true, indent: 2 });
 
     const personnelValues = calculateYearlyValues(month => getPersonnelBreakdownForMonth(month).total);
-    rows.push({ label: 'Total personnel salarié', type: 'subtotal', values: personnelValues, isExpense: true });
+    
+    // Indemnités de départ (ruptures conventionnelles, licenciements, etc.)
+    const severanceValues = calculateYearlyValues(month => getSeverancePaymentsForMonth(month));
+    if (severanceValues.some(v => v > 0)) {
+      rows.push({ label: 'Indemnités de départ', type: 'item', values: severanceValues, isExpense: true, indent: 2 });
+    }
+
+    const totalPersonnelWithSeverance = years.map((_, i) => personnelValues[i] + severanceValues[i]);
+    rows.push({ label: 'Total personnel salarié', type: 'subtotal', values: totalPersonnelWithSeverance, isExpense: true });
 
     // Rémunération des dirigeants
     const directorTotalValues = calculateYearlyValues(month => getDirectorsBreakdownForMonth(month).total);
@@ -651,9 +680,9 @@ export function useProfitLoss() {
       rows.push({ label: 'Taxes sur salaires (auto)', type: 'item', values: payrollTaxesValues, isExpense: true, indent: 1 });
     }
 
-    // Total charges d'exploitation (inclut les taxes sur salaires)
+    // Total charges d'exploitation (inclut les taxes sur salaires et indemnités)
     const totalExpenseValues = years.map((_, i) => 
-      variableExpenseValues[i] + fixedExpenseValues[i] + personnelValues[i] + directorTotalValues[i] + 
+      variableExpenseValues[i] + fixedExpenseValues[i] + totalPersonnelWithSeverance[i] + directorTotalValues[i] + 
       depreciationValues[i] + leaseExpenseValues[i] + payrollTaxesValues[i]
     );
     rows.push({ label: 'Total charges d\'exploitation', type: 'subtotal', values: totalExpenseValues, isExpense: true });
@@ -669,9 +698,9 @@ export function useProfitLoss() {
     const vaValues = years.map((_, i) => grossMarginValues[i] - fixedExpenseValues[i] - operatingVariableValues[i]);
     rows.push({ label: 'VALEUR AJOUTÉE', type: 'sig', values: vaValues });
 
-    // EBE = VA - Personnel - Dirigeants - Crédit-bail - Taxes sur salaires
+    // EBE = VA - Personnel (avec indemnités) - Dirigeants - Crédit-bail - Taxes sur salaires
     const ebeValues = years.map((_, i) => 
-      vaValues[i] - personnelValues[i] - directorTotalValues[i] - leaseExpenseValues[i] - payrollTaxesValues[i]
+      vaValues[i] - totalPersonnelWithSeverance[i] - directorTotalValues[i] - leaseExpenseValues[i] - payrollTaxesValues[i]
     );
     rows.push({ label: 'EXCÉDENT BRUT D\'EXPLOITATION (EBE)', type: 'sig', values: ebeValues });
 
@@ -733,11 +762,12 @@ export function useProfitLoss() {
       revenue: totalRevenue,
       fixedExpenses: sumAll(fixedExpenseValues),
       variableExpenses: sumAll(variableExpenseValues),
-      personnelCosts: sumAll(personnelValues),
+      personnelCosts: sumAll(totalPersonnelWithSeverance),
       directorsCosts: sumAll(directorTotalValues),
       depreciation: sumAll(depreciationValues),
       leaseExpenses: sumAll(leaseExpenseValues),
       payrollTaxes: sumAll(payrollTaxesValues),
+      severancePayments: sumAll(severanceValues),
       ebitda: sumAll(ebeValues),
       operatingResult: sumAll(operatingResultValues),
       financialResult: sumAll(financialResultValues),
@@ -757,11 +787,12 @@ export function useProfitLoss() {
         cogs: cogsValues, // Coût des ventes uniquement (pour marge brute)
         fixedExpenses: fixedExpenseValues,
         variableExpenses: variableExpenseValues,
-        personnelCosts: personnelValues,
+        personnelCosts: totalPersonnelWithSeverance,
         directorsCosts: directorTotalValues,
         depreciation: depreciationValues,
         leaseExpenses: leaseExpenseValues,
         payrollTaxes: payrollTaxesValues,
+        severancePayments: severanceValues,
         ebitda: ebeValues,
         operatingResult: operatingResultValues,
         financialResult: financialResultValues,

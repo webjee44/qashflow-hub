@@ -62,6 +62,24 @@ export const TVA_RATES_FR = {
   super_reduit: 0.021,  // 2.1%
 };
 
+// Forfait social sur indemnités de rupture (2026)
+// Applicable sur la part exonérée de cotisations sociales (jusqu'à 2 PASS)
+export const SEVERANCE_FORFAIT_SOCIAL = 0.20; // 20%
+
+// Calcul du coût employeur total pour une indemnité de départ
+export function calculateSeveranceEmployerCost(
+  severanceAmount: number,
+  employerContributionRate: number = SEVERANCE_FORFAIT_SOCIAL
+): { grossAmount: number; employerContribution: number; totalCost: number } {
+  const grossAmount = severanceAmount;
+  const employerContribution = grossAmount * employerContributionRate;
+  return {
+    grossAmount,
+    employerContribution,
+    totalCost: grossAmount + employerContribution,
+  };
+}
+
 // Tranches IS France 2026
 export const IS_RATES_FR = {
   taux_reduit_pme: 0.15,     // 15% jusqu'à 42 500€
