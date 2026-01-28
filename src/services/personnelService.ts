@@ -13,6 +13,7 @@ export interface BPPersonnel {
   id: string;
   user_id: string;
   company_id: string | null;
+  name: string | null;
   position: string;
   gross_salary: number;
   employer_charges_rate: number;
@@ -81,6 +82,7 @@ export const personnelService = {
       .insert({
         user_id: userId,
         company_id: companyId,
+        name: data.name || null,
         position: data.position || 'Nouveau poste',
         gross_salary: isFreelance ? 0 : (data.gross_salary || 0),
         employer_charges_rate: chargesRate,

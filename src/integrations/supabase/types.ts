@@ -513,6 +513,7 @@ export type Database = {
           id: string
           is_executive: boolean | null
           mutuelle_employer_amount: number | null
+          name: string | null
           notes: string | null
           payslip_imported: boolean | null
           position: string
@@ -536,6 +537,7 @@ export type Database = {
           id?: string
           is_executive?: boolean | null
           mutuelle_employer_amount?: number | null
+          name?: string | null
           notes?: string | null
           payslip_imported?: boolean | null
           position: string
@@ -559,6 +561,7 @@ export type Database = {
           id?: string
           is_executive?: boolean | null
           mutuelle_employer_amount?: number | null
+          name?: string | null
           notes?: string | null
           payslip_imported?: boolean | null
           position?: string
