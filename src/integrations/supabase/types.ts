@@ -506,6 +506,7 @@ export type Database = {
           contract_type: string | null
           created_at: string | null
           daily_rate: number | null
+          departure_type: string | null
           employer_charges_rate: number | null
           end_date: string | null
           estimated_days_per_month: number | null
@@ -517,6 +518,7 @@ export type Database = {
           notes: string | null
           payslip_imported: boolean | null
           position: string
+          severance_amount: number | null
           start_date: string
           updated_at: string | null
           user_id: string
@@ -530,6 +532,7 @@ export type Database = {
           contract_type?: string | null
           created_at?: string | null
           daily_rate?: number | null
+          departure_type?: string | null
           employer_charges_rate?: number | null
           end_date?: string | null
           estimated_days_per_month?: number | null
@@ -541,6 +544,7 @@ export type Database = {
           notes?: string | null
           payslip_imported?: boolean | null
           position: string
+          severance_amount?: number | null
           start_date?: string
           updated_at?: string | null
           user_id: string
@@ -554,6 +558,7 @@ export type Database = {
           contract_type?: string | null
           created_at?: string | null
           daily_rate?: number | null
+          departure_type?: string | null
           employer_charges_rate?: number | null
           end_date?: string | null
           estimated_days_per_month?: number | null
@@ -565,6 +570,7 @@ export type Database = {
           notes?: string | null
           payslip_imported?: boolean | null
           position?: string
+          severance_amount?: number | null
           start_date?: string
           updated_at?: string | null
           user_id?: string

@@ -71,6 +71,49 @@ export const CONTRACT_TYPES = {
 
 export type ContractType = keyof typeof CONTRACT_TYPES;
 
+// Types de départ (rupture conventionnelle, licenciement, etc.)
+// Conformément à la réglementation française 2026
+export const DEPARTURE_TYPES = {
+  resignation: { 
+    label: 'Démission', 
+    hasSeverance: false,
+    employerContributionRate: 0,
+    description: 'Départ volontaire du salarié',
+  },
+  end_of_contract: { 
+    label: 'Fin de CDD', 
+    hasSeverance: false, // Prime de précarité incluse dans le salaire
+    employerContributionRate: 0,
+    description: 'Fin normale du contrat à durée déterminée',
+  },
+  conventional_termination: { 
+    label: 'Rupture conventionnelle', 
+    hasSeverance: true,
+    employerContributionRate: 0.20, // Forfait social 20%
+    description: 'Rupture d\'un commun accord avec indemnité',
+  },
+  economic_dismissal: { 
+    label: 'Licenciement économique', 
+    hasSeverance: true,
+    employerContributionRate: 0.20, // Forfait social 20%
+    description: 'Licenciement pour motif économique',
+  },
+  personal_dismissal: { 
+    label: 'Licenciement personnel', 
+    hasSeverance: true,
+    employerContributionRate: 0.20, // Forfait social 20%
+    description: 'Licenciement pour motif personnel',
+  },
+  retirement: { 
+    label: 'Départ retraite', 
+    hasSeverance: true,
+    employerContributionRate: 0.45, // Charges classiques
+    description: 'Départ volontaire à la retraite',
+  },
+} as const;
+
+export type DepartureType = keyof typeof DEPARTURE_TYPES;
+
 // Types de financement
 // Contrainte DB: bp_financings_financing_type_check
 export const FINANCING_TYPES = {

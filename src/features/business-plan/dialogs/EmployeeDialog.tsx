@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,14 +7,16 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { ChevronDown, Info, User, Upload, FileCheck, Loader2, AlertCircle, FileText, Settings } from 'lucide-react';
-import { BPPersonnel } from '@/hooks/useBPPersonnel';
+import { ChevronDown, Info, User, Upload, FileCheck, Loader2, AlertCircle, FileText, Settings, DoorOpen, Calculator } from 'lucide-react';
+import { BPPersonnel, DEPARTURE_TYPES, DepartureType } from '@/hooks/useBPPersonnel';
 import { format } from 'date-fns';
+import { fr } from 'date-fns/locale';
 import { 
   calculateDetailedCharges, 
   CONTRACT_TYPES as FRENCH_CONTRACT_TYPES, 
   COMPANY_SIZES,
-  URSSAF_RATES_2026 
+  URSSAF_RATES_2026,
+  calculateSeveranceEmployerCost
 } from '@/lib/french-rates';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -81,6 +83,10 @@ export function EmployeeDialog({ open, onOpenChange, employee, onSave }: Employe
   const [customAtMpRate, setCustomAtMpRate] = useState<number | null>(null);
   const [customChargesRate, setCustomChargesRate] = useState<number | null>(null);
 
+  // Departure state
+  const [departureType, setDepartureType] = useState<DepartureType | null>(null);
+  const [severanceAmount, setSeveranceAmount] = useState('');
+
   // Reset state when dialog opens
   useEffect(() => {
     if (open) {
@@ -96,6 +102,8 @@ export function EmployeeDialog({ open, onOpenChange, employee, onSave }: Employe
         setContractType(employee.contract_type || 'cdi');
         setIsExecutive(employee.is_executive ?? false);
         setCompanySize(employee.company_size || 'small');
+        setDepartureType(employee.departure_type || null);
+        setSeveranceAmount(employee.severance_amount?.toString() || '');
         if (employee.payslip_imported) {
           setCustomMutuelle(employee.mutuelle_employer_amount);
           setCustomAtMpRate(employee.at_mp_rate);
@@ -118,6 +126,8 @@ export function EmployeeDialog({ open, onOpenChange, employee, onSave }: Employe
         setCustomMutuelle(null);
         setCustomAtMpRate(null);
         setCustomChargesRate(null);
+        setDepartureType(null);
+        setSeveranceAmount('');
       }
     }
   }, [open, employee, settings.bp_start_date, settings.fiscal_year_start_month, settings.fiscal_year_start_day]);
@@ -140,6 +150,15 @@ export function EmployeeDialog({ open, onOpenChange, employee, onSave }: Employe
     : (grossSalaryMonthly > 0 ? (detailedCharges.total / grossSalaryMonthly * 100) : 0);
   
   const totalEmployeeCostMonthly = grossSalaryMonthly + effectiveChargesTotal;
+
+  // Severance calculations
+  const selectedDepartureConfig = departureType ? DEPARTURE_TYPES[departureType] : null;
+  const showSeveranceField = selectedDepartureConfig?.hasSeverance ?? false;
+  const severanceAmountNum = parseFloat(severanceAmount) || 0;
+  const severanceCost = useMemo(() => {
+    if (!showSeveranceField || severanceAmountNum <= 0) return null;
+    return calculateSeveranceEmployerCost(severanceAmountNum, selectedDepartureConfig?.employerContributionRate);
+  }, [showSeveranceField, severanceAmountNum, selectedDepartureConfig]);
 
   // File upload handler
   const handlePayslipUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -200,6 +219,14 @@ export function EmployeeDialog({ open, onOpenChange, employee, onSave }: Employe
     }
   }, []);
 
+  // Reset departure type when end date is cleared
+  useEffect(() => {
+    if (!endDate) {
+      setDepartureType(null);
+      setSeveranceAmount('');
+    }
+  }, [endDate]);
+
   const handleSave = () => {
     onSave({
       id: employee?.id,
@@ -217,6 +244,9 @@ export function EmployeeDialog({ open, onOpenChange, employee, onSave }: Employe
       mutuelle_employer_amount: customMutuelle,
       at_mp_rate: customAtMpRate,
       payslip_imported: !!importedData || employee?.payslip_imported,
+      // Departure fields
+      departure_type: endDate ? departureType : null,
+      severance_amount: showSeveranceField && severanceAmountNum > 0 ? severanceAmountNum : null,
     });
     onOpenChange(false);
   };
@@ -556,6 +586,88 @@ export function EmployeeDialog({ open, onOpenChange, employee, onSave }: Employe
               />
             </div>
           </div>
+
+          {/* Departure Section - Only visible when end date is set */}
+          {endDate && (
+            <div className="p-4 border rounded-lg space-y-4 bg-amber-500/5 border-amber-200">
+              <div className="flex items-center gap-2 text-amber-700">
+                <DoorOpen className="h-5 w-5" />
+                <span className="font-medium">Conditions de départ</span>
+              </div>
+
+              <div className="grid gap-2">
+                <Label>Type de départ</Label>
+                <Select 
+                  value={departureType || ''} 
+                  onValueChange={(val) => setDepartureType(val as DepartureType || null)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionnez le type de départ" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(DEPARTURE_TYPES).map(([key, config]) => (
+                      <SelectItem key={key} value={key}>
+                        {config.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectedDepartureConfig && (
+                  <p className="text-xs text-muted-foreground">
+                    {selectedDepartureConfig.description}
+                  </p>
+                )}
+              </div>
+
+              {/* Severance Amount - Only for departure types with severance */}
+              {showSeveranceField && (
+                <div className="space-y-3">
+                  <div className="grid gap-2">
+                    <Label htmlFor="severance">Indemnité brute négociée (€)</Label>
+                    <Input
+                      id="severance"
+                      type="number"
+                      value={severanceAmount}
+                      onChange={(e) => setSeveranceAmount(e.target.value)}
+                      placeholder="Ex: 8500"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Montant brut versé au salarié (hors charges employeur)
+                    </p>
+                  </div>
+
+                  {/* Cost preview */}
+                  {severanceCost && (
+                    <div className="p-3 bg-background rounded-lg border space-y-2">
+                      <div className="flex items-center gap-2 text-sm font-medium">
+                        <Calculator className="h-4 w-4 text-primary" />
+                        Coût employeur estimé
+                      </div>
+                      <div className="space-y-1 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Indemnité brute</span>
+                          <span>{formatCurrency(severanceCost.grossAmount)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">
+                            Forfait social ({((selectedDepartureConfig?.employerContributionRate || 0.20) * 100).toFixed(0)}%)
+                          </span>
+                          <span className="text-destructive">+ {formatCurrency(severanceCost.employerContribution)}</span>
+                        </div>
+                        <div className="flex justify-between font-semibold pt-1 border-t">
+                          <span>Coût total employeur</span>
+                          <span className="text-destructive">{formatCurrency(severanceCost.totalCost)}</span>
+                        </div>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        ℹ️ Versé en {endDate ? format(new Date(endDate), 'MMMM yyyy', { locale: fr }) : '–'}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="grid gap-2">
             <Label htmlFor="notes">Notes (optionnel)</Label>

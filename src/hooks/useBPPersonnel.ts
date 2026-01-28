@@ -5,8 +5,11 @@ import { useCompany } from './useCompany';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { getGlobalChargesRate } from '@/lib/french-rates';
+import { DEPARTURE_TYPES, DepartureType } from '@/constants/bpConstants';
 
 export type WorkerType = 'employee' | 'freelance' | 'intern';
+export type { DepartureType };
+export { DEPARTURE_TYPES };
 
 export interface BPPersonnel {
   id: string;
@@ -29,6 +32,9 @@ export interface BPPersonnel {
   mutuelle_employer_amount: number | null;
   at_mp_rate: number | null;
   payslip_imported: boolean;
+  // Departure fields
+  departure_type: DepartureType | null;
+  severance_amount: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -116,6 +122,9 @@ export function useBPPersonnel() {
           mutuelle_employer_amount: data.mutuelle_employer_amount ?? null,
           at_mp_rate: data.at_mp_rate ?? null,
           payslip_imported: data.payslip_imported ?? false,
+          // Departure fields
+          departure_type: data.departure_type ?? null,
+          severance_amount: data.severance_amount ?? null,
         })
         .select()
         .single();

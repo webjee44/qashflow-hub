@@ -11,10 +11,11 @@ export interface CashFlowData {
   balance: number[];
   minBalance: number;
   monthsWithNegativeBalance: number;
-  // New detailed breakdowns
+  // Detailed breakdowns
   loanDisbursements: number[];
   loanPayments: number[];
   leasePayments: number[];
+  severancePayments: number[];
 }
 
 export function useBPCashFlow() {

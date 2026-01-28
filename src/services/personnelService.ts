@@ -5,9 +5,11 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
-import { getGlobalChargesRate } from '@/lib/french-rates';
+import { getGlobalChargesRate, SEVERANCE_FORFAIT_SOCIAL } from '@/lib/french-rates';
+import { DEPARTURE_TYPES } from '@/constants/bpConstants';
 
 export type WorkerType = 'employee' | 'freelance' | 'intern';
+export type DepartureType = keyof typeof DEPARTURE_TYPES | null;
 
 export interface BPPersonnel {
   id: string;
@@ -30,6 +32,9 @@ export interface BPPersonnel {
   mutuelle_employer_amount: number | null;
   at_mp_rate: number | null;
   payslip_imported: boolean;
+  // Departure fields
+  departure_type: DepartureType;
+  severance_amount: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -99,6 +104,9 @@ export const personnelService = {
         mutuelle_employer_amount: data.mutuelle_employer_amount ?? null,
         at_mp_rate: data.at_mp_rate ?? null,
         payslip_imported: data.payslip_imported ?? false,
+        // Departure fields
+        departure_type: data.departure_type ?? null,
+        severance_amount: data.severance_amount ?? null,
       })
       .select()
       .single();
@@ -189,5 +197,18 @@ export const personnelService = {
       totalFreelanceCost,
       totalMonthlyCost: totalEmployeeCost + totalFreelanceCost,
     };
+  },
+
+  // Calculate severance employer cost (includes forfait social)
+  getSeveranceEmployerCost(person: BPPersonnel): number {
+    if (!person.severance_amount || !person.departure_type) return 0;
+    
+    const departureConfig = DEPARTURE_TYPES[person.departure_type];
+    if (!departureConfig || !departureConfig.hasSeverance) return 0;
+    
+    const severance = Number(person.severance_amount) || 0;
+    const contributionRate = departureConfig.employerContributionRate || SEVERANCE_FORFAIT_SOCIAL;
+    
+    return severance * (1 + contributionRate);
   },
 };

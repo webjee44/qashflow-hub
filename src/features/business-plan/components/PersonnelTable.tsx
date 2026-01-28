@@ -1,12 +1,13 @@
-import { Edit, Trash2, User, GraduationCap, Gift } from 'lucide-react';
+import { Edit, Trash2, User, GraduationCap, Gift, DoorOpen } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { useBPPersonnel, BPPersonnel, CONTRACT_TYPES } from '@/hooks/useBPPersonnel';
+import { useBPPersonnel, BPPersonnel, CONTRACT_TYPES, DEPARTURE_TYPES } from '@/hooks/useBPPersonnel';
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { BPBonus, BONUS_TYPES } from '@/services/bonusService';
+import { calculateSeveranceEmployerCost } from '@/lib/french-rates';
 
 interface PersonnelTableProps {
   onEdit: (personnel: BPPersonnel) => void;
@@ -161,8 +162,49 @@ export function PersonnelTable({ onEdit, bonuses = [] }: PersonnelTableProps) {
                 <TableCell className="text-muted-foreground">
                   {formatDate(person.start_date)}
                 </TableCell>
-                <TableCell className="text-muted-foreground">
-                  {person.end_date ? formatDate(person.end_date) : '–'}
+                <TableCell>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-muted-foreground">
+                      {person.end_date ? formatDate(person.end_date) : '–'}
+                    </span>
+                    {person.departure_type && person.end_date && (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="flex items-center gap-1">
+                              <Badge 
+                                variant="outline" 
+                                className="text-[10px] px-1.5 py-0 bg-amber-500/10 text-amber-700 border-amber-200"
+                              >
+                                <DoorOpen className="h-3 w-3 mr-1" />
+                                {DEPARTURE_TYPES[person.departure_type]?.label.split(' ')[0] || 'Départ'}
+                              </Badge>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <div className="space-y-1 text-sm">
+                              <p className="font-medium">{DEPARTURE_TYPES[person.departure_type]?.label}</p>
+                              {person.severance_amount && (
+                                <>
+                                  <p className="text-muted-foreground">
+                                    Indemnité: {formatCurrency(Number(person.severance_amount))}
+                                  </p>
+                                  <p className="text-muted-foreground">
+                                    Coût total: {formatCurrency(
+                                      calculateSeveranceEmployerCost(
+                                        Number(person.severance_amount),
+                                        DEPARTURE_TYPES[person.departure_type]?.employerContributionRate
+                                      ).totalCost
+                                    )}
+                                  </p>
+                                </>
+                              )}
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+                  </div>
                 </TableCell>
                 <TableCell>
                   <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
