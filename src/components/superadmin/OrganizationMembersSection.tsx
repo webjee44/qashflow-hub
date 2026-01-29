@@ -186,34 +186,6 @@ export function OrganizationMembersSection({ organizationId, organizationName }:
           />
         </div>
 
-        {/* Add existing member form */}
-        <div className="space-y-2">
-          <p className="text-sm text-muted-foreground">Ou ajouter un utilisateur existant par email :</p>
-          <form onSubmit={handleSubmit} className="flex gap-2">
-            <Input
-              type="email"
-              placeholder="email@exemple.com (utilisateur existant)"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="flex-1"
-            />
-            <Select value={role} onValueChange={(v) => setRole(v as AppRole)}>
-              <SelectTrigger className="w-32">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="member">Membre</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button type="submit" disabled={addMember.isPending || !email.trim()}>
-              {addMember.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <UserPlus className="h-4 w-4" />
-              )}
-            </Button>
-          </form>
-        </div>
 
         {/* Members list */}
         {isLoading ? (
