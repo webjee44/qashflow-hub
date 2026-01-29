@@ -95,10 +95,11 @@ export function FinancingTable({ onEdit }: FinancingTableProps) {
     <div className="space-y-4">
       <Table>
         <TableHeader>
-          <TableRow>
+        <TableRow>
             <TableHead>Financement</TableHead>
             <TableHead>Type</TableHead>
             <TableHead>Lié à</TableHead>
+            <TableHead className="text-right">Montant initial</TableHead>
             <TableHead className="text-right">Mensualité</TableHead>
             <TableHead className="text-right">Restant dû</TableHead>
             <TableHead>Durée</TableHead>
@@ -145,6 +146,9 @@ export function FinancingTable({ onEdit }: FinancingTableProps) {
                   )}
                 </TableCell>
                 <TableCell className="text-right font-medium">
+                  {formatCurrency(Number(financing.amount))}
+                </TableCell>
+                <TableCell className="text-right">
                   {formatCurrency(Number(financing.monthly_payment))}
                 </TableCell>
                 <TableCell className="text-right">
