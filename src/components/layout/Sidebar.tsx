@@ -67,6 +67,7 @@ const businessPlanNavItems: NavItem[] = [
 ];
 
 const bottomNavItems: NavItem[] = [
+  { icon: FileSpreadsheet, label: 'Business Plan', href: '/bp/revenus' },
   { icon: Settings, label: 'Paramètres', href: '/parametres' },
   { icon: HelpCircle, label: 'Aide', href: '/aide' },
 ];
