@@ -61,14 +61,19 @@ export function FinancingDialog({ open, onOpenChange, financing, onSave }: Finan
   const [parsedData, setParsedData] = useState<AmortizationData | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
   
+  // Stabilize settings values to prevent unnecessary resets
+  const bpStartDate = settings.bp_start_date;
+  const fiscalMonth = settings.fiscal_year_start_month;
+  const fiscalDay = settings.fiscal_year_start_day;
+  
   const getDefaultStartDate = () => {
-    if (settings.bp_start_date) return settings.bp_start_date;
+    if (bpStartDate) return bpStartDate;
     const now = new Date();
-    const fiscalMonth = settings.fiscal_year_start_month || 1;
-    const fiscalDay = settings.fiscal_year_start_day || 1;
-    let fiscalYearStart = new Date(now.getFullYear(), fiscalMonth - 1, fiscalDay);
+    const month = fiscalMonth || 1;
+    const day = fiscalDay || 1;
+    let fiscalYearStart = new Date(now.getFullYear(), month - 1, day);
     if (fiscalYearStart > now) {
-      fiscalYearStart = new Date(now.getFullYear() - 1, fiscalMonth - 1, fiscalDay);
+      fiscalYearStart = new Date(now.getFullYear() - 1, month - 1, day);
     }
     return format(fiscalYearStart, 'yyyy-MM-dd');
   };
@@ -80,11 +85,24 @@ export function FinancingDialog({ open, onOpenChange, financing, onSave }: Finan
   const [interestRate, setInterestRate] = useState('3.5');
   const [durationMonths, setDurationMonths] = useState('60');
   const [monthlyPayment, setMonthlyPayment] = useState('');
-  const [startDate, setStartDate] = useState(getDefaultStartDate());
+  const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [notes, setNotes] = useState('');
+  
+  // Track if form has been initialized for this dialog session
+  const [formInitialized, setFormInitialized] = useState(false);
 
+  // Initialize form only when dialog opens (not on every settings change)
   useEffect(() => {
+    if (!open) {
+      // Reset initialization flag when dialog closes
+      setFormInitialized(false);
+      return;
+    }
+    
+    // Only initialize once per dialog open
+    if (formInitialized) return;
+    
     if (financing) {
       setFinancingType(financing.financing_type);
       setName(financing.name);
@@ -96,7 +114,6 @@ export function FinancingDialog({ open, onOpenChange, financing, onSave }: Finan
       setStartDate(financing.start_date);
       setEndDate(financing.end_date || '');
       setNotes(financing.notes || '');
-      // Reset parsed data when editing existing
       setParsedData(null);
       setParseError(null);
     } else {
@@ -113,7 +130,9 @@ export function FinancingDialog({ open, onOpenChange, financing, onSave }: Finan
       setParsedData(null);
       setParseError(null);
     }
-  }, [financing, open, settings.bp_start_date, settings.fiscal_year_start_month, settings.fiscal_year_start_day]);
+    
+    setFormInitialized(true);
+  }, [open, financing, formInitialized, bpStartDate, fiscalMonth, fiscalDay]);
 
   // Auto-calculate loan monthly payment
   useEffect(() => {
