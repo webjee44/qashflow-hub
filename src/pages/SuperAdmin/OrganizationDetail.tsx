@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Building2, Users, FileText, Calendar, CreditCard, UserCog, Loader2, ChevronDown, ChevronRight } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { ArrowLeft, Building2, Users, FileText, Calendar, CreditCard, UserCog, Loader2, ChevronDown, ChevronRight, Pencil, Check, X } from 'lucide-react';
 import { SuperAdminLayout } from '@/components/superadmin/SuperAdminLayout';
 import { useSuperAdminOrgStats } from '@/hooks/useSuperAdmin';
 import { Button } from '@/components/ui/button';
@@ -9,11 +9,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Input } from '@/components/ui/input';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { CompanyMembersManager } from '@/components/superadmin/CompanyMembersManager';
+
 const planColors: Record<string, string> = {
   free: 'bg-muted text-muted-foreground',
   pro: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
@@ -30,9 +32,68 @@ const statusColors: Record<string, string> = {
 export default function SuperAdminOrganizationDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { data: orgStats, isLoading } = useSuperAdminOrgStats();
   const [isImpersonating, setIsImpersonating] = useState(false);
   const [companiesOpen, setCompaniesOpen] = useState(true);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editedName, setEditedName] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Update org name mutation
+  const updateOrgName = useMutation({
+    mutationFn: async (newName: string) => {
+      const { error } = await supabase
+        .from('organizations')
+        .update({ name: newName.trim() })
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['superadmin-org-stats'] });
+      toast.success('Nom mis à jour');
+      setIsEditingName(false);
+    },
+    onError: (error: Error) => {
+      toast.error(`Erreur: ${error.message}`);
+    },
+  });
+
+  // Focus input when editing starts
+  useEffect(() => {
+    if (isEditingName && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isEditingName]);
+
+  const handleStartEdit = () => {
+    if (organization) {
+      setEditedName(organization.name);
+      setIsEditingName(true);
+    }
+  };
+
+  const handleSaveName = () => {
+    if (editedName.trim() && editedName.trim() !== organization?.name) {
+      updateOrgName.mutate(editedName);
+    } else {
+      setIsEditingName(false);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditingName(false);
+    setEditedName('');
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSaveName();
+    } else if (e.key === 'Escape') {
+      handleCancelEdit();
+    }
+  };
 
   const organization = orgStats?.find((org) => org.organization_id === id);
 
@@ -137,7 +198,31 @@ export default function SuperAdminOrganizationDetail() {
           </Button>
           <div className="flex-1">
             <div className="flex items-center gap-3">
-              <h1 className="text-3xl font-bold text-foreground">{organization.name}</h1>
+              {isEditingName ? (
+                <div className="flex items-center gap-2">
+                  <Input
+                    ref={inputRef}
+                    value={editedName}
+                    onChange={(e) => setEditedName(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    onBlur={handleSaveName}
+                    className="text-2xl font-bold h-10 w-80"
+                    disabled={updateOrgName.isPending}
+                  />
+                  {updateOrgName.isPending && (
+                    <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                  )}
+                </div>
+              ) : (
+                <h1 
+                  className="text-3xl font-bold text-foreground cursor-pointer hover:text-primary transition-colors group flex items-center gap-2"
+                  onClick={handleStartEdit}
+                  title="Cliquer pour modifier"
+                >
+                  {organization.name}
+                  <Pencil className="w-4 h-4 opacity-0 group-hover:opacity-50 transition-opacity" />
+                </h1>
+              )}
               <Badge className={planColors[organization.plan] || planColors.free}>
                 {organization.plan}
               </Badge>
