@@ -166,8 +166,9 @@ export function useAcceptInvitation() {
   });
 }
 
-// Helper to generate invitation URL
+// Helper to generate invitation URL - always use published app URL for public invitations
 export function getInvitationUrl(token: string): string {
-  const baseUrl = window.location.origin;
-  return `${baseUrl}/join?token=${token}`;
+  // Use the published app URL for invitations, not the preview URL
+  const publishedUrl = 'https://pennylane-cash-flow-buddy.lovable.app';
+  return `${publishedUrl}/join?token=${token}`;
 }
