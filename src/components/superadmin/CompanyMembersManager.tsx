@@ -1,39 +1,28 @@
-import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
-import { UserPlus, Trash2, Users, Loader2, Mail, Link2, Copy, Check, Clock, X } from 'lucide-react';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { getInvitationUrl, InvitationRole } from '@/hooks/useInvitations';
+import { Users, Loader2, Mail, Crown, Shield, Eye, User } from 'lucide-react';
+import { Database } from '@/integrations/supabase/types';
 
-interface CompanyMember {
-  id: string;
+type AppRole = Database['public']['Enums']['app_role'];
+
+interface CompanyAccess {
   company_id: string;
+  company_name: string;
+  has_access: boolean;
+  is_owner: boolean;
+}
+
+interface OrgMember {
+  member_id: string;
   user_id: string;
   email: string;
-  invited_by: string | null;
-  created_at: string;
+  role: AppRole;
+  joined_at: string | null;
+  companies: CompanyAccess[];
 }
 
 interface Company {
@@ -48,137 +37,80 @@ interface CompanyMembersManagerProps {
   organizationId?: string;
 }
 
+const roleLabels: Record<AppRole, string> = {
+  owner: 'Propriétaire',
+  admin: 'Admin',
+  member: 'Membre',
+  viewer: 'Lecteur',
+  superadmin: 'Super Admin',
+};
+
+const RoleIcon = ({ role }: { role: AppRole }) => {
+  switch (role) {
+    case 'owner':
+      return <Crown className="h-3 w-3" />;
+    case 'admin':
+      return <Shield className="h-3 w-3" />;
+    case 'viewer':
+      return <Eye className="h-3 w-3" />;
+    default:
+      return <User className="h-3 w-3" />;
+  }
+};
+
 export function CompanyMembersManager({ company, ownerEmail, organizationId }: CompanyMembersManagerProps) {
-  const [email, setEmail] = useState('');
-  const [role, setRole] = useState<InvitationRole>('member');
-  const [isInviting, setIsInviting] = useState(false);
-  const [generatedLink, setGeneratedLink] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
   const queryClient = useQueryClient();
 
-  // Fetch company members
+  // Fetch all org members with their company access
   const { data: members = [], isLoading } = useQuery({
-    queryKey: ['company-members', company.id],
-    queryFn: async () => {
-      const { data, error } = await supabase.rpc('get_company_members_with_email', {
-        _company_id: company.id,
-      });
-      if (error) throw error;
-      return (data || []) as CompanyMember[];
-    },
-  });
-
-  // Fetch pending invitations for this company
-  const { data: pendingInvitations = [] } = useQuery({
-    queryKey: ['pending-invitations', company.id, organizationId],
+    queryKey: ['org-members-with-access', organizationId],
     queryFn: async () => {
       if (!organizationId) return [];
-      
-      const { data, error } = await supabase
-        .from('organization_invitations')
-        .select('*')
-        .eq('organization_id', organizationId)
-        .contains('company_ids', [company.id])
-        .is('accepted_at', null)
-        .gt('expires_at', new Date().toISOString())
-        .order('created_at', { ascending: false });
-
+      const { data, error } = await supabase.rpc('get_org_members_with_company_access', {
+        _org_id: organizationId,
+      });
       if (error) throw error;
-      return data || [];
+      // Parse companies JSON from the RPC response
+      return (data || []).map((m) => ({
+        ...m,
+        companies: (m.companies as unknown as CompanyAccess[]) || [],
+      })) as OrgMember[];
     },
     enabled: !!organizationId,
   });
 
-  // Revoke invitation mutation
-  const revokeInvitation = useMutation({
-    mutationFn: async (invitationId: string) => {
-      const { error } = await supabase
-        .from('organization_invitations')
-        .delete()
-        .eq('id', invitationId);
+  // Toggle company access mutation
+  const toggleAccess = useMutation({
+    mutationFn: async ({ userId, enable }: { userId: string; enable: boolean }) => {
+      const { error } = await supabase.rpc('toggle_company_member_access', {
+        _company_id: company.id,
+        _user_id: userId,
+        _enable: enable,
+      });
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success('Invitation révoquée');
-      queryClient.invalidateQueries({ queryKey: ['pending-invitations', company.id, organizationId] });
+      queryClient.invalidateQueries({ queryKey: ['org-members-with-access', organizationId] });
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erreur lors de la révocation');
+      toast.error(error.message);
     },
   });
 
-  // Create invitation mutation
-  const createInvitation = useMutation({
-    mutationFn: async () => {
-      if (!organizationId) throw new Error('Organization ID requis');
-      
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      const { data, error } = await supabase
-        .from('organization_invitations')
-        .insert({
-          organization_id: organizationId,
-          email: email.toLowerCase().trim(),
-          role: role,
-          company_ids: [company.id],
-          invited_by: user?.id,
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: (data) => {
-      const link = getInvitationUrl(data.token);
-      setGeneratedLink(link);
-      toast.success('Lien d\'invitation généré');
-      queryClient.invalidateQueries({ queryKey: ['invitations', organizationId] });
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || 'Erreur lors de la création de l\'invitation');
-    },
-  });
-
-  // Remove member mutation
-  const removeMember = useMutation({
-    mutationFn: async (memberId: string) => {
-      const { error } = await supabase
-        .from('company_members')
-        .delete()
-        .eq('id', memberId);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success('Membre retiré avec succès');
-      queryClient.invalidateQueries({ queryKey: ['company-members', company.id] });
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || 'Erreur lors de la suppression');
-    },
-  });
-
-  const handleCreateInvitation = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email.trim()) return;
-    createInvitation.mutate();
+  // Get access info for this company per member
+  const getMemberCompanyAccess = (member: OrgMember) => {
+    const companyAccess = member.companies?.find(c => c.company_id === company.id);
+    return {
+      hasAccess: companyAccess?.has_access || false,
+      isOwner: companyAccess?.is_owner || company.user_id === member.user_id,
+    };
   };
 
-  const handleCopyLink = async () => {
-    if (!generatedLink) return;
-    await navigator.clipboard.writeText(generatedLink);
-    setCopied(true);
-    toast.success('Lien copié !');
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  const handleReset = () => {
-    setIsInviting(false);
-    setEmail('');
-    setRole('member');
-    setGeneratedLink(null);
-    setCopied(false);
-  };
+  // Count members with access
+  const accessCount = members.filter(m => {
+    const { hasAccess, isOwner } = getMemberCompanyAccess(m);
+    return hasAccess || isOwner;
+  }).length;
 
   return (
     <Card>
@@ -189,201 +121,58 @@ export function CompanyMembersManager({ company, ownerEmail, organizationId }: C
             <CardTitle className="text-base">{company.name}</CardTitle>
           </div>
           <Badge variant="secondary" className="text-xs">
-            {members.length + 1} membre{members.length > 0 ? 's' : ''}
+            {accessCount} accès
           </Badge>
         </div>
         <CardDescription className="text-xs">
-          Gérer les accès utilisateurs à cette société
+          Toggle pour activer/désactiver l'accès
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Owner */}
-        <div className="flex items-center justify-between py-2 px-3 bg-muted/50 rounded-md">
-          <div className="flex items-center gap-2">
-            <Mail className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm">{ownerEmail || 'Propriétaire'}</span>
-          </div>
-          <Badge variant="default" className="text-xs">Propriétaire</Badge>
-        </div>
-
-        {/* Members list */}
+      <CardContent className="space-y-2">
         {isLoading ? (
           <div className="flex items-center justify-center py-4">
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           </div>
-        ) : members.length > 0 ? (
-          <div className="space-y-2">
-            {members.map((member) => (
-              <div 
-                key={member.id} 
-                className="flex items-center justify-between py-2 px-3 bg-muted/30 rounded-md"
-              >
-                <div className="flex items-center gap-2">
-                  <Mail className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm">{member.email}</span>
-                </div>
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="h-7 w-7 text-destructive hover:text-destructive"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Retirer l'accès</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        {member.email} n'aura plus accès à la société "{company.name}". 
-                        Cette action est réversible.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Annuler</AlertDialogCancel>
-                      <AlertDialogAction
-                        onClick={() => removeMember.mutate(member.id)}
-                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                      >
-                        Retirer
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              </div>
-            ))}
-          </div>
-        ) : null}
-
-        {/* Pending invitations */}
-        {pendingInvitations.length > 0 && (
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Clock className="h-3 w-3" />
-              <span>Invitations en attente</span>
-            </div>
-            {pendingInvitations.map((invitation: any) => (
-              <div 
-                key={invitation.id} 
-                className="flex items-center justify-between py-2 px-3 bg-warning/10 border border-warning/20 rounded-md"
-              >
-                <div className="flex items-center gap-2 flex-1 min-w-0">
-                  <Mail className="h-4 w-4 text-warning shrink-0" />
-                  <span className="text-sm truncate">{invitation.email}</span>
-                  <Badge variant="outline" className="text-xs shrink-0">
-                    {invitation.role}
-                  </Badge>
-                </div>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="h-7 w-7 text-muted-foreground hover:text-destructive shrink-0"
-                  onClick={() => revokeInvitation.mutate(invitation.id)}
-                  disabled={revokeInvitation.isPending}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {isInviting ? (
-          <div className="space-y-3">
-            {generatedLink ? (
-              <div className="space-y-2">
-                <p className="text-sm text-muted-foreground">
-                  Lien d'invitation pour <strong>{email}</strong> :
-                </p>
-                <div className="flex gap-2">
-                  <Input
-                    value={generatedLink}
-                    readOnly
-                    className="flex-1 h-9 text-xs font-mono"
-                  />
-                  <Button 
-                    type="button" 
-                    size="sm" 
-                    variant="secondary"
-                    onClick={handleCopyLink}
-                  >
-                    {copied ? (
-                      <Check className="h-4 w-4 text-success" />
-                    ) : (
-                      <Copy className="h-4 w-4" />
-                    )}
-                  </Button>
-                </div>
-                <Button 
-                  type="button" 
-                  variant="ghost" 
-                  size="sm"
-                  className="w-full"
-                  onClick={handleReset}
-                >
-                  Nouvelle invitation
-                </Button>
-              </div>
-            ) : (
-              <form onSubmit={handleCreateInvitation} className="space-y-3">
-                <div className="flex gap-2">
-                  <Input
-                    type="email"
-                    placeholder="email@exemple.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="flex-1 h-9"
-                    autoFocus
-                  />
-                  <Select value={role} onValueChange={(v) => setRole(v as InvitationRole)}>
-                    <SelectTrigger className="w-28 h-9">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="viewer">Lecteur</SelectItem>
-                      <SelectItem value="member">Membre</SelectItem>
-                      <SelectItem value="admin">Admin</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex gap-2">
-                  <Button 
-                    type="submit" 
-                    size="sm" 
-                    className="flex-1"
-                    disabled={createInvitation.isPending || !email.trim()}
-                  >
-                    {createInvitation.isPending ? (
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    ) : (
-                      <Link2 className="h-4 w-4 mr-2" />
-                    )}
-                    Générer le lien
-                  </Button>
-                  <Button 
-                    type="button" 
-                    variant="ghost" 
-                    size="sm"
-                    onClick={handleReset}
-                  >
-                    Annuler
-                  </Button>
-                </div>
-              </form>
-            )}
-          </div>
+        ) : members.length === 0 ? (
+          <p className="text-xs text-muted-foreground text-center py-4">
+            Aucun membre dans l'organisation
+          </p>
         ) : (
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="w-full"
-            onClick={() => setIsInviting(true)}
-            disabled={!organizationId}
-          >
-            <UserPlus className="h-4 w-4 mr-2" />
-            Inviter un membre
-          </Button>
+          <div className="space-y-1">
+            {members.map((member) => {
+              const { hasAccess, isOwner } = getMemberCompanyAccess(member);
+              
+              return (
+                <div 
+                  key={member.user_id}
+                  className="flex items-center justify-between py-2 px-2 rounded hover:bg-muted/50 transition-colors"
+                >
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <Mail className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <span className="text-sm truncate">{member.email}</span>
+                    <span className="text-xs text-muted-foreground shrink-0 flex items-center gap-1">
+                      <RoleIcon role={member.role} />
+                      {roleLabels[member.role]}
+                    </span>
+                  </div>
+                  {isOwner ? (
+                    <Badge variant="outline" className="text-xs shrink-0">
+                      <Crown className="h-3 w-3 mr-1" />
+                      Propriétaire
+                    </Badge>
+                  ) : (
+                    <Switch
+                      checked={hasAccess}
+                      onCheckedChange={(checked) => 
+                        toggleAccess.mutate({ userId: member.user_id, enable: checked })
+                      }
+                      disabled={toggleAccess.isPending}
+                    />
+                  )}
+                </div>
+              );
+            })}
+          </div>
         )}
       </CardContent>
     </Card>

@@ -1972,6 +1972,14 @@ export type Database = {
         Args: { _company_id: string; _email: string }
         Returns: string
       }
+      add_organization_member_by_email: {
+        Args: {
+          _email: string
+          _org_id: string
+          _role?: Database["public"]["Enums"]["app_role"]
+        }
+        Returns: Json
+      }
       assign_superadmin_role: {
         Args: { user_email: string }
         Returns: undefined
@@ -2011,6 +2019,17 @@ export type Database = {
           organization_id: string
           organization_name: string
           role: Database["public"]["Enums"]["app_role"]
+        }[]
+      }
+      get_org_members_with_company_access: {
+        Args: { _org_id: string }
+        Returns: {
+          companies: Json
+          email: string
+          joined_at: string
+          member_id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
         }[]
       }
       get_superadmin_global_stats: {
@@ -2083,9 +2102,17 @@ export type Database = {
         Returns: boolean
       }
       is_superadmin: { Args: { _user_id: string }; Returns: boolean }
+      remove_organization_member: {
+        Args: { _org_id: string; _user_id: string }
+        Returns: boolean
+      }
       seed_demo_companies: {
         Args: { p_org_id: string; p_user_id: string }
         Returns: undefined
+      }
+      toggle_company_member_access: {
+        Args: { _company_id: string; _enable: boolean; _user_id: string }
+        Returns: boolean
       }
     }
     Enums: {
