@@ -34,6 +34,7 @@ import NotFound from "./pages/NotFound";
 import Start from "./pages/Start";
 import StartVerify from "./pages/StartVerify";
 import StartWelcome from "./pages/StartWelcome";
+import JoinInvitation from "./pages/JoinInvitation";
 
 // ============================================
 // Protected pages (lazy loading)
@@ -104,6 +105,9 @@ const App = () => (
                 <Route path="/sign-in" element={<SignIn />} />
                 <Route path="/sign-up" element={<SignUp />} />
                 <Route path="/welcome" element={<Welcome />} />
+                
+                {/* Invitation route */}
+                <Route path="/join" element={<JoinInvitation />} />
                 
                 {/* Onboarding routes */}
                 <Route path="/start" element={<Start />} />
