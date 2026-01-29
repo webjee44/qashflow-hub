@@ -114,19 +114,21 @@ export function OrganizationMembersSection({ organizationId, organizationName }:
   // Remove member mutation
   const removeMember = useMutation({
     mutationFn: async (userId: string) => {
-      const { error } = await supabase.rpc('remove_organization_member', {
+      const { data, error } = await supabase.rpc('remove_organization_member', {
         _org_id: organizationId,
         _user_id: userId,
       });
       if (error) throw error;
+      return data;
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success('Membre retiré avec succès');
-      queryClient.invalidateQueries({ queryKey: ['org-members-with-access', organizationId] });
+      // Force refetch instead of just invalidate
+      await queryClient.refetchQueries({ queryKey: ['org-members-with-access', organizationId] });
       queryClient.invalidateQueries({ queryKey: ['superadmin-org-stats'] });
     },
     onError: (error: Error) => {
-      toast.error(error.message);
+      toast.error(`Erreur: ${error.message}`);
     },
   });
 
