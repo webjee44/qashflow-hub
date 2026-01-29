@@ -1,327 +1,145 @@
 
-# Plan : Édition en masse des charges fixes via Excel
+# Plan : Isolation du superadmin du flux tenant
 
-## Objectif
+## Contexte
 
-Remplacer le bouton "Ajout en masse" par "Édition en masse" qui ouvre un modal permettant de :
-1. **Télécharger un fichier Excel** (.xlsx) pré-rempli avec les charges existantes et des colonnes vides pour en ajouter
-2. **Menus déroulants Excel natifs** pour les champs avec valeurs prédéfinies (catégorie, périodicité, TVA déductible)
-3. **Importer le fichier modifié** pour créer/modifier/supprimer les charges en masse
+Le superadmin `superadmin@gmail.com` a actuellement un tenant (organisation + entreprise) qui lui a été créé automatiquement lors de son inscription. Ce tenant doit être supprimé car les superadmins :
+- N'ont pas besoin de tenant propre
+- Accèdent uniquement via `/superadmin`
+- Utilisent l'impersonation pour consulter les données utilisateurs
+
+## Tenant existant à supprimer
+
+| Element | ID | Nom |
+|---------|-----|-----|
+| Organisation | `d9c1ff19-e751-45d9-be4c-782702abb865` | superadmin's Organization |
+| Entreprise | `6b62fda1-7cf4-458e-9f54-2ce705b63097` | superadmin |
 
 ---
 
-## Architecture technique
+## 1. Migration SQL
 
-```text
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                      BulkEditExpenseDialog.tsx                              │
-│  ┌───────────────────────────────────────────────────────────────────────┐  │
-│  │  ÉTAPE 1 : Téléchargement                                             │  │
-│  │  ┌─────────────────────────────────────────────────────────────────┐  │  │
-│  │  │  📊 Télécharger le fichier Excel                                │  │  │
-│  │  │  ┌───────────────────────────────────────────────────────────┐  │  │  │
-│  │  │  │  [Télécharger le modèle Excel]                            │  │  │  │
-│  │  │  │  • 15 charges existantes pré-remplies                     │  │  │  │
-│  │  │  │  • 50 lignes vides pour ajouts                            │  │  │  │
-│  │  │  │  • Menus déroulants pour Catégorie, Périodicité, TVA      │  │  │  │
-│  │  │  └───────────────────────────────────────────────────────────┘  │  │  │
-│  │  └─────────────────────────────────────────────────────────────────┘  │  │
-│  │                                                                       │  │
-│  │  ÉTAPE 2 : Import                                                     │  │
-│  │  ┌─────────────────────────────────────────────────────────────────┐  │  │
-│  │  │  📥 Importer votre fichier modifié                              │  │  │
-│  │  │  [Glissez ou cliquez pour importer]                             │  │  │
-│  │  └─────────────────────────────────────────────────────────────────┘  │  │
-│  │                                                                       │  │
-│  │  ÉTAPE 3 : Aperçu des modifications                                   │  │
-│  │  ┌─────────────────────────────────────────────────────────────────┐  │  │
-│  │  │  ✅ 5 charges à ajouter                                         │  │  │
-│  │  │  ✏️ 3 charges à modifier                                        │  │  │
-│  │  │  🗑️ 2 charges à supprimer (ID présent mais ligne vide)          │  │  │
-│  │  │                                                                 │  │  │
-│  │  │  [Annuler]  [Appliquer les modifications]                       │  │  │
-│  │  └─────────────────────────────────────────────────────────────────┘  │  │
-│  └───────────────────────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────────────────┘
+### 1.1 Modifier le trigger `handle_new_user`
+
+Ajouter une condition pour ignorer la création de tenant si l'utilisateur est déjà superadmin :
+
+```sql
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  new_org_id uuid;
+  org_name text;
+  org_slug text;
+  company_name text;
+BEGIN
+  -- Ne PAS créer de tenant pour les superadmins
+  -- Vérifier si le rôle superadmin existe déjà pour cet utilisateur
+  IF EXISTS (
+    SELECT 1 FROM public.user_roles 
+    WHERE user_id = NEW.id AND role = 'superadmin'
+  ) THEN
+    -- Créer uniquement le profil minimal
+    INSERT INTO public.profiles (id, full_name)
+    VALUES (NEW.id, COALESCE(NEW.raw_user_meta_data ->> 'full_name', 'Super Admin'))
+    ON CONFLICT (id) DO NOTHING;
+    
+    RETURN NEW;
+  END IF;
+
+  -- ... reste du code existant inchangé ...
+  company_name := COALESCE(
+    NEW.raw_user_meta_data ->> 'company_name',
+    NEW.raw_user_meta_data ->> 'full_name',
+    split_part(NEW.email, '@', 1)
+  );
+  
+  org_name := company_name;
+  org_slug := public.generate_org_slug(org_name);
+  
+  INSERT INTO public.organizations (...)
+  ...
+  
+  RETURN NEW;
+END;
+$$;
+```
+
+### 1.2 Créer une fonction de nettoyage pour superadmins existants
+
+```sql
+CREATE OR REPLACE FUNCTION public.cleanup_superadmin_tenant(_user_id uuid)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_org_ids uuid[];
+BEGIN
+  -- Vérifier que l'utilisateur est superadmin
+  IF NOT is_superadmin(_user_id) THEN
+    RAISE EXCEPTION 'User is not a superadmin';
+  END IF;
+  
+  -- Récupérer les organisations où il est owner
+  SELECT array_agg(o.id) INTO v_org_ids
+  FROM organizations o
+  WHERE o.owner_id = _user_id;
+  
+  IF v_org_ids IS NOT NULL THEN
+    -- Supprimer les entreprises liées
+    DELETE FROM companies WHERE organization_id = ANY(v_org_ids);
+    
+    -- Supprimer les membres
+    DELETE FROM organization_members WHERE organization_id = ANY(v_org_ids);
+    
+    -- Supprimer les organisations
+    DELETE FROM organizations WHERE id = ANY(v_org_ids);
+  END IF;
+END;
+$$;
+```
+
+### 1.3 Exécuter le nettoyage pour le superadmin existant
+
+```sql
+-- Nettoyer le tenant du superadmin existant
+SELECT cleanup_superadmin_tenant('60d20ec5-7257-4e6f-9756-0e731615e091');
 ```
 
 ---
 
-## 1. Dépendance à installer
+## 2. Modifications des hooks (gestion gracieuse)
 
-**ExcelJS** - Bibliothèque pour générer des fichiers Excel avec data validation (dropdowns natifs)
+### 2.1 `useCompany.tsx`
 
-```json
-"exceljs": "^4.4.0"
-```
+Les providers fonctionnent déjà correctement avec une liste vide - ils retournent simplement `companies = []` et `currentCompany = null`. Aucune modification nécessaire.
 
----
+### 2.2 `useOrganization.tsx`
 
-## 2. Structure du fichier Excel généré
-
-| Colonne | Nom | Type | Dropdown | Obligatoire |
-|---------|-----|------|----------|-------------|
-| A | ID | Texte | Non | Non (vide = nouvelle charge) |
-| B | Nom | Texte | Non | Oui |
-| C | Catégorie | Liste | Oui (12 valeurs) | Oui |
-| D | Montant | Nombre | Non | Oui |
-| E | Périodicité | Liste | Oui (4 valeurs) | Oui |
-| F | Taux TVA (%) | Nombre | Non | Non (défaut: 20) |
-| G | TVA déductible | Liste | Oui (Oui/Non) | Non (défaut: Oui) |
-| H | Date début | Date | Non | Non (défaut: aujourd'hui) |
-| I | Date fin | Date | Non | Non |
-| J | Notes | Texte | Non | Non |
-
-**Feuille cachée "Listes"** contenant les valeurs des dropdowns :
-- Catégories : Loyer & Charges locatives, Assurances, Logiciels & Abonnements, etc.
-- Périodicités : Mensuel, Trimestriel, Semestriel, Annuel
-- TVA déductible : Oui, Non
+Idem, le provider gère déjà le cas où `membershipData.length === 0` en ligne 79-82.
 
 ---
 
-## 3. Fichiers à créer/modifier
+## 3. Fichiers impactés
 
 | Fichier | Action | Description |
 |---------|--------|-------------|
-| `src/components/businessplan/BulkEditExpenseDialog.tsx` | **Créer** | Composant modal principal |
-| `src/lib/excelExpenseTemplate.ts` | **Créer** | Génération Excel avec ExcelJS |
-| `src/lib/excelExpenseParser.ts` | **Créer** | Parsing du fichier importé |
-| `src/pages/BusinessPlan/Expenses.tsx` | **Modifier** | Remplacer "Ajout en masse" |
-| `package.json` | **Modifier** | Ajouter dépendance exceljs |
+| Migration SQL | Creer | Modifier trigger + fonction cleanup + exécuter nettoyage |
 
 ---
 
-## 4. Détail technique : Génération Excel avec dropdowns
+## Résumé des changements
 
-```typescript
-// src/lib/excelExpenseTemplate.ts
-import ExcelJS from 'exceljs';
-import { FIXED_EXPENSE_CATEGORIES, PAYMENT_FREQUENCIES } from '@/constants/bpConstants';
+1. **Migration SQL unique** qui :
+   - Modifie `handle_new_user` pour ignorer les superadmins
+   - Crée `cleanup_superadmin_tenant` pour nettoyer les tenants existants
+   - Exécute le nettoyage pour `superadmin@gmail.com`
 
-export async function generateExpenseTemplate(existingExpenses: BPFixedExpense[]) {
-  const workbook = new ExcelJS.Workbook();
-  
-  // Feuille principale
-  const sheet = workbook.addWorksheet('Charges fixes');
-  
-  // Feuille cachée pour les listes déroulantes
-  const listsSheet = workbook.addWorksheet('Listes');
-  listsSheet.state = 'veryHidden'; // Invisible pour l'utilisateur
-  
-  // Remplir les listes
-  const categories = Object.entries(FIXED_EXPENSE_CATEGORIES).map(([key, {label}]) => label);
-  const frequencies = Object.entries(PAYMENT_FREQUENCIES).map(([key, {label}]) => label);
-  const yesNo = ['Oui', 'Non'];
-  
-  categories.forEach((cat, i) => listsSheet.getCell(`A${i+1}`).value = cat);
-  frequencies.forEach((freq, i) => listsSheet.getCell(`B${i+1}`).value = freq);
-  yesNo.forEach((val, i) => listsSheet.getCell(`C${i+1}`).value = val);
-  
-  // Définir les plages nommées
-  workbook.definedNames.add(`Listes!$A$1:$A$${categories.length}`, 'Categories');
-  workbook.definedNames.add(`Listes!$B$1:$B$${frequencies.length}`, 'Periodicites');
-  workbook.definedNames.add(`Listes!$C$1:$C$2`, 'OuiNon');
-  
-  // En-têtes
-  sheet.columns = [
-    { header: 'ID (ne pas modifier)', key: 'id', width: 36 },
-    { header: 'Nom *', key: 'name', width: 30 },
-    { header: 'Catégorie *', key: 'category', width: 25 },
-    { header: 'Montant (€) *', key: 'amount', width: 15 },
-    { header: 'Périodicité', key: 'frequency', width: 15 },
-    { header: 'Taux TVA (%)', key: 'vat', width: 12 },
-    { header: 'TVA déductible', key: 'vatDeductible', width: 15 },
-    { header: 'Date début', key: 'startDate', width: 12 },
-    { header: 'Date fin', key: 'endDate', width: 12 },
-    { header: 'Notes', key: 'notes', width: 30 },
-  ];
-  
-  // Style header
-  sheet.getRow(1).font = { bold: true };
-  sheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
-  
-  // Ajouter charges existantes
-  existingExpenses.forEach(expense => {
-    sheet.addRow({
-      id: expense.id,
-      name: expense.name,
-      category: FIXED_EXPENSE_CATEGORIES[expense.category]?.label,
-      amount: expense.monthly_amount,
-      frequency: PAYMENT_FREQUENCIES[expense.payment_frequency]?.label || 'Mensuel',
-      vat: expense.vat_rate * 100,
-      vatDeductible: expense.is_vat_deductible ? 'Oui' : 'Non',
-      startDate: expense.start_date,
-      endDate: expense.end_date || '',
-      notes: expense.notes || '',
-    });
-  });
-  
-  // Ajouter 50 lignes vides pour nouveaux ajouts
-  const startRow = existingExpenses.length + 2;
-  for (let i = 0; i < 50; i++) {
-    sheet.addRow({});
-  }
-  
-  // Appliquer les validations (dropdowns) sur toutes les lignes de données
-  const lastRow = startRow + 50;
-  
-  // Catégorie (colonne C)
-  sheet.dataValidations.add(`C2:C${lastRow}`, {
-    type: 'list',
-    allowBlank: true,
-    formulae: ['=Categories'],
-    showErrorMessage: true,
-    errorTitle: 'Catégorie invalide',
-    error: 'Veuillez sélectionner une catégorie dans la liste',
-  });
-  
-  // Périodicité (colonne E)
-  sheet.dataValidations.add(`E2:E${lastRow}`, {
-    type: 'list',
-    allowBlank: true,
-    formulae: ['=Periodicites'],
-    showErrorMessage: true,
-  });
-  
-  // TVA déductible (colonne G)
-  sheet.dataValidations.add(`G2:G${lastRow}`, {
-    type: 'list',
-    allowBlank: true,
-    formulae: ['=OuiNon'],
-  });
-  
-  return workbook;
-}
-```
+2. **Aucune modification de code frontend** - les providers gèrent déjà les listes vides
 
----
-
-## 5. Parsing et différentiel à l'import
-
-```typescript
-// src/lib/excelExpenseParser.ts
-
-interface ImportDiff {
-  toCreate: Partial<BPFixedExpense>[];
-  toUpdate: { id: string; changes: Partial<BPFixedExpense> }[];
-  toDelete: string[];
-  errors: { row: number; message: string }[];
-}
-
-export async function parseExpenseExcel(
-  file: File, 
-  existingExpenses: BPFixedExpense[]
-): Promise<ImportDiff> {
-  const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(await file.arrayBuffer());
-  
-  const sheet = workbook.getWorksheet('Charges fixes');
-  const existingIds = new Set(existingExpenses.map(e => e.id));
-  const seenIds = new Set<string>();
-  
-  const diff: ImportDiff = { toCreate: [], toUpdate: [], toDelete: [], errors: [] };
-  
-  sheet.eachRow((row, rowNumber) => {
-    if (rowNumber === 1) return; // Skip header
-    
-    const id = row.getCell(1).value?.toString();
-    const name = row.getCell(2).value?.toString()?.trim();
-    const categoryLabel = row.getCell(3).value?.toString();
-    const amount = parseFloat(row.getCell(4).value?.toString() || '0');
-    
-    // Ligne vide avec ID = suppression
-    if (id && existingIds.has(id) && !name) {
-      diff.toDelete.push(id);
-      seenIds.add(id);
-      return;
-    }
-    
-    // Ligne sans nom ni ID = ignorer
-    if (!name) return;
-    
-    // Convertir label -> code catégorie
-    const category = labelToCategory(categoryLabel);
-    
-    // Nouvelle charge (pas d'ID)
-    if (!id) {
-      diff.toCreate.push({ name, category, monthly_amount: amount, ... });
-    } 
-    // Modification (ID existant)
-    else if (existingIds.has(id)) {
-      seenIds.add(id);
-      diff.toUpdate.push({ id, changes: { name, category, monthly_amount: amount, ... } });
-    }
-  });
-  
-  return diff;
-}
-```
-
----
-
-## 6. Modification de la page Expenses.tsx
-
-Remplacer le bouton "Ajout en masse" par :
-
-```tsx
-<Button 
-  size="sm" 
-  variant="outline"
-  className="gap-2"
-  onClick={() => setBulkEditDialogOpen(true)}
->
-  <FileSpreadsheet className="h-4 w-4" />
-  Édition en masse
-</Button>
-
-<BulkEditExpenseDialog
-  open={bulkEditDialogOpen}
-  onOpenChange={setBulkEditDialogOpen}
-  expenses={expenses}
-  onComplete={() => {
-    // Refresh data
-    queryClient.invalidateQueries(['bp_fixed_expenses']);
-  }}
-/>
-```
-
----
-
-## 7. UX du modal
-
-**Étape 1 - Téléchargement**
-- Bouton principal "Télécharger le modèle Excel"
-- Affiche le nombre de charges existantes qui seront incluses
-- Instructions claires sur le fonctionnement des dropdowns
-
-**Étape 2 - Import**
-- Zone de drop + bouton de sélection de fichier
-- Accepte uniquement .xlsx
-- Parsing immédiat avec spinner
-
-**Étape 3 - Prévisualisation**
-- Résumé des modifications détectées (ajouts/modifs/suppressions)
-- Tableau scrollable avec aperçu des changements
-- Erreurs de validation en rouge
-- Bouton "Appliquer" désactivé si erreurs bloquantes
-
----
-
-## 8. Points techniques importants
-
-- **ExcelJS fonctionne côté client** - pas besoin d'Edge Function
-- **Dropdowns Excel natifs** - fonctionnent dans Excel, Google Sheets, LibreOffice
-- **Mapping bidirectionnel** label/code pour les catégories
-- **Gestion des suppressions** - ligne avec ID mais vide = suppression
-- **Validation robuste** - erreurs par ligne avec numéro de ligne
-- **Prévisualisation** - l'utilisateur voit les changements avant confirmation
-
----
-
-## Résumé
-
-Cette fonctionnalité transforme la gestion des charges fixes en permettant :
-- Export Excel avec **menus déroulants natifs** pour tous les champs à valeurs fixes
-- Import avec **détection automatique** des ajouts, modifications et suppressions
-- **Prévisualisation** avant application des changements
-- **Workflow professionnel** type import/export comptable
+3. **Workflow futur** : Pour créer un nouveau superadmin, il suffira d'ajouter d'abord le rôle dans `user_roles` avant la création du compte (ou utiliser `cleanup_superadmin_tenant` après)
