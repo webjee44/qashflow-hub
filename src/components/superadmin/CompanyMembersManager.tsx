@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { UserPlus, Trash2, Users, Loader2, Mail, Link2, Copy, Check } from 'lucide-react';
+import { UserPlus, Trash2, Users, Loader2, Mail, Link2, Copy, Check, Clock, X } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -65,6 +65,45 @@ export function CompanyMembersManager({ company, ownerEmail, organizationId }: C
       });
       if (error) throw error;
       return (data || []) as CompanyMember[];
+    },
+  });
+
+  // Fetch pending invitations for this company
+  const { data: pendingInvitations = [] } = useQuery({
+    queryKey: ['pending-invitations', company.id, organizationId],
+    queryFn: async () => {
+      if (!organizationId) return [];
+      
+      const { data, error } = await supabase
+        .from('organization_invitations')
+        .select('*')
+        .eq('organization_id', organizationId)
+        .contains('company_ids', [company.id])
+        .is('accepted_at', null)
+        .gt('expires_at', new Date().toISOString())
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!organizationId,
+  });
+
+  // Revoke invitation mutation
+  const revokeInvitation = useMutation({
+    mutationFn: async (invitationId: string) => {
+      const { error } = await supabase
+        .from('organization_invitations')
+        .delete()
+        .eq('id', invitationId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Invitation révoquée');
+      queryClient.invalidateQueries({ queryKey: ['pending-invitations', company.id, organizationId] });
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Erreur lors de la révocation');
     },
   });
 
@@ -217,7 +256,39 @@ export function CompanyMembersManager({ company, ownerEmail, organizationId }: C
           </div>
         ) : null}
 
-        {/* Invitation form */}
+        {/* Pending invitations */}
+        {pendingInvitations.length > 0 && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Clock className="h-3 w-3" />
+              <span>Invitations en attente</span>
+            </div>
+            {pendingInvitations.map((invitation: any) => (
+              <div 
+                key={invitation.id} 
+                className="flex items-center justify-between py-2 px-3 bg-warning/10 border border-warning/20 rounded-md"
+              >
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <Mail className="h-4 w-4 text-warning shrink-0" />
+                  <span className="text-sm truncate">{invitation.email}</span>
+                  <Badge variant="outline" className="text-xs shrink-0">
+                    {invitation.role}
+                  </Badge>
+                </div>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-7 w-7 text-muted-foreground hover:text-destructive shrink-0"
+                  onClick={() => revokeInvitation.mutate(invitation.id)}
+                  disabled={revokeInvitation.isPending}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+
         {isInviting ? (
           <div className="space-y-3">
             {generatedLink ? (
@@ -238,7 +309,7 @@ export function CompanyMembersManager({ company, ownerEmail, organizationId }: C
                     onClick={handleCopyLink}
                   >
                     {copied ? (
-                      <Check className="h-4 w-4 text-green-600" />
+                      <Check className="h-4 w-4 text-success" />
                     ) : (
                       <Copy className="h-4 w-4" />
                     )}
