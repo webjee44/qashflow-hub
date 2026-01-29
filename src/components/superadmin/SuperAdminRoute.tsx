@@ -1,5 +1,5 @@
-import { ReactNode } from 'react';
-import { Navigate } from 'react-router-dom';
+import { ReactNode, useRef, useEffect } from 'react';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useSuperAdminRole } from '@/hooks/useSuperAdmin';
 import { Loader2, ShieldX } from 'lucide-react';
@@ -9,10 +9,24 @@ interface SuperAdminRouteProps {
 }
 
 export function SuperAdminRoute({ children }: SuperAdminRouteProps) {
-  const { user, loading: authLoading } = useAuth();
-  const { data: isSuperAdmin, isLoading: roleLoading } = useSuperAdminRole();
+  const { user, session, loading: authLoading } = useAuth();
+  const { data: isSuperAdmin, isLoading: roleLoading, isFetched } = useSuperAdminRole();
+  const location = useLocation();
+  
+  // Track if we've ever had a valid session to prevent redirect during token refresh
+  const hadValidSession = useRef(false);
+  
+  useEffect(() => {
+    if (session && isSuperAdmin) {
+      hadValidSession.current = true;
+    }
+  }, [session, isSuperAdmin]);
 
-  if (authLoading || roleLoading) {
+  // During initial load OR if we previously had a valid session (token refresh scenario)
+  const isInitializing = authLoading || roleLoading;
+  const isTokenRefresh = hadValidSession.current && !session && !authLoading;
+  
+  if (isInitializing || isTokenRefresh) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
@@ -23,11 +37,13 @@ export function SuperAdminRoute({ children }: SuperAdminRouteProps) {
     );
   }
 
-  if (!user) {
-    return <Navigate to="/auth" replace />;
+  // Only redirect to auth if we never had a valid session AND loading is complete
+  if (!user && !hadValidSession.current) {
+    return <Navigate to="/auth" state={{ from: location }} replace />;
   }
 
-  if (!isSuperAdmin) {
+  // If role check is complete and user is not superadmin
+  if (isFetched && !isSuperAdmin) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center max-w-md px-4">
