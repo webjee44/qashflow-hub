@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { UserPlus, Trash2, Users, Loader2, Mail } from 'lucide-react';
+import { UserPlus, Trash2, Users, Loader2, Mail, Link2, Copy, Check } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,6 +18,14 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { getInvitationUrl, InvitationRole } from '@/hooks/useInvitations';
 
 interface CompanyMember {
   id: string;
@@ -37,11 +45,15 @@ interface Company {
 interface CompanyMembersManagerProps {
   company: Company;
   ownerEmail?: string;
+  organizationId?: string;
 }
 
-export function CompanyMembersManager({ company, ownerEmail }: CompanyMembersManagerProps) {
+export function CompanyMembersManager({ company, ownerEmail, organizationId }: CompanyMembersManagerProps) {
   const [email, setEmail] = useState('');
-  const [isAdding, setIsAdding] = useState(false);
+  const [role, setRole] = useState<InvitationRole>('member');
+  const [isInviting, setIsInviting] = useState(false);
+  const [generatedLink, setGeneratedLink] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const queryClient = useQueryClient();
 
   // Fetch company members
@@ -56,28 +68,36 @@ export function CompanyMembersManager({ company, ownerEmail }: CompanyMembersMan
     },
   });
 
-  // Add member mutation
-  const addMember = useMutation({
-    mutationFn: async (memberEmail: string) => {
-      const { data, error } = await supabase.rpc('add_company_member_by_email', {
-        _company_id: company.id,
-        _email: memberEmail,
-      });
+  // Create invitation mutation
+  const createInvitation = useMutation({
+    mutationFn: async () => {
+      if (!organizationId) throw new Error('Organization ID requis');
+      
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      const { data, error } = await supabase
+        .from('organization_invitations')
+        .insert({
+          organization_id: organizationId,
+          email: email.toLowerCase().trim(),
+          role: role,
+          company_ids: [company.id],
+          invited_by: user?.id,
+        })
+        .select()
+        .single();
+
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
-      toast.success('Membre ajouté avec succès');
-      setEmail('');
-      setIsAdding(false);
-      queryClient.invalidateQueries({ queryKey: ['company-members', company.id] });
+    onSuccess: (data) => {
+      const link = getInvitationUrl(data.token);
+      setGeneratedLink(link);
+      toast.success('Lien d\'invitation généré');
+      queryClient.invalidateQueries({ queryKey: ['invitations', organizationId] });
     },
     onError: (error: Error) => {
-      if (error.message?.includes('not found')) {
-        toast.error(`Aucun compte existant avec cet email. L'utilisateur doit d'abord créer un compte sur qashflow.`);
-      } else {
-        toast.error(error.message || 'Erreur lors de l\'ajout du membre');
-      }
+      toast.error(error.message || 'Erreur lors de la création de l\'invitation');
     },
   });
 
@@ -99,10 +119,26 @@ export function CompanyMembersManager({ company, ownerEmail }: CompanyMembersMan
     },
   });
 
-  const handleAddMember = (e: React.FormEvent) => {
+  const handleCreateInvitation = (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim()) return;
-    addMember.mutate(email.trim());
+    createInvitation.mutate();
+  };
+
+  const handleCopyLink = async () => {
+    if (!generatedLink) return;
+    await navigator.clipboard.writeText(generatedLink);
+    setCopied(true);
+    toast.success('Lien copié !');
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleReset = () => {
+    setIsInviting(false);
+    setEmail('');
+    setRole('member');
+    setGeneratedLink(null);
+    setCopied(false);
   };
 
   return (
@@ -181,49 +217,101 @@ export function CompanyMembersManager({ company, ownerEmail }: CompanyMembersMan
           </div>
         ) : null}
 
-        {/* Add member form */}
-        {isAdding ? (
-          <form onSubmit={handleAddMember} className="flex gap-2">
-            <Input
-              type="email"
-              placeholder="email@exemple.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="flex-1 h-9"
-              autoFocus
-            />
-            <Button 
-              type="submit" 
-              size="sm" 
-              disabled={addMember.isPending || !email.trim()}
-            >
-              {addMember.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                'Ajouter'
-              )}
-            </Button>
-            <Button 
-              type="button" 
-              variant="ghost" 
-              size="sm"
-              onClick={() => {
-                setIsAdding(false);
-                setEmail('');
-              }}
-            >
-              Annuler
-            </Button>
-          </form>
+        {/* Invitation form */}
+        {isInviting ? (
+          <div className="space-y-3">
+            {generatedLink ? (
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  Lien d'invitation pour <strong>{email}</strong> :
+                </p>
+                <div className="flex gap-2">
+                  <Input
+                    value={generatedLink}
+                    readOnly
+                    className="flex-1 h-9 text-xs font-mono"
+                  />
+                  <Button 
+                    type="button" 
+                    size="sm" 
+                    variant="secondary"
+                    onClick={handleCopyLink}
+                  >
+                    {copied ? (
+                      <Check className="h-4 w-4 text-green-600" />
+                    ) : (
+                      <Copy className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+                <Button 
+                  type="button" 
+                  variant="ghost" 
+                  size="sm"
+                  className="w-full"
+                  onClick={handleReset}
+                >
+                  Nouvelle invitation
+                </Button>
+              </div>
+            ) : (
+              <form onSubmit={handleCreateInvitation} className="space-y-3">
+                <div className="flex gap-2">
+                  <Input
+                    type="email"
+                    placeholder="email@exemple.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="flex-1 h-9"
+                    autoFocus
+                  />
+                  <Select value={role} onValueChange={(v) => setRole(v as InvitationRole)}>
+                    <SelectTrigger className="w-28 h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="viewer">Lecteur</SelectItem>
+                      <SelectItem value="member">Membre</SelectItem>
+                      <SelectItem value="admin">Admin</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex gap-2">
+                  <Button 
+                    type="submit" 
+                    size="sm" 
+                    className="flex-1"
+                    disabled={createInvitation.isPending || !email.trim()}
+                  >
+                    {createInvitation.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : (
+                      <Link2 className="h-4 w-4 mr-2" />
+                    )}
+                    Générer le lien
+                  </Button>
+                  <Button 
+                    type="button" 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={handleReset}
+                  >
+                    Annuler
+                  </Button>
+                </div>
+              </form>
+            )}
+          </div>
         ) : (
           <Button 
             variant="outline" 
             size="sm" 
             className="w-full"
-            onClick={() => setIsAdding(true)}
+            onClick={() => setIsInviting(true)}
+            disabled={!organizationId}
           >
             <UserPlus className="h-4 w-4 mr-2" />
-            Ajouter un membre
+            Inviter un membre
           </Button>
         )}
       </CardContent>

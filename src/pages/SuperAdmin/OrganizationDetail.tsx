@@ -392,6 +392,7 @@ export default function SuperAdminOrganizationDetail() {
                         key={company.id} 
                         company={company}
                         ownerEmail={ownerEmail || undefined}
+                        organizationId={id}
                       />
                     ))}
                   </div>
