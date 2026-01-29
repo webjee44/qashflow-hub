@@ -1928,6 +1928,10 @@ export type Database = {
         Args: { user_email: string }
         Returns: undefined
       }
+      cleanup_superadmin_tenant: {
+        Args: { _user_id: string }
+        Returns: undefined
+      }
       company_has_secret: {
         Args: { p_company_id: string; p_secret_type?: string }
         Returns: boolean
