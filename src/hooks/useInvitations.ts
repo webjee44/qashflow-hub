@@ -166,9 +166,9 @@ export function useAcceptInvitation() {
   });
 }
 
-// Helper to generate invitation URL - always use published app URL for public invitations
+// Helper to generate invitation URL - always use primary domain for public invitations
 export function getInvitationUrl(token: string): string {
-  // Use the published app URL for invitations, not the preview URL
-  const publishedUrl = 'https://pennylane-cash-flow-buddy.lovable.app';
+  // Use the primary domain for invitations
+  const publishedUrl = 'https://qashflow.io';
   return `${publishedUrl}/join?token=${token}`;
 }
