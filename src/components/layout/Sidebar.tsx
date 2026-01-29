@@ -27,6 +27,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useAppMode } from '@/hooks/useAppMode';
 import { useBPSettings } from '@/hooks/useBPSettings';
 import { useOnboarding } from '@/hooks/useOnboarding';
+import { useBPOnboarding } from '@/hooks/useBPOnboarding';
 import { useCompany } from '@/hooks/useCompany';
 import { BPSettingsDialog } from '@/components/businessplan/BPSettingsDialog';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -96,6 +97,7 @@ export function Sidebar() {
   const { mode, setMode, isBusinessPlan, isTreasury } = useAppMode();
   const { settings } = useBPSettings();
   const { bpEnabled, isCompleted: onboardingCompleted } = useOnboarding();
+  const { isCompleted: bpTourCompleted } = useBPOnboarding();
   const { currentCompany } = useCompany();
   const location = useLocation();
   const navigate = useNavigate();
@@ -234,16 +236,18 @@ export function Sidebar() {
             <SlidersHorizontal size={18} />
             <span className="text-sm font-medium">Paramètres du BP</span>
           </button>
-          <button
-            onClick={() => {
-              localStorage.setItem('show-bp-onboarding-tour', 'true');
-              window.location.reload();
-            }}
-            className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 text-muted-foreground hover:bg-muted hover:text-foreground"
-          >
-            <Sparkles size={18} />
-            <span className="text-sm font-medium">Visite guidée</span>
-          </button>
+          {bpTourCompleted ? null : (
+            <button
+              onClick={() => {
+                localStorage.setItem('show-bp-onboarding-tour', 'true');
+                window.location.reload();
+              }}
+              className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <Sparkles size={18} />
+              <span className="text-sm font-medium">Visite guidée</span>
+            </button>
+          )}
         </div>
       )}
 
