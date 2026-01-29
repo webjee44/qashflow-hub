@@ -18,7 +18,7 @@ type AppRole = Database['public']['Enums']['app_role'];
 
 const inviteSchema = z.object({
   email: z.string().email('Email invalide').min(1, 'L\'email est requis'),
-  role: z.enum(['admin', 'member', 'viewer'] as const),
+  role: z.enum(['member'] as const),
 });
 
 type InviteFormValues = z.infer<typeof inviteSchema>;
@@ -33,15 +33,13 @@ interface Invitation {
 
 const roleLabels: Record<string, string> = {
   owner: 'Propriétaire',
-  admin: 'Administrateur',
+  admin: 'Membre',
   member: 'Membre',
-  viewer: 'Lecteur',
+  viewer: 'Membre',
 };
 
 const roleDescriptions: Record<string, string> = {
-  admin: 'Peut gérer les membres et les paramètres',
-  member: 'Peut créer et modifier les données',
-  viewer: 'Accès en lecture seule',
+  member: 'Peut créer et modifier les données du Business Plan',
 };
 
 interface SuperAdminInviteDialogProps {
@@ -167,43 +165,13 @@ export function SuperAdminInviteDialog({ organizationId, organizationName, trigg
                 )}
               />
 
-              <FormField
-                control={form.control}
-                name="role"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Rôle</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Choisir un rôle" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="admin">
-                          <div className="flex flex-col">
-                            <span>Administrateur</span>
-                            <span className="text-xs text-muted-foreground">{roleDescriptions.admin}</span>
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="member">
-                          <div className="flex flex-col">
-                            <span>Membre</span>
-                            <span className="text-xs text-muted-foreground">{roleDescriptions.member}</span>
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="viewer">
-                          <div className="flex flex-col">
-                            <span>Lecteur</span>
-                            <span className="text-xs text-muted-foreground">{roleDescriptions.viewer}</span>
-                          </div>
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {/* Role is always 'member' - hidden field */}
+              <input type="hidden" {...form.register('role')} value="member" />
+              
+              <div className="rounded-lg border bg-muted/50 p-3">
+                <p className="text-sm font-medium">Rôle : Membre</p>
+                <p className="text-xs text-muted-foreground">{roleDescriptions.member}</p>
+              </div>
 
               <div className="flex justify-end gap-2 pt-4">
                 <Button type="button" variant="outline" onClick={handleClose}>

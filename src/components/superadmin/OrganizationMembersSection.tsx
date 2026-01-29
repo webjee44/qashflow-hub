@@ -200,9 +200,7 @@ export function OrganizationMembersSection({ organizationId, organizationName }:
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="viewer">Lecteur</SelectItem>
                 <SelectItem value="member">Membre</SelectItem>
-                <SelectItem value="admin">Admin</SelectItem>
               </SelectContent>
             </Select>
             <Button type="submit" disabled={addMember.isPending || !email.trim()}>
