@@ -2023,6 +2023,15 @@ export type Database = {
           total_users: number
         }[]
       }
+      get_superadmin_org_companies: {
+        Args: { _org_id: string }
+        Returns: {
+          created_at: string
+          id: string
+          name: string
+          user_id: string
+        }[]
+      }
       get_superadmin_org_stats: {
         Args: never
         Returns: {

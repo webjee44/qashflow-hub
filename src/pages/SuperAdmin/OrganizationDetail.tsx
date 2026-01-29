@@ -36,16 +36,13 @@ export default function SuperAdminOrganizationDetail() {
 
   const organization = orgStats?.find((org) => org.organization_id === id);
 
-  // Fetch companies for this organization
+  // Fetch companies for this organization using superadmin RPC function
   const { data: companies = [], isLoading: isLoadingCompanies } = useQuery({
     queryKey: ['superadmin-org-companies', id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('companies')
-        .select('id, name, user_id')
-        .eq('organization_id', id)
-        .is('deleted_at', null)
-        .order('name');
+      const { data, error } = await supabase.rpc('get_superadmin_org_companies', {
+        _org_id: id
+      });
       if (error) throw error;
       return data || [];
     },
