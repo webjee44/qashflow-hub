@@ -355,7 +355,7 @@ export default function SuperAdminOrganizationDetail() {
         </div>
 
         {/* Organization Members Section */}
-        <OrganizationMembersSection organizationId={id!} />
+        <OrganizationMembersSection organizationId={id!} organizationName={organization.name} />
 
         {/* Company Members Management */}
         <Collapsible open={companiesOpen} onOpenChange={setCompaniesOpen}>

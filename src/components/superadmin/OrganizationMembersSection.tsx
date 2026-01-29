@@ -26,8 +26,9 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
-import { Users, Trash2, UserPlus, Loader2, Mail, Building2, Crown, Shield, Eye, User } from 'lucide-react';
+import { Users, Trash2, UserPlus, Loader2, Mail, Building2, Crown, Shield, Eye, User, Link } from 'lucide-react';
 import { Database } from '@/integrations/supabase/types';
+import { SuperAdminInviteDialog } from './SuperAdminInviteDialog';
 
 type AppRole = Database['public']['Enums']['app_role'];
 
@@ -49,6 +50,7 @@ interface OrgMember {
 
 interface OrganizationMembersSectionProps {
   organizationId: string;
+  organizationName?: string;
 }
 
 const roleConfig: Record<AppRole, { label: string; icon: typeof Crown; color: string }> = {
@@ -59,7 +61,7 @@ const roleConfig: Record<AppRole, { label: string; icon: typeof Crown; color: st
   superadmin: { label: 'Super Admin', icon: Crown, color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200' },
 };
 
-export function OrganizationMembersSection({ organizationId }: OrganizationMembersSectionProps) {
+export function OrganizationMembersSection({ organizationId, organizationName }: OrganizationMembersSectionProps) {
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<AppRole>('member');
   const [expandedMember, setExpandedMember] = useState<string | null>(null);
@@ -170,33 +172,48 @@ export function OrganizationMembersSection({ organizationId }: OrganizationMembe
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Add member form */}
-        <form onSubmit={handleSubmit} className="flex gap-2">
-          <Input
-            type="email"
-            placeholder="email@exemple.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="flex-1"
+        {/* Invite link button for new users */}
+        <div className="flex items-center gap-2 p-3 rounded-lg border border-dashed bg-muted/30">
+          <div className="flex-1">
+            <p className="text-sm font-medium">Inviter un nouveau membre</p>
+            <p className="text-xs text-muted-foreground">Générez un lien d'invitation pour quelqu'un qui n'a pas encore de compte</p>
+          </div>
+          <SuperAdminInviteDialog 
+            organizationId={organizationId} 
+            organizationName={organizationName || 'cette organisation'}
           />
-          <Select value={role} onValueChange={(v) => setRole(v as AppRole)}>
-            <SelectTrigger className="w-32">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="viewer">Lecteur</SelectItem>
-              <SelectItem value="member">Membre</SelectItem>
-              <SelectItem value="admin">Admin</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button type="submit" disabled={addMember.isPending || !email.trim()}>
-            {addMember.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <UserPlus className="h-4 w-4" />
-            )}
-          </Button>
-        </form>
+        </div>
+
+        {/* Add existing member form */}
+        <div className="space-y-2">
+          <p className="text-sm text-muted-foreground">Ou ajouter un utilisateur existant par email :</p>
+          <form onSubmit={handleSubmit} className="flex gap-2">
+            <Input
+              type="email"
+              placeholder="email@exemple.com (utilisateur existant)"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="flex-1"
+            />
+            <Select value={role} onValueChange={(v) => setRole(v as AppRole)}>
+              <SelectTrigger className="w-32">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="viewer">Lecteur</SelectItem>
+                <SelectItem value="member">Membre</SelectItem>
+                <SelectItem value="admin">Admin</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button type="submit" disabled={addMember.isPending || !email.trim()}>
+              {addMember.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <UserPlus className="h-4 w-4" />
+              )}
+            </Button>
+          </form>
+        </div>
 
         {/* Members list */}
         {isLoading ? (
