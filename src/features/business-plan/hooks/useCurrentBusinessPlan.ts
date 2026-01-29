@@ -1,20 +1,34 @@
 import { useEffect, useRef } from 'react';
 import { useBusinessPlans, BusinessPlan } from './useBusinessPlans';
+import { useCompany } from '@/hooks/useCompany';
+import { useAuth } from '@/hooks/useAuth';
 
 /**
  * Hook that ensures a Business Plan always exists for the current company.
- * If no BP exists, it creates one automatically.
+ * If no BP exists, it creates one automatically - BUT ONLY for company owners.
+ * Invited members should never create BPs automatically.
  * Returns the current BP (always the first/only one) and loading state.
  */
 export function useCurrentBusinessPlan() {
   const { businessPlans, isLoading, createBusinessPlan } = useBusinessPlans();
+  const { currentCompany } = useCompany();
+  const { user } = useAuth();
   const isCreatingRef = useRef(false);
 
   const currentPlan = businessPlans[0] as BusinessPlan | undefined;
+  
+  // Only company owners can auto-create BPs
+  const isCompanyOwner = currentCompany?.user_id === user?.id;
 
-  // Auto-create BP if none exists
+  // Auto-create BP if none exists - ONLY for company owners
   useEffect(() => {
-    if (!isLoading && businessPlans.length === 0 && !isCreatingRef.current && !createBusinessPlan.isPending) {
+    if (
+      !isLoading && 
+      businessPlans.length === 0 && 
+      isCompanyOwner &&  // ← Only owners can create
+      !isCreatingRef.current && 
+      !createBusinessPlan.isPending
+    ) {
       isCreatingRef.current = true;
       createBusinessPlan.mutate({
         name: 'Mon Business Plan',
@@ -37,11 +51,12 @@ export function useCurrentBusinessPlan() {
         }
       });
     }
-  }, [isLoading, businessPlans.length, createBusinessPlan]);
+  }, [isLoading, businessPlans.length, isCompanyOwner, createBusinessPlan]);
 
   return {
     currentPlan,
-    isLoading: isLoading || createBusinessPlan.isPending || (!currentPlan && businessPlans.length === 0),
+    // Only show loading for auto-creation if user is an owner
+    isLoading: isLoading || createBusinessPlan.isPending || (!currentPlan && isCompanyOwner && businessPlans.length === 0),
     businessPlanId: currentPlan?.id,
   };
 }
