@@ -70,7 +70,8 @@ export default function JoinInvitation() {
     
     try {
       await acceptInvitation.mutateAsync(token);
-      navigate('/dashboard');
+      // Default to Business Plan after joining (Treasury can still be accessed if enabled later)
+      navigate('/bp/revenus');
     } catch (error) {
       // Error handled in hook
     }
@@ -89,7 +90,8 @@ export default function JoinInvitation() {
             full_name: values.fullName,
             invitation_token: token,
           },
-          emailRedirectTo: `${window.location.origin}/dashboard`,
+          // After email confirmation, land in Business Plan by default.
+          emailRedirectTo: `${window.location.origin}/bp/revenus`,
         },
       });
 

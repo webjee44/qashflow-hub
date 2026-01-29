@@ -43,8 +43,8 @@ export default function Tarifs() {
       navigate('/sign-up');
       return;
     }
-    // User is logged in, redirect to dashboard - they already have trial
-    navigate('/dashboard');
+    // User is logged in, redirect to app (Business Plan first)
+    navigate('/bp/revenus');
     toast.success('Bienvenue ! Votre essai gratuit de 30 jours est actif.');
   };
 
