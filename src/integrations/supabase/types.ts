@@ -1595,6 +1595,53 @@ export type Database = {
           },
         ]
       }
+      organization_invitations: {
+        Row: {
+          accepted_at: string | null
+          company_ids: string[] | null
+          created_at: string
+          email: string
+          expires_at: string
+          id: string
+          invited_by: string | null
+          organization_id: string
+          role: Database["public"]["Enums"]["app_role"]
+          token: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          company_ids?: string[] | null
+          created_at?: string
+          email: string
+          expires_at?: string
+          id?: string
+          invited_by?: string | null
+          organization_id: string
+          role?: Database["public"]["Enums"]["app_role"]
+          token?: string
+        }
+        Update: {
+          accepted_at?: string | null
+          company_ids?: string[] | null
+          created_at?: string
+          email?: string
+          expires_at?: string
+          id?: string
+          invited_by?: string | null
+          organization_id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_invitations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organization_members: {
         Row: {
           created_at: string
@@ -1920,6 +1967,7 @@ export type Database = {
       }
     }
     Functions: {
+      accept_invitation: { Args: { _token: string }; Returns: Json }
       add_company_member_by_email: {
         Args: { _company_id: string; _email: string }
         Returns: string
@@ -1950,6 +1998,19 @@ export type Database = {
           id: string
           invited_by: string
           user_id: string
+        }[]
+      }
+      get_invitation_by_token: {
+        Args: { _token: string }
+        Returns: {
+          accepted_at: string
+          company_ids: string[]
+          email: string
+          expires_at: string
+          id: string
+          organization_id: string
+          organization_name: string
+          role: Database["public"]["Enums"]["app_role"]
         }[]
       }
       get_superadmin_global_stats: {
