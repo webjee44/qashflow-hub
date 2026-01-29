@@ -1,180 +1,224 @@
 
 
-# Plan d'action corrective : Système d'invitation membres
+# Plan : Gestion simplifiée des membres via SuperAdmin
 
-## Résumé du problème
+## Contexte actuel
 
-Le système d'invitation fonctionne correctement au niveau base de données (l'utilisateur est bien membre de l'organisation et de la société). Le problème réside dans **l'architecture applicative** qui crée automatiquement des données dupliquées pour chaque utilisateur.
+Le système actuel est trop complexe :
+1. Invitations avec tokens, emails, expiration
+2. Triggers multiples sur `auth.users`  
+3. Problèmes de synchronisation entre `organization_members` et `company_members`
+4. Auto-création de BP/settings parasites (corrigé mais symptôme du problème)
 
-## Diagnostic détaillé
-
-### Ce qui fonctionne correctement
-- L'invitation est acceptée et enregistrée
-- L'utilisateur est bien dans `organization_members` avec le rôle `member`
-- L'utilisateur est bien dans `company_members` pour Cloud Vapor
-- La fonction `has_company_access()` retourne `true`
-- Les politiques RLS permettent l'accès aux données
-
-### Ce qui ne fonctionne PAS
+## Nouvelle approche simplifiée
 
 ```text
-┌────────────────────────────────────────────────────────────────────────────┐
-│ PROBLÈME RACINE : AUTO-CRÉATION DE DONNÉES PARASITES                       │
-├────────────────────────────────────────────────────────────────────────────┤
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ SUPERADMIN : Gestion centralisée des membres                               │
+├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
-│  Quand un membre invité accède à Cloud Vapor :                             │
+│  1. Ajouter un membre à une ORGANISATION (par email)                       │
+│     └─► Si l'utilisateur existe → ajout direct à organization_members      │
+│     └─► Si n'existe pas → message "utilisateur non inscrit"                │
 │                                                                             │
-│  1. useBusinessPlans cherche les BP avec company_id = Cloud Vapor          │
-│     └─► Ne voit QUE les BP qu'il a créés (pas ceux du propriétaire)        │
-│         └─► businessPlans.length === 0                                     │
+│  2. Toggle de visibilité par SOCIÉTÉ                                        │
+│     └─► Switch ON = ajoute à company_members                               │
+│     └─► Switch OFF = retire de company_members                              │
 │                                                                             │
-│  2. useCurrentBusinessPlan détecte qu'il n'y a pas de BP                   │
-│     └─► Crée automatiquement un NOUVEAU BP "Mon Business Plan"             │
-│         └─► 9 BP parasites créés pour Cloud Vapor !                        │
-│                                                                             │
-│  3. useBPSettings cherche les settings avec company_id = Cloud Vapor       │
-│     └─► Crée un bp_settings avec bp_start_date = NULL                      │
-│                                                                             │
-│  4. useRevenueStreams dépend de bpSettings                                  │
-│     └─► bpSettings.bp_start_date = NULL → requêtes désactivées             │
-│         └─► Données VIDES affichées !                                       │
-│                                                                             │
-└────────────────────────────────────────────────────────────────────────────┘
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
-
-### Preuves en base de données
-
-| Table | Attendu | Réalité |
-|-------|---------|---------|
-| `business_plans` (Cloud Vapor) | 1 BP partagé | 11 BP (2 owner + 9 invité) |
-| `bp_settings` (Cloud Vapor) | 1 setting partagé | 2 settings (avec NULL dates) |
-| `bp_revenue_streams` | Visible pour invité | ✅ Accessible mais requête désactivée |
 
 ---
 
-## Plan de correction en 3 phases
+## Modifications à apporter
 
-### Phase 1 : Nettoyage immédiat de la base de données
+### 1. Nouvelle section "Membres de l'organisation" dans OrganizationDetail.tsx
 
-**Objectif** : Supprimer les données parasites créées automatiquement
+**Nouvelle Card** avec :
+- Liste des membres actuels de l'organisation (avec rôle)
+- Formulaire pour ajouter un membre par email
+- Bouton supprimer pour retirer un membre
 
-1. **Supprimer les business_plans parasites** de l'invité pour Cloud Vapor
-2. **Supprimer le bp_settings parasite** de l'invité  
-3. **Corriger le bp_settings du propriétaire** (définir bp_start_date si NULL)
-
-### Phase 2 : Refactoring des hooks Business Plan
-
-**Objectif** : Les membres invités doivent VOIR les données existantes, pas en créer de nouvelles
-
-#### 2.1 Modifier `useBusinessPlans.ts`
-- La requête doit retourner les BP accessibles via `has_company_access`, pas seulement ceux créés par l'utilisateur
-- Cela est déjà géré par la RLS, mais le hook ne doit pas déclencher de création si des BP existent
-
-#### 2.2 Modifier `useCurrentBusinessPlan.ts`  
-- **Supprimer la logique d'auto-création** pour les membres non-propriétaires
-- Un membre invité ne doit JAMAIS créer de BP automatiquement
-- Seul le propriétaire de la société peut créer un BP
-
-#### 2.3 Modifier `useBPSettings.ts`
-- Même logique : ne pas créer de settings si l'utilisateur n'est pas propriétaire de la société
-- Utiliser les settings existants de la société
-
-### Phase 3 : Améliorer la détection du rôle utilisateur
-
-**Objectif** : Distinguer propriétaire vs membre invité pour chaque société
-
-#### 3.1 Ajouter un helper `isCompanyOwner`
-```typescript
-const isCompanyOwner = currentCompany?.user_id === user?.id;
+```text
+┌─────────────────────────────────────────────────────────────┐
+│ 👥 Membres de l'organisation                               │
+├─────────────────────────────────────────────────────────────┤
+│ ┌─────────────────────────────────────────────────────────┐ │
+│ │ nixonshop@... (owner)              [Propriétaire] 🔒    │ │
+│ │ cloud.vapor@... (member)           [Membre] [🗑️]       │ │
+│ │ test@... (viewer)                  [Lecteur] [🗑️]      │ │
+│ └─────────────────────────────────────────────────────────┘ │
+│                                                             │
+│ ┌──────────────────────────┬──────────┬──────────┐         │
+│ │ email@utilisateur.com    │ [Rôle ▼] │ Ajouter │         │
+│ └──────────────────────────┴──────────┴──────────┘         │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-#### 3.2 Conditionner les créations automatiques
-- Si `isCompanyOwner` → autoriser la création de BP/settings
-- Sinon → afficher les données existantes uniquement
+### 2. Refonte de CompanyMembersManager avec Toggles
+
+Remplacer le système d'invitation par des **switches simples** :
+
+```text
+┌─────────────────────────────────────────────────────────────┐
+│ 🏢 Cloud Vapor                                    2 membres │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  nixonshop@...     [Propriétaire]              ✓ (locked)  │
+│  cloud.vapor@...   [Membre]                    [🔘 ON ]    │
+│  test@...          [Lecteur]                   [  OFF 🔘]  │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+- Affiche TOUS les membres de l'organisation
+- Toggle ON = ajoute à `company_members`
+- Toggle OFF = retire de `company_members`
+- Le propriétaire de la société est toujours ON (verrouillé)
 
 ---
 
 ## Section technique
 
-### Requête de nettoyage SQL
+### Nouvelles fonctions SQL nécessaires
 
 ```sql
--- 1. Supprimer les BP parasites de l'invité pour Cloud Vapor
-DELETE FROM business_plans 
-WHERE company_id = '12ea5853-35f4-46d3-a97d-3d8f466e59d8'
-  AND user_id = 'bb2f2d02-8884-4e97-8e12-2595a7186092';
-
--- 2. Supprimer le bp_settings parasite
-DELETE FROM bp_settings
-WHERE company_id = '12ea5853-35f4-46d3-a97d-3d8f466e59d8'
-  AND user_id = 'bb2f2d02-8884-4e97-8e12-2595a7186092';
-
--- 3. Corriger bp_start_date si NULL
-UPDATE bp_settings
-SET bp_start_date = CURRENT_DATE
-WHERE bp_start_date IS NULL;
-```
-
-### Modification de `useCurrentBusinessPlan.ts`
-
-```typescript
-export function useCurrentBusinessPlan() {
-  const { businessPlans, isLoading, createBusinessPlan } = useBusinessPlans();
-  const { currentCompany } = useCompany();
-  const { user } = useAuth();
+-- 1. Ajouter un membre à l'organisation par email
+CREATE OR REPLACE FUNCTION add_organization_member_by_email(
+  _org_id UUID,
+  _email TEXT,
+  _role app_role DEFAULT 'member'
+)
+RETURNS JSONB
+LANGUAGE plpgsql SECURITY DEFINER
+AS $$
+DECLARE
+  _user_id UUID;
+BEGIN
+  -- Trouver l'utilisateur par email
+  SELECT id INTO _user_id 
+  FROM auth.users 
+  WHERE email = lower(trim(_email));
   
-  const currentPlan = businessPlans[0];
+  IF _user_id IS NULL THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Utilisateur non trouvé');
+  END IF;
   
-  // NOUVEAU: Ne créer un BP que si l'utilisateur est propriétaire
-  const isCompanyOwner = currentCompany?.user_id === user?.id;
+  -- Vérifier s'il est déjà membre
+  IF EXISTS (SELECT 1 FROM organization_members WHERE organization_id = _org_id AND user_id = _user_id) THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Déjà membre');
+  END IF;
+  
+  -- Ajouter à l'organisation
+  INSERT INTO organization_members (organization_id, user_id, role, joined_at)
+  VALUES (_org_id, _user_id, _role, now());
+  
+  RETURN jsonb_build_object('success', true, 'user_id', _user_id);
+END;
+$$;
 
-  useEffect(() => {
-    // Seulement le propriétaire peut créer un BP automatiquement
-    if (!isLoading && 
-        businessPlans.length === 0 && 
-        isCompanyOwner &&           // ← NOUVELLE CONDITION
-        !createBusinessPlan.isPending) {
-      createBusinessPlan.mutate({...});
-    }
-  }, [isLoading, businessPlans.length, isCompanyOwner, createBusinessPlan]);
+-- 2. Récupérer tous les membres de l'org avec leur accès par société
+CREATE OR REPLACE FUNCTION get_org_members_with_company_access(
+  _org_id UUID
+)
+RETURNS TABLE (
+  member_id UUID,
+  user_id UUID,
+  email TEXT,
+  role app_role,
+  joined_at TIMESTAMPTZ,
+  companies JSONB -- [{company_id, company_name, has_access}]
+)
+LANGUAGE plpgsql SECURITY DEFINER
+AS $$
+BEGIN
+  RETURN QUERY
+  SELECT 
+    om.id as member_id,
+    om.user_id,
+    au.email,
+    om.role,
+    om.joined_at,
+    (
+      SELECT jsonb_agg(jsonb_build_object(
+        'company_id', c.id,
+        'company_name', c.name,
+        'has_access', EXISTS (
+          SELECT 1 FROM company_members cm 
+          WHERE cm.company_id = c.id AND cm.user_id = om.user_id
+        ),
+        'is_owner', c.user_id = om.user_id
+      ))
+      FROM companies c
+      WHERE c.organization_id = _org_id AND c.deleted_at IS NULL
+    ) as companies
+  FROM organization_members om
+  JOIN auth.users au ON au.id = om.user_id
+  WHERE om.organization_id = _org_id
+  ORDER BY om.role, om.joined_at;
+END;
+$$;
 
-  return {
-    currentPlan,
-    isLoading: isLoading || (!currentPlan && isCompanyOwner && businessPlans.length === 0),
-    businessPlanId: currentPlan?.id,
-  };
-}
+-- 3. Toggle accès société
+CREATE OR REPLACE FUNCTION toggle_company_member_access(
+  _company_id UUID,
+  _user_id UUID,
+  _enable BOOLEAN
+)
+RETURNS BOOLEAN
+LANGUAGE plpgsql SECURITY DEFINER
+AS $$
+BEGIN
+  IF _enable THEN
+    INSERT INTO company_members (company_id, user_id)
+    VALUES (_company_id, _user_id)
+    ON CONFLICT DO NOTHING;
+  ELSE
+    DELETE FROM company_members
+    WHERE company_id = _company_id AND user_id = _user_id;
+  END IF;
+  RETURN true;
+END;
+$$;
 ```
 
-### Modification de `useBPSettings.ts` (même pattern)
+### Nouveau composant : OrganizationMembersSection
 
-```typescript
-// Ne créer des settings que si propriétaire
-const isCompanyOwner = currentCompany?.user_id === user?.id;
+Fichier : `src/components/superadmin/OrganizationMembersSection.tsx`
 
-// Dans useEffect de création automatique:
-if (!settings && isCompanyOwner && !isCreating) {
-  // Créer les settings par défaut
-}
-```
+- Affiche les membres de l'organisation
+- Formulaire d'ajout par email (avec sélecteur de rôle)
+- Bouton supprimer (sauf owner)
+- Appelle `add_organization_member_by_email` via RPC
+
+### Modification : CompanyMembersManager
+
+Transformer le composant actuel :
+- Supprimer le système d'invitation (email + token)
+- Afficher TOUS les membres de l'org
+- Ajouter un Switch (toggle) pour chaque membre
+- Le toggle ON/OFF appelle `toggle_company_member_access`
+- Le propriétaire de la société = switch verrouillé ON
 
 ---
 
-## Fichiers à modifier
+## Fichiers à modifier/créer
 
-| Fichier | Action | Priorité |
-|---------|--------|----------|
-| Migration SQL | Nettoyage données parasites | P0 |
-| `src/hooks/useCurrentBusinessPlan.ts` | Bloquer auto-création pour non-propriétaires | P1 |
-| `src/hooks/useBPSettings.ts` | Bloquer auto-création pour non-propriétaires | P1 |
-| `src/hooks/useBusinessPlans.ts` | Vérifier que RLS suffit (pas de changement attendu) | P2 |
+| Fichier | Action |
+|---------|--------|
+| Migration SQL | Créer les 3 fonctions RPC |
+| `src/components/superadmin/OrganizationMembersSection.tsx` | Nouveau composant |
+| `src/components/superadmin/CompanyMembersManager.tsx` | Refonte avec toggles |
+| `src/pages/SuperAdmin/OrganizationDetail.tsx` | Ajouter OrganizationMembersSection |
 
 ---
 
-## Résultat attendu après correction
+## Résultat attendu
 
-1. **Membre invité** sélectionne Cloud Vapor dans le menu
-2. Il voit **les mêmes données** que le propriétaire (revenus, dépenses, etc.)
-3. **Aucune donnée parasite** n'est créée
-4. Le propriétaire reste le seul à pouvoir créer/modifier la structure du BP
+1. **SuperAdmin** ouvre une organisation
+2. Voit la liste des membres existants
+3. Peut **ajouter un membre par email** (utilisateur existant)
+4. Pour chaque société, peut **activer/désactiver l'accès** via toggle
+5. Plus de système d'invitation complexe
+6. Plus de création de données parasites
 
