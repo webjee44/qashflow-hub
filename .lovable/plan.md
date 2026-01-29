@@ -1,145 +1,212 @@
 
-# Plan : Isolation du superadmin du flux tenant
+# Plan : Système d'invitation par lien privé
 
-## Contexte
+## Objectif
 
-Le superadmin `superadmin@gmail.com` a actuellement un tenant (organisation + entreprise) qui lui a été créé automatiquement lors de son inscription. Ce tenant doit être supprimé car les superadmins :
-- N'ont pas besoin de tenant propre
-- Accèdent uniquement via `/superadmin`
-- Utilisent l'impersonation pour consulter les données utilisateurs
+Permettre d'inviter des utilisateurs (existants ou nouveaux) à rejoindre une organisation **sans qu'ils créent leur propre tenant**.
 
-## Tenant existant à supprimer
+## Architecture proposée
 
-| Element | ID | Nom |
-|---------|-----|-----|
-| Organisation | `d9c1ff19-e751-45d9-be4c-782702abb865` | superadmin's Organization |
-| Entreprise | `6b62fda1-7cf4-458e-9f54-2ce705b63097` | superadmin |
+### 1. Nouvelle table `organization_invitations`
 
----
-
-## 1. Migration SQL
-
-### 1.1 Modifier le trigger `handle_new_user`
-
-Ajouter une condition pour ignorer la création de tenant si l'utilisateur est déjà superadmin :
+Stocke les invitations en attente avec un token unique :
 
 ```sql
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS trigger
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  new_org_id uuid;
-  org_name text;
-  org_slug text;
-  company_name text;
-BEGIN
-  -- Ne PAS créer de tenant pour les superadmins
-  -- Vérifier si le rôle superadmin existe déjà pour cet utilisateur
-  IF EXISTS (
-    SELECT 1 FROM public.user_roles 
-    WHERE user_id = NEW.id AND role = 'superadmin'
-  ) THEN
-    -- Créer uniquement le profil minimal
-    INSERT INTO public.profiles (id, full_name)
-    VALUES (NEW.id, COALESCE(NEW.raw_user_meta_data ->> 'full_name', 'Super Admin'))
-    ON CONFLICT (id) DO NOTHING;
-    
-    RETURN NEW;
-  END IF;
+CREATE TABLE public.organization_invitations (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  email text NOT NULL,
+  role app_role NOT NULL DEFAULT 'member',
+  company_ids uuid[] DEFAULT NULL, -- Restriction optionnelle à certaines sociétés
+  token text UNIQUE NOT NULL DEFAULT encode(gen_random_bytes(32), 'hex'),
+  invited_by uuid REFERENCES auth.users(id),
+  expires_at timestamptz NOT NULL DEFAULT (now() + interval '7 days'),
+  accepted_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+```
 
-  -- ... reste du code existant inchangé ...
-  company_name := COALESCE(
-    NEW.raw_user_meta_data ->> 'company_name',
-    NEW.raw_user_meta_data ->> 'full_name',
-    split_part(NEW.email, '@', 1)
-  );
+### 2. Modifier le trigger `handle_new_user`
+
+Avant de créer un tenant, vérifier s'il existe une invitation :
+
+```sql
+-- Vérifier si une invitation existe pour cet email
+IF EXISTS (
+  SELECT 1 FROM organization_invitations
+  WHERE email = lower(NEW.email)
+    AND accepted_at IS NULL
+    AND expires_at > now()
+) THEN
+  -- Récupérer l'invitation
+  SELECT * INTO v_invitation FROM organization_invitations
+  WHERE email = lower(NEW.email) AND accepted_at IS NULL AND expires_at > now()
+  LIMIT 1;
   
-  org_name := company_name;
-  org_slug := public.generate_org_slug(org_name);
+  -- Créer le profil seulement
+  INSERT INTO profiles (id, full_name) VALUES (...);
   
-  INSERT INTO public.organizations (...)
-  ...
+  -- L'ajouter comme membre de l'organisation
+  INSERT INTO organization_members (organization_id, user_id, role, joined_at)
+  VALUES (v_invitation.organization_id, NEW.id, v_invitation.role, now());
   
+  -- Marquer l'invitation comme acceptée
+  UPDATE organization_invitations SET accepted_at = now() WHERE id = v_invitation.id;
+  
+  -- NE PAS créer d'organisation ni de société
   RETURN NEW;
-END;
-$$;
+END IF;
 ```
 
-### 1.2 Créer une fonction de nettoyage pour superadmins existants
+### 3. Interface d'invitation (Superadmin + Settings)
 
-```sql
-CREATE OR REPLACE FUNCTION public.cleanup_superadmin_tenant(_user_id uuid)
-RETURNS void
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  v_org_ids uuid[];
-BEGIN
-  -- Vérifier que l'utilisateur est superadmin
-  IF NOT is_superadmin(_user_id) THEN
-    RAISE EXCEPTION 'User is not a superadmin';
-  END IF;
-  
-  -- Récupérer les organisations où il est owner
-  SELECT array_agg(o.id) INTO v_org_ids
-  FROM organizations o
-  WHERE o.owner_id = _user_id;
-  
-  IF v_org_ids IS NOT NULL THEN
-    -- Supprimer les entreprises liées
-    DELETE FROM companies WHERE organization_id = ANY(v_org_ids);
-    
-    -- Supprimer les membres
-    DELETE FROM organization_members WHERE organization_id = ANY(v_org_ids);
-    
-    -- Supprimer les organisations
-    DELETE FROM organizations WHERE id = ANY(v_org_ids);
-  END IF;
-END;
-$$;
-```
+**Nouveau composant `InviteMemberDialog`** :
+- Champ email
+- Sélection du rôle (viewer, member, admin)
+- Restriction aux sociétés spécifiques (optionnel)
+- Bouton "Générer le lien"
+- Affichage du lien copiable
 
-### 1.3 Exécuter le nettoyage pour le superadmin existant
+### 4. Page d'inscription via invitation `/join`
 
-```sql
--- Nettoyer le tenant du superadmin existant
-SELECT cleanup_superadmin_tenant('60d20ec5-7257-4e6f-9756-0e731615e091');
-```
+Nouvelle route qui :
+- Lit le token depuis l'URL (`/join?token=xxx`)
+- Affiche les infos de l'invitation (organisation, rôle)
+- Formulaire simplifié (email pré-rempli, mot de passe)
+- Crée le compte avec métadonnée `invitation_token`
+
+### 5. Gestion des utilisateurs existants
+
+Si l'email invité a déjà un compte :
+- Afficher directement un bouton "Accepter l'invitation"
+- Ajouter à l'organisation sans créer de nouveau compte
 
 ---
 
-## 2. Modifications des hooks (gestion gracieuse)
-
-### 2.1 `useCompany.tsx`
-
-Les providers fonctionnent déjà correctement avec une liste vide - ils retournent simplement `companies = []` et `currentCompany = null`. Aucune modification nécessaire.
-
-### 2.2 `useOrganization.tsx`
-
-Idem, le provider gère déjà le cas où `membershipData.length === 0` en ligne 79-82.
-
----
-
-## 3. Fichiers impactés
+## Fichiers à créer/modifier
 
 | Fichier | Action | Description |
 |---------|--------|-------------|
-| Migration SQL | Creer | Modifier trigger + fonction cleanup + exécuter nettoyage |
+| Migration SQL | Créer | Table `organization_invitations` + modifier trigger |
+| `src/pages/JoinInvitation.tsx` | Créer | Page d'inscription via invitation |
+| `src/components/settings/InviteMemberDialog.tsx` | Créer | Dialog pour générer un lien d'invitation |
+| `src/hooks/useInvitations.ts` | Créer | Hook pour gérer les invitations |
+| `src/App.tsx` | Modifier | Ajouter route `/join` |
+| `src/components/settings/OrganizationMembersCard.tsx` | Modifier | Intégrer le nouveau système |
+| `src/components/superadmin/CompanyMembersManager.tsx` | Modifier | Ajouter option invitation |
 
 ---
 
-## Résumé des changements
+## Flux utilisateur
 
-1. **Migration SQL unique** qui :
-   - Modifie `handle_new_user` pour ignorer les superadmins
-   - Crée `cleanup_superadmin_tenant` pour nettoyer les tenants existants
-   - Exécute le nettoyage pour `superadmin@gmail.com`
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│                    INVITATION FLOW                               │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  Owner/Admin                                                     │
+│      │                                                           │
+│      ▼                                                           │
+│  [Inviter un membre]                                             │
+│      │                                                           │
+│      ├─► Email + Rôle + (Sociétés optionnel)                    │
+│      │                                                           │
+│      ▼                                                           │
+│  Génération du lien                                              │
+│  https://app.qashflow.fr/join?token=abc123...                   │
+│      │                                                           │
+│      ▼                                                           │
+│  Envoi par email (ou copier/coller)                             │
+│                                                                  │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  Utilisateur invité                                              │
+│      │                                                           │
+│      ▼                                                           │
+│  Clique sur le lien                                              │
+│      │                                                           │
+│      ├── A déjà un compte ? ──► Connexion ──► Accepte ──► OK    │
+│      │                                                           │
+│      └── Nouveau ? ──► Formulaire simplifié                     │
+│                            │                                     │
+│                            ▼                                     │
+│                     Création compte                              │
+│                     (trigger détecte invitation)                 │
+│                            │                                     │
+│                            ▼                                     │
+│                     Rattaché à l'organisation                    │
+│                     PAS de création de tenant                    │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
 
-2. **Aucune modification de code frontend** - les providers gèrent déjà les listes vides
+---
 
-3. **Workflow futur** : Pour créer un nouveau superadmin, il suffira d'ajouter d'abord le rôle dans `user_roles` avant la création du compte (ou utiliser `cleanup_superadmin_tenant` après)
+## Avantages
+
+1. **Pas de tenant parasite** : Les invités ne créent pas d'organisation inutile
+2. **Lien sécurisé** : Token unique avec expiration (7 jours)
+3. **UX simplifiée** : Moins d'étapes pour l'invité
+4. **Flexible** : Fonctionne pour nouveaux ET anciens utilisateurs
+5. **Restriction par société** : Possibilité de limiter l'accès à certaines sociétés
+
+---
+
+## Section technique
+
+### RLS Policies pour `organization_invitations`
+
+```sql
+-- Admins peuvent créer des invitations
+CREATE POLICY "Org admins can create invitations"
+ON organization_invitations FOR INSERT
+WITH CHECK (is_org_admin(auth.uid(), organization_id));
+
+-- Admins peuvent voir leurs invitations
+CREATE POLICY "Org admins can view invitations"
+ON organization_invitations FOR SELECT
+USING (is_org_admin(auth.uid(), organization_id));
+
+-- Lecture publique via token (pour la page /join)
+CREATE POLICY "Anyone can read valid invitation by token"
+ON organization_invitations FOR SELECT
+USING (
+  expires_at > now() 
+  AND accepted_at IS NULL
+);
+```
+
+### Fonction SQL pour accepter une invitation
+
+```sql
+CREATE OR REPLACE FUNCTION accept_invitation(_token text)
+RETURNS jsonb AS $$
+DECLARE
+  v_invitation organization_invitations;
+  v_user_id uuid := auth.uid();
+BEGIN
+  -- Récupérer l'invitation
+  SELECT * INTO v_invitation
+  FROM organization_invitations
+  WHERE token = _token
+    AND expires_at > now()
+    AND accepted_at IS NULL;
+    
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('error', 'Invitation invalide ou expirée');
+  END IF;
+  
+  -- Ajouter comme membre
+  INSERT INTO organization_members (organization_id, user_id, role, joined_at)
+  VALUES (v_invitation.organization_id, v_user_id, v_invitation.role, now())
+  ON CONFLICT DO NOTHING;
+  
+  -- Marquer comme acceptée
+  UPDATE organization_invitations
+  SET accepted_at = now()
+  WHERE id = v_invitation.id;
+  
+  RETURN jsonb_build_object('success', true, 'organization_id', v_invitation.organization_id);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+```
