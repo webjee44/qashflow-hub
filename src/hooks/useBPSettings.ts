@@ -48,6 +48,9 @@ export function useBPSettings() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // Only company owners can auto-create settings
+  const isCompanyOwner = currentCompany?.user_id === user?.id;
+
   // Fetch settings
   const { data: settings, isLoading, refetch } = useQuery({
     queryKey: ['bp_settings', currentCompany?.id],
@@ -67,10 +70,11 @@ export function useBPSettings() {
     enabled: !!user,
   });
 
-  // Initialize default settings if none exist
+  // Initialize default settings if none exist - ONLY for company owners
   useEffect(() => {
     const initDefaults = async () => {
-      if (!user || isLoading || settings) return;
+      // Only owners can create settings automatically
+      if (!user || isLoading || settings || !isCompanyOwner) return;
 
       try {
         const { error } = await supabase
@@ -90,7 +94,7 @@ export function useBPSettings() {
     };
 
     initDefaults();
-  }, [user, currentCompany?.id, isLoading, settings, refetch]);
+  }, [user, currentCompany?.id, isLoading, settings, refetch, isCompanyOwner]);
 
   // Update settings mutation
   const updateSettings = useMutation({
