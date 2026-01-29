@@ -119,15 +119,33 @@ export function OrganizationMembersSection({ organizationId, organizationName }:
         _user_id: userId,
       });
       if (error) throw error;
-      return data;
+      return userId; // Return userId for optimistic update
+    },
+    onMutate: async (userId: string) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['org-members-with-access', organizationId] });
+      
+      // Snapshot the previous value
+      const previousMembers = queryClient.getQueryData(['org-members-with-access', organizationId]);
+      
+      // Optimistically update to remove the member
+      queryClient.setQueryData(['org-members-with-access', organizationId], (old: OrgMember[] | undefined) => 
+        old ? old.filter(m => m.user_id !== userId) : []
+      );
+      
+      return { previousMembers };
     },
     onSuccess: async () => {
       toast.success('Membre retiré avec succès');
-      // Force refetch instead of just invalidate
+      // Force full refetch to ensure consistency
       await queryClient.refetchQueries({ queryKey: ['org-members-with-access', organizationId] });
       queryClient.invalidateQueries({ queryKey: ['superadmin-org-stats'] });
     },
-    onError: (error: Error) => {
+    onError: (error: Error, _userId, context) => {
+      // Rollback on error
+      if (context?.previousMembers) {
+        queryClient.setQueryData(['org-members-with-access', organizationId], context.previousMembers);
+      }
       toast.error(`Erreur: ${error.message}`);
     },
   });
