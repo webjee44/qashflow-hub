@@ -1,224 +1,118 @@
 
+# Plan : Attribution des sociétés dès la création du lien d'invitation
 
-# Plan : Gestion simplifiée des membres via SuperAdmin
+## Objectif
+Simplifier le workflow d'invitation en permettant d'attribuer les sociétés directement lors de la création du lien, réduisant le processus de 3 étapes à 2 :
+- **Avant** : Créer lien → Inscription → Association société (3 clics)
+- **Après** : Créer lien + sociétés → Inscription avec accès automatique (2 clics)
 
-## Contexte actuel
-
-Le système actuel est trop complexe :
-1. Invitations avec tokens, emails, expiration
-2. Triggers multiples sur `auth.users`  
-3. Problèmes de synchronisation entre `organization_members` et `company_members`
-4. Auto-création de BP/settings parasites (corrigé mais symptôme du problème)
-
-## Nouvelle approche simplifiée
+## Workflow cible
 
 ```text
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ SUPERADMIN : Gestion centralisée des membres                               │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  1. Ajouter un membre à une ORGANISATION (par email)                       │
-│     └─► Si l'utilisateur existe → ajout direct à organization_members      │
-│     └─► Si n'existe pas → message "utilisateur non inscrit"                │
-│                                                                             │
-│  2. Toggle de visibilité par SOCIÉTÉ                                        │
-│     └─► Switch ON = ajoute à company_members                               │
-│     └─► Switch OFF = retire de company_members                              │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────┐
+│  SuperAdmin : Créer invitation     │
+│  ┌────────────────────────────┐    │
+│  │ Email: user@example.com    │    │
+│  │ Rôle: Membre               │    │
+│  │ ☑ Retail Shoes             │    │
+│  │ ☐ CloudSoft                │    │
+│  │ ☑ GoodAgency               │    │
+│  └────────────────────────────┘    │
+│        [Générer le lien]           │
+└────────────────────────────────────┘
+                 ↓
+   Invitation créée avec company_ids
+                 ↓
+┌────────────────────────────────────┐
+│  Utilisateur clique sur le lien    │
+│  S'inscrit → handle_new_user       │
+│  détecte company_ids et ajoute     │
+│  automatiquement aux sociétés      │
+└────────────────────────────────────┘
 ```
 
----
+## Modifications techniques
 
-## Modifications à apporter
+### 1. Modifier `SuperAdminInviteDialog.tsx`
 
-### 1. Nouvelle section "Membres de l'organisation" dans OrganizationDetail.tsx
+**Ajouts :**
+- Query pour charger les sociétés de l'organisation via `get_superadmin_org_companies`
+- Checkbox multiple pour sélectionner les sociétés
+- Validation : au moins une société doit être sélectionnée
+- Envoi du champ `company_ids` lors de la création de l'invitation
 
-**Nouvelle Card** avec :
-- Liste des membres actuels de l'organisation (avec rôle)
-- Formulaire pour ajouter un membre par email
-- Bouton supprimer pour retirer un membre
+**Code modifié :**
+```typescript
+// Nouveau schéma avec validation sociétés obligatoires
+const inviteSchema = z.object({
+  email: z.string().email('Email invalide'),
+  role: z.enum(['member'] as const),
+  company_ids: z.array(z.string()).min(1, 'Sélectionnez au moins une société'),
+});
 
+// Query pour charger les sociétés
+const { data: companies = [] } = useQuery({
+  queryKey: ['superadmin-org-companies', organizationId],
+  queryFn: async () => {
+    const { data } = await supabase.rpc('get_superadmin_org_companies', {
+      _org_id: organizationId
+    });
+    return data || [];
+  },
+});
+
+// Insertion avec company_ids
+.insert({
+  organization_id: organizationId,
+  email: params.email,
+  role: params.role,
+  company_ids: params.company_ids, // ← Nouveau
+  invited_by: user?.id,
+})
+```
+
+### 2. Interface utilisateur ajoutée
+
+Section dans le formulaire :
 ```text
-┌─────────────────────────────────────────────────────────────┐
-│ 👥 Membres de l'organisation                               │
-├─────────────────────────────────────────────────────────────┤
-│ ┌─────────────────────────────────────────────────────────┐ │
-│ │ nixonshop@... (owner)              [Propriétaire] 🔒    │ │
-│ │ cloud.vapor@... (member)           [Membre] [🗑️]       │ │
-│ │ test@... (viewer)                  [Lecteur] [🗑️]      │ │
-│ └─────────────────────────────────────────────────────────┘ │
-│                                                             │
-│ ┌──────────────────────────┬──────────┬──────────┐         │
-│ │ email@utilisateur.com    │ [Rôle ▼] │ Ajouter │         │
-│ └──────────────────────────┴──────────┴──────────┘         │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────┐
+│ Accès aux sociétés (requis)     │
+│ ☑ Retail Shoes                  │
+│ ☐ CloudSoft                     │
+│ ☐ GoodAgency                    │
+│                                 │
+│ ⚠ Sélectionnez au moins une    │
+└─────────────────────────────────┘
 ```
 
-### 2. Refonte de CompanyMembersManager avec Toggles
+### 3. Aucune modification base de données requise
 
-Remplacer le système d'invitation par des **switches simples** :
+Le système existant supporte déjà cette fonctionnalité :
+- La table `organization_invitations` a déjà la colonne `company_ids` (uuid[])
+- Le trigger `handle_new_user` gère déjà l'insertion dans `company_members` quand `company_ids` est rempli
 
+### 4. Affichage des sociétés sélectionnées dans le récapitulatif
+
+Après génération du lien, afficher :
 ```text
-┌─────────────────────────────────────────────────────────────┐
-│ 🏢 Cloud Vapor                                    2 membres │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  nixonshop@...     [Propriétaire]              ✓ (locked)  │
-│  cloud.vapor@...   [Membre]                    [🔘 ON ]    │
-│  test@...          [Lecteur]                   [  OFF 🔘]  │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
+Email: user@example.com
+Rôle: Membre
+Sociétés: Retail Shoes, GoodAgency
+Expire le: 5 février 2026
 ```
 
-- Affiche TOUS les membres de l'organisation
-- Toggle ON = ajoute à `company_members`
-- Toggle OFF = retire de `company_members`
-- Le propriétaire de la société est toujours ON (verrouillé)
+## Fichiers impactés
 
----
+| Fichier | Modification |
+|---------|--------------|
+| `src/components/superadmin/SuperAdminInviteDialog.tsx` | Ajout sélection sociétés + validation |
 
-## Section technique
+## Comportement final
 
-### Nouvelles fonctions SQL nécessaires
-
-```sql
--- 1. Ajouter un membre à l'organisation par email
-CREATE OR REPLACE FUNCTION add_organization_member_by_email(
-  _org_id UUID,
-  _email TEXT,
-  _role app_role DEFAULT 'member'
-)
-RETURNS JSONB
-LANGUAGE plpgsql SECURITY DEFINER
-AS $$
-DECLARE
-  _user_id UUID;
-BEGIN
-  -- Trouver l'utilisateur par email
-  SELECT id INTO _user_id 
-  FROM auth.users 
-  WHERE email = lower(trim(_email));
-  
-  IF _user_id IS NULL THEN
-    RETURN jsonb_build_object('success', false, 'error', 'Utilisateur non trouvé');
-  END IF;
-  
-  -- Vérifier s'il est déjà membre
-  IF EXISTS (SELECT 1 FROM organization_members WHERE organization_id = _org_id AND user_id = _user_id) THEN
-    RETURN jsonb_build_object('success', false, 'error', 'Déjà membre');
-  END IF;
-  
-  -- Ajouter à l'organisation
-  INSERT INTO organization_members (organization_id, user_id, role, joined_at)
-  VALUES (_org_id, _user_id, _role, now());
-  
-  RETURN jsonb_build_object('success', true, 'user_id', _user_id);
-END;
-$$;
-
--- 2. Récupérer tous les membres de l'org avec leur accès par société
-CREATE OR REPLACE FUNCTION get_org_members_with_company_access(
-  _org_id UUID
-)
-RETURNS TABLE (
-  member_id UUID,
-  user_id UUID,
-  email TEXT,
-  role app_role,
-  joined_at TIMESTAMPTZ,
-  companies JSONB -- [{company_id, company_name, has_access}]
-)
-LANGUAGE plpgsql SECURITY DEFINER
-AS $$
-BEGIN
-  RETURN QUERY
-  SELECT 
-    om.id as member_id,
-    om.user_id,
-    au.email,
-    om.role,
-    om.joined_at,
-    (
-      SELECT jsonb_agg(jsonb_build_object(
-        'company_id', c.id,
-        'company_name', c.name,
-        'has_access', EXISTS (
-          SELECT 1 FROM company_members cm 
-          WHERE cm.company_id = c.id AND cm.user_id = om.user_id
-        ),
-        'is_owner', c.user_id = om.user_id
-      ))
-      FROM companies c
-      WHERE c.organization_id = _org_id AND c.deleted_at IS NULL
-    ) as companies
-  FROM organization_members om
-  JOIN auth.users au ON au.id = om.user_id
-  WHERE om.organization_id = _org_id
-  ORDER BY om.role, om.joined_at;
-END;
-$$;
-
--- 3. Toggle accès société
-CREATE OR REPLACE FUNCTION toggle_company_member_access(
-  _company_id UUID,
-  _user_id UUID,
-  _enable BOOLEAN
-)
-RETURNS BOOLEAN
-LANGUAGE plpgsql SECURITY DEFINER
-AS $$
-BEGIN
-  IF _enable THEN
-    INSERT INTO company_members (company_id, user_id)
-    VALUES (_company_id, _user_id)
-    ON CONFLICT DO NOTHING;
-  ELSE
-    DELETE FROM company_members
-    WHERE company_id = _company_id AND user_id = _user_id;
-  END IF;
-  RETURN true;
-END;
-$$;
-```
-
-### Nouveau composant : OrganizationMembersSection
-
-Fichier : `src/components/superadmin/OrganizationMembersSection.tsx`
-
-- Affiche les membres de l'organisation
-- Formulaire d'ajout par email (avec sélecteur de rôle)
-- Bouton supprimer (sauf owner)
-- Appelle `add_organization_member_by_email` via RPC
-
-### Modification : CompanyMembersManager
-
-Transformer le composant actuel :
-- Supprimer le système d'invitation (email + token)
-- Afficher TOUS les membres de l'org
-- Ajouter un Switch (toggle) pour chaque membre
-- Le toggle ON/OFF appelle `toggle_company_member_access`
-- Le propriétaire de la société = switch verrouillé ON
-
----
-
-## Fichiers à modifier/créer
-
-| Fichier | Action |
-|---------|--------|
-| Migration SQL | Créer les 3 fonctions RPC |
-| `src/components/superadmin/OrganizationMembersSection.tsx` | Nouveau composant |
-| `src/components/superadmin/CompanyMembersManager.tsx` | Refonte avec toggles |
-| `src/pages/SuperAdmin/OrganizationDetail.tsx` | Ajouter OrganizationMembersSection |
-
----
-
-## Résultat attendu
-
-1. **SuperAdmin** ouvre une organisation
-2. Voit la liste des membres existants
-3. Peut **ajouter un membre par email** (utilisateur existant)
-4. Pour chaque société, peut **activer/désactiver l'accès** via toggle
-5. Plus de système d'invitation complexe
-6. Plus de création de données parasites
-
+1. **SuperAdmin** ouvre le dialog d'invitation
+2. Saisit l'email, voit la liste des sociétés avec checkboxes
+3. Coche au moins une société (obligatoire)
+4. Génère le lien → `company_ids` sauvegardé dans l'invitation
+5. **Utilisateur** reçoit le lien, s'inscrit
+6. Le trigger `handle_new_user` détecte l'invitation et ajoute automatiquement l'utilisateur aux sociétés cochées
+7. L'utilisateur arrive directement avec accès aux sociétés, sans action supplémentaire
