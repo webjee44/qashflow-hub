@@ -166,17 +166,60 @@ export function BulkCategorizeDialog({
     ).length;
   }, [activePattern, selectedTransactions, allTransactions]);
 
-  // Filter categories based on selection type - these are the recommended ones
+  // Smart category recommendations based on similar categorized transactions
   const recommendedCategories = useMemo(() => {
-    if (analysis.dominantType === 'income') {
-      return categories.filter(c => c.type === 'income');
-    } else if (analysis.dominantType === 'expense') {
-      return categories.filter(c => c.type === 'expense');
-    }
-    return categories;
-  }, [categories, analysis.dominantType]);
+    const type = analysis.dominantType;
+    const typedCategories = type === 'income' 
+      ? categories.filter(c => c.type === 'income')
+      : type === 'expense' 
+        ? categories.filter(c => c.type === 'expense')
+        : categories;
 
-  // Other categories (not recommended)
+    if (selectedTransactions.length === 0) return typedCategories;
+
+    // Extract keywords from selected transactions
+    const selectedDescriptions = selectedTransactions.map(t => t.description.toUpperCase());
+    const keywords = new Set<string>();
+    selectedDescriptions.forEach(desc => {
+      desc.split(/\s+/).forEach(word => {
+        // Only meaningful words (3+ chars, not common banking terms)
+        if (word.length >= 3 && !/^(CARTE|PAIEMENT|VIR|SEPA|PRLV|CB|EUR|DE|DU|LA|LE|LES|AU|AUX|POUR|\d+)$/i.test(word)) {
+          keywords.add(word);
+        }
+      });
+    });
+
+    // Score categories based on how often they were used for similar transactions
+    const categoryScores = new Map<string, number>();
+    
+    allTransactions.forEach(tx => {
+      if (!tx.category_id) return;
+      const txDesc = tx.description.toUpperCase();
+      
+      // Check if this transaction shares keywords with selected ones
+      let matchScore = 0;
+      keywords.forEach(keyword => {
+        if (txDesc.includes(keyword)) {
+          matchScore += keyword.length; // Longer keywords = more weight
+        }
+      });
+      
+      if (matchScore > 0) {
+        const currentScore = categoryScores.get(tx.category_id) || 0;
+        categoryScores.set(tx.category_id, currentScore + matchScore);
+      }
+    });
+
+    // Sort categories by score (highest first), then by name
+    return [...typedCategories].sort((a, b) => {
+      const scoreA = categoryScores.get(a.id) || 0;
+      const scoreB = categoryScores.get(b.id) || 0;
+      if (scoreB !== scoreA) return scoreB - scoreA;
+      return a.name.localeCompare(b.name);
+    });
+  }, [categories, analysis.dominantType, selectedTransactions, allTransactions]);
+
+  // Other categories (opposite type)
   const otherCategories = useMemo(() => {
     const recommendedIds = new Set(recommendedCategories.map(c => c.id));
     return categories.filter(c => !recommendedIds.has(c.id));
