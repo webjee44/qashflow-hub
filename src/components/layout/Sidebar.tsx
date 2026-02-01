@@ -19,7 +19,8 @@ import {
   LogOut,
   SlidersHorizontal,
   Users,
-  Sparkles
+  Sparkles,
+  Receipt
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState, useMemo, useCallback } from 'react';
@@ -48,6 +49,7 @@ interface NavItem {
 const treasuryNavItems: NavItem[] = [
   { icon: LayoutDashboard, label: 'Tableau de bord', href: '/dashboard', prefetchKeys: ['dashboard-stats'] },
   { icon: TrendingUp, label: 'Prévisions', href: '/previsions', prefetchKeys: ['forecasts'] },
+  { icon: Receipt, label: 'Créances & Dettes', href: '/creances', prefetchKeys: ['invoices'] },
   { icon: ArrowLeftRight, label: 'Transactions', href: '/transactions', prefetchKeys: ['transactions'] },
   { icon: Settings, label: 'Réglages', href: '/reglages-tresorerie' },
 ];
@@ -88,6 +90,7 @@ const componentPreloaders: Record<string, () => Promise<unknown>> = {
   '/dashboard': () => import('@/pages/Dashboard'),
   '/transactions': () => import('@/pages/Transactions'),
   '/previsions': () => import('@/pages/Forecasts'),
+  '/creances': () => import('@/pages/Invoices'),
   '/parametres': () => import('@/pages/Settings'),
 };
 

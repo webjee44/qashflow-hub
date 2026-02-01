@@ -1630,6 +1630,97 @@ export type Database = {
           },
         ]
       }
+      invoices: {
+        Row: {
+          amount_ht: number
+          amount_ttc: number
+          category_id: string | null
+          company_id: string | null
+          created_at: string
+          due_date: string
+          external_id: string | null
+          id: string
+          invoice_date: string
+          invoice_number: string | null
+          notes: string | null
+          paid_at: string | null
+          partner_name: string
+          source: string
+          status: string
+          transaction_id: string | null
+          type: string
+          updated_at: string
+          user_id: string
+          vat_amount: number
+        }
+        Insert: {
+          amount_ht?: number
+          amount_ttc?: number
+          category_id?: string | null
+          company_id?: string | null
+          created_at?: string
+          due_date: string
+          external_id?: string | null
+          id?: string
+          invoice_date?: string
+          invoice_number?: string | null
+          notes?: string | null
+          paid_at?: string | null
+          partner_name: string
+          source?: string
+          status?: string
+          transaction_id?: string | null
+          type: string
+          updated_at?: string
+          user_id: string
+          vat_amount?: number
+        }
+        Update: {
+          amount_ht?: number
+          amount_ttc?: number
+          category_id?: string | null
+          company_id?: string | null
+          created_at?: string
+          due_date?: string
+          external_id?: string | null
+          id?: string
+          invoice_date?: string
+          invoice_number?: string | null
+          notes?: string | null
+          paid_at?: string | null
+          partner_name?: string
+          source?: string
+          status?: string
+          transaction_id?: string | null
+          type?: string
+          updated_at?: string
+          user_id?: string
+          vat_amount?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoices_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organization_invitations: {
         Row: {
           accepted_at: string | null

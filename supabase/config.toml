@@ -71,3 +71,6 @@ verify_jwt = false
 
 [functions.admin-delete-user]
 verify_jwt = false
+
+[functions.pennylane-invoices-sync]
+verify_jwt = false
