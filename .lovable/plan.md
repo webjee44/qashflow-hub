@@ -1,213 +1,174 @@
 
-# Modal de Détail des Transactions "Réel"
 
-## Objectif
+# Refonte UX de la page Reglages Tresorerie
 
-Permettre aux utilisateurs de cliquer sur une cellule "Réel" dans le tableau des previsions pour ouvrir un modal affichant le détail des transactions qui composent ce montant, inspiré de l'interface Zenfirst.
+## Problemes identifies
 
----
-
-## Fonctionnalites du Modal
-
-### En-tete du Modal
-- **Fil d'Ariane** : Type (Encaissements/Decaissements) / Nom de la categorie
-- **Selecteur de mois** : Boutons -/+ pour naviguer entre les mois sans fermer le modal
-- **Resume** : 
-  - Total du mois / Budget (ex: "15 802 EUR / 18 000 EUR")
-  - Realise (X%) avec le montant
-  - Budget (montant prevu)
-  - Note (si disponible dans category_forecasts)
-
-### Tableau des Transactions
-- **Colonnes** :
-  - Date (format "18 Dec 2025")
-  - Libelle (description de la transaction)
-  - Categorie (dropdown pour recategoriser)
-  - Montant TTC
-- **Pagination** : 10 transactions par page avec navigation
-- **Tri** : Par date (decroissant par defaut)
-
-### Actions Possibles
-- Recategoriser une transaction depuis le dropdown
-- Badge de validation (check vert) pour les transactions categorisees
-- Bouton "..." pour actions supplementaires (future extension)
+| Probleme | Impact |
+|----------|--------|
+| Onglets quasi-invisibles | Utilisateurs ne savent pas qu'il y a 2 sections |
+| GroupsManager non integre | Les groupes crees ne sont jamais affiches ! |
+| Trop de boutons en haut | Surcharge cognitive, on ne sait pas par ou commencer |
+| Actions cachees au hover | Sur mobile et pour decouverte = probleme |
+| Banner AI trop imposant | Occupe beaucoup d'espace pour peu de valeur |
 
 ---
 
-## Architecture Technique
+## Solution proposee
 
-### Nouveau Composant
+### 1. Onglets visibles et distincts
+
+Remplacer le style actuel des onglets par un style plus visible :
+- Bordure inferieure coloree pour l'onglet actif
+- Fond distinct `bg-card` avec bordure
+- Plus grand (`h-12`) avec icones plus visibles
+
 ```text
-src/components/forecasts/TransactionDetailDialog.tsx
+┌──────────────────────────────────────────────────────────────┐
+│  [📁 Categories]        [⚡ Automatisations]                 │
+│  ─────────────────                                           │
+│     (ligne active)                                           │
+└──────────────────────────────────────────────────────────────┘
 ```
 
-### Props du Composant
-```typescript
-interface TransactionDetailDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  categoryId: string;
-  categoryName: string;
-  categoryColor: string;
-  categoryType: 'income' | 'expense';
-  initialMonth: Date;
-  forecastAmount: number;
-}
-```
+### 2. Layout restructure en 2 colonnes
 
-### Requete Supabase
-```typescript
-// Fetch transactions pour une categorie et un mois specifique
-const { data } = await supabase
-  .from('transactions')
-  .select('*')
-  .eq('category_id', categoryId)
-  .gte('date', startOfMonth)
-  .lt('date', endOfMonth)
-  .is('deleted_at', null)
-  .order('date', { ascending: false });
-```
+Reorganiser la page Categories :
 
----
-
-## Integration dans ForecastTable
-
-### Modification de renderCell
-La cellule "Reel" devient cliquable :
-```typescript
-// Cellule Reel - maintenant cliquable
-<div 
-  className={cn(
-    "flex-1 px-3 py-2 text-right border-r border-border/50 bg-muted/20 cursor-pointer hover:bg-muted/40",
-    hasActual && (isPositive ? "text-success" : "text-destructive")
-  )}
-  onClick={() => hasActual && openTransactionDetail(categoryId, monthIndex)}
->
-  {hasActual ? formatValue(Math.abs(actual)) : '—'}
-</div>
-```
-
-### Nouvel Etat dans ForecastTable
-```typescript
-const [transactionDetailOpen, setTransactionDetailOpen] = useState(false);
-const [transactionDetailCategory, setTransactionDetailCategory] = useState<{
-  id: string;
-  name: string;
-  color: string;
-  type: 'income' | 'expense';
-  monthIndex: number;
-  forecast: number;
-} | null>(null);
-```
-
----
-
-## Design UI
-
-### Structure du Dialog
 ```text
-+----------------------------------------------------------+
-| Decaissements / Salaires                              X  |
-+----------------------------------------------------------+
-|                    [ - ]  Fev 2026  [ + ]                |
-|                                                          |
-|              Total du mois / Budget                      |
-|              15 802 EUR / 18 000 EUR                     |
-|                                                          |
-|  +-----------------------+-----------------------+       |
-|  | Realise (88%)         |            15 802 EUR |       |
-|  +-----------------------+-----------------------+       |
-|  | Budget                |            18 000 EUR |       |
-|  +-----------------------+-----------------------+       |
-|  | Note                  |                     - |       |
-|  +-----------------------+-----------------------+       |
-|                                                          |
-|  Realise                                                 |
-|  --------------------------------------------------------|
-|  Date    | Libelle              | Categorie | Montant    |
-|  --------|----------------------|-----------|------------|
-|  18 Dec  | VIR REMISE Cloud...  | Salaires  | 15 802 EUR |
-|  ...     | ...                  | ...       | ...        |
-|  --------------------------------------------------------|
-|                    < 1 > 10 / page                       |
-+----------------------------------------------------------+
+┌─────────────────────────────────────────────────────────────────────────┐
+│ Reglages Tresorerie                                                     │
+│ Configurez vos categories et regles d'automatisation                    │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  [📁 Categories]  [⚡ Automatisations]                                  │
+│  ═══════════════                                                        │
+│                                                                         │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │ 📁 Groupes (4)                              [+ Ajouter groupe]  │   │
+│  ├─────────────────────────────────────────────────────────────────┤   │
+│  │  🟢 Fournisseurs (3)    ✎ 🗑                                    │   │
+│  │  🔴 RH (4)              ✎ 🗑                                    │   │
+│  │  🔵 Frais generaux (5)  ✎ 🗑                                    │   │
+│  └─────────────────────────────────────────────────────────────────┘   │
+│                                                                         │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │ Revenus (5)                      [+ Categorie] [✓ Organiser]    │   │
+│  ├─────────────────────────────────────────────────────────────────┤   │
+│  │  ...                                                            │   │
+│  └─────────────────────────────────────────────────────────────────┘   │
+│                                                                         │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │ Depenses (12)                    [+ Categorie] [✓ Organiser]    │   │
+│  ├─────────────────────────────────────────────────────────────────┤   │
+│  │  ...                                                            │   │
+│  └─────────────────────────────────────────────────────────────────┘   │
+│                                                                         │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │ 📥 Import                                                       │   │
+│  │ Importer depuis Zenfirst | Reinitialiser par defaut             │   │
+│  └─────────────────────────────────────────────────────────────────┘   │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Classes Tailwind Cles
-- Modal large : `max-w-3xl`
-- En-tete avec fond subtil : `bg-muted/30`
-- Separateurs clairs entre sections
-- Badge de validation : `text-success`
-- Montants negatifs : `text-destructive`
+### 3. Changements specifiques
+
+#### A. Onglets plus visibles
+```css
+/* Nouveau style pour TabsList */
+bg-card border shadow-sm rounded-lg p-1
+
+/* Nouveau style pour TabsTrigger actif */
+data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
+```
+
+#### B. Integrer GroupsManager
+Ajouter le composant `GroupsManager` qui existe deja mais n'est pas utilise dans la page.
+
+#### C. Boutons d'action toujours visibles dans GroupsManager
+Supprimer `opacity-0 group-hover:opacity-100` pour que les boutons edit/delete soient toujours affiches.
+
+#### D. Supprimer le banner AI
+Trop imposant - deplacer l'info dans un tooltip sur le titre ou simplement supprimer.
+
+#### E. Stats compactes
+Reduire la taille des 3 cartes de stats ou les integrer dans l'en-tete.
+
+#### F. Section Import en bas
+Deplacer les boutons Import Zenfirst et Categories par defaut dans une section discrete en bas de page.
 
 ---
 
-## Fichiers a Modifier/Creer
+## Fichiers a modifier
 
 | Fichier | Action |
 |---------|--------|
-| `src/components/forecasts/TransactionDetailDialog.tsx` | CREER |
-| `src/components/forecasts/ForecastTable.tsx` | MODIFIER |
+| `src/pages/TreasurySettings.tsx` | Restructurer layout, integrer GroupsManager, deplacer boutons |
+| `src/components/categories/GroupsManager.tsx` | Rendre les boutons toujours visibles |
 
 ---
 
-## Gestion de la Pagination
+## Details techniques
 
-```typescript
-const [page, setPage] = useState(1);
-const [pageSize, setPageSize] = useState(10);
+### Nouvelle structure TreasurySettings.tsx
 
-// Calcul des transactions affichees
-const paginatedTransactions = transactions.slice(
-  (page - 1) * pageSize,
-  page * pageSize
-);
+```tsx
+<Tabs>
+  {/* Onglets plus visibles */}
+  <TabsList className="bg-card border shadow-sm h-12 p-1.5">
+    <TabsTrigger className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground h-9 px-4">
+      Categories
+    </TabsTrigger>
+    <TabsTrigger className="...">
+      Automatisations
+    </TabsTrigger>
+  </TabsList>
 
-const totalPages = Math.ceil(transactions.length / pageSize);
+  <TabsContent value="categories">
+    {/* Section Groupes - AJOUTEE */}
+    <GroupsManager 
+      incomeGroups={incomeGroups}
+      expenseGroups={expenseGroups}
+      onCreateGroup={openCreateGroupDialog}
+      onEditGroup={handleEditGroup}
+      onDeleteGroup={handleDeleteGroup}
+    />
+
+    {/* Tableaux Categories */}
+    <CategoryTable ... />
+    <CategoryTable ... />
+
+    {/* Section Import discrete en bas */}
+    <Card className="border-dashed mt-8">
+      <CardContent className="flex items-center justify-center gap-4 py-4">
+        <Button variant="ghost">Importer depuis Zenfirst</Button>
+        <Button variant="ghost">Categories par defaut</Button>
+      </CardContent>
+    </Card>
+  </TabsContent>
+</Tabs>
+```
+
+### GroupsManager avec boutons toujours visibles
+
+```tsx
+// AVANT
+className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+
+// APRES
+className="h-7 w-7"
 ```
 
 ---
 
-## Navigation entre Mois
+## Benefices attendus
 
-Le selecteur de mois permet de naviguer sans fermer le modal :
-```typescript
-const [currentMonth, setCurrentMonth] = useState(initialMonth);
+| Avant | Apres |
+|-------|-------|
+| Onglets invisibles | Onglets clairs avec style actif distinct |
+| Groupes non affiches | Section dediee en haut de page |
+| Actions cachees | Boutons toujours visibles |
+| Surcharge de boutons | Actions organisees par section |
+| Banner AI imposant | Supprime ou reduit |
 
-const handlePreviousMonth = () => {
-  setCurrentMonth(prev => addMonths(prev, -1));
-  setPage(1); // Reset pagination
-};
-
-const handleNextMonth = () => {
-  setCurrentMonth(prev => addMonths(prev, 1));
-  setPage(1);
-};
-```
-
-Les donnees se rechargent automatiquement grace a la dependance dans useQuery.
-
----
-
-## Indicateur de Progression
-
-Barre de progression visuelle comparant realise vs budget :
-```typescript
-const progressPercent = forecastAmount > 0 
-  ? Math.min((actualTotal / forecastAmount) * 100, 100) 
-  : 0;
-
-<Progress value={progressPercent} className="h-2" />
-```
-
----
-
-## Resume
-
-Cette fonctionnalite permet aux utilisateurs de :
-1. **Comprendre** d'ou vient chaque chiffre "Reel" 
-2. **Naviguer** entre les mois sans quitter le modal
-3. **Recategoriser** directement les transactions mal classees
-4. **Comparer** visuellement le realise vs le budget
-
-L'implementation suit le design Zenfirst en l'ameliorant avec une interface plus moderne et fluide.
