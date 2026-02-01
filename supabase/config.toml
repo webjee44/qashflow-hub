@@ -21,6 +21,9 @@ verify_jwt = false
 [functions.suggest-automation]
 verify_jwt = false
 
+[functions.suggest-category]
+verify_jwt = false
+
 [functions.bridge-sync]
 verify_jwt = false
 
@@ -64,4 +67,7 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.parse-amortization-schedule]
+verify_jwt = false
+
+[functions.admin-delete-user]
 verify_jwt = false

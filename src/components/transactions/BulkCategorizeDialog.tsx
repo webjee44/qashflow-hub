@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -6,6 +6,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -121,6 +122,14 @@ export function BulkCategorizeDialog({
   const [otherCategoryOpen, setOtherCategoryOpen] = useState(false);
   const [editingPattern, setEditingPattern] = useState(false);
   const [customPattern, setCustomPattern] = useState<string>('');
+  
+  // AI suggestion state
+  const [aiSuggestion, setAiSuggestion] = useState<{
+    categoryId: string;
+    categoryName: string;
+    confidence: number;
+  } | null>(null);
+  const [isLoadingAI, setIsLoadingAI] = useState(false);
 
   // Analyze selected transactions
   const analysis = useMemo(() => {
@@ -154,6 +163,48 @@ export function BulkCategorizeDialog({
       setCustomPattern(detectedPattern);
     }
   }, [open, detectedPattern]);
+
+  // Fetch AI suggestion when dialog opens
+  useEffect(() => {
+    if (!open || selectedTransactions.length === 0 || categories.length === 0) {
+      setAiSuggestion(null);
+      return;
+    }
+
+    const fetchSuggestion = async () => {
+      setIsLoadingAI(true);
+      setAiSuggestion(null);
+      try {
+        const tx = selectedTransactions[0];
+        const { data, error } = await supabase.functions.invoke('suggest-category', {
+          body: {
+            description: tx.description,
+            type: tx.type,
+            categories: categories.map(c => ({ id: c.id, name: c.name, type: c.type })),
+          },
+        });
+        
+        if (error) {
+          console.error('AI suggestion error:', error);
+          return;
+        }
+        
+        if (data?.categoryId) {
+          setAiSuggestion({
+            categoryId: data.categoryId,
+            categoryName: data.categoryName,
+            confidence: data.confidence,
+          });
+        }
+      } catch (e) {
+        console.error('AI suggestion error:', e);
+      } finally {
+        setIsLoadingAI(false);
+      }
+    };
+
+    fetchSuggestion();
+  }, [open, selectedTransactions, categories]);
 
   // Count how many OTHER uncategorized transactions would match this pattern
   const matchingUncategorized = useMemo(() => {
@@ -321,11 +372,44 @@ export function BulkCategorizeDialog({
 
           {/* Content */}
           <div className="px-6 pb-4 space-y-4">
+            {/* AI Suggestion */}
+            {(isLoadingAI || aiSuggestion) && (
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1">
+                  <Sparkles className="w-3 h-3 text-accent" />
+                  SUGGESTION IA
+                </p>
+                {isLoadingAI ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground p-3 border border-dashed rounded-lg">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Analyse IA en cours...
+                  </div>
+                ) : aiSuggestion && (
+                  <Button
+                    variant={selectedCategoryId === aiSuggestion.categoryId ? 'default' : 'outline'}
+                    size="sm"
+                    className={cn(
+                      "w-full justify-between h-auto py-3 border-accent/50",
+                      selectedCategoryId === aiSuggestion.categoryId && "ring-2 ring-accent bg-accent text-accent-foreground"
+                    )}
+                    onClick={() => setSelectedCategoryId(aiSuggestion.categoryId)}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-accent" />
+                      <span className="font-medium">{aiSuggestion.categoryName}</span>
+                    </div>
+                    <span className="text-xs opacity-70 bg-background/20 px-2 py-0.5 rounded">
+                      {Math.round(aiSuggestion.confidence * 100)}%
+                    </span>
+                  </Button>
+                )}
+              </div>
+            )}
+
             {/* Recommended Categories */}
             {recommendedCategories.length > 0 && (
               <div>
                 <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1">
-                  <Sparkles className="w-3 h-3 text-accent" />
                   RECOMMANDÉES
                 </p>
                 <div className="grid grid-cols-2 gap-2">
