@@ -5,7 +5,7 @@ import { useCategories, CategoryGroup, Category } from '@/hooks/useCategories';
 import { useForecasts } from '@/hooks/useForecasts';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { Loader2, Copy, Check, TrendingUp, ChevronRight, ChevronDown, Link2, ChevronsUpDown, ChevronsDownUp, MoreHorizontal, Edit3, Trash2 } from 'lucide-react';
+import { Loader2, Copy, Check, TrendingUp, ChevronRight, ChevronDown, Link2, ChevronsUpDown, ChevronsDownUp, MoreHorizontal, Edit3, Trash2, Eye, EyeOff } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -37,6 +37,7 @@ import { TransactionDetailDialog } from './TransactionDetailDialog';
 import { supabase } from '@/integrations/supabase/client';
 
 const COLLAPSED_GROUPS_KEY = 'forecast-collapsed-groups';
+const SHOW_ALL_CATEGORIES_KEY = 'forecast-show-all-categories';
 
 export function ForecastTable() {
   const { categories, loading: categoriesLoading, getGroupedCategories, updateCategory, deleteCategory } = useCategories();
@@ -68,6 +69,21 @@ export function ForecastTable() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
   const [transactionCount, setTransactionCount] = useState<number>(0);
+
+  // Show all categories toggle (including empty ones)
+  const [showAllCategories, setShowAllCategories] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem(SHOW_ALL_CATEGORIES_KEY);
+      return saved ? JSON.parse(saved) : false;
+    } catch {
+      return false;
+    }
+  });
+
+  // Persist show all categories state
+  useEffect(() => {
+    localStorage.setItem(SHOW_ALL_CATEGORIES_KEY, JSON.stringify(showAllCategories));
+  }, [showAllCategories]);
 
   // Transaction detail dialog state
   const [transactionDetailOpen, setTransactionDetailOpen] = useState(false);
@@ -619,8 +635,10 @@ export function ForecastTable() {
       const groupId = group.group?.id || 'ungrouped';
       const isCollapsed = group.group ? collapsedGroups.has(groupId) : false;
       
-      // Filter categories without any amounts
-      const visibleChildren = group.children.filter(cat => hasAnyAmount(cat.id));
+      // Filter categories without any amounts (unless showAllCategories is enabled)
+      const visibleChildren = showAllCategories 
+        ? group.children 
+        : group.children.filter(cat => hasAnyAmount(cat.id));
       
       // Don't render group if no visible children
       if (visibleChildren.length === 0 && group.group) return null;
@@ -923,6 +941,30 @@ export function ForecastTable() {
           onExtendAfter={extendAfter}
         />
         
+        {/* Show All Categories toggle */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button 
+              variant={showAllCategories ? "default" : "ghost"}
+              size="sm" 
+              className="h-8 px-2"
+              onClick={() => setShowAllCategories(!showAllCategories)}
+            >
+              {showAllCategories ? (
+                <Eye className="w-4 h-4 mr-1" />
+              ) : (
+                <EyeOff className="w-4 h-4 mr-1" />
+              )}
+              <span className="text-xs">{showAllCategories ? 'Toutes' : 'Actives'}</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            {showAllCategories 
+              ? "Masquer les catégories sans montants" 
+              : "Afficher toutes les catégories (même vides)"}
+          </TooltipContent>
+        </Tooltip>
+
         {/* Expand/Collapse All buttons */}
         {allGroupIds.length > 0 && (
           <div className="flex items-center gap-1">
