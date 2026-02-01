@@ -31,8 +31,8 @@ export function useForecasts() {
   const { categories } = useCategories();
   const queryClient = useQueryClient();
 
-  // Get the next 6 months starting from current month
-  const getNext6Months = () => {
+  // Get months for display - current month + next 5 months
+  const getDisplayMonths = () => {
     const months: Date[] = [];
     const today = startOfMonth(new Date());
     for (let i = 0; i < 6; i++) {
@@ -41,7 +41,7 @@ export function useForecasts() {
     return months;
   };
 
-  const months = getNext6Months();
+  const months = getDisplayMonths();
 
   // Fetch category forecasts
   const { data: forecasts = [], isLoading: forecastsLoading } = useQuery({
