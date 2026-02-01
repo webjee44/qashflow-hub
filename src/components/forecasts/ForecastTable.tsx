@@ -33,6 +33,7 @@ import {
 import { CategoryDialog } from '@/components/categories/CategoryDialog';
 import { ForecastChart } from './ForecastChart';
 import { PeriodSelector } from './PeriodSelector';
+import { TransactionDetailDialog } from './TransactionDetailDialog';
 import { supabase } from '@/integrations/supabase/client';
 
 const COLLAPSED_GROUPS_KEY = 'forecast-collapsed-groups';
@@ -67,6 +68,30 @@ export function ForecastTable() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
   const [transactionCount, setTransactionCount] = useState<number>(0);
+
+  // Transaction detail dialog state
+  const [transactionDetailOpen, setTransactionDetailOpen] = useState(false);
+  const [transactionDetailData, setTransactionDetailData] = useState<{
+    categoryId: string;
+    categoryName: string;
+    categoryColor: string;
+    categoryType: 'income' | 'expense';
+    month: Date;
+    forecast: number;
+  } | null>(null);
+
+  const openTransactionDetail = (category: Category, monthIndex: number) => {
+    const forecast = getForecast(category.id, months[monthIndex]);
+    setTransactionDetailData({
+      categoryId: category.id,
+      categoryName: category.name,
+      categoryColor: category.color,
+      categoryType: category.type,
+      month: months[monthIndex],
+      forecast,
+    });
+    setTransactionDetailOpen(true);
+  };
 
   const isLoading = categoriesLoading || forecastsLoading;
 
@@ -269,7 +294,8 @@ export function ForecastTable() {
       : getVatActual(type, months[monthIndex]);
   }, [getVatForecast, getVatActual, months]);
 
-  const renderCell = (categoryId: string, monthIndex: number, type: 'income' | 'expense') => {
+  const renderCell = (category: Category, monthIndex: number, type: 'income' | 'expense') => {
+    const categoryId = category.id;
     const cellKey = `${categoryId}-${monthIndex}`;
     const forecast = getForecast(categoryId, months[monthIndex]);
     const actual = getActual(categoryId, months[monthIndex]);
@@ -289,11 +315,15 @@ export function ForecastTable() {
     return (
       <td key={cellKey} className="p-0 border-r border-border">
         <div className="flex">
-          {/* Actual */}
-          <div className={cn(
-            "flex-1 px-3 py-2 text-right border-r border-border/50 bg-muted/20",
-            hasActual && (isPositive ? "text-success" : "text-destructive")
-          )}>
+          {/* Actual - clickable to open detail */}
+          <div 
+            className={cn(
+              "flex-1 px-3 py-2 text-right border-r border-border/50 bg-muted/20 transition-colors",
+              hasActual && (isPositive ? "text-success" : "text-destructive"),
+              hasActual && "cursor-pointer hover:bg-muted/40"
+            )}
+            onClick={() => hasActual && openTransactionDetail(category, monthIndex)}
+          >
             {hasActual ? formatValue(Math.abs(actual)) : '—'}
           </div>
           
@@ -568,7 +598,7 @@ export function ForecastTable() {
             </DropdownMenu>
           </div>
         </td>
-        {months.map((_, monthIndex) => renderCell(category.id, monthIndex, type))}
+        {months.map((_, monthIndex) => renderCell(category, monthIndex, type))}
       </motion.tr>
     );
   };
@@ -1019,6 +1049,20 @@ export function ForecastTable() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Transaction Detail Dialog */}
+      {transactionDetailData && (
+        <TransactionDetailDialog
+          open={transactionDetailOpen}
+          onOpenChange={setTransactionDetailOpen}
+          categoryId={transactionDetailData.categoryId}
+          categoryName={transactionDetailData.categoryName}
+          categoryColor={transactionDetailData.categoryColor}
+          categoryType={transactionDetailData.categoryType}
+          initialMonth={transactionDetailData.month}
+          forecastAmount={transactionDetailData.forecast}
+        />
+      )}
     </div>
   );
 }
