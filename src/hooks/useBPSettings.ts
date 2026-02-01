@@ -101,26 +101,24 @@ export function useBPSettings() {
   const updateSettings = useMutation({
     mutationFn: async (data: Partial<BPSettings>) => {
       if (!user) throw new Error('Not authenticated');
+      if (!currentCompany?.id) throw new Error('No company selected');
 
-      if (settings?.id) {
-        const { error } = await supabase
-          .from('bp_settings')
-          .update(data)
-          .eq('id', settings.id);
+      // Use upsert to handle both create and update cases atomically
+      const { error } = await supabase
+        .from('bp_settings')
+        .upsert({
+          // If we have an existing settings id, include it for update
+          ...(settings?.id ? { id: settings.id } : {}),
+          user_id: user.id,
+          company_id: currentCompany.id,
+          ...DEFAULT_SETTINGS,
+          ...data,
+        }, {
+          onConflict: 'user_id,company_id',
+          ignoreDuplicates: false
+        });
 
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from('bp_settings')
-          .insert({
-            user_id: user.id,
-            company_id: currentCompany?.id || null,
-            ...DEFAULT_SETTINGS,
-            ...data,
-          });
-
-        if (error) throw error;
-      }
+      if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bp_settings'] });
