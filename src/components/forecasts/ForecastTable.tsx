@@ -15,6 +15,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { ForecastChart } from './ForecastChart';
+import { PeriodSelector } from './PeriodSelector';
 
 const COLLAPSED_GROUPS_KEY = 'forecast-collapsed-groups';
 
@@ -29,7 +30,9 @@ export function ForecastTable() {
     getVatActual,
     getUncategorized,
     upsertForecast, 
-    isLoading: forecastsLoading 
+    isLoading: forecastsLoading,
+    extendBefore,
+    extendAfter,
   } = useForecasts();
   const [editingCell, setEditingCell] = useState<string | null>(null);
   const [editValue, setEditValue] = useState<string>('');
@@ -772,13 +775,21 @@ export function ForecastTable() {
         transition={{ delay: 0.2 }}
         className="bg-card rounded-2xl border border-border shadow-card overflow-hidden"
       >
-      <div className="p-6 border-b border-border flex items-start justify-between">
-        <div>
+      <div className="p-6 border-b border-border flex items-start justify-between gap-4">
+        <div className="flex-1">
           <h3 className="text-lg font-semibold text-foreground">Prévisions par catégorie</h3>
           <p className="text-sm text-muted-foreground">
             Cliquez sur une cellule "Prévu" pour modifier • Les montants sont HT, la TVA est calculée automatiquement
           </p>
         </div>
+        
+        {/* Period Selector */}
+        <PeriodSelector
+          startMonth={months[0]}
+          endMonth={months[months.length - 1]}
+          onExtendBefore={extendBefore}
+          onExtendAfter={extendAfter}
+        />
         
         {/* Expand/Collapse All buttons */}
         {allGroupIds.length > 0 && (
