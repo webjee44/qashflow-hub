@@ -158,13 +158,19 @@ async function syncCompanyTransactions(
   let updatedCount = 0;
 
   for (const transaction of transactions) {
+    // CRITICAL: Skip transactions from unassigned accounts
+    // If the account is not explicitly assigned to a company, DO NOT import
+    if (!accountToCompanyMap[transaction.account_id]) {
+      console.info(`[bridge-sync] Skipping transaction from unassigned account ${transaction.account_id}`);
+      continue;
+    }
+
     const transactionType = bridgeClient.getTransactionType(transaction);
     const accountName = accountNameMap[transaction.account_id] || null;
     const description = bridgeClient.getTransactionDescription(transaction);
 
-    // CRITICAL: Assign transaction to the company that owns this account
-    // Fall back to the sync-requesting company only if no mapping exists
-    const correctCompanyId = accountToCompanyMap[transaction.account_id] || companyId;
+    // Transaction is assigned to the company that owns this account
+    const correctCompanyId = accountToCompanyMap[transaction.account_id];
 
     const { data: existing } = await supabaseAdmin
       .from('transactions')
