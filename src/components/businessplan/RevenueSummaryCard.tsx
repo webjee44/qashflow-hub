@@ -102,30 +102,6 @@ export function RevenueSummaryCard() {
             ))}
           </div>
 
-          {/* Separator */}
-          <div className="hidden md:block h-12 w-px bg-border" />
-
-          {/* Grand Total */}
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-primary/10">
-              <TrendingUp className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Total {settings?.bp_years || 3} ans</p>
-              <p className="text-2xl font-bold text-primary">{formatCurrency(grandTotal)}</p>
-            </div>
-          </div>
-
-          {/* Streams count */}
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-muted">
-              <Calendar className="h-5 w-5 text-muted-foreground" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Flux actifs</p>
-              <p className="text-2xl font-bold">{streams.length}</p>
-            </div>
-          </div>
         </div>
       </CardContent>
     </Card>
