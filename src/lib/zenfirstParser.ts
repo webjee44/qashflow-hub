@@ -8,7 +8,7 @@ export interface ZenfirstItem {
   level: number; // 1 = group, 2+ = category/subcategory
   type: 'income' | 'expense';
   parentName: string | null;
-  monthlyAmounts: Record<string, number>; // "2026-01" => 30647
+  monthlyAmounts: Record<string, number>; // "2026-01-01" => 30647
   isGroup: boolean; // true if this item has children
   totalAmount: number;
 }
@@ -66,7 +66,7 @@ export function parseZenfirstMonth(monthName: string): string | null {
 export function parseZenfirstAmount(value: string): number {
   if (!value || value.trim() === '') return 0;
   
-  // Remove spaces (thousand separators) and replace comma with dot
+  // Remove all spaces (thousand separators) and replace comma with dot
   const cleaned = value.trim().replace(/\s/g, '').replace(',', '.');
   const num = parseFloat(cleaned);
   
@@ -75,17 +75,18 @@ export function parseZenfirstAmount(value: string): number {
 
 /**
  * Get indentation level from a line
- * 8 spaces = level 1 (group)
- * 16 spaces = level 2 (category)
- * 24 spaces = level 3 (subcategory)
+ * 8 spaces = level 1 (direct child of section)
+ * 16 spaces = level 2 (sub-category)
+ * 24 spaces = level 3 (sub-sub-category)
  */
 function getIndentLevel(line: string): number {
   const match = line.match(/^(\s*)/);
   if (!match) return 0;
   
   const spaces = match[1].length;
-  // Each level is 8 spaces
-  return Math.floor(spaces / 8);
+  // Each level is 8 spaces, minimum level is 1 for items with any indentation
+  if (spaces === 0) return 0;
+  return Math.max(1, Math.floor(spaces / 8));
 }
 
 /**
@@ -99,7 +100,7 @@ function isSectionHeader(name: string): 'income' | 'expense' | null {
 }
 
 /**
- * Check if a line should be ignored (totals, empty, metadata)
+ * Check if a line should be ignored (totals, empty, metadata, system rows)
  */
 function shouldIgnoreLine(name: string): boolean {
   const lower = name.toLowerCase().trim();
@@ -114,6 +115,7 @@ function shouldIgnoreLine(name: string): boolean {
     'scénario',
     'entreprise',
     'plan de trésorerie',
+    'non catégorisés', // We skip uncategorized as they need to be categorized in the app
   ];
   
   return ignorePatterns.some(pattern => lower.startsWith(pattern)) || lower === '';
@@ -195,10 +197,8 @@ export function parseZenfirstCSV(content: string): ZenfirstParseResult {
     if (!currentType) continue;
     
     const level = getIndentLevel(nameCell);
-    if (level === 0 && name) {
-      // This shouldn't happen for valid data rows, skip
-      continue;
-    }
+    // Accept level >= 1 (items with at least 8 spaces indentation)
+    if (level < 1) continue;
     
     // Update parent stack
     while (parentStack.length > 0 && parentStack[parentStack.length - 1].level >= level) {
@@ -213,8 +213,8 @@ export function parseZenfirstCSV(content: string): ZenfirstParseResult {
     
     for (let j = 0; j < result.months.length && j + 1 < cells.length; j++) {
       const amount = parseZenfirstAmount(cells[j + 1] || '');
-      // For expenses, we store absolute values
-      const absAmount = currentType === 'expense' ? Math.abs(amount) : amount;
+      // For both income and expenses, we store absolute values
+      const absAmount = Math.abs(amount);
       monthlyAmounts[result.months[j]] = absAmount;
       totalAmount += absAmount;
     }
@@ -229,7 +229,9 @@ export function parseZenfirstCSV(content: string): ZenfirstParseResult {
       totalAmount,
     };
     
-    itemsByName.set(name, item);
+    // Use unique key to avoid duplicates (same name can appear in income and expense)
+    const uniqueKey = `${currentType}-${name}`;
+    itemsByName.set(uniqueKey, item);
     result.items.push(item);
     
     // Add to parent stack for potential children
@@ -237,7 +239,8 @@ export function parseZenfirstCSV(content: string): ZenfirstParseResult {
     
     // Mark parent as group if exists
     if (parentName) {
-      const parent = itemsByName.get(parentName);
+      const parentKey = `${currentType}-${parentName}`;
+      const parent = itemsByName.get(parentKey);
       if (parent) {
         parent.isGroup = true;
       }

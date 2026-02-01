@@ -16,7 +16,8 @@ import {
   Tag,
   TrendingUp,
   TrendingDown,
-  ChevronRight
+  ChevronRight,
+  Calendar
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { 
@@ -28,7 +29,9 @@ import {
   generateColor
 } from '@/lib/zenfirstParser';
 import { useCategories, Category } from '@/hooks/useCategories';
-import { useForecasts } from '@/hooks/useForecasts';
+import { useAuth } from '@/hooks/useAuth';
+import { useCompany } from '@/hooks/useCompany';
+import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 
 interface ZenfirstImportDialogProps {
@@ -53,8 +56,9 @@ export function ZenfirstImportDialog({ open, onOpenChange }: ZenfirstImportDialo
   const [importProgress, setImportProgress] = useState(0);
   const [importStats, setImportStats] = useState({ groups: 0, categories: 0, forecasts: 0 });
   
-  const { categories, createGroup, createCategory } = useCategories();
-  const { upsertForecast } = useForecasts();
+  const { user } = useAuth();
+  const { currentCompany } = useCompany();
+  const { categories, createGroup, createCategory, refetch: refetchCategories } = useCategories();
 
   const resetDialog = useCallback(() => {
     setStep('upload');
@@ -221,7 +225,7 @@ export function ZenfirstImportDialog({ open, onOpenChange }: ZenfirstImportDialo
       }
       
       // Step 3: Import forecasts if enabled
-      if (importForecasts && parseResult) {
+      if (importForecasts && parseResult && user) {
         for (const cat of leafCategories) {
           const categoryId = cat.existingCategory?.id || createdCategoryMap.get(cat.name);
           
@@ -229,12 +233,25 @@ export function ZenfirstImportDialog({ open, onOpenChange }: ZenfirstImportDialo
             for (const [month, amount] of Object.entries(cat.monthlyAmounts)) {
               if (amount > 0) {
                 try {
-                  await upsertForecast.mutateAsync({
-                    categoryId,
-                    month: new Date(month),
-                    expectedAmount: amount,
-                  });
-                  createdForecasts++;
+                  // Direct upsert to category_forecasts for all months from CSV
+                  const { error } = await supabase
+                    .from('category_forecasts')
+                    .upsert({
+                      user_id: user.id,
+                      category_id: categoryId,
+                      month: month, // Already in "YYYY-MM-01" format
+                      expected_amount: Math.round(amount),
+                      company_id: currentCompany?.id || null,
+                      source: 'zenfirst_import',
+                    }, {
+                      onConflict: 'user_id,category_id,month',
+                    });
+                  
+                  if (!error) {
+                    createdForecasts++;
+                  } else {
+                    console.error('Error creating forecast:', error);
+                  }
                 } catch (error) {
                   console.error('Error creating forecast:', error);
                 }
@@ -262,7 +279,7 @@ export function ZenfirstImportDialog({ open, onOpenChange }: ZenfirstImportDialo
     } finally {
       setIsImporting(false);
     }
-  }, [importItems, importForecasts, parseResult, createGroup, createCategory, upsertForecast]);
+  }, [importItems, importForecasts, parseResult, createGroup, createCategory, user, currentCompany]);
 
   const selectedCount = importItems.filter(i => i.selected).length;
   const toCreateCount = importItems.filter(i => i.selected && i.willCreate).length;
@@ -315,6 +332,19 @@ export function ZenfirstImportDialog({ open, onOpenChange }: ZenfirstImportDialo
           {/* Step 2: Mapping */}
           {step === 'mapping' && (
             <div className="space-y-4">
+              {/* Months info */}
+              {parseResult && parseResult.months.length > 0 && (
+                <div className="flex items-center gap-2 p-3 bg-primary/5 rounded-lg border border-primary/20">
+                  <Calendar className="h-4 w-4 text-primary flex-shrink-0" />
+                  <p className="text-sm text-muted-foreground">
+                    <span className="font-medium text-foreground">{parseResult.months.length} mois</span> de données détectés : {parseResult.months.map(m => {
+                      const d = new Date(m);
+                      return d.toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' });
+                    }).join(', ')}
+                  </p>
+                </div>
+              )}
+              
               {/* Summary stats */}
               <div className="flex gap-4 p-4 bg-muted/50 rounded-lg">
                 <div className="text-center">
@@ -329,6 +359,14 @@ export function ZenfirstImportDialog({ open, onOpenChange }: ZenfirstImportDialo
                   <p className="text-2xl font-bold text-success">{existingCount}</p>
                   <p className="text-xs text-muted-foreground">Existants</p>
                 </div>
+                {importForecasts && (
+                  <div className="text-center border-l border-border pl-4">
+                    <p className="text-2xl font-bold text-primary">
+                      {importItems.filter(i => i.selected && !i.isGroup && i.totalAmount > 0).length}
+                    </p>
+                    <p className="text-xs text-muted-foreground">Avec prévisions</p>
+                  </div>
+                )}
               </div>
 
               {/* Actions */}
@@ -348,7 +386,7 @@ export function ZenfirstImportDialog({ open, onOpenChange }: ZenfirstImportDialo
                     onCheckedChange={(checked) => setImportForecasts(checked === true)}
                   />
                   <Label htmlFor="import-forecasts" className="text-sm cursor-pointer">
-                    Importer les prévisions
+                    Importer les montants mensuels
                   </Label>
                 </div>
               </div>
