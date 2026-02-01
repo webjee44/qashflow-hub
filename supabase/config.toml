@@ -74,3 +74,6 @@ verify_jwt = false
 
 [functions.pennylane-invoices-sync]
 verify_jwt = false
+
+[functions.accounting-connector-sync]
+verify_jwt = false
