@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Plus, Zap, PlusCircle, Lightbulb, Check } from 'lucide-react';
+import { Plus, Zap, PlusCircle, Lightbulb, Check, Euro, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,7 +10,14 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Category } from '@/hooks/useAutomationRules';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Category, RuleCondition } from '@/hooks/useAutomationRules';
 import { CategoryDialog } from '@/components/categories/CategoryDialog';
 import { cn } from '@/lib/utils';
 
@@ -23,6 +30,7 @@ interface CreateRuleDialogProps {
     condition_value: string;
     action_type: string;
     target_category_id: string | null;
+    conditions?: RuleCondition[];
   }) => Promise<any>;
   onCreateCategory?: (data: {
     name: string;
@@ -31,15 +39,35 @@ interface CreateRuleDialogProps {
     type: 'income' | 'expense';
   }) => Promise<any>;
   trigger?: React.ReactNode;
+  defaultAmount?: number;
 }
 
-export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, trigger }: CreateRuleDialogProps) {
+interface ConditionInput {
+  field: 'description' | 'amount';
+  operator: string;
+  value: string;
+}
+
+const amountOperators = [
+  { value: 'equals', label: 'est égal à' },
+  { value: 'greater_than', label: 'est supérieur à' },
+  { value: 'less_than', label: 'est inférieur à' },
+];
+
+export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, trigger, defaultAmount }: CreateRuleDialogProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showCategoryDialog, setShowCategoryDialog] = useState(false);
+  
+  // Main condition (description)
   const [conditionValue, setConditionValue] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [ruleName, setRuleName] = useState('');
+  
+  // Additional amount condition
+  const [showAmountCondition, setShowAmountCondition] = useState(!!defaultAmount);
+  const [amountOperator, setAmountOperator] = useState('equals');
+  const [amountValue, setAmountValue] = useState(defaultAmount?.toString() || '');
 
   const selectedCategory = categories.find(c => c.id === selectedCategoryId);
 
@@ -63,14 +91,42 @@ export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, t
     setConditionValue('');
     setSelectedCategoryId(null);
     setRuleName('');
+    setShowAmountCondition(!!defaultAmount);
+    setAmountOperator('equals');
+    setAmountValue(defaultAmount?.toString() || '');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!conditionValue.trim() || !selectedCategoryId) return;
 
+    // Build conditions array
+    const conditions: RuleCondition[] = [
+      {
+        condition_field: 'description',
+        condition_operator: 'contains',
+        condition_value: conditionValue.trim(),
+      }
+    ];
+
+    // Add amount condition if enabled
+    if (showAmountCondition && amountValue.trim()) {
+      conditions.push({
+        condition_field: 'amount',
+        condition_operator: amountOperator,
+        condition_value: amountValue.trim().replace(',', '.'),
+      });
+    }
+
     // Auto-generate name if empty
-    const finalName = ruleName.trim() || `${conditionValue.toUpperCase()} → ${selectedCategory?.name || 'Catégorie'}`;
+    let finalName = ruleName.trim();
+    if (!finalName) {
+      finalName = `${conditionValue.toUpperCase()}`;
+      if (showAmountCondition && amountValue.trim()) {
+        finalName += ` + ${amountValue} €`;
+      }
+      finalName += ` → ${selectedCategory?.name || 'Catégorie'}`;
+    }
 
     setLoading(true);
     const result = await onCreateRule({
@@ -80,6 +136,7 @@ export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, t
       condition_value: conditionValue.trim(),
       action_type: 'categorize',
       target_category_id: selectedCategoryId,
+      conditions,
     });
     setLoading(false);
 
@@ -104,7 +161,7 @@ export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, t
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[480px]" aria-describedby={undefined}>
+      <DialogContent className="sm:max-w-[500px]" aria-describedby={undefined}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Zap className="w-5 h-5 text-primary" />
@@ -112,8 +169,8 @@ export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, t
           </DialogTitle>
         </DialogHeader>
         
-        <form onSubmit={handleSubmit} className="space-y-6 mt-4">
-          {/* Condition Section */}
+        <form onSubmit={handleSubmit} className="space-y-5 mt-4">
+          {/* Description Condition */}
           <div className="space-y-3 p-4 bg-muted/50 rounded-xl border border-border/50">
             <Label htmlFor="condition-value" className="text-base font-medium">
               Si la description contient...
@@ -132,13 +189,76 @@ export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, t
             </p>
           </div>
 
+          {/* Amount Condition (optional) */}
+          {showAmountCondition ? (
+            <div className="space-y-3 p-4 bg-accent/5 rounded-xl border border-accent/20">
+              <div className="flex items-center justify-between">
+                <Label className="text-base font-medium flex items-center gap-2">
+                  <Euro className="w-4 h-4 text-accent" />
+                  ET le montant...
+                </Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setShowAmountCondition(false);
+                    setAmountValue('');
+                  }}
+                  className="h-7 px-2 text-muted-foreground hover:text-destructive"
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+              
+              <div className="flex gap-2 items-center">
+                <Select value={amountOperator} onValueChange={setAmountOperator}>
+                  <SelectTrigger className="w-[160px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {amountOperators.map(op => (
+                      <SelectItem key={op.value} value={op.value}>
+                        {op.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="relative flex-1">
+                  <Input
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="9622.80"
+                    value={amountValue}
+                    onChange={(e) => setAmountValue(e.target.value)}
+                    className="pr-8"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">€</span>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Tolérance de 0.01 € pour les arrondis bancaires
+              </p>
+            </div>
+          ) : (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowAmountCondition(true)}
+              className="w-full border-dashed border-accent/30 text-accent hover:bg-accent/5 hover:border-accent"
+            >
+              <Euro className="w-4 h-4 mr-2" />
+              + Ajouter un critère de montant
+            </Button>
+          )}
+
           {/* Category Selection */}
           <div className="space-y-3 p-4 bg-primary/5 rounded-xl border border-primary/10">
             <Label className="text-base font-medium">
               Alors catégoriser dans...
             </Label>
             
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-2 max-h-[180px] overflow-y-auto">
               {categories.map((category) => (
                 <button
                   key={category.id}
@@ -195,7 +315,7 @@ export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, t
             <Input
               id="rule-name"
               placeholder={conditionValue && selectedCategory 
-                ? `${conditionValue.toUpperCase()} → ${selectedCategory.name}` 
+                ? `${conditionValue.toUpperCase()}${showAmountCondition && amountValue ? ` + ${amountValue} €` : ''} → ${selectedCategory.name}` 
                 : "Généré automatiquement"
               }
               value={ruleName}

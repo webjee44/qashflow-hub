@@ -53,6 +53,41 @@ export type Database = {
         }
         Relationships: []
       }
+      automation_rule_conditions: {
+        Row: {
+          condition_field: string
+          condition_operator: string
+          condition_value: string
+          created_at: string | null
+          id: string
+          rule_id: string
+        }
+        Insert: {
+          condition_field: string
+          condition_operator: string
+          condition_value: string
+          created_at?: string | null
+          id?: string
+          rule_id: string
+        }
+        Update: {
+          condition_field?: string
+          condition_operator?: string
+          condition_value?: string
+          created_at?: string | null
+          id?: string
+          rule_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_rule_conditions_rule_id_fkey"
+            columns: ["rule_id"]
+            isOneToOne: false
+            referencedRelation: "automation_rules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       automation_rules: {
         Row: {
           action_type: string
