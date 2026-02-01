@@ -32,6 +32,7 @@ interface TransactionRowProps {
   onCreateCategory: (transactionId: string) => void;
   getCategoryName: (categoryId: string | null) => string;
   getCategoryColor: (categoryId: string | null) => string | undefined;
+  getBankAccountDisplay: (accountName: string | null) => string | null;
   incomeCategories: Category[];
   expenseCategories: Category[];
   formatAmount: (amount: number) => string;
@@ -46,6 +47,7 @@ export const TransactionRow = memo(function TransactionRow({
   onCreateCategory,
   getCategoryName,
   getCategoryColor,
+  getBankAccountDisplay,
   incomeCategories,
   expenseCategories,
   formatAmount,
@@ -199,7 +201,7 @@ export const TransactionRow = memo(function TransactionRow({
             {transaction.bank_account_name && (
               <span className="text-xs text-muted-foreground px-2 py-0.5 rounded-full bg-muted/50 flex items-center gap-1">
                 <Building2 className="w-3 h-3" />
-                {transaction.bank_account_name}
+                {getBankAccountDisplay(transaction.bank_account_name)}
               </span>
             )}
           </div>

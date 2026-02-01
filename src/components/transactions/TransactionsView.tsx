@@ -30,6 +30,7 @@ import { useAutomationRules } from '@/hooks/useAutomationRules';
 import { useCategories, Category } from '@/hooks/useCategories';
 import { useTransactions, sortTransactions, filterTransactions, SortOption } from '@/hooks/useTransactions';
 import { useBankBalance } from '@/hooks/useBankBalance';
+import { useQuery } from '@tanstack/react-query';
 import { SuggestAutomationDialog } from './SuggestAutomationDialog';
 import { CategoryDialog } from '@/components/categories/CategoryDialog';
 import { TransactionRow } from './TransactionRow';
@@ -68,6 +69,39 @@ export function TransactionsView() {
   
   const { categories } = useCategories();
   const { balance: bankBalance } = useBankBalance();
+
+  // Fetch bridge accounts to get bank names
+  const { data: bridgeAccounts = [] } = useQuery({
+    queryKey: ['bridge-accounts', currentCompany?.id],
+    queryFn: async () => {
+      if (!currentCompany?.bridge_user_uuid) return [];
+      const { data, error } = await supabase
+        .from('bridge_accounts')
+        .select('name, bank_name')
+        .eq('bridge_user_uuid', currentCompany.bridge_user_uuid);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!currentCompany?.bridge_user_uuid,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+
+  // Create a mapping from account name to "Bank - Account" display
+  const bankAccountDisplayMap = useMemo(() => {
+    const map = new Map<string, string>();
+    bridgeAccounts.forEach(acc => {
+      if (acc.name) {
+        const displayName = acc.bank_name ? `${acc.bank_name} - ${acc.name}` : acc.name;
+        map.set(acc.name, displayName);
+      }
+    });
+    return map;
+  }, [bridgeAccounts]);
+
+  const getBankAccountDisplay = useCallback((accountName: string | null) => {
+    if (!accountName) return null;
+    return bankAccountDisplayMap.get(accountName) || accountName;
+  }, [bankAccountDisplayMap]);
 
   // Memoized category lookups
   const categoryMap = useMemo(() => {
@@ -504,6 +538,7 @@ export function TransactionsView() {
                       onCreateCategory={onCreateCategoryForTransaction}
                       getCategoryName={getCategoryName}
                       getCategoryColor={getCategoryColor}
+                      getBankAccountDisplay={getBankAccountDisplay}
                       incomeCategories={incomeCategories}
                       expenseCategories={expenseCategories}
                       formatAmount={formatAmount}
