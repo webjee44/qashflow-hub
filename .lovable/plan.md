@@ -1,118 +1,176 @@
 
-# Plan : Attribution des sociétés dès la création du lien d'invitation
+# Import Zenfirst sur /reglages-tresorerie
 
 ## Objectif
-Simplifier le workflow d'invitation en permettant d'attribuer les sociétés directement lors de la création du lien, réduisant le processus de 3 étapes à 2 :
-- **Avant** : Créer lien → Inscription → Association société (3 clics)
-- **Après** : Créer lien + sociétés → Inscription avec accès automatique (2 clics)
+Ajouter un module d'import de fichiers CSV/XLSX exportes depuis Zenfirst directement dans l'onglet Categories de la page Reglages Tresorerie.
 
-## Workflow cible
+---
+
+## Fonctionnalites
+
+### Ce qui sera importe
+1. **Groupes** (niveau 1, 8 espaces d'indentation)
+   - Fournisseurs, RH / Remuneration, Frais Generaux, Loyer, Banque...
+   
+2. **Categories** (niveau 2+, 16+ espaces)
+   - Toutatis, Flavor District, Salaires, Logiciels, Honoraires...
+   - Automatiquement rattachees a leur groupe parent
+
+3. **Montants previsionnels par mois** (optionnel)
+   - Janvier 2026: 30 647 EUR pour Toutatis
+   - Import vers la table `category_forecasts`
+
+### Detection automatique
+- **Type**: "Encaissements" → income / "Decaissements" → expense
+- **Hierarchie**: Indentation 8/16/24 espaces → niveaux 1/2/3
+- **Montants**: Format francais "30 647" → 30647
+
+---
+
+## Interface utilisateur
+
+### Etape 1: Upload
+- Bouton "Importer depuis Zenfirst" dans l'en-tete de l'onglet Categories
+- Dialog avec zone de drop pour fichier CSV ou XLSX
+- Validation du format Zenfirst
+
+### Etape 2: Apercu et mapping
+- Liste des groupes et categories detectes
+- Pour chaque element:
+  - Checkbox pour inclure/exclure
+  - Indication si deja existant (match par nom)
+  - Type (income/expense) affiche
+- Checkbox globale "Importer aussi les previsions"
+
+### Etape 3: Confirmation
+- Resume: X groupes, Y categories a creer
+- Bouton "Importer"
+- Creation en batch avec gestion des doublons
+
+---
+
+## Fichiers a creer
 
 ```text
-┌────────────────────────────────────┐
-│  SuperAdmin : Créer invitation     │
-│  ┌────────────────────────────┐    │
-│  │ Email: user@example.com    │    │
-│  │ Rôle: Membre               │    │
-│  │ ☑ Retail Shoes             │    │
-│  │ ☐ CloudSoft                │    │
-│  │ ☑ GoodAgency               │    │
-│  └────────────────────────────┘    │
-│        [Générer le lien]           │
-└────────────────────────────────────┘
-                 ↓
-   Invitation créée avec company_ids
-                 ↓
-┌────────────────────────────────────┐
-│  Utilisateur clique sur le lien    │
-│  S'inscrit → handle_new_user       │
-│  détecte company_ids et ajoute     │
-│  automatiquement aux sociétés      │
-└────────────────────────────────────┘
+src/
+  lib/
+    zenfirstParser.ts              # Parseur du format CSV/XLSX Zenfirst
+  components/
+    settings/
+      ZenfirstImportDialog.tsx     # Dialog d'import multi-etapes
 ```
 
-## Modifications techniques
+## Fichiers a modifier
 
-### 1. Modifier `SuperAdminInviteDialog.tsx`
+```text
+src/pages/TreasurySettings.tsx     # Ajout du bouton d'import
+src/hooks/useCategories.ts         # Fonction de creation en batch
+```
 
-**Ajouts :**
-- Query pour charger les sociétés de l'organisation via `get_superadmin_org_companies`
-- Checkbox multiple pour sélectionner les sociétés
-- Validation : au moins une société doit être sélectionnée
-- Envoi du champ `company_ids` lors de la création de l'invitation
+---
 
-**Code modifié :**
+## Section technique
+
+### Logique de parsing
+
 ```typescript
-// Nouveau schéma avec validation sociétés obligatoires
-const inviteSchema = z.object({
-  email: z.string().email('Email invalide'),
-  role: z.enum(['member'] as const),
-  company_ids: z.array(z.string()).min(1, 'Sélectionnez au moins une société'),
-});
+interface ZenfirstItem {
+  name: string;
+  level: number;           // 1, 2, 3 selon indentation
+  type: 'income' | 'expense';
+  parentName: string | null;
+  monthlyAmounts: Record<string, number>; // "2026-01" => 30647
+}
 
-// Query pour charger les sociétés
-const { data: companies = [] } = useQuery({
-  queryKey: ['superadmin-org-companies', organizationId],
-  queryFn: async () => {
-    const { data } = await supabase.rpc('get_superadmin_org_companies', {
-      _org_id: organizationId
-    });
-    return data || [];
-  },
-});
+// Detection de l'indentation
+function getIndentLevel(line: string): number {
+  const spaces = line.search(/\S/);
+  return Math.floor(spaces / 8); // 8=1, 16=2, 24=3
+}
 
-// Insertion avec company_ids
-.insert({
-  organization_id: organizationId,
-  email: params.email,
-  role: params.role,
-  company_ids: params.company_ids, // ← Nouveau
-  invited_by: user?.id,
-})
+// Parsing montant francais
+function parseAmount(value: string): number {
+  return Math.abs(parseFloat(value.replace(/\s/g, '').replace(',', '.')) || 0);
+}
+
+// Parsing mois francais
+const MONTHS_FR = {
+  'Janvier': '01', 'Février': '02', 'Mars': '03', 'Avril': '04',
+  'Mai': '05', 'Juin': '06', 'Juillet': '07', 'Août': '08',
+  'Septembre': '09', 'Octobre': '10', 'Novembre': '11', 'Décembre': '12'
+};
 ```
 
-### 2. Interface utilisateur ajoutée
+### Structure detectee dans le fichier exemple
 
-Section dans le formulaire :
+**Encaissements (income)**:
+- Non categorises: 21 609 EUR
+- Ventes: 265 072 EUR
+- Remboursements: 2 588 EUR
+- etc.
+
+**Decaissements (expense)**:
+- Fournisseurs (groupe)
+  - Toutatis: 30 647 EUR
+  - Flavor District: 6 801 EUR
+  - Autres fournisseurs: 2 059 EUR
+- RH / Remuneration (groupe)
+  - Salaires: 65 220 EUR
+  - Mutuelle-ALAN: 576 EUR
+- Frais Generaux (groupe)
+  - Transport sur ventes: 4 996 EUR
+  - Logiciels: 1 705 EUR
+  - Honoraires (groupe niveau 2)
+    - Coachflix: 6 000 EUR
+- etc.
+
+### Gestion des doublons
+- Recherche par nom exact (insensible a la casse)
+- Si existe: skip ou mise a jour des previsions uniquement
+- Si nouveau: creation avec rattachement au parent
+
+### Creation en batch
+
+```typescript
+// Dans useCategories.ts
+async function bulkCreateCategories(items: {
+  name: string;
+  type: 'income' | 'expense';
+  color: string;
+  parentName?: string;
+}[]): Promise<Category[]>
+```
+
+---
+
+## Flux de donnees
+
 ```text
-┌─────────────────────────────────┐
-│ Accès aux sociétés (requis)     │
-│ ☑ Retail Shoes                  │
-│ ☐ CloudSoft                     │
-│ ☐ GoodAgency                    │
-│                                 │
-│ ⚠ Sélectionnez au moins une    │
-└─────────────────────────────────┘
+Fichier Zenfirst CSV/XLSX
+        |
+        v
+[zenfirstParser.ts] 
+        |
+        v
+Liste ZenfirstItem[]
+        |
+        v
+[ZenfirstImportDialog] Etape mapping
+        |
+        v
+Groupes a creer → useCategories.createGroup()
+Categories a creer → useCategories.createCategory() avec parent_id
+Previsions → useForecasts.upsertForecast()
 ```
 
-### 3. Aucune modification base de données requise
+---
 
-Le système existant supporte déjà cette fonctionnalité :
-- La table `organization_invitations` a déjà la colonne `company_ids` (uuid[])
-- Le trigger `handle_new_user` gère déjà l'insertion dans `company_members` quand `company_ids` est rempli
+## Estimation
 
-### 4. Affichage des sociétés sélectionnées dans le récapitulatif
-
-Après génération du lien, afficher :
-```text
-Email: user@example.com
-Rôle: Membre
-Sociétés: Retail Shoes, GoodAgency
-Expire le: 5 février 2026
-```
-
-## Fichiers impactés
-
-| Fichier | Modification |
-|---------|--------------|
-| `src/components/superadmin/SuperAdminInviteDialog.tsx` | Ajout sélection sociétés + validation |
-
-## Comportement final
-
-1. **SuperAdmin** ouvre le dialog d'invitation
-2. Saisit l'email, voit la liste des sociétés avec checkboxes
-3. Coche au moins une société (obligatoire)
-4. Génère le lien → `company_ids` sauvegardé dans l'invitation
-5. **Utilisateur** reçoit le lien, s'inscrit
-6. Le trigger `handle_new_user` détecte l'invitation et ajoute automatiquement l'utilisateur aux sociétés cochées
-7. L'utilisateur arrive directement avec accès aux sociétés, sans action supplémentaire
+- **Complexite**: Moyenne
+- **Fichiers a creer**: 2
+- **Fichiers a modifier**: 2
+- **Points cles**:
+  - Parsing correct de l'indentation (espaces vs tabs)
+  - Gestion hierarchie 3 niveaux
+  - Support CSV et XLSX
