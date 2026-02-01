@@ -170,22 +170,40 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Récupérer les transactions NON catégorisées de l'utilisateur
-    const { data: transactions, error: txError } = await supabaseAdmin
-      .from('transactions')
-      .select('id, description, amount, type, category_id')
-      .eq('user_id', user.id)
-      .is('category_id', null);
+    // Récupérer TOUTES les transactions NON catégorisées de l'utilisateur (paginé pour dépasser la limite de 1000)
+    let allTransactions: Transaction[] = [];
+    let page = 0;
+    const pageSize = 1000;
+    let hasMore = true;
 
-    if (txError) {
-      console.error('[apply-automation-rule] Error fetching transactions:', txError);
-      return new Response(
-        JSON.stringify({ error: 'Failed to fetch transactions' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    while (hasMore) {
+      const { data: batch, error: txError } = await supabaseAdmin
+        .from('transactions')
+        .select('id, description, amount, type, category_id')
+        .eq('user_id', user.id)
+        .is('category_id', null)
+        .is('deleted_at', null)
+        .range(page * pageSize, (page + 1) * pageSize - 1);
+
+      if (txError) {
+        console.error('[apply-automation-rule] Error fetching transactions page:', page, txError);
+        return new Response(
+          JSON.stringify({ error: 'Failed to fetch transactions' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      if (batch && batch.length > 0) {
+        allTransactions = allTransactions.concat(batch as Transaction[]);
+        hasMore = batch.length === pageSize;
+        page++;
+      } else {
+        hasMore = false;
+      }
     }
 
-    console.log(`[apply-automation-rule] Found ${transactions?.length || 0} uncategorized transactions`);
+    const transactions = allTransactions;
+    console.log(`[apply-automation-rule] Found ${transactions.length} uncategorized transactions (${page} pages)`);
 
     // Trouver les transactions qui matchent la règle
     const matchingTransactions = (transactions || []).filter(tx => 
