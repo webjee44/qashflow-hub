@@ -1,110 +1,147 @@
 
-# Import depuis Business Plan vers Prévisions
+# Amélioration de l'affichage hiérarchique des groupes
 
-## Objectif
-Ajouter un bouton "Import depuis BP" sur la page `/previsions` qui permet d'importer automatiquement le C.A. du Business Plan vers les prévisions de trésorerie, converti en TTC (montant + TVA).
+## Problème identifié
+Les groupes de catégories existent dans la base de données (via `parent_id`) mais l'affichage actuel ne les met pas suffisamment en valeur :
+- Dans `/reglages-tresorerie` : les catégories sont listées d'affilée, difficile de voir la hiérarchie
+- Dans `/previsions` : idem, pas de vraie structure visuelle
+- Contrairement à Zenfirst qui montre clairement les groupes pliables avec indentation
 
-## Flux utilisateur
+---
+
+## Solution proposée
+
+### 1. Améliorer le tableau des catégories (`/reglages-tresorerie`)
+
+**Avant** : Liste plate avec indentation minimale
+**Après** : Sections visuellement distinctes comme Zenfirst
+
+Modifications :
+- Groupe affiché comme une barre distincte (fond coloré, police plus grande)
+- Bouton `+`/`-` explicite pour plier/déplier
+- Catégories enfants clairement indentées sous leur groupe
+- Ligne de connexion verticale entre groupe et enfants
+- Par défaut : groupes repliés pour une vue épurée
+
+### 2. Améliorer la table des prévisions (`/previsions`)
+
+Même logique :
+- Les groupes deviennent des lignes cliquables avec sous-total
+- Quand le groupe est replié : on voit juste le total du groupe
+- Quand déplié : les catégories enfants apparaissent indentées
+- Par défaut : **replié** pour une vue claire
+
+### 3. Option "Tout replier / Tout déplier"
+
+Ajouter des boutons dans l'en-tête pour gérer tous les groupes d'un coup.
+
+---
+
+## Maquette visuelle (style Zenfirst)
 
 ```text
-1. Clic sur "Import depuis BP" 
-   |
-   v
-2. Modal s'ouvre avec la liste des flux de revenus du BP
-   - Affichage: nom du flux, montant HT année 1, taux TVA, montant TTC calculé
-   - Checkbox pour sélectionner les flux à importer
-   |
-   v
-3. Sélection de la catégorie de destination
-   - Dropdown: catégorie "Ventes" ou autre catégorie income existante
-   - Option de créer une nouvelle catégorie si nécessaire
-   |
-   v
-4. Aperçu des montants par mois (TTC)
-   |
-   v
-5. Clic "Importer"
-   - Upsert des prévisions dans category_forecasts
-   - Source = 'bp_import' pour tracer l'origine
+┌─────────────────────────────────────────────────────────────┐
+│ Dépenses                                               (12) │
+├─────────────────────────────────────────────────────────────┤
+│ [−] Fournisseurs                                       (3)  │  ◄── Groupe (cliquable)
+│      ├─ Toutatis                              20%     ✎ 🗑  │  ◄── Enfant indenté
+│      ├─ Flavor District                       20%     ✎ 🗑  │
+│      └─ Autres fournisseurs                   20%     ✎ 🗑  │
+├─────────────────────────────────────────────────────────────┤
+│ [+] RH / Rémunération                                  (4)  │  ◄── Groupe replié
+├─────────────────────────────────────────────────────────────┤
+│ [−] Frais Généraux                                     (5)  │
+│      ├─ Transport sur ventes                  20%     ✎ 🗑  │
+│      ├─ Logiciels                             20%     ✎ 🗑  │
+│      └─ [−] Honoraires                         (3)          │  ◄── Sous-groupe
+│           ├─ Avocat                           20%     ✎ 🗑  │
+│           ├─ Comptables                       20%     ✎ 🗑  │
+│           └─ Coachflix                        20%     ✎ 🗑  │
+├─────────────────────────────────────────────────────────────┤
+│    Loyer                                      20%     ✎ 🗑  │  ◄── Catégorie sans groupe
+│    Marketing                                  20%     ✎ 🗑  │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-## Données récupérées du BP
-
-Pour chaque flux de revenus (`bp_revenue_streams`):
-- **Montant mensuel HT** via `getForecast(streamId, month)`
-- **Taux de TVA** via `stream.vat_rate` (ex: 0.20 = 20%)
-- **Montant TTC** = Montant HT × (1 + taux TVA)
-
-Les 6 premiers mois de l'année fiscale du BP seront mappés sur les 6 mois de prévisions du module trésorerie.
-
-## Fichiers à créer
-
-```text
-src/components/forecasts/BPImportDialog.tsx   # Dialog d'import
-```
+---
 
 ## Fichiers à modifier
 
 ```text
-src/pages/Forecasts.tsx                       # Ajout du bouton
-src/components/forecasts/ForecastTable.tsx    # (optionnel) header actions
+src/components/categories/CategoryTable.tsx      # Refonte complète de l'affichage
+src/components/forecasts/ForecastTable.tsx       # Mêmes améliorations
+src/hooks/useCategories.ts                       # Aucun changement (logique OK)
 ```
 
-## Composant BPImportDialog
-
-Interface multi-étapes:
-
-**Étape 1: Sélection des flux**
-- Liste des flux de revenus actifs du BP
-- Checkbox pour chaque flux
-- Affichage montant HT Année 1, TVA, Total TTC
-- Total sélectionné en bas
-
-**Étape 2: Mapping catégorie**
-- Dropdown pour choisir la catégorie de destination (type income)
-- Les montants de tous les flux sélectionnés seront agrégés par mois
-
-**Étape 3: Aperçu et confirmation**
-- Tableau des 6 mois avec montants TTC
-- Bouton "Importer"
-
-## Logique de calcul TTC
-
-```typescript
-// Pour chaque mois
-const monthlyTTC = selectedStreams.reduce((sum, stream) => {
-  const monthlyHT = getForecast(stream.id, month);
-  const vatRate = stream.vat_rate || 0.20; // Défaut 20%
-  return sum + (monthlyHT * (1 + vatRate));
-}, 0);
-```
+---
 
 ## Section technique
 
-### Hook useRevenueStreams
-- Déjà disponible avec `streams`, `getForecast`, `bpStartDate`
-- Le taux TVA est stocké dans `stream.vat_rate` (format décimal: 0.20 = 20%)
+### Modifications CategoryTable.tsx
 
-### Hook useForecasts
-- Méthode `upsertForecast` déjà disponible
-- Accepte `categoryId`, `month`, `expectedAmount`
-- Source sera ajouté: 'bp_import'
-
-### Mapping des mois
-Les mois du BP (basés sur `bp_start_date`) doivent être alignés avec les 6 prochains mois de prévisions:
-
+1. **Ajouter état par défaut replié**
 ```typescript
-// BP: février 2026, mars 2026, avril 2026...
-// Prévisions: les 6 prochains mois à partir de today
-// On mappe mois à mois selon l'index
+// Initialiser tous les groupes comme repliés par défaut
+const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => {
+  const saved = localStorage.getItem(COLLAPSED_KEY);
+  if (saved) return new Set(JSON.parse(saved));
+  // Par défaut : tous les groupes repliés
+  return new Set(groups.filter(g => g.group).map(g => g.group!.id));
+});
 ```
 
-### Gestion des doublons
-Si des prévisions existent déjà pour la catégorie/mois:
-- Écrasement (upsert) avec les nouvelles valeurs
-- Toast d'avertissement avant import
+2. **Améliorer le rendu visuel des groupes**
+- Séparateur visuel (border-top) avant chaque groupe
+- Fond distinct (bg-muted/50)
+- Icône `ChevronRight`/`ChevronDown` plus visible
+- Compteur de catégories enfants
+
+3. **Indentation des enfants**
+- `pl-8` au lieu de `pl-4`
+- Ligne de connexion verticale continue (border-left)
+- Dernier enfant avec `└─` au lieu de `├─`
+
+### Modifications ForecastTable.tsx
+
+1. **Groupes repliés par défaut**
+```typescript
+// Tous les groupes repliés au chargement
+const defaultCollapsed = new Set(
+  [...incomeGroups, ...expenseGroups]
+    .filter(g => g.group)
+    .map(g => g.group!.id)
+);
+```
+
+2. **Ligne de groupe avec totaux agrégés**
+- Quand replié : affiche la somme des enfants
+- Cliquable pour déplier
+- Style distinct (bg-muted, font-semibold)
+
+3. **Boutons "Tout replier/déplier"**
+```typescript
+<Button variant="ghost" size="sm" onClick={collapseAll}>
+  <ChevronsUpDown className="w-4 h-4" />
+</Button>
+```
+
+---
+
+## Bénéfices attendus
+
+- Vue épurée par défaut (groupes repliés)
+- Navigation intuitive (clic pour déplier)
+- Hiérarchie claire (indentation + connecteurs)
+- Cohérence avec Zenfirst (familiarité utilisateur)
+- Persistance de l'état (localStorage)
+
+---
 
 ## Estimation
-- Fichiers à créer: 1
-- Fichiers à modifier: 1-2
-- Complexité: Faible à moyenne
+
+- Fichiers à modifier : 2
+- Complexité : Moyenne
+- Points clés :
+  - CSS d'indentation et connecteurs
+  - État replié par défaut
+  - Animation fluide au déploiement
