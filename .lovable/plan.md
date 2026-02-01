@@ -1,85 +1,181 @@
 
-# Plan : Masquer les catégories sans montant
 
-## Résumé
-Masquer automatiquement les catégories qui n'ont **aucun montant** (ni réel, ni prévu) sur la période affichée dans `/previsions`.
+## Objectif
 
-## Solution proposée (légère, sans régression)
+Ajouter une **suggestion de catégorie par IA (Gemini Flash 3.0)** dans le dialogue de catégorisation. Quand l'utilisateur ouvre le dialogue pour catégoriser une transaction, l'IA analyse le libellé et propose automatiquement la catégorie la plus pertinente parmi ses catégories existantes.
 
-### Approche : Filtrage au niveau du rendu
-Ajouter un helper `hasAnyAmount` qui vérifie si une catégorie a au moins un montant sur les mois affichés, puis filtrer les catégories dans `renderGroupedSection`.
+---
 
-### Modification unique dans `ForecastTable.tsx`
+## Fonctionnement
 
-```typescript
-// Nouveau helper (à ajouter dans le composant)
-const hasAnyAmount = useCallback((categoryId: string): boolean => {
-  return months.some(month => {
-    const forecast = getForecast(categoryId, month);
-    const actual = Math.abs(getActual(categoryId, month));
-    return forecast > 0 || actual > 0;
-  });
-}, [months, getForecast, getActual]);
+1. Quand le dialogue de catégorisation s'ouvre, on envoie automatiquement :
+   - Le libellé de la transaction sélectionnée
+   - La liste des catégories de l'utilisateur (avec leur type income/expense)
+   - Le type de transaction (encaissement/décaissement)
+
+2. L'IA analyse et retourne :
+   - La catégorie recommandée (nom exact)
+   - Un niveau de confiance (0-1)
+
+3. Le dialogue affiche la suggestion IA en premier avec un badge distinctif
+
+---
+
+## Architecture
+
+```text
++---------------------------+       +-----------------------------+
+| BulkCategorizeDialog.tsx  |  -->  | suggest-category (Edge Fn)  |
+| (appelle la suggestion)   |       | (Gemini 3 Flash)            |
++---------------------------+       +-----------------------------+
 ```
 
-### Modification de `renderGroupedSection`
+---
+
+## Modifications
+
+### 1. Nouvelle Edge Function : `suggest-category`
+
+**Fichier :** `supabase/functions/suggest-category/index.ts`
+
+- Reçoit : `{ description, type, categories: [{id, name, type}] }`
+- Appelle Gemini 3 Flash avec un prompt adapté
+- Retourne : `{ suggestedCategoryId, categoryName, confidence }`
+
+Prompt système :
+```
+Tu es un expert en catégorisation de transactions bancaires françaises.
+Analyse le libellé et choisis la catégorie la plus appropriée.
+Une transaction de type "expense" doit être catégorisée avec une catégorie de décaissement.
+Une transaction de type "income" doit être catégorisée avec une catégorie d'encaissement.
+Exemples courants :
+- URSSAF → Cotisations sociales
+- AMAZON → Fournitures / Achats
+- NETFLIX → Abonnements
+- etc.
+```
+
+### 2. Mise à jour du dialogue : `BulkCategorizeDialog.tsx`
+
+- Ajouter un état pour la suggestion IA : `aiSuggestion`, `isLoadingAI`
+- Au montage du dialogue, appeler la fonction `suggest-category`
+- Afficher la suggestion IA en premier dans la section "Recommandées" avec :
+  - Un badge ✨ "Suggestion IA"
+  - Le niveau de confiance (ex: 85%)
+- Si l'utilisateur clique dessus, elle est sélectionnée comme les autres
+
+### 3. Configuration : `supabase/config.toml`
+
+Ajouter :
+```toml
+[functions.suggest-category]
+verify_jwt = false
+```
+
+---
+
+## Détails techniques
+
+### Edge Function `suggest-category`
 
 ```typescript
-const renderGroupedSection = (groups: CategoryGroup[], type: 'income' | 'expense', startIndex: number) => {
-  let currentIndex = startIndex;
+// Pseudo-code
+const { description, type, categories } = await req.json();
+
+const prompt = `
+Transaction: "${description}"
+Type: ${type}
+Catégories disponibles (${type}): ${categories.filter(c => c.type === type).map(c => c.name).join(', ')}
+
+Quelle catégorie correspond le mieux ? Réponds en JSON:
+{"categoryName": "...", "confidence": 0.0-1.0}
+`;
+
+// Appel Gemini 3 Flash
+const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+  method: "POST",
+  headers: { Authorization: `Bearer ${LOVABLE_API_KEY}` },
+  body: JSON.stringify({
+    model: "google/gemini-3-flash-preview",
+    messages: [{ role: "user", content: prompt }],
+    temperature: 0.2,
+  }),
+});
+```
+
+### Frontend - Appel de la suggestion
+
+```typescript
+// Dans BulkCategorizeDialog.tsx
+const [aiSuggestion, setAiSuggestion] = useState<{
+  categoryId: string;
+  categoryName: string;
+  confidence: number;
+} | null>(null);
+const [isLoadingAI, setIsLoadingAI] = useState(false);
+
+useEffect(() => {
+  if (!open || selectedTransactions.length === 0) return;
   
-  return groups.map((group) => {
-    const groupId = group.group?.id || 'ungrouped';
-    const isCollapsed = group.group ? collapsedGroups.has(groupId) : false;
-    
-    // ✅ Filtrer les catégories sans montants
-    const visibleChildren = group.children.filter(cat => hasAnyAmount(cat.id));
-    
-    // ✅ Ne pas afficher le groupe si aucune catégorie visible
-    if (visibleChildren.length === 0 && group.group) return null;
-    
-    const elements = [];
-    
-    if (group.group && visibleChildren.length > 0) {
-      elements.push(renderGroupRow({ ...group, children: visibleChildren }, type));
+  const fetchSuggestion = async () => {
+    setIsLoadingAI(true);
+    try {
+      const tx = selectedTransactions[0];
+      const { data } = await supabase.functions.invoke('suggest-category', {
+        body: {
+          description: tx.description,
+          type: tx.type,
+          categories: categories.map(c => ({ id: c.id, name: c.name, type: c.type })),
+        },
+      });
+      if (data?.categoryId) {
+        setAiSuggestion(data);
+      }
+    } catch (e) {
+      console.error('AI suggestion error:', e);
+    } finally {
+      setIsLoadingAI(false);
     }
-    
-    if (!isCollapsed) {
-      elements.push(
-        <AnimatePresence key={`children-${groupId}`}>
-          {visibleChildren.map((category) => {
-            const row = renderCategoryRow(category, currentIndex, type, !!group.group);
-            currentIndex++;
-            return row;
-          })}
-        </AnimatePresence>
-      );
-    }
-    
-    return elements;
-  });
-};
+  };
+  
+  fetchSuggestion();
+}, [open, selectedTransactions, categories]);
 ```
 
-## Avantages
+### UI - Affichage de la suggestion
 
-| Aspect | Détail |
-|--------|--------|
-| **Performance** | Calcul léger (réutilise les données déjà en mémoire) |
-| **Pas de régression** | Les catégories avec montants restent visibles |
-| **Comportement intuitif** | Dès qu'un montant est saisi, la catégorie apparaît |
-| **Code minimal** | ~15 lignes modifiées |
+Dans la section "Recommandées", ajouter en premier :
 
-## Comportement attendu
+```tsx
+{isLoadingAI && (
+  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+    <Loader2 className="w-4 h-4 animate-spin" />
+    Analyse IA en cours...
+  </div>
+)}
 
-- ✅ Catégorie avec prévision → Visible
-- ✅ Catégorie avec transaction réelle → Visible
-- ✅ Catégorie sans rien sur la période → Masquée
-- ✅ Groupe entièrement vide → Masqué
-- ✅ Si on étend la période et qu'une catégorie a des données → Réapparaît
+{aiSuggestion && (
+  <Button
+    variant={selectedCategoryId === aiSuggestion.categoryId ? 'default' : 'outline'}
+    className="col-span-2 justify-between border-accent"
+    onClick={() => setSelectedCategoryId(aiSuggestion.categoryId)}
+  >
+    <div className="flex items-center gap-2">
+      <Sparkles className="w-4 h-4 text-accent" />
+      <span>{aiSuggestion.categoryName}</span>
+    </div>
+    <span className="text-xs opacity-70">{Math.round(aiSuggestion.confidence * 100)}%</span>
+  </Button>
+)}
+```
 
-## Fichier à modifier
+---
+
+## Résumé des fichiers à modifier
 
 | Fichier | Action |
 |---------|--------|
-| `src/components/forecasts/ForecastTable.tsx` | Ajouter helper + filtrer dans renderGroupedSection |
+| `supabase/functions/suggest-category/index.ts` | Créer |
+| `supabase/config.toml` | Ajouter config |
+| `src/components/transactions/BulkCategorizeDialog.tsx` | Modifier |
+
