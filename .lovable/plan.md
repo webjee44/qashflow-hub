@@ -1,181 +1,275 @@
 
 
-## Objectif
+# Plan : Gestion des Créances Clients & Dettes Fournisseurs
 
-Ajouter une **suggestion de catégorie par IA (Gemini Flash 3.0)** dans le dialogue de catégorisation. Quand l'utilisateur ouvre le dialogue pour catégoriser une transaction, l'IA analyse le libellé et propose automatiquement la catégorie la plus pertinente parmi ses catégories existantes.
+## Vision
 
----
-
-## Fonctionnement
-
-1. Quand le dialogue de catégorisation s'ouvre, on envoie automatiquement :
-   - Le libellé de la transaction sélectionnée
-   - La liste des catégories de l'utilisateur (avec leur type income/expense)
-   - Le type de transaction (encaissement/décaissement)
-
-2. L'IA analyse et retourne :
-   - La catégorie recommandée (nom exact)
-   - Un niveau de confiance (0-1)
-
-3. Le dialogue affiche la suggestion IA en premier avec un badge distinctif
+Ajouter une nouvelle page `/creances` pour suivre les factures non payées (créances clients + dettes fournisseurs) avec :
+- Saisie manuelle pour commencer
+- Connecteur Pennylane en parallèle
+- Intégration dans les prévisions de trésorerie à la date exacte d'échéance
 
 ---
 
 ## Architecture
 
 ```text
-+---------------------------+       +-----------------------------+
-| BulkCategorizeDialog.tsx  |  -->  | suggest-category (Edge Fn)  |
-| (appelle la suggestion)   |       | (Gemini 3 Flash)            |
-+---------------------------+       +-----------------------------+
+┌──────────────────────────────────────────────────────────────────────────┐
+│                            DASHBOARD                                     │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐          │
+│  │ Solde banque    │  │ Créances clients │  │ Dettes fourniss.│          │
+│  │ 50 000 €        │  │ +45 000 €        │  │ -23 000 €       │          │
+│  └─────────────────┘  └─────────────────┘  └─────────────────┘          │
+│                                                                          │
+│  💡 Solde projeté = Banque + Créances à échéance - Dettes à échéance     │
+└──────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────────────┐
+│                     NOUVELLE PAGE /creances                              │
+│                                                                          │
+│  Tabs: [Créances clients] [Dettes fournisseurs]                          │
+│                                                                          │
+│  ┌────────────────┬─────────┬────────────┬───────────┬─────────┐        │
+│  │ Partenaire     │ N° Fact.│ Montant TTC│ Échéance  │ Statut  │        │
+│  ├────────────────┼─────────┼────────────┼───────────┼─────────┤        │
+│  │ Client A       │ FAC-001 │ 12 000 €   │ 15 fév.   │ ⏳ À venir│        │
+│  │ Client B       │ FAC-002 │ 8 000 €    │ 3 fév.    │ 🔴 Échue │        │
+│  │ Fournisseur X  │ F-456   │ 5 000 €    │ 20 fév.   │ ⏳ À venir│        │
+│  └────────────────┴─────────┴────────────┴───────────┴─────────┘        │
+│                                                                          │
+│  [+ Ajouter facture]   [🔄 Sync Pennylane]                               │
+└──────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────────────┐
+│                     PAGE /previsions enrichie                            │
+│                                                                          │
+│  Nouvelle section "Échéances factures" :                                 │
+│  - Affiche les montants à encaisser/décaisser par date exacte            │
+│  - S'ajoute aux prévisions existantes par catégorie                      │
+└──────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Modifications
+## Étape 1 : Base de données
 
-### 1. Nouvelle Edge Function : `suggest-category`
+### Nouvelle table `invoices`
 
-**Fichier :** `supabase/functions/suggest-category/index.ts`
+| Colonne | Type | Description |
+|---------|------|-------------|
+| `id` | uuid | Identifiant unique |
+| `user_id` | uuid | Propriétaire |
+| `company_id` | uuid | Société |
+| `type` | text | 'receivable' (créance client) / 'payable' (dette fournisseur) |
+| `partner_name` | text | Nom du client ou fournisseur |
+| `invoice_number` | text | Numéro de facture |
+| `invoice_date` | date | Date d'émission |
+| `due_date` | date | Date d'échéance (pour le calcul de trésorerie) |
+| `amount_ht` | numeric | Montant HT |
+| `amount_ttc` | numeric | Montant TTC (ce qui impacte la trésorerie) |
+| `vat_amount` | numeric | Montant TVA |
+| `status` | text | 'pending' / 'paid' / 'overdue' |
+| `paid_at` | date | Date de paiement effectif |
+| `transaction_id` | uuid | Lien vers transaction de rapprochement |
+| `category_id` | uuid | Catégorie associée |
+| `source` | text | 'manual' / 'pennylane' / 'odoo' |
+| `external_id` | text | ID dans le système source |
+| `notes` | text | Notes libres |
+| `created_at` | timestamptz | Date création |
+| `updated_at` | timestamptz | Date modification |
 
-- Reçoit : `{ description, type, categories: [{id, name, type}] }`
-- Appelle Gemini 3 Flash avec un prompt adapté
-- Retourne : `{ suggestedCategoryId, categoryName, confidence }`
+### Politiques RLS
 
-Prompt système :
+- `SELECT` : user_id = auth.uid() OU has_company_access()
+- `INSERT` : user_id = auth.uid()
+- `UPDATE` : user_id = auth.uid()
+- `DELETE` : user_id = auth.uid()
+
+---
+
+## Étape 2 : Interface - Page /creances
+
+### 2.1 Fichiers à créer
+
+| Fichier | Description |
+|---------|-------------|
+| `src/pages/Invoices.tsx` | Page principale des créances |
+| `src/components/invoices/InvoiceTable.tsx` | Tableau des factures |
+| `src/components/invoices/InvoiceDialog.tsx` | Formulaire ajout/édition |
+| `src/components/invoices/InvoiceStats.tsx` | KPIs en haut de page |
+| `src/hooks/useInvoices.ts` | Hook CRUD + calculs |
+
+### 2.2 Formulaire de saisie
+
+Champs :
+- Type : Créance client / Dette fournisseur (toggle)
+- Partenaire : texte libre (autocomplete des existants)
+- N° Facture : texte
+- Date d'émission : date picker
+- Date d'échéance : date picker
+- Montant HT / TVA / TTC : avec calcul automatique
+- Catégorie : select parmi les catégories existantes
+- Notes : textarea optionnel
+
+### 2.3 Tableau des factures
+
+Colonnes :
+- Partenaire
+- N° Facture
+- Montant TTC
+- Échéance (avec badge couleur : vert si > 7j, orange si < 7j, rouge si échue)
+- Statut (En attente / Échue / Payée)
+- Actions (Éditer / Marquer payée / Supprimer)
+
+Filtres :
+- Tabs : Créances clients / Dettes fournisseurs / Toutes
+- Statut : En attente / Échue / Payée
+- Période
+
+---
+
+## Étape 3 : Connecteur Pennylane
+
+### 3.1 Edge Function `pennylane-invoices-sync`
+
+Endpoints Pennylane à appeler :
+- `GET /api/external/v2/customer_invoices` → créances clients
+- `GET /api/external/v2/supplier_invoices` → dettes fournisseurs
+
+Logique :
+1. Récupérer les factures depuis Pennylane (status = pending ou open)
+2. Pour chaque facture, vérifier si elle existe déjà (via `external_id`)
+3. Si nouvelle → INSERT
+4. Si existante → UPDATE (status, amount, etc.)
+5. Marquer automatiquement "paid" si status = paid dans Pennylane
+
+### 3.2 Secret Pennylane
+
+Le secret `PENNYLANE_API_KEY` existe déjà dans le projet.
+
+### 3.3 Bouton de synchronisation
+
+Dans la page `/creances`, un bouton "🔄 Sync Pennylane" qui :
+- Appelle l'edge function
+- Affiche un toast avec le nombre de factures importées/mises à jour
+- Raffraîchit le tableau
+
+---
+
+## Étape 4 : Intégration Dashboard
+
+### Nouveaux KPIs
+
+Ajouter 2 cartes dans le Dashboard :
+
+1. **Créances clients** 
+   - Total des invoices type='receivable' + status='pending'
+   - Icône : FileText ou Receipt
+
+2. **Dettes fournisseurs**
+   - Total des invoices type='payable' + status='pending'
+   - Icône : FileText ou Receipt
+
+### Formule solde projeté
+
 ```
-Tu es un expert en catégorisation de transactions bancaires françaises.
-Analyse le libellé et choisis la catégorie la plus appropriée.
-Une transaction de type "expense" doit être catégorisée avec une catégorie de décaissement.
-Une transaction de type "income" doit être catégorisée avec une catégorie d'encaissement.
-Exemples courants :
-- URSSAF → Cotisations sociales
-- AMAZON → Fournitures / Achats
-- NETFLIX → Abonnements
-- etc.
-```
-
-### 2. Mise à jour du dialogue : `BulkCategorizeDialog.tsx`
-
-- Ajouter un état pour la suggestion IA : `aiSuggestion`, `isLoadingAI`
-- Au montage du dialogue, appeler la fonction `suggest-category`
-- Afficher la suggestion IA en premier dans la section "Recommandées" avec :
-  - Un badge ✨ "Suggestion IA"
-  - Le niveau de confiance (ex: 85%)
-- Si l'utilisateur clique dessus, elle est sélectionnée comme les autres
-
-### 3. Configuration : `supabase/config.toml`
-
-Ajouter :
-```toml
-[functions.suggest-category]
-verify_jwt = false
+Solde projeté à J+30 = 
+  Solde banque actuel
+  + Créances clients (échéance dans les 30j)
+  - Dettes fournisseurs (échéance dans les 30j)
+  + Autres prévisions manuelles
 ```
 
 ---
 
-## Détails techniques
+## Étape 5 : Intégration Prévisions
 
-### Edge Function `suggest-category`
+### Enrichissement du ForecastTable
 
+Ajouter une section "Échéances factures" qui affiche :
+- Par mois (ou par semaine selon la période)
+- Les encaissements attendus (créances à échéance)
+- Les décaissements attendus (dettes à échéance)
+
+Option : permettre de basculer entre vue "catégories" et vue "échéances factures"
+
+---
+
+## Étape 6 : Rapprochement automatique (optionnel, phase 2)
+
+Quand une transaction arrive via Bridge :
+1. Chercher une facture correspondante :
+   - Montant à ±5% près
+   - Date proche de l'échéance (±7 jours)
+2. Si match unique → proposer le rapprochement
+3. Si rapproché → marquer la facture comme "paid"
+
+---
+
+## Navigation
+
+### Mise à jour de la Sidebar
+
+Ajouter dans `treasuryNavItems` :
 ```typescript
-// Pseudo-code
-const { description, type, categories } = await req.json();
-
-const prompt = `
-Transaction: "${description}"
-Type: ${type}
-Catégories disponibles (${type}): ${categories.filter(c => c.type === type).map(c => c.name).join(', ')}
-
-Quelle catégorie correspond le mieux ? Réponds en JSON:
-{"categoryName": "...", "confidence": 0.0-1.0}
-`;
-
-// Appel Gemini 3 Flash
-const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-  method: "POST",
-  headers: { Authorization: `Bearer ${LOVABLE_API_KEY}` },
-  body: JSON.stringify({
-    model: "google/gemini-3-flash-preview",
-    messages: [{ role: "user", content: prompt }],
-    temperature: 0.2,
-  }),
-});
+{ icon: Receipt, label: 'Créances', href: '/creances', prefetchKeys: ['invoices'] },
 ```
 
-### Frontend - Appel de la suggestion
+### Mise à jour de App.tsx
 
-```typescript
-// Dans BulkCategorizeDialog.tsx
-const [aiSuggestion, setAiSuggestion] = useState<{
-  categoryId: string;
-  categoryName: string;
-  confidence: number;
-} | null>(null);
-const [isLoadingAI, setIsLoadingAI] = useState(false);
-
-useEffect(() => {
-  if (!open || selectedTransactions.length === 0) return;
-  
-  const fetchSuggestion = async () => {
-    setIsLoadingAI(true);
-    try {
-      const tx = selectedTransactions[0];
-      const { data } = await supabase.functions.invoke('suggest-category', {
-        body: {
-          description: tx.description,
-          type: tx.type,
-          categories: categories.map(c => ({ id: c.id, name: c.name, type: c.type })),
-        },
-      });
-      if (data?.categoryId) {
-        setAiSuggestion(data);
-      }
-    } catch (e) {
-      console.error('AI suggestion error:', e);
-    } finally {
-      setIsLoadingAI(false);
-    }
-  };
-  
-  fetchSuggestion();
-}, [open, selectedTransactions, categories]);
-```
-
-### UI - Affichage de la suggestion
-
-Dans la section "Recommandées", ajouter en premier :
-
+Ajouter la route :
 ```tsx
-{isLoadingAI && (
-  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-    <Loader2 className="w-4 h-4 animate-spin" />
-    Analyse IA en cours...
-  </div>
-)}
-
-{aiSuggestion && (
-  <Button
-    variant={selectedCategoryId === aiSuggestion.categoryId ? 'default' : 'outline'}
-    className="col-span-2 justify-between border-accent"
-    onClick={() => setSelectedCategoryId(aiSuggestion.categoryId)}
-  >
-    <div className="flex items-center gap-2">
-      <Sparkles className="w-4 h-4 text-accent" />
-      <span>{aiSuggestion.categoryName}</span>
-    </div>
-    <span className="text-xs opacity-70">{Math.round(aiSuggestion.confidence * 100)}%</span>
-  </Button>
-)}
+<Route path="/creances" element={<Suspense fallback={<PageLoader />}><Invoices /></Suspense>} />
 ```
 
 ---
 
-## Résumé des fichiers à modifier
+## Récapitulatif des fichiers
 
-| Fichier | Action |
-|---------|--------|
-| `supabase/functions/suggest-category/index.ts` | Créer |
-| `supabase/config.toml` | Ajouter config |
-| `src/components/transactions/BulkCategorizeDialog.tsx` | Modifier |
+### À créer
+
+| Fichier | Description |
+|---------|-------------|
+| `src/pages/Invoices.tsx` | Page principale |
+| `src/components/invoices/InvoiceTable.tsx` | Tableau |
+| `src/components/invoices/InvoiceDialog.tsx` | Formulaire |
+| `src/components/invoices/InvoiceStats.tsx` | KPIs |
+| `src/hooks/useInvoices.ts` | Hook CRUD |
+| `supabase/functions/pennylane-invoices-sync/index.ts` | Sync Pennylane |
+
+### À modifier
+
+| Fichier | Description |
+|---------|-------------|
+| `src/App.tsx` | Ajouter route /creances |
+| `src/components/layout/Sidebar.tsx` | Ajouter lien navigation |
+| `src/pages/Dashboard.tsx` | Ajouter 2 cartes KPI |
+| `src/hooks/useDashboardStats.ts` | Calculer totaux créances |
+| `supabase/config.toml` | Ajouter fonction pennylane-invoices-sync |
+
+### Migration SQL
+
+Création de la table `invoices` avec RLS.
+
+---
+
+## Planning
+
+| Phase | Contenu | Priorité |
+|-------|---------|----------|
+| **Phase 1** | Table SQL + hook + page /creances + saisie manuelle | Maintenant |
+| **Phase 2** | Connecteur Pennylane (sync factures) | Maintenant |
+| **Phase 3** | KPIs Dashboard + solde projeté enrichi | Ensuite |
+| **Phase 4** | Intégration dans ForecastTable | Ensuite |
+| **Phase 5** | Rapprochement auto transactions/factures | Plus tard |
+
+---
+
+## Points clés anti-usine à gaz
+
+1. **Pas de workflow complexe** : juste 3 statuts (pending → overdue auto → paid)
+2. **Pas de relances** : ce n'est pas un CRM
+3. **Focus cash** : l'objectif est le solde projeté, pas la comptabilité
+4. **UI minimaliste** : un tableau simple avec filtres, comme le reste de l'app
+5. **Date exacte** : les échéances impactent les prévisions au jour près
 
