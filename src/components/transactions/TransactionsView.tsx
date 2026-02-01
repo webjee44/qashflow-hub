@@ -337,7 +337,12 @@ export function TransactionsView() {
         animate={{ y: 0, opacity: 1 }}
         className="flex items-center justify-between flex-wrap gap-3"
       >
-        <h2 className="text-2xl font-bold text-foreground">Transactions</h2>
+        <div className="flex items-center gap-3">
+          <h2 className="text-2xl font-bold text-foreground">Transactions</h2>
+          <Badge variant="secondary" className="text-sm font-medium">
+            {filteredTransactions.length.toLocaleString('fr-FR')} transaction{filteredTransactions.length > 1 ? 's' : ''}
+          </Badge>
+        </div>
         <Button 
           onClick={categorizeWithAI} 
           disabled={categorizing}
