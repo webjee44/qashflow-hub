@@ -550,11 +550,13 @@ export function TransactionsView() {
         open={showBulkCategorizeDialog}
         onOpenChange={setShowBulkCategorizeDialog}
         selectedTransactions={filteredTransactions.filter(t => selectedTransactionIds.has(t.id))}
+        allTransactions={transactions}
         categories={categories}
         onCategorize={async (categoryId) => {
           await handleBulkUpdateCategory(categoryId);
           setSelectedTransactionIds(new Set());
         }}
+        onCreateRule={createRule}
         isLoading={isBulkUpdating}
       />
     </div>
