@@ -307,6 +307,8 @@ export function useAutomationRules() {
 
       if (error) throw error;
 
+      let ruleWithConditions = { ...data, conditions: [] as RuleCondition[] };
+
       // Update conditions if provided
       if (conditions) {
         // Delete existing conditions
@@ -333,20 +335,28 @@ export function useAutomationRules() {
             logError('Error updating conditions:', conditionsError);
           }
 
-          const ruleWithConditions = {
+          ruleWithConditions = {
             ...data,
             conditions: insertedConditions || conditions
           };
-
-          setRules(prev => prev.map(r => r.id === id ? ruleWithConditions : r));
-          toast.success('Règle mise à jour');
-          return ruleWithConditions;
         }
       }
+
+      setRules(prev => prev.map(r => r.id === id ? ruleWithConditions : r));
+
+      // Re-apply the rule to existing transactions after update
+      const updated = await applyRuleToExistingTransactions(id);
+      if (updated > 0) {
+        toast.success(`Règle mise à jour - ${updated} transaction${updated > 1 ? 's' : ''} catégorisée${updated > 1 ? 's' : ''}`);
+        // Update match_count locally
+        setRules(prev => prev.map(r => 
+          r.id === id ? { ...r, match_count: (r.match_count || 0) + updated } : r
+        ));
+      } else {
+        toast.success('Règle mise à jour');
+      }
       
-      setRules(prev => prev.map(r => r.id === id ? { ...data, conditions: r.conditions } : r));
-      toast.success('Règle mise à jour');
-      return data;
+      return ruleWithConditions;
     } catch (error) {
       logError('Error updating rule:', error);
       toast.error('Erreur lors de la mise à jour');
