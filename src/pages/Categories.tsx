@@ -5,6 +5,7 @@ import { useCategories, Category } from '@/hooks/useCategories';
 import { CategoryTable } from '@/components/categories/CategoryTable';
 import { CategoryDialog } from '@/components/categories/CategoryDialog';
 import { GroupDialog } from '@/components/categories/GroupDialog';
+import { GroupsManager } from '@/components/categories/GroupsManager';
 import { Button } from '@/components/ui/button';
 import { 
   Plus, 
@@ -12,8 +13,7 @@ import {
   TrendingUp, 
   TrendingDown,
   Sparkles,
-  Wand2,
-  FolderPlus
+  Wand2
 } from 'lucide-react';
 
 // Unified state for group dialog
@@ -37,7 +37,9 @@ export default function Categories() {
     createGroup,
     updateGroup,
     deleteGroup,
-    isGroup
+    isGroup,
+    bulkAssignToGroup,
+    bulkRemoveFromGroup
   } = useCategories();
   
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
@@ -135,10 +137,6 @@ export default function Categories() {
         />
         {totalCategories > 0 && (
           <div className="flex gap-3 flex-shrink-0">
-            <Button variant="outline" onClick={openCreateGroupDialog}>
-              <FolderPlus className="w-4 h-4 mr-2" />
-              Ajouter un groupe
-            </Button>
             <CategoryDialog
               onSave={createCategory}
               trigger={
@@ -238,6 +236,15 @@ export default function Categories() {
         </motion.div>
       )}
 
+      {/* Groups Manager Section */}
+      <GroupsManager
+        incomeGroups={incomeGroups}
+        expenseGroups={expenseGroups}
+        onCreateGroup={openCreateGroupDialog}
+        onEditGroup={handleEditGroup}
+        onDeleteGroup={handleDeleteGroup}
+      />
+
       {/* Categories Tables */}
       <div className="space-y-4">
         <CategoryTable 
@@ -247,6 +254,9 @@ export default function Categories() {
           onEditGroup={handleEditGroup}
           onDelete={deleteCategory}
           onDeleteGroup={handleDeleteGroup}
+          availableGroups={incomeGroups.filter(g => g.group).map(g => g.group!)}
+          onBulkAssign={bulkAssignToGroup}
+          onBulkUnassign={bulkRemoveFromGroup}
         />
         <CategoryTable 
           groups={expenseGroups}
@@ -255,6 +265,9 @@ export default function Categories() {
           onEditGroup={handleEditGroup}
           onDelete={deleteCategory}
           onDeleteGroup={handleDeleteGroup}
+          availableGroups={expenseGroups.filter(g => g.group).map(g => g.group!)}
+          onBulkAssign={bulkAssignToGroup}
+          onBulkUnassign={bulkRemoveFromGroup}
         />
       </div>
 
