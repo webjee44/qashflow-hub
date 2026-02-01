@@ -1,176 +1,110 @@
 
-# Import Zenfirst sur /reglages-tresorerie
+# Import depuis Business Plan vers Prévisions
 
 ## Objectif
-Ajouter un module d'import de fichiers CSV/XLSX exportes depuis Zenfirst directement dans l'onglet Categories de la page Reglages Tresorerie.
+Ajouter un bouton "Import depuis BP" sur la page `/previsions` qui permet d'importer automatiquement le C.A. du Business Plan vers les prévisions de trésorerie, converti en TTC (montant + TVA).
 
----
+## Flux utilisateur
 
-## Fonctionnalites
+```text
+1. Clic sur "Import depuis BP" 
+   |
+   v
+2. Modal s'ouvre avec la liste des flux de revenus du BP
+   - Affichage: nom du flux, montant HT année 1, taux TVA, montant TTC calculé
+   - Checkbox pour sélectionner les flux à importer
+   |
+   v
+3. Sélection de la catégorie de destination
+   - Dropdown: catégorie "Ventes" ou autre catégorie income existante
+   - Option de créer une nouvelle catégorie si nécessaire
+   |
+   v
+4. Aperçu des montants par mois (TTC)
+   |
+   v
+5. Clic "Importer"
+   - Upsert des prévisions dans category_forecasts
+   - Source = 'bp_import' pour tracer l'origine
+```
 
-### Ce qui sera importe
-1. **Groupes** (niveau 1, 8 espaces d'indentation)
-   - Fournisseurs, RH / Remuneration, Frais Generaux, Loyer, Banque...
-   
-2. **Categories** (niveau 2+, 16+ espaces)
-   - Toutatis, Flavor District, Salaires, Logiciels, Honoraires...
-   - Automatiquement rattachees a leur groupe parent
+## Données récupérées du BP
 
-3. **Montants previsionnels par mois** (optionnel)
-   - Janvier 2026: 30 647 EUR pour Toutatis
-   - Import vers la table `category_forecasts`
+Pour chaque flux de revenus (`bp_revenue_streams`):
+- **Montant mensuel HT** via `getForecast(streamId, month)`
+- **Taux de TVA** via `stream.vat_rate` (ex: 0.20 = 20%)
+- **Montant TTC** = Montant HT × (1 + taux TVA)
 
-### Detection automatique
-- **Type**: "Encaissements" → income / "Decaissements" → expense
-- **Hierarchie**: Indentation 8/16/24 espaces → niveaux 1/2/3
-- **Montants**: Format francais "30 647" → 30647
+Les 6 premiers mois de l'année fiscale du BP seront mappés sur les 6 mois de prévisions du module trésorerie.
 
----
+## Fichiers à créer
 
-## Interface utilisateur
+```text
+src/components/forecasts/BPImportDialog.tsx   # Dialog d'import
+```
 
-### Etape 1: Upload
-- Bouton "Importer depuis Zenfirst" dans l'en-tete de l'onglet Categories
-- Dialog avec zone de drop pour fichier CSV ou XLSX
-- Validation du format Zenfirst
+## Fichiers à modifier
 
-### Etape 2: Apercu et mapping
-- Liste des groupes et categories detectes
-- Pour chaque element:
-  - Checkbox pour inclure/exclure
-  - Indication si deja existant (match par nom)
-  - Type (income/expense) affiche
-- Checkbox globale "Importer aussi les previsions"
+```text
+src/pages/Forecasts.tsx                       # Ajout du bouton
+src/components/forecasts/ForecastTable.tsx    # (optionnel) header actions
+```
 
-### Etape 3: Confirmation
-- Resume: X groupes, Y categories a creer
+## Composant BPImportDialog
+
+Interface multi-étapes:
+
+**Étape 1: Sélection des flux**
+- Liste des flux de revenus actifs du BP
+- Checkbox pour chaque flux
+- Affichage montant HT Année 1, TVA, Total TTC
+- Total sélectionné en bas
+
+**Étape 2: Mapping catégorie**
+- Dropdown pour choisir la catégorie de destination (type income)
+- Les montants de tous les flux sélectionnés seront agrégés par mois
+
+**Étape 3: Aperçu et confirmation**
+- Tableau des 6 mois avec montants TTC
 - Bouton "Importer"
-- Creation en batch avec gestion des doublons
 
----
+## Logique de calcul TTC
 
-## Fichiers a creer
-
-```text
-src/
-  lib/
-    zenfirstParser.ts              # Parseur du format CSV/XLSX Zenfirst
-  components/
-    settings/
-      ZenfirstImportDialog.tsx     # Dialog d'import multi-etapes
+```typescript
+// Pour chaque mois
+const monthlyTTC = selectedStreams.reduce((sum, stream) => {
+  const monthlyHT = getForecast(stream.id, month);
+  const vatRate = stream.vat_rate || 0.20; // Défaut 20%
+  return sum + (monthlyHT * (1 + vatRate));
+}, 0);
 ```
-
-## Fichiers a modifier
-
-```text
-src/pages/TreasurySettings.tsx     # Ajout du bouton d'import
-src/hooks/useCategories.ts         # Fonction de creation en batch
-```
-
----
 
 ## Section technique
 
-### Logique de parsing
+### Hook useRevenueStreams
+- Déjà disponible avec `streams`, `getForecast`, `bpStartDate`
+- Le taux TVA est stocké dans `stream.vat_rate` (format décimal: 0.20 = 20%)
+
+### Hook useForecasts
+- Méthode `upsertForecast` déjà disponible
+- Accepte `categoryId`, `month`, `expectedAmount`
+- Source sera ajouté: 'bp_import'
+
+### Mapping des mois
+Les mois du BP (basés sur `bp_start_date`) doivent être alignés avec les 6 prochains mois de prévisions:
 
 ```typescript
-interface ZenfirstItem {
-  name: string;
-  level: number;           // 1, 2, 3 selon indentation
-  type: 'income' | 'expense';
-  parentName: string | null;
-  monthlyAmounts: Record<string, number>; // "2026-01" => 30647
-}
-
-// Detection de l'indentation
-function getIndentLevel(line: string): number {
-  const spaces = line.search(/\S/);
-  return Math.floor(spaces / 8); // 8=1, 16=2, 24=3
-}
-
-// Parsing montant francais
-function parseAmount(value: string): number {
-  return Math.abs(parseFloat(value.replace(/\s/g, '').replace(',', '.')) || 0);
-}
-
-// Parsing mois francais
-const MONTHS_FR = {
-  'Janvier': '01', 'Février': '02', 'Mars': '03', 'Avril': '04',
-  'Mai': '05', 'Juin': '06', 'Juillet': '07', 'Août': '08',
-  'Septembre': '09', 'Octobre': '10', 'Novembre': '11', 'Décembre': '12'
-};
+// BP: février 2026, mars 2026, avril 2026...
+// Prévisions: les 6 prochains mois à partir de today
+// On mappe mois à mois selon l'index
 ```
-
-### Structure detectee dans le fichier exemple
-
-**Encaissements (income)**:
-- Non categorises: 21 609 EUR
-- Ventes: 265 072 EUR
-- Remboursements: 2 588 EUR
-- etc.
-
-**Decaissements (expense)**:
-- Fournisseurs (groupe)
-  - Toutatis: 30 647 EUR
-  - Flavor District: 6 801 EUR
-  - Autres fournisseurs: 2 059 EUR
-- RH / Remuneration (groupe)
-  - Salaires: 65 220 EUR
-  - Mutuelle-ALAN: 576 EUR
-- Frais Generaux (groupe)
-  - Transport sur ventes: 4 996 EUR
-  - Logiciels: 1 705 EUR
-  - Honoraires (groupe niveau 2)
-    - Coachflix: 6 000 EUR
-- etc.
 
 ### Gestion des doublons
-- Recherche par nom exact (insensible a la casse)
-- Si existe: skip ou mise a jour des previsions uniquement
-- Si nouveau: creation avec rattachement au parent
-
-### Creation en batch
-
-```typescript
-// Dans useCategories.ts
-async function bulkCreateCategories(items: {
-  name: string;
-  type: 'income' | 'expense';
-  color: string;
-  parentName?: string;
-}[]): Promise<Category[]>
-```
-
----
-
-## Flux de donnees
-
-```text
-Fichier Zenfirst CSV/XLSX
-        |
-        v
-[zenfirstParser.ts] 
-        |
-        v
-Liste ZenfirstItem[]
-        |
-        v
-[ZenfirstImportDialog] Etape mapping
-        |
-        v
-Groupes a creer → useCategories.createGroup()
-Categories a creer → useCategories.createCategory() avec parent_id
-Previsions → useForecasts.upsertForecast()
-```
-
----
+Si des prévisions existent déjà pour la catégorie/mois:
+- Écrasement (upsert) avec les nouvelles valeurs
+- Toast d'avertissement avant import
 
 ## Estimation
-
-- **Complexite**: Moyenne
-- **Fichiers a creer**: 2
-- **Fichiers a modifier**: 2
-- **Points cles**:
-  - Parsing correct de l'indentation (espaces vs tabs)
-  - Gestion hierarchie 3 niveaux
-  - Support CSV et XLSX
+- Fichiers à créer: 1
+- Fichiers à modifier: 1-2
+- Complexité: Faible à moyenne
