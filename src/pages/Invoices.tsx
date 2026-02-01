@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Plus, RefreshCw, Filter } from 'lucide-react';
+import { Plus, Filter } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -7,10 +7,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { InvoiceStats } from '@/components/invoices/InvoiceStats';
 import { InvoiceTable } from '@/components/invoices/InvoiceTable';
 import { InvoiceDialog } from '@/components/invoices/InvoiceDialog';
+import { ConnectorStatus } from '@/components/invoices/ConnectorStatus';
 import { useInvoices, Invoice, InvoiceFormData } from '@/hooks/useInvoices';
-import { useCompany } from '@/hooks/useCompany';
-import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
+import { useAccountingConnector } from '@/hooks/useAccountingConnector';
 import { Skeleton } from '@/components/ui/skeleton';
 
 type TabFilter = 'all' | 'receivable' | 'payable';
@@ -26,16 +25,26 @@ export default function Invoices() {
     updateInvoice,
     markAsPaid, 
     deleteInvoice,
-    isCreating,
   } = useInvoices();
-  const { currentCompany } = useCompany();
-  const { toast } = useToast();
+
+  const {
+    config,
+    isLoading: isConnectorLoading,
+    isSyncing,
+    isTesting,
+    isSaving,
+    syncInvoices,
+    disconnectConnector,
+    testOdooConnection,
+    saveOdooCredentials,
+    testPennylaneConnection,
+    savePennylaneCredentials,
+  } = useAccountingConnector();
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
   const [tabFilter, setTabFilter] = useState<TabFilter>('all');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
-  const [isSyncing, setIsSyncing] = useState(false);
 
   // Filter invoices
   const filteredInvoices = useMemo(() => {
@@ -59,33 +68,6 @@ export default function Invoices() {
     }
   };
 
-  const handleSyncPennylane = async () => {
-    if (!currentCompany?.id) return;
-    
-    setIsSyncing(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('pennylane-invoices-sync', {
-        body: { company_id: currentCompany.id },
-      });
-
-      if (error) throw error;
-
-      toast({
-        title: 'Synchronisation terminée',
-        description: data.message || `${data.created || 0} créées, ${data.updated || 0} mises à jour`,
-      });
-    } catch (error) {
-      console.error('Pennylane sync error:', error);
-      toast({
-        title: 'Erreur de synchronisation',
-        description: 'Impossible de synchroniser avec Pennylane. Vérifiez votre clé API.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsSyncing(false);
-    }
-  };
-
   return (
     <div className="space-y-8">
       <PageHeader 
@@ -93,16 +75,19 @@ export default function Invoices() {
         subtitle="Suivez vos factures clients et fournisseurs pour une prévision de trésorerie précise"
         actions={
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleSyncPennylane}
-              disabled={isSyncing}
-              className="gap-2"
-            >
-              <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
-              Sync Pennylane
-            </Button>
+            <ConnectorStatus
+              config={config}
+              isLoading={isConnectorLoading}
+              isSyncing={isSyncing}
+              isTesting={isTesting}
+              isSaving={isSaving}
+              onSync={syncInvoices}
+              onDisconnect={disconnectConnector}
+              onTestOdoo={testOdooConnection}
+              onSaveOdoo={saveOdooCredentials}
+              onTestPennylane={testPennylaneConnection}
+              onSavePennylane={savePennylaneCredentials}
+            />
             <Button size="sm" onClick={() => handleOpenDialog()} className="gap-2">
               <Plus className="h-4 w-4" />
               Ajouter
