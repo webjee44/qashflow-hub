@@ -179,9 +179,19 @@ export function useCategories() {
     }
   };
 
-  // Delete mutation
+  // Delete mutation with optional reassignment
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
+    mutationFn: async ({ id, reassignToId }: { id: string; reassignToId?: string | null }) => {
+      // If reassignToId is provided, reassign all transactions first
+      if (reassignToId) {
+        const { error: reassignError } = await supabase
+          .from('transactions')
+          .update({ category_id: reassignToId })
+          .eq('category_id', id);
+
+        if (reassignError) throw reassignError;
+      }
+
       const { error } = await supabase
         .from('categories')
         .delete()
@@ -189,9 +199,13 @@ export function useCategories() {
 
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_, { reassignToId }) => {
       queryClient.invalidateQueries({ queryKey });
-      toast.success('Catégorie supprimée');
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      toast.success(reassignToId 
+        ? 'Catégorie supprimée et transactions reclassées' 
+        : 'Catégorie supprimée'
+      );
     },
     onError: (error) => {
       logError('Error deleting category:', error);
@@ -199,9 +213,9 @@ export function useCategories() {
     },
   });
 
-  const deleteCategory = async (id: string) => {
+  const deleteCategory = async (id: string, reassignToId?: string | null) => {
     try {
-      await deleteMutation.mutateAsync(id);
+      await deleteMutation.mutateAsync({ id, reassignToId });
     } catch {
       // Error handled in mutation
     }
