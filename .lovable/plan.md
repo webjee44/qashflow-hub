@@ -1,174 +1,163 @@
 
+# Correction de l'Isolation des Transactions par Société
 
-# Refonte UX de la page Reglages Tresorerie
+## Problème Identifié
 
-## Problemes identifies
+Le système a une faille majeure dans l'isolation des données :
 
-| Probleme | Impact |
-|----------|--------|
-| Onglets quasi-invisibles | Utilisateurs ne savent pas qu'il y a 2 sections |
-| GroupsManager non integre | Les groupes crees ne sont jamais affiches ! |
-| Trop de boutons en haut | Surcharge cognitive, on ne sait pas par ou commencer |
-| Actions cachees au hover | Sur mobile et pour decouverte = probleme |
-| Banner AI trop imposant | Occupe beaucoup d'espace pour peu de valeur |
+| Élément | État Actuel | État Souhaité |
+|---------|-------------|---------------|
+| Transactions | Assignées à la société qui possède `bridge_user_uuid` | Assignées à la société dont le compte bancaire est dans `company_bridge_accounts` |
+| Filtrage Dashboard | Inclut transactions avec `company_id = null` | Strictement `company_id = société sélectionnée` |
+| Filtrage /transactions | Filtre strict (correct) | Correct |
 
----
-
-## Solution proposee
-
-### 1. Onglets visibles et distincts
-
-Remplacer le style actuel des onglets par un style plus visible :
-- Bordure inferieure coloree pour l'onglet actif
-- Fond distinct `bg-card` avec bordure
-- Plus grand (`h-12`) avec icones plus visibles
-
-```text
-┌──────────────────────────────────────────────────────────────┐
-│  [📁 Categories]        [⚡ Automatisations]                 │
-│  ─────────────────                                           │
-│     (ligne active)                                           │
-└──────────────────────────────────────────────────────────────┘
-```
-
-### 2. Layout restructure en 2 colonnes
-
-Reorganiser la page Categories :
+## Cause Racine
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────┐
-│ Reglages Tresorerie                                                     │
-│ Configurez vos categories et regles d'automatisation                    │
-├─────────────────────────────────────────────────────────────────────────┤
+│ Connexion Bridge unique (bridge_user_uuid) → E-fumeur                   │
 │                                                                         │
-│  [📁 Categories]  [⚡ Automatisations]                                  │
-│  ═══════════════                                                        │
+│ Comptes bancaires Bridge :                                              │
+│   • Compte 59339981 → Assigné à Cloud Vapor                             │
+│   • Compte 59339667 → Assigné à Cloud Vapor                             │
+│   • Compte 59339669 → Assigné à E-fumeur                                │
+│   • Compte 59339375 → Assigné à E-fumeur                                │
 │                                                                         │
-│  ┌─────────────────────────────────────────────────────────────────┐   │
-│  │ 📁 Groupes (4)                              [+ Ajouter groupe]  │   │
-│  ├─────────────────────────────────────────────────────────────────┤   │
-│  │  🟢 Fournisseurs (3)    ✎ 🗑                                    │   │
-│  │  🔴 RH (4)              ✎ 🗑                                    │   │
-│  │  🔵 Frais generaux (5)  ✎ 🗑                                    │   │
-│  └─────────────────────────────────────────────────────────────────┘   │
-│                                                                         │
-│  ┌─────────────────────────────────────────────────────────────────┐   │
-│  │ Revenus (5)                      [+ Categorie] [✓ Organiser]    │   │
-│  ├─────────────────────────────────────────────────────────────────┤   │
-│  │  ...                                                            │   │
-│  └─────────────────────────────────────────────────────────────────┘   │
-│                                                                         │
-│  ┌─────────────────────────────────────────────────────────────────┐   │
-│  │ Depenses (12)                    [+ Categorie] [✓ Organiser]    │   │
-│  ├─────────────────────────────────────────────────────────────────┤   │
-│  │  ...                                                            │   │
-│  └─────────────────────────────────────────────────────────────────┘   │
-│                                                                         │
-│  ┌─────────────────────────────────────────────────────────────────┐   │
-│  │ 📥 Import                                                       │   │
-│  │ Importer depuis Zenfirst | Reinitialiser par defaut             │   │
-│  └─────────────────────────────────────────────────────────────────┘   │
-│                                                                         │
+│ PROBLÈME : bridge-sync/index.ts assigne TOUTES les transactions        │
+│ à company_id = E-fumeur (qui a le bridge_user_uuid)                     │
+│ au lieu de regarder company_bridge_accounts                             │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 3. Changements specifiques
+## Solution en 2 Parties
 
-#### A. Onglets plus visibles
-```css
-/* Nouveau style pour TabsList */
-bg-card border shadow-sm rounded-lg p-1
+### Partie 1 : Corriger bridge-sync (Edge Function)
 
-/* Nouveau style pour TabsTrigger actif */
-data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
+Modifier `syncCompanyTransactions` pour assigner les transactions à la bonne société basée sur le compte bancaire :
+
+```typescript
+// AVANT (ligne 156-157)
+company_id: companyId, // Toujours la même société
+
+// APRÈS
+// 1. Récupérer la map compte → société
+const accountToCompanyMap = await getAccountToCompanyMap(supabaseAdmin, bridgeUserUuid);
+
+// 2. Pour chaque transaction, trouver la bonne société
+const correctCompanyId = accountToCompanyMap[transaction.account_id] || companyId;
+company_id: correctCompanyId,
 ```
 
-#### B. Integrer GroupsManager
-Ajouter le composant `GroupsManager` qui existe deja mais n'est pas utilise dans la page.
+Nouvelle fonction helper :
+```typescript
+async function getAccountToCompanyMap(
+  supabaseAdmin: any,
+  bridgeUserUuid: string
+): Promise<Record<number, string>> {
+  // Récupérer tous les mappings compte → société
+  const { data } = await supabaseAdmin
+    .from('company_bridge_accounts')
+    .select('bridge_account_id, company_id')
+    .in('bridge_account_id', (
+      await supabaseAdmin
+        .from('bridge_accounts')
+        .select('bridge_account_id')
+        .eq('bridge_user_uuid', bridgeUserUuid)
+    ).data?.map(a => a.bridge_account_id) || []);
 
-#### C. Boutons d'action toujours visibles dans GroupsManager
-Supprimer `opacity-0 group-hover:opacity-100` pour que les boutons edit/delete soient toujours affiches.
+  const map: Record<number, string> = {};
+  for (const row of data || []) {
+    map[row.bridge_account_id] = row.company_id;
+  }
+  return map;
+}
+```
 
-#### D. Supprimer le banner AI
-Trop imposant - deplacer l'info dans un tooltip sur le titre ou simplement supprimer.
+### Partie 2 : Corriger les filtres Frontend
 
-#### E. Stats compactes
-Reduire la taille des 3 cartes de stats ou les integrer dans l'en-tete.
+#### TransactionList.tsx (Dashboard)
+```typescript
+// AVANT (ligne 36)
+query.or(`company_id.eq.${currentCompany.id},company_id.is.null`);
 
-#### F. Section Import en bas
-Deplacer les boutons Import Zenfirst et Categories par defaut dans une section discrete en bas de page.
+// APRÈS - Filtre strict
+query.eq('company_id', currentCompany.id);
+```
+
+### Partie 3 : Migrer les transactions existantes
+
+Créer un script SQL pour réassigner les transactions aux bonnes sociétés basées sur les comptes bancaires :
+
+```sql
+-- Mettre à jour les transactions existantes vers la bonne société
+UPDATE transactions t
+SET company_id = cba.company_id
+FROM bridge_accounts ba
+JOIN company_bridge_accounts cba ON cba.bridge_account_id = ba.bridge_account_id
+WHERE t.pennylane_id LIKE 'bridge_%'
+  AND CAST(REPLACE(t.pennylane_id, 'bridge_', '') AS text) IN (
+    SELECT CAST(bridge_account_id AS text) FROM bridge_accounts
+  )
+  AND t.bank_account_name = ba.name
+  AND cba.company_id != t.company_id;
+```
+
+Alternative plus fiable : mapper via le nom du compte bancaire :
+```sql
+-- Réassigner les transactions E-fumeur vers Cloud Vapor si le compte appartient à Cloud Vapor
+UPDATE transactions t
+SET company_id = cba.company_id
+FROM bridge_accounts ba
+JOIN company_bridge_accounts cba ON cba.bridge_account_id = ba.bridge_account_id
+WHERE t.bank_account_name = ba.name
+  AND t.company_id != cba.company_id;
+```
 
 ---
 
-## Fichiers a modifier
+## Fichiers à Modifier
 
 | Fichier | Action |
 |---------|--------|
-| `src/pages/TreasurySettings.tsx` | Restructurer layout, integrer GroupsManager, deplacer boutons |
-| `src/components/categories/GroupsManager.tsx` | Rendre les boutons toujours visibles |
+| `supabase/functions/bridge-sync/index.ts` | Ajouter lookup compte→société pour les transactions |
+| `src/components/dashboard/TransactionList.tsx` | Supprimer le `OR company_id.is.null` |
+| Migration SQL | Réassigner les transactions existantes |
 
 ---
 
-## Details techniques
+## Flux Corrigé
 
-### Nouvelle structure TreasurySettings.tsx
-
-```tsx
-<Tabs>
-  {/* Onglets plus visibles */}
-  <TabsList className="bg-card border shadow-sm h-12 p-1.5">
-    <TabsTrigger className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground h-9 px-4">
-      Categories
-    </TabsTrigger>
-    <TabsTrigger className="...">
-      Automatisations
-    </TabsTrigger>
-  </TabsList>
-
-  <TabsContent value="categories">
-    {/* Section Groupes - AJOUTEE */}
-    <GroupsManager 
-      incomeGroups={incomeGroups}
-      expenseGroups={expenseGroups}
-      onCreateGroup={openCreateGroupDialog}
-      onEditGroup={handleEditGroup}
-      onDeleteGroup={handleDeleteGroup}
-    />
-
-    {/* Tableaux Categories */}
-    <CategoryTable ... />
-    <CategoryTable ... />
-
-    {/* Section Import discrete en bas */}
-    <Card className="border-dashed mt-8">
-      <CardContent className="flex items-center justify-center gap-4 py-4">
-        <Button variant="ghost">Importer depuis Zenfirst</Button>
-        <Button variant="ghost">Categories par defaut</Button>
-      </CardContent>
-    </Card>
-  </TabsContent>
-</Tabs>
-```
-
-### GroupsManager avec boutons toujours visibles
-
-```tsx
-// AVANT
-className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
-
-// APRES
-className="h-7 w-7"
+```text
+┌─────────────────────────────────────────────────────────────────────────┐
+│ Synchronisation Bridge                                                  │
+├─────────────────────────────────────────────────────────────────────────┤
+│ 1. Récupérer toutes les transactions de tous les comptes               │
+│ 2. Pour chaque transaction :                                           │
+│    - Trouver account_id de la transaction                              │
+│    - Chercher dans company_bridge_accounts quelle société              │
+│      possède ce compte                                                 │
+│    - Assigner company_id = société propriétaire                        │
+│ 3. Si aucune société n'a le compte → assigner à la société "par défaut"│
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Benefices attendus
+## Sécurité Renforcée
 
-| Avant | Apres |
-|-------|-------|
-| Onglets invisibles | Onglets clairs avec style actif distinct |
-| Groupes non affiches | Section dediee en haut de page |
-| Actions cachees | Boutons toujours visibles |
-| Surcharge de boutons | Actions organisees par section |
-| Banner AI imposant | Supprime ou reduit |
+Pour garantir l'étanchéité totale, le filtrage sera appliqué à tous les niveaux :
 
+| Niveau | Mécanisme |
+|--------|-----------|
+| Base de données | RLS policy existante (transactions.company_id + has_company_access) |
+| Edge Function | Attribution correcte lors de l'insertion |
+| Frontend | Filtre strict sans fallback "null" |
+
+---
+
+## Impact
+
+Après cette correction :
+- Les transactions de chaque compte bancaire seront assignées à la société qui possède ce compte
+- Le dashboard Cloud Vapor n'affichera que les transactions Cloud Vapor
+- Les transactions existantes seront migrées vers leurs bonnes sociétés
