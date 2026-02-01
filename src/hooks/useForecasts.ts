@@ -32,10 +32,18 @@ export function useForecasts() {
   const { categories } = useCategories();
   const queryClient = useQueryClient();
 
-  // Dynamic period state - default: current month + 5 months = 6 total
+  // Dynamic period state - persisted in localStorage
   const today = startOfMonth(new Date());
-  const [monthsBefore, setMonthsBefore] = useState(0);
-  const [monthsAfter, setMonthsAfter] = useState(5);
+  
+  // Load initial values from localStorage
+  const getStoredValue = (key: string, defaultValue: number): number => {
+    if (typeof window === 'undefined') return defaultValue;
+    const stored = localStorage.getItem(`forecast-${key}`);
+    return stored !== null ? parseInt(stored, 10) : defaultValue;
+  };
+  
+  const [monthsBefore, setMonthsBefore] = useState(() => getStoredValue('monthsBefore', 0));
+  const [monthsAfter, setMonthsAfter] = useState(() => getStoredValue('monthsAfter', 5));
 
   // Compute months array based on period
   const months = useMemo(() => {
@@ -48,18 +56,28 @@ export function useForecasts() {
     return result;
   }, [today.getTime(), monthsBefore, monthsAfter]);
 
-  // Period control functions
+  // Period control functions - persist to localStorage
   const extendBefore = useCallback(() => {
-    setMonthsBefore(prev => prev + 1);
+    setMonthsBefore(prev => {
+      const newValue = prev + 1;
+      localStorage.setItem('forecast-monthsBefore', String(newValue));
+      return newValue;
+    });
   }, []);
 
   const extendAfter = useCallback(() => {
-    setMonthsAfter(prev => prev + 1);
+    setMonthsAfter(prev => {
+      const newValue = prev + 1;
+      localStorage.setItem('forecast-monthsAfter', String(newValue));
+      return newValue;
+    });
   }, []);
 
   const resetPeriod = useCallback(() => {
     setMonthsBefore(0);
     setMonthsAfter(5);
+    localStorage.setItem('forecast-monthsBefore', '0');
+    localStorage.setItem('forecast-monthsAfter', '5');
   }, []);
 
   // Compute query date range
