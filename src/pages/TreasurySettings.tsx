@@ -8,6 +8,7 @@ import { CategoryTable } from '@/components/categories/CategoryTable';
 import { CategoryDialog } from '@/components/categories/CategoryDialog';
 import { GroupDialog } from '@/components/categories/GroupDialog';
 import { AutomationRules } from '@/components/automations/AutomationRules';
+import { ZenfirstImportDialog } from '@/components/settings/ZenfirstImportDialog';
 import { Button } from '@/components/ui/button';
 import { 
   Plus, 
@@ -16,7 +17,8 @@ import {
   TrendingDown,
   Sparkles,
   Wand2,
-  FolderPlus
+  FolderPlus,
+  Upload
 } from 'lucide-react';
 
 interface GroupDialogState {
@@ -49,6 +51,7 @@ export default function TreasurySettings() {
     mode: 'create',
     editGroup: null,
   });
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
 
   const handleEdit = (category: Category) => {
     setEditingCategory(category);
@@ -146,6 +149,10 @@ export default function TreasurySettings() {
               {/* Actions */}
               {totalCategories > 0 && (
                 <div className="flex justify-end gap-3">
+                  <Button variant="outline" onClick={() => setImportDialogOpen(true)}>
+                    <Upload className="w-4 h-4 mr-2" />
+                    Importer depuis Zenfirst
+                  </Button>
                   <Button variant="outline" onClick={openCreateGroupDialog}>
                     <FolderPlus className="w-4 h-4 mr-2" />
                     Ajouter un groupe
@@ -228,9 +235,13 @@ export default function TreasurySettings() {
                   <Wand2 className="w-12 h-12 mx-auto text-muted-foreground/50 mb-4" />
                   <h4 className="font-semibold text-foreground mb-2">Aucune catégorie</h4>
                   <p className="text-sm text-muted-foreground mb-6">
-                    Créez vos premières catégories ou utilisez les catégories par défaut.
+                    Créez vos premières catégories, importez depuis Zenfirst ou utilisez les catégories par défaut.
                   </p>
-                  <div className="flex justify-center gap-3">
+                  <div className="flex justify-center gap-3 flex-wrap">
+                    <Button onClick={() => setImportDialogOpen(true)} variant="outline">
+                      <Upload className="w-4 h-4 mr-2" />
+                      Importer depuis Zenfirst
+                    </Button>
                     <Button onClick={initializeDefaultCategories} variant="outline">
                       <Wand2 className="w-4 h-4 mr-2" />
                       Catégories par défaut
@@ -278,6 +289,11 @@ export default function TreasurySettings() {
               />
 
               {/* Group Dialog */}
+              <ZenfirstImportDialog 
+                open={importDialogOpen} 
+                onOpenChange={setImportDialogOpen} 
+              />
+              
               {groupDialog.open && (
                 <GroupDialog
                   key={groupDialog.mode === 'edit' ? groupDialog.editGroup?.id : 'create'}
