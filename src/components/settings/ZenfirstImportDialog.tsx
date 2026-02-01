@@ -191,8 +191,11 @@ export function ZenfirstImportDialog({ open, onOpenChange }: ZenfirstImportDialo
         setImportProgress(Math.round((currentStep / totalSteps) * 100));
       }
       
-      // Step 2: Create leaf categories
+      // Step 2: Create leaf categories with parent linking
       for (const cat of leafCategories) {
+        // Determine parent_id if this category has a parent group
+        const parentId = cat.parentName ? createdGroupMap.get(cat.parentName) : null;
+        
         if (!cat.existingCategory) {
           const colorIndex = createdCategories;
           const result = await createCategory({
@@ -207,17 +210,32 @@ export function ZenfirstImportDialog({ open, onOpenChange }: ZenfirstImportDialo
             createdCategoryMap.set(cat.name, result.id);
             createdCategories++;
             
-            // If has parent, update parent_id
-            if (cat.parentName) {
-              const parentId = createdGroupMap.get(cat.parentName);
-              if (parentId && result.id) {
-                // The category is created, we need to update its parent
-                // This will be handled by the group creation above
+            // Link to parent group if exists
+            if (parentId) {
+              try {
+                await supabase
+                  .from('categories')
+                  .update({ parent_id: parentId })
+                  .eq('id', result.id);
+              } catch (error) {
+                console.error('Error linking category to parent:', error);
               }
             }
           }
         } else {
           createdCategoryMap.set(cat.name, cat.existingCategory.id);
+          
+          // Update existing category's parent if it doesn't have one but should
+          if (parentId && !cat.existingCategory.parent_id) {
+            try {
+              await supabase
+                .from('categories')
+                .update({ parent_id: parentId })
+                .eq('id', cat.existingCategory.id);
+            } catch (error) {
+              console.error('Error updating category parent:', error);
+            }
+          }
         }
         
         currentStep++;
