@@ -70,19 +70,31 @@ export function TransactionsView() {
   const { categories } = useCategories();
   const { balance: bankBalance } = useBankBalance();
 
-  // Fetch bridge accounts to get bank names
+  // Fetch only the bank accounts assigned to the current company (strict isolation)
   const { data: bridgeAccounts = [] } = useQuery({
     queryKey: ['bridge-accounts', currentCompany?.id],
     queryFn: async () => {
-      if (!currentCompany?.bridge_user_uuid) return [];
+      if (!currentCompany?.id) return [];
+
+      // 1) Get assigned bridge account ids
+      const { data: assigned, error: assignedError } = await supabase
+        .from('company_bridge_accounts')
+        .select('bridge_account_id')
+        .eq('company_id', currentCompany.id);
+      if (assignedError) throw assignedError;
+
+      const ids = (assigned || []).map((r) => r.bridge_account_id).filter(Boolean);
+      if (ids.length === 0) return [];
+
+      // 2) Fetch display info for those accounts
       const { data, error } = await supabase
         .from('bridge_accounts')
-        .select('name, bank_name')
-        .eq('bridge_user_uuid', currentCompany.bridge_user_uuid);
+        .select('name, bank_name, bridge_account_id')
+        .in('bridge_account_id', ids);
       if (error) throw error;
       return data || [];
     },
-    enabled: !!currentCompany?.bridge_user_uuid,
+    enabled: !!currentCompany?.id,
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
