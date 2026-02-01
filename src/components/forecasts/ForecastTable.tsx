@@ -26,7 +26,8 @@ export function ForecastTable() {
     getForecastSource,
     getActual, 
     getVatForecast, 
-    getVatActual, 
+    getVatActual,
+    getUncategorized,
     upsertForecast, 
     isLoading: forecastsLoading 
   } = useForecasts();
@@ -568,6 +569,44 @@ export function ForecastTable() {
     );
   };
 
+  const renderUncategorizedRow = (type: 'income' | 'expense') => {
+    const textClass = type === 'income' ? 'text-success' : 'text-destructive';
+    const label = type === 'income' ? '⚠️ Non catégorisés (encaissements)' : '⚠️ Non catégorisés (décaissements)';
+    
+    // Check if there are any uncategorized transactions for this type
+    const hasUncategorized = months.some(month => getUncategorized(type, month) > 0);
+    if (!hasUncategorized) return null;
+    
+    return (
+      <tr className="bg-amber-500/10 border-b border-border">
+        <td className="p-3 sticky left-0 z-10 bg-amber-500/10 border-r border-border">
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-amber-700 dark:text-amber-400">{label}</span>
+          </div>
+        </td>
+        {months.map((month, monthIndex) => {
+          const amount = getUncategorized(type, month);
+          
+          return (
+            <td key={monthIndex} className="p-0 border-r border-border">
+              <div className="flex">
+                <div className={cn(
+                  "flex-1 px-3 py-2 text-right border-r border-border/50 font-medium",
+                  amount > 0 ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground"
+                )}>
+                  {amount > 0 ? formatValue(amount) : '—'}
+                </div>
+                <div className="flex-1 px-3 py-2 text-right text-muted-foreground">
+                  —
+                </div>
+              </div>
+            </td>
+          );
+        })}
+      </tr>
+    );
+  };
+
   const renderVatToPayRow = () => {
     return (
       <tr className="font-semibold bg-amber-500/10">
@@ -734,6 +773,7 @@ export function ForecastTable() {
               </td>
             </tr>
             {renderGroupedSection(incomeGroups, 'income', 0)}
+            {renderUncategorizedRow('income')}
             {renderTotalRow('Total Encaissements HT', 'income')}
             {renderVatRow('TVA collectée', 'income')}
             {renderTtcRow('Total Encaissements TTC', 'income')}
@@ -745,6 +785,7 @@ export function ForecastTable() {
               </td>
             </tr>
             {renderGroupedSection(expenseGroups, 'expense', incomeCategories.length)}
+            {renderUncategorizedRow('expense')}
             {renderTotalRow('Total Décaissements HT', 'expense')}
             {renderVatRow('TVA déductible', 'expense')}
             {renderTtcRow('Total Décaissements TTC', 'expense')}
