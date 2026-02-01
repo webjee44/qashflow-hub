@@ -4,7 +4,8 @@ import { useAuth } from './useAuth';
 import { useCompany } from './useCompany';
 import { useCategories, Category } from './useCategories';
 import { toast } from 'sonner';
-import { addMonths, startOfMonth, format } from 'date-fns';
+import { addMonths, startOfMonth, format, differenceInMonths } from 'date-fns';
+import { useState, useMemo, useCallback } from 'react';
 
 export interface CategoryForecast {
   id: string;
@@ -31,32 +32,51 @@ export function useForecasts() {
   const { categories } = useCategories();
   const queryClient = useQueryClient();
 
-  // Get months for display - current month + next 5 months
-  const getDisplayMonths = () => {
-    const months: Date[] = [];
-    const today = startOfMonth(new Date());
-    for (let i = 0; i < 6; i++) {
-      months.push(addMonths(today, i));
-    }
-    return months;
-  };
+  // Dynamic period state - default: current month + 5 months = 6 total
+  const today = startOfMonth(new Date());
+  const [monthsBefore, setMonthsBefore] = useState(0);
+  const [monthsAfter, setMonthsAfter] = useState(5);
 
-  const months = getDisplayMonths();
+  // Compute months array based on period
+  const months = useMemo(() => {
+    const result: Date[] = [];
+    const startMonth = addMonths(today, -monthsBefore);
+    const totalMonths = monthsBefore + 1 + monthsAfter;
+    for (let i = 0; i < totalMonths; i++) {
+      result.push(addMonths(startMonth, i));
+    }
+    return result;
+  }, [today.getTime(), monthsBefore, monthsAfter]);
+
+  // Period control functions
+  const extendBefore = useCallback(() => {
+    setMonthsBefore(prev => prev + 1);
+  }, []);
+
+  const extendAfter = useCallback(() => {
+    setMonthsAfter(prev => prev + 1);
+  }, []);
+
+  const resetPeriod = useCallback(() => {
+    setMonthsBefore(0);
+    setMonthsAfter(5);
+  }, []);
+
+  // Compute query date range
+  const startMonthStr = months.length > 0 ? format(months[0], 'yyyy-MM-01') : '';
+  const endMonthStr = months.length > 0 ? format(months[months.length - 1], 'yyyy-MM-01') : '';
 
   // Fetch category forecasts
   const { data: forecasts = [], isLoading: forecastsLoading } = useQuery({
-    queryKey: ['category-forecasts', user?.id, currentCompany?.id],
+    queryKey: ['category-forecasts', user?.id, currentCompany?.id, startMonthStr, endMonthStr],
     queryFn: async () => {
-      if (!user?.id) return [];
-      
-      const startMonth = format(months[0], 'yyyy-MM-01');
-      const endMonth = format(months[months.length - 1], 'yyyy-MM-01');
+      if (!user?.id || !startMonthStr) return [];
       
       let query = supabase
         .from('category_forecasts')
         .select('*')
-        .gte('month', startMonth)
-        .lte('month', endMonth)
+        .gte('month', startMonthStr)
+        .lte('month', endMonthStr)
         .order('month');
 
       // Filter by company if one is selected
@@ -69,23 +89,22 @@ export function useForecasts() {
       if (error) throw error;
       return data as CategoryForecast[];
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && !!startMonthStr,
   });
 
   // Fetch actual amounts from transactions grouped by category and month
   const { data: actuals = [], isLoading: actualsLoading } = useQuery({
-    queryKey: ['category-actuals', user?.id, currentCompany?.id],
+    queryKey: ['category-actuals', user?.id, currentCompany?.id, startMonthStr, endMonthStr],
     queryFn: async () => {
-      if (!user?.id) return [];
+      if (!user?.id || !startMonthStr) return [];
       
-      const startMonth = format(months[0], 'yyyy-MM-01');
-      const endMonth = format(addMonths(months[months.length - 1], 1), 'yyyy-MM-01');
+      const endMonthPlusOne = format(addMonths(months[months.length - 1], 1), 'yyyy-MM-01');
       
       let query = supabase
         .from('transactions')
         .select('category_id, amount, date, type')
-        .gte('date', startMonth)
-        .lt('date', endMonth)
+        .gte('date', startMonthStr)
+        .lt('date', endMonthPlusOne)
         .is('deleted_at', null);
 
       // Filter by company if one is selected
@@ -116,23 +135,22 @@ export function useForecasts() {
       
       return grouped;
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && !!startMonthStr,
   });
 
   // Fetch uncategorized transactions grouped by month
   const { data: uncategorized = {}, isLoading: uncategorizedLoading } = useQuery({
-    queryKey: ['uncategorized-transactions', user?.id, currentCompany?.id],
+    queryKey: ['uncategorized-transactions', user?.id, currentCompany?.id, startMonthStr, endMonthStr],
     queryFn: async () => {
-      if (!user?.id) return {};
+      if (!user?.id || !startMonthStr) return {};
       
-      const startMonth = format(months[0], 'yyyy-MM-01');
-      const endMonth = format(addMonths(months[months.length - 1], 1), 'yyyy-MM-01');
+      const endMonthPlusOne = format(addMonths(months[months.length - 1], 1), 'yyyy-MM-01');
       
       let query = supabase
         .from('transactions')
         .select('amount, date, type')
-        .gte('date', startMonth)
-        .lt('date', endMonth)
+        .gte('date', startMonthStr)
+        .lt('date', endMonthPlusOne)
         .is('category_id', null)
         .is('deleted_at', null);
 
@@ -163,7 +181,7 @@ export function useForecasts() {
       
       return grouped;
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && !!startMonthStr,
   });
 
   // Upsert forecast
@@ -270,5 +288,11 @@ export function useForecasts() {
     getVatForecast,
     getVatActual,
     getUncategorized,
+    // Period controls
+    extendBefore,
+    extendAfter,
+    resetPeriod,
+    monthsBefore,
+    monthsAfter,
   };
 }
