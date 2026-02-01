@@ -141,10 +141,22 @@ export function sortTransactions(transactions: Transaction[], sortOption: SortOp
       return sorted.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     case 'date_asc':
       return sorted.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-    case 'amount_desc':
-      return sorted.sort((a, b) => Math.abs(Number(b.amount)) - Math.abs(Number(a.amount)));
-    case 'amount_asc':
-      return sorted.sort((a, b) => Math.abs(Number(a.amount)) - Math.abs(Number(b.amount)));
+    case 'amount_desc': {
+      // Signed sort: income (positive) first, then expenses (negative)
+      return sorted.sort((a, b) => {
+        const amountA = a.type === 'income' ? Number(a.amount) : -Number(a.amount);
+        const amountB = b.type === 'income' ? Number(b.amount) : -Number(b.amount);
+        return amountB - amountA;
+      });
+    }
+    case 'amount_asc': {
+      // Signed sort: expenses (negative) first, then income (positive)
+      return sorted.sort((a, b) => {
+        const amountA = a.type === 'income' ? Number(a.amount) : -Number(a.amount);
+        const amountB = b.type === 'income' ? Number(b.amount) : -Number(b.amount);
+        return amountA - amountB;
+      });
+    }
     case 'name_asc':
       return sorted.sort((a, b) => a.description.localeCompare(b.description, 'fr', { sensitivity: 'base' }));
     case 'name_desc':
