@@ -117,47 +117,55 @@ export function OdooConfigForm({
         </p>
       </div>
 
-      <div className="flex gap-2 pt-4">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={handleTest}
-          disabled={!isValid || isTesting || isSaving}
-          className="flex-1"
-        >
-          {isTesting ? (
-            <>
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Test en cours...
-            </>
-          ) : testPassed ? (
-            <>
-              <CheckCircle2 className="h-4 w-4 mr-2 text-green-500" />
-              Connexion OK
-            </>
-          ) : (
-            <>
-              <Link2 className="h-4 w-4 mr-2" />
-              Tester la connexion
-            </>
-          )}
-        </Button>
+      <div className="flex flex-col gap-3 pt-4">
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleTest}
+            disabled={!isValid || isTesting || isSaving}
+            className="flex-1"
+          >
+            {isTesting ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Test en cours...
+              </>
+            ) : testPassed ? (
+              <>
+                <CheckCircle2 className="h-4 w-4 mr-2 text-green-500" />
+                Connexion OK
+              </>
+            ) : (
+              <>
+                <Link2 className="h-4 w-4 mr-2" />
+                Tester la connexion
+              </>
+            )}
+          </Button>
 
-        <Button
-          type="button"
-          onClick={handleSave}
-          disabled={!isValid || !testPassed || isSaving}
-          className="flex-1"
-        >
-          {isSaving ? (
-            <>
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Enregistrement...
-            </>
-          ) : (
-            'Enregistrer'
-          )}
-        </Button>
+          <Button
+            type="button"
+            onClick={handleSave}
+            disabled={!isValid || !testPassed || isSaving}
+            className="flex-1"
+          >
+            {isSaving ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Enregistrement...
+              </>
+            ) : (
+              'Enregistrer'
+            )}
+          </Button>
+        </div>
+        
+        {isValid && !testPassed && (
+          <p className="text-xs text-amber-600 dark:text-amber-400 text-center">
+            ⚠️ Testez d'abord la connexion avant d'enregistrer
+          </p>
+        )}
       </div>
     </div>
   );
