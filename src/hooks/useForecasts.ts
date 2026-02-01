@@ -85,7 +85,8 @@ export function useForecasts() {
         .from('transactions')
         .select('category_id, amount, date, type')
         .gte('date', startMonth)
-        .lt('date', endMonth);
+        .lt('date', endMonth)
+        .is('deleted_at', null);
 
       // Filter by company if one is selected
       if (currentCompany) {
@@ -111,6 +112,53 @@ export function useForecasts() {
         }
         // Use absolute value for expenses, positive for income
         grouped[tx.category_id][monthKey] += Number(tx.amount);
+      });
+      
+      return grouped;
+    },
+    enabled: !!user?.id,
+  });
+
+  // Fetch uncategorized transactions grouped by month
+  const { data: uncategorized = {}, isLoading: uncategorizedLoading } = useQuery({
+    queryKey: ['uncategorized-transactions', user?.id, currentCompany?.id],
+    queryFn: async () => {
+      if (!user?.id) return {};
+      
+      const startMonth = format(months[0], 'yyyy-MM-01');
+      const endMonth = format(addMonths(months[months.length - 1], 1), 'yyyy-MM-01');
+      
+      let query = supabase
+        .from('transactions')
+        .select('amount, date, type')
+        .gte('date', startMonth)
+        .lt('date', endMonth)
+        .is('category_id', null)
+        .is('deleted_at', null);
+
+      // Filter by company if one is selected
+      if (currentCompany) {
+        query = query.or(`company_id.eq.${currentCompany.id},company_id.is.null`);
+      }
+      
+      const { data, error } = await query;
+      
+      if (error) throw error;
+      
+      // Group by month and type
+      const grouped: Record<string, { income: number; expense: number }> = {};
+      
+      data?.forEach((tx) => {
+        const monthKey = format(new Date(tx.date), 'yyyy-MM-01');
+        if (!grouped[monthKey]) {
+          grouped[monthKey] = { income: 0, expense: 0 };
+        }
+        const amount = Math.abs(Number(tx.amount));
+        if (tx.type === 'income') {
+          grouped[monthKey].income += amount;
+        } else {
+          grouped[monthKey].expense += amount;
+        }
       });
       
       return grouped;
@@ -202,17 +250,25 @@ export function useForecasts() {
     }, 0);
   };
 
+  // Helper to get uncategorized amounts for a month
+  const getUncategorized = (type: 'income' | 'expense', month: Date): number => {
+    const monthStr = format(month, 'yyyy-MM-01');
+    return uncategorized[monthStr]?.[type] ?? 0;
+  };
+
   return {
     months,
     forecasts,
     actuals,
+    uncategorized,
     categories,
-    isLoading: forecastsLoading || actualsLoading,
+    isLoading: forecastsLoading || actualsLoading || uncategorizedLoading,
     upsertForecast,
     getForecast,
     getForecastSource,
     getActual,
     getVatForecast,
     getVatActual,
+    getUncategorized,
   };
 }
