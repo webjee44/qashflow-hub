@@ -10,7 +10,8 @@ import {
   Tag,
   CheckSquare,
   Square,
-  X
+  X,
+  RefreshCw
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -50,6 +51,7 @@ export function TransactionsView() {
   const [selectedTransactionIds, setSelectedTransactionIds] = useState<Set<string>>(new Set());
   const [categorizing, setCategorizing] = useState(false);
   const [showBulkCategorizeDialog, setShowBulkCategorizeDialog] = useState(false);
+  const [applyingRules, setApplyingRules] = useState(false);
   
   const parentRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
@@ -258,6 +260,58 @@ export function TransactionsView() {
     }
   }, [transactions, currentCompany, toast, refetchTransactions]);
 
+  const applyAutomationRules = useCallback(async () => {
+    setApplyingRules(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        toast({
+          title: 'Erreur',
+          description: 'Vous devez être connecté',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const { data, error } = await supabase.functions.invoke('apply-all-automation-rules', {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+        body: { company_id: currentCompany?.id },
+      });
+
+      if (error) {
+        logError('Apply automation rules error:', error);
+        toast({
+          title: 'Erreur',
+          description: error.message || 'Une erreur est survenue',
+          variant: 'destructive',
+        });
+      } else {
+        if (data.updated > 0) {
+          toast({
+            title: 'Règles appliquées',
+            description: `${data.updated} transaction${data.updated > 1 ? 's' : ''} catégorisée${data.updated > 1 ? 's' : ''}`,
+          });
+          refetchTransactions();
+        } else {
+          toast({
+            title: 'Aucune correspondance',
+            description: 'Aucune transaction non catégorisée ne correspond aux règles actives',
+          });
+        }
+      }
+    } catch (err) {
+      logError('Apply rules error:', err);
+      toast({
+        title: 'Erreur',
+        description: 'Impossible d\'appliquer les règles',
+        variant: 'destructive',
+      });
+    } finally {
+      setApplyingRules(false);
+    }
+  }, [currentCompany, toast, refetchTransactions]);
+
   const toggleTransactionSelection = useCallback((transactionId: string) => {
     setSelectedTransactionIds(prev => {
       const next = new Set(prev);
@@ -346,15 +400,27 @@ export function TransactionsView() {
             {filteredTransactions.length.toLocaleString('fr-FR')} résultat{filteredTransactions.length > 1 ? 's' : ''}
           </Badge>
         </div>
-        <Button 
-          onClick={categorizeWithAI} 
-          disabled={categorizing}
-          variant="outline"
-          className="gap-2"
-        >
-          {categorizing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
-          Catégoriser avec l'IA
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button 
+            onClick={applyAutomationRules} 
+            disabled={applyingRules}
+            variant="outline"
+            className="gap-2"
+            title="Appliquer les règles d'automatisation"
+          >
+            {applyingRules ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+            Appliquer les règles
+          </Button>
+          <Button 
+            onClick={categorizeWithAI} 
+            disabled={categorizing}
+            variant="outline"
+            className="gap-2"
+          >
+            {categorizing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
+            Catégoriser avec l'IA
+          </Button>
+        </div>
       </motion.div>
 
       {/* Stats Bar */}
