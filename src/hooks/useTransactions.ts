@@ -98,23 +98,30 @@ export function useTransactions(options: UseTransactionsOptions = {}) {
       return { transactionIds, categoryId };
     },
     onMutate: async ({ transactionIds, categoryId }) => {
+      // Cancel ALL transaction queries to prevent race conditions
       await queryClient.cancelQueries({ queryKey: ['transactions'] });
+      
+      // Snapshot previous data for rollback
       const previousTransactions = queryClient.getQueryData<Transaction[]>(queryKey);
       const idsSet = new Set(transactionIds);
 
-      queryClient.setQueryData<Transaction[]>(queryKey, old => 
-        old?.map(t => idsSet.has(t.id) ? { ...t, category_id: categoryId } : t) || []
+      // Optimistically update ALL transaction query caches
+      queryClient.setQueriesData<Transaction[]>(
+        { queryKey: ['transactions'] },
+        (old) => old?.map(t => idsSet.has(t.id) ? { ...t, category_id: categoryId } : t) || []
       );
 
       return { previousTransactions };
     },
     onError: (err, _, context) => {
+      // Rollback on error
       if (context?.previousTransactions) {
         queryClient.setQueryData(queryKey, context.previousTransactions);
       }
       logError('Error bulk updating categories:', err);
     },
     onSettled: () => {
+      // Invalidate to sync with server
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
     },
   });
