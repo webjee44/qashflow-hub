@@ -140,7 +140,7 @@ export function GroupsManager({
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="h-7 w-7"
                       onClick={(e) => {
                         e.stopPropagation();
                         onEditGroup(group);
@@ -151,7 +151,7 @@ export function GroupsManager({
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/10 hover:text-destructive"
+                      className="h-7 w-7 hover:bg-destructive/10 hover:text-destructive"
                       onClick={(e) => {
                         e.stopPropagation();
                         handleDeleteClick(group, children.length);

@@ -1,23 +1,24 @@
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Tags, Zap } from 'lucide-react';
+import { Tags, Zap, Folder } from 'lucide-react';
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useCategories, Category } from '@/hooks/useCategories';
 import { CategoryTable } from '@/components/categories/CategoryTable';
 import { CategoryDialog } from '@/components/categories/CategoryDialog';
 import { GroupDialog } from '@/components/categories/GroupDialog';
+import { GroupsManager } from '@/components/categories/GroupsManager';
 import { AutomationRules } from '@/components/automations/AutomationRules';
 import { ZenfirstImportDialog } from '@/components/settings/ZenfirstImportDialog';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { 
   Plus, 
   Loader2, 
   TrendingUp, 
   TrendingDown,
-  Sparkles,
   Wand2,
-  FolderPlus,
   Upload
 } from 'lucide-react';
 
@@ -41,7 +42,6 @@ export default function TreasurySettings() {
     createGroup,
     updateGroup,
     deleteGroup,
-    isGroup,
     bulkAssignToGroup,
     bulkRemoveFromGroup
   } = useCategories();
@@ -121,21 +121,42 @@ export default function TreasurySettings() {
   const incomeGroups = getGroupedCategories('income');
   const expenseGroups = getGroupedCategories('expense');
   const totalCategories = incomeCategories.length + expenseCategories.length;
+  const totalGroups = [...incomeGroups, ...expenseGroups].filter(g => g.group).length;
 
   return (
-    <div className="space-y-8">
-      <PageHeader 
-        title="Réglages Trésorerie" 
-        subtitle="Configurez vos catégories et règles d'automatisation" 
-      />
+    <div className="space-y-6">
+      {/* Header with stats inline */}
+      <div className="flex items-start justify-between gap-4">
+        <PageHeader 
+          title="Réglages Trésorerie" 
+          subtitle="Configurez vos catégories et règles d'automatisation" 
+        />
+        <div className="flex items-center gap-3 flex-shrink-0">
+          <Badge variant="secondary" className="h-8 px-3 gap-2">
+            <Tags className="w-3.5 h-3.5" />
+            {totalCategories} catégories
+          </Badge>
+          <Badge variant="secondary" className="h-8 px-3 gap-2">
+            <Folder className="w-3.5 h-3.5" />
+            {totalGroups} groupes
+          </Badge>
+        </div>
+      </div>
 
       <Tabs defaultValue="categories" className="w-full">
-        <TabsList className="grid w-full max-w-md grid-cols-2">
-          <TabsTrigger value="categories" className="flex items-center gap-2">
+        {/* Onglets bien visibles */}
+        <TabsList className="bg-card border border-border shadow-sm h-12 p-1.5 w-full max-w-md">
+          <TabsTrigger 
+            value="categories" 
+            className="flex-1 h-9 px-4 gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
+          >
             <Tags className="h-4 w-4" />
             Catégories
           </TabsTrigger>
-          <TabsTrigger value="automations" className="flex items-center gap-2">
+          <TabsTrigger 
+            value="automations" 
+            className="flex-1 h-9 px-4 gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
+          >
             <Zap className="h-4 w-4" />
             Automatisations
           </TabsTrigger>
@@ -148,87 +169,8 @@ export default function TreasurySettings() {
             </div>
           ) : (
             <>
-              {/* Actions */}
-              {totalCategories > 0 && (
-                <div className="flex justify-end gap-3">
-                  <Button variant="outline" onClick={() => setImportDialogOpen(true)}>
-                    <Upload className="w-4 h-4 mr-2" />
-                    Importer depuis Zenfirst
-                  </Button>
-                  <Button variant="outline" onClick={openCreateGroupDialog}>
-                    <FolderPlus className="w-4 h-4 mr-2" />
-                    Ajouter un groupe
-                  </Button>
-                  <CategoryDialog
-                    onSave={createCategory}
-                    trigger={
-                      <Button className="gradient-primary">
-                        <Plus className="w-4 h-4 mr-2" />
-                        Ajouter une catégorie
-                      </Button>
-                    }
-                  />
-                </div>
-              )}
-
-              {/* AI Info Banner */}
-              <motion.div
-                initial={{ y: -20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                className="bg-gradient-to-r from-primary/10 to-accent/10 rounded-2xl border border-primary/20 p-6"
-              >
-                <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center">
-                    <Sparkles className="w-6 h-6 text-primary" />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-foreground">Classification intelligente</h3>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      L'IA utilise ces catégories pour classifier automatiquement vos transactions. 
-                      Plus vos catégories sont précises, plus la classification sera pertinente.
-                    </p>
-                  </div>
-                </div>
-              </motion.div>
-
-              {/* Stats */}
-              <div className="grid grid-cols-3 gap-4">
-                <motion.div 
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="bg-card rounded-xl border border-border p-5 shadow-card"
-                >
-                  <p className="text-2xl font-bold text-foreground">{totalCategories}</p>
-                  <p className="text-sm text-muted-foreground">Catégories totales</p>
-                </motion.div>
-                <motion.div 
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.1 }}
-                  className="bg-card rounded-xl border border-border p-5 shadow-card"
-                >
-                  <div className="flex items-center gap-2">
-                    <TrendingUp className="w-5 h-5 text-success" />
-                    <p className="text-2xl font-bold text-foreground">{incomeCategories.length}</p>
-                  </div>
-                  <p className="text-sm text-muted-foreground">Catégories revenus</p>
-                </motion.div>
-                <motion.div 
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.2 }}
-                  className="bg-card rounded-xl border border-border p-5 shadow-card"
-                >
-                  <div className="flex items-center gap-2">
-                    <TrendingDown className="w-5 h-5 text-destructive" />
-                    <p className="text-2xl font-bold text-foreground">{expenseCategories.length}</p>
-                  </div>
-                  <p className="text-sm text-muted-foreground">Catégories dépenses</p>
-                </motion.div>
-              </div>
-
               {/* Empty State */}
-              {totalCategories === 0 && (
+              {totalCategories === 0 ? (
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
@@ -259,33 +201,92 @@ export default function TreasurySettings() {
                     />
                   </div>
                 </motion.div>
-              )}
+              ) : (
+                <>
+                  {/* Groups Manager Section */}
+                  <GroupsManager
+                    incomeGroups={incomeGroups}
+                    expenseGroups={expenseGroups}
+                    onCreateGroup={openCreateGroupDialog}
+                    onEditGroup={handleEditGroup}
+                    onDeleteGroup={handleDeleteGroup}
+                  />
 
-              {/* Categories Tables */}
-              <div className="space-y-4">
-                <CategoryTable 
-                  groups={incomeGroups}
-                  type="income"
-                  onEdit={handleEdit}
-                  onEditGroup={handleEditGroup}
-                  onDelete={deleteCategory}
-                  onDeleteGroup={handleDeleteGroup}
-                  availableGroups={incomeGroups.filter(g => g.group).map(g => g.group!)}
-                  onBulkAssign={bulkAssignToGroup}
-                  onBulkUnassign={bulkRemoveFromGroup}
-                />
-                <CategoryTable 
-                  groups={expenseGroups}
-                  type="expense"
-                  onEdit={handleEdit}
-                  onEditGroup={handleEditGroup}
-                  onDelete={deleteCategory}
-                  onDeleteGroup={handleDeleteGroup}
-                  availableGroups={expenseGroups.filter(g => g.group).map(g => g.group!)}
-                  onBulkAssign={bulkAssignToGroup}
-                  onBulkUnassign={bulkRemoveFromGroup}
-                />
-              </div>
+                  {/* Categories Tables with actions */}
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <TrendingUp className="w-5 h-5 text-success" />
+                        <h3 className="font-semibold text-foreground">Revenus ({incomeCategories.length})</h3>
+                      </div>
+                      <CategoryDialog
+                        onSave={createCategory}
+                        trigger={
+                          <Button variant="outline" size="sm">
+                            <Plus className="w-4 h-4 mr-2" />
+                            Ajouter
+                          </Button>
+                        }
+                      />
+                    </div>
+                    <CategoryTable 
+                      groups={incomeGroups}
+                      type="income"
+                      onEdit={handleEdit}
+                      onEditGroup={handleEditGroup}
+                      onDelete={deleteCategory}
+                      onDeleteGroup={handleDeleteGroup}
+                      availableGroups={incomeGroups.filter(g => g.group).map(g => g.group!)}
+                      onBulkAssign={bulkAssignToGroup}
+                      onBulkUnassign={bulkRemoveFromGroup}
+                    />
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <TrendingDown className="w-5 h-5 text-destructive" />
+                        <h3 className="font-semibold text-foreground">Dépenses ({expenseCategories.length})</h3>
+                      </div>
+                      <CategoryDialog
+                        onSave={createCategory}
+                        trigger={
+                          <Button variant="outline" size="sm">
+                            <Plus className="w-4 h-4 mr-2" />
+                            Ajouter
+                          </Button>
+                        }
+                      />
+                    </div>
+                    <CategoryTable 
+                      groups={expenseGroups}
+                      type="expense"
+                      onEdit={handleEdit}
+                      onEditGroup={handleEditGroup}
+                      onDelete={deleteCategory}
+                      onDeleteGroup={handleDeleteGroup}
+                      availableGroups={expenseGroups.filter(g => g.group).map(g => g.group!)}
+                      onBulkAssign={bulkAssignToGroup}
+                      onBulkUnassign={bulkRemoveFromGroup}
+                    />
+                  </div>
+
+                  {/* Section Import en bas - discrète */}
+                  <Card className="border-dashed mt-8">
+                    <CardContent className="flex items-center justify-center gap-4 py-4">
+                      <Button variant="ghost" size="sm" onClick={() => setImportDialogOpen(true)}>
+                        <Upload className="w-4 h-4 mr-2" />
+                        Importer depuis Zenfirst
+                      </Button>
+                      <div className="h-4 w-px bg-border" />
+                      <Button variant="ghost" size="sm" onClick={initializeDefaultCategories}>
+                        <Wand2 className="w-4 h-4 mr-2" />
+                        Réinitialiser par défaut
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </>
+              )}
 
               {/* Edit Category Dialog */}
               <CategoryDialog
@@ -296,12 +297,13 @@ export default function TreasurySettings() {
                 onClose={() => setEditingCategory(null)}
               />
 
-              {/* Group Dialog */}
+              {/* Import Dialog */}
               <ZenfirstImportDialog 
                 open={importDialogOpen} 
                 onOpenChange={setImportDialogOpen} 
               />
               
+              {/* Group Dialog */}
               {groupDialog.open && (
                 <GroupDialog
                   key={groupDialog.mode === 'edit' ? groupDialog.editGroup?.id : 'create'}
