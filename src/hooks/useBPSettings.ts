@@ -50,12 +50,14 @@ export function useBPSettings() {
 
   // Only company owners can auto-create settings
   const isCompanyOwner = currentCompany?.user_id === user?.id;
+  // BP settings are treated as company-level settings (owned by the company owner)
+  const settingsOwnerId = currentCompany?.user_id;
 
   // Fetch settings - ALWAYS filter by company_id when available
   const { data: settings, isLoading, refetch } = useQuery({
     queryKey: ['bp_settings', currentCompany?.id],
     queryFn: async () => {
-      if (!currentCompany?.id) {
+      if (!currentCompany?.id || !settingsOwnerId) {
         return null;
       }
       
@@ -63,12 +65,13 @@ export function useBPSettings() {
         .from('bp_settings')
         .select('*')
         .eq('company_id', currentCompany.id)
+        .eq('user_id', settingsOwnerId)
         .maybeSingle();
         
       if (error) throw error;
       return data as BPSettings | null;
     },
-    enabled: !!user && !!currentCompany?.id,
+    enabled: !!user && !!currentCompany?.id && !!settingsOwnerId,
   });
 
   // Initialize default settings if none exist - ONLY for company owners
@@ -102,6 +105,8 @@ export function useBPSettings() {
     mutationFn: async (data: Partial<BPSettings>) => {
       if (!user) throw new Error('Not authenticated');
       if (!currentCompany?.id) throw new Error('No company selected');
+      if (!settingsOwnerId) throw new Error('Company owner not found');
+      if (!isCompanyOwner) throw new Error('Seul le propriétaire de la société peut modifier ces paramètres');
 
       // Use upsert to handle both create and update cases atomically
       const { error } = await supabase
@@ -109,7 +114,7 @@ export function useBPSettings() {
         .upsert({
           // If we have an existing settings id, include it for update
           ...(settings?.id ? { id: settings.id } : {}),
-          user_id: user.id,
+          user_id: settingsOwnerId,
           company_id: currentCompany.id,
           ...DEFAULT_SETTINGS,
           ...data,
