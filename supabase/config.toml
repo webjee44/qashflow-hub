@@ -1,5 +1,11 @@
 project_id = "slllsekdepfnlcapcgex"
 
+[auth]
+# Session de 30 jours (en secondes)
+jwt_expiry = 3600
+# Refresh token valide 30 jours (en secondes)  
+refresh_token_rotation_enabled = true
+
 [functions.bridge-webhook]
 verify_jwt = false
 
