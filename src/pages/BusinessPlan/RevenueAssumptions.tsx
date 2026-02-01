@@ -7,6 +7,7 @@ import { useBPRevenueStreams, BPRevenueStream } from '@/hooks/useBPRevenueStream
 import { useCurrentBusinessPlan } from '@/hooks/useCurrentBusinessPlan';
 import { RevenueStreamDialog } from '@/components/businessplan/RevenueStreamDialog';
 import { RevenueTable } from '@/components/businessplan/RevenueTable';
+import { RevenueSummaryCard } from '@/components/businessplan/RevenueSummaryCard';
 import { SectionNotes } from '@/components/businessplan/SectionNotes';
 import { BPExportDialog } from '@/components/businessplan/BPExportDialog';
 import { PageHeader } from '@/components/layout/PageHeader';
@@ -63,7 +64,12 @@ export default function RevenueAssumptions() {
         }
       />
 
+      {/* Revenue Summary Card */}
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+        <RevenueSummaryCard />
+      </motion.div>
+
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
         <Card data-tour-bp="revenue-table">
           <CardHeader>
             <CardTitle>Flux de revenus</CardTitle>
