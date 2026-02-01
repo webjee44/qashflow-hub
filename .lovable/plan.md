@@ -1,194 +1,213 @@
 
+# Modal de Détail des Transactions "Réel"
 
-# Refonte complète de la gestion des groupes
+## Objectif
 
-## Problème actuel
-
-L'implémentation actuelle des groupes pose plusieurs problèmes d'UX critiques :
-
-1. **Invisibilité** : Les groupes existants sont noyés dans la liste des catégories
-2. **Actions cachées** : Impossible de savoir comment éditer ou supprimer un groupe
-3. **Pas d'édition en masse** : Pour associer plusieurs catégories à un groupe, il faut les éditer une par une
-4. **Distinction visuelle faible** : Les groupes ne ressortent pas assez visuellement
+Permettre aux utilisateurs de cliquer sur une cellule "Réel" dans le tableau des previsions pour ouvrir un modal affichant le détail des transactions qui composent ce montant, inspiré de l'interface Zenfirst.
 
 ---
 
-## Solution proposée : Interface à 2 niveaux
+## Fonctionnalites du Modal
 
-### 1. Section dédiée "Gestion des groupes"
+### En-tete du Modal
+- **Fil d'Ariane** : Type (Encaissements/Decaissements) / Nom de la categorie
+- **Selecteur de mois** : Boutons -/+ pour naviguer entre les mois sans fermer le modal
+- **Resume** : 
+  - Total du mois / Budget (ex: "15 802 EUR / 18 000 EUR")
+  - Realise (X%) avec le montant
+  - Budget (montant prevu)
+  - Note (si disponible dans category_forecasts)
 
-Ajouter une section distincte au-dessus des tableaux de catégories :
+### Tableau des Transactions
+- **Colonnes** :
+  - Date (format "18 Dec 2025")
+  - Libelle (description de la transaction)
+  - Categorie (dropdown pour recategoriser)
+  - Montant TTC
+- **Pagination** : 10 transactions par page avec navigation
+- **Tri** : Par date (decroissant par defaut)
 
-```text
-┌────────────────────────────────────────────────────────────────┐
-│ 📁 Groupes                                              [+ Créer] │
-├────────────────────────────────────────────────────────────────┤
-│  🟡 Fournisseurs (3)                                    ✎  🗑  │
-│  🔴 RH / Rémunération (4)                               ✎  🗑  │
-│  🟢 Frais Généraux (5)                                  ✎  🗑  │
-│  🔵 Transport (2)                                       ✎  🗑  │
-└────────────────────────────────────────────────────────────────┘
-```
-
-**Fonctionnalités** :
-- Liste claire de tous les groupes existants (revenus + dépenses)
-- Badge de couleur + compteur d'enfants
-- Boutons d'action toujours visibles (pas au survol)
-- Clic sur un groupe = ouvre l'éditeur
-
-### 2. Mode d'édition en masse (bulk edit)
-
-Ajouter un bouton "Organiser" qui active le mode sélection :
-
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│ Dépenses                                        [✓ Organiser]   │
-├─────────────────────────────────────────────────────────────────┤
-│ [✓] Toutatis                              20%                    │
-│ [✓] Flavor District                       20%                    │
-│ [ ] Logiciels                             20%                    │
-│ [✓] Marketing                             20%                    │
-│ [ ] Loyer                                 20%                    │
-└─────────────────────────────────────────────────────────────────┘
-     [ 3 sélectionnées ] → [Assigner au groupe ▼] [Retirer du groupe]
-```
-
-**Fonctionnalités** :
-- Checkboxes pour sélection multiple
-- Barre d'actions contextuelle en bas
-- Dropdown pour choisir le groupe cible
-- Option "Retirer du groupe" pour les catégories déjà groupées
-
-### 3. Distinction visuelle renforcée dans les tableaux
-
-Dans `/reglages-tresorerie` et `/previsions`, les groupes seront clairement distingués :
-
-```text
-┌──────────────────────────────────────────────────────────────────┐
-│ Dépenses                                                    (12) │
-├──────────────────────────────────────────────────────────────────┤
-│ ▼ FOURNISSEURS                                              (3)  │  ← Groupe : majuscules, gras, fond distinct
-│       Toutatis                             20%              ✎ 🗑 │  ← Catégorie : indentation + style normal
-│       Flavor District                      20%              ✎ 🗑 │
-│       Autres fournisseurs                  20%              ✎ 🗑 │
-├──────────────────────────────────────────────────────────────────┤
-│ ▶ RH / RÉMUNÉRATION                                         (4)  │  ← Groupe replié
-├──────────────────────────────────────────────────────────────────┤
-│   Loyer                                    20%              ✎ 🗑 │  ← Catégorie sans groupe
-│   Marketing                                20%              ✎ 🗑 │
-└──────────────────────────────────────────────────────────────────┘
-```
-
-**Différences visuelles Groupe vs Catégorie** :
-
-| Élément | Groupe | Catégorie |
-|---------|--------|-----------|
-| Texte | **MAJUSCULES + Gras** | Normal |
-| Fond | `bg-muted/50` distinct | Transparent |
-| Indentation | Aucune (aligné à gauche) | `pl-8` (24px) |
-| Icône | Chevron ▼/▶ | Pastille couleur |
-| Séparateur | Bordure au-dessus | Aucune |
+### Actions Possibles
+- Recategoriser une transaction depuis le dropdown
+- Badge de validation (check vert) pour les transactions categorisees
+- Bouton "..." pour actions supplementaires (future extension)
 
 ---
 
-## Fichiers à créer/modifier
+## Architecture Technique
 
+### Nouveau Composant
 ```text
-src/components/categories/GroupsManager.tsx     # NOUVEAU - Section de gestion des groupes
-src/components/categories/CategoryTable.tsx     # Refonte avec checkboxes + bulk actions
-src/components/categories/BulkAssignDialog.tsx  # NOUVEAU - Dialog d'assignation en masse
-src/pages/Categories.tsx                        # Intégration du GroupsManager
-src/components/forecasts/ForecastTable.tsx      # Amélioration visuelle des groupes
+src/components/forecasts/TransactionDetailDialog.tsx
 ```
 
----
-
-## Détails techniques
-
-### Nouveau composant GroupsManager
-
+### Props du Composant
 ```typescript
-// Affiche une carte avec tous les groupes existants
-// Permet création, édition, suppression directe
-export function GroupsManager({
-  groups,           // CategoryGroup[]
-  onCreateGroup,    // () => void
-  onEditGroup,      // (group) => void  
-  onDeleteGroup,    // (id, deleteChildren) => void
-}) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Groupes</CardTitle>
-        <Button onClick={onCreateGroup}>Créer un groupe</Button>
-      </CardHeader>
-      <CardContent>
-        {/* Liste des groupes avec actions visibles */}
-      </CardContent>
-    </Card>
-  );
+interface TransactionDetailDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  categoryId: string;
+  categoryName: string;
+  categoryColor: string;
+  categoryType: 'income' | 'expense';
+  initialMonth: Date;
+  forecastAmount: number;
 }
 ```
 
-### Mode sélection dans CategoryTable
-
+### Requete Supabase
 ```typescript
-const [selectionMode, setSelectionMode] = useState(false);
-const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-
-// Barre d'actions bulk
-{selectionMode && selectedIds.size > 0 && (
-  <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 
-                  bg-card shadow-lg rounded-lg p-3 flex items-center gap-3">
-    <span>{selectedIds.size} sélectionnée(s)</span>
-    <Select>
-      <SelectTrigger>Assigner au groupe</SelectTrigger>
-      {/* Options : groupes existants */}
-    </Select>
-    <Button variant="outline">Retirer du groupe</Button>
-  </div>
-)}
-```
-
-### Styles CSS distincts pour groupes
-
-```typescript
-// Ligne de groupe
-<TableRow className="bg-muted/50 border-t-2 border-border font-semibold">
-  <TableCell className="uppercase tracking-wide text-sm">
-    {group.name}
-  </TableCell>
-</TableRow>
-
-// Ligne de catégorie enfant
-<TableRow className="pl-8">
-  <TableCell className="font-normal text-foreground">
-    {category.name}
-  </TableCell>
-</TableRow>
+// Fetch transactions pour une categorie et un mois specifique
+const { data } = await supabase
+  .from('transactions')
+  .select('*')
+  .eq('category_id', categoryId)
+  .gte('date', startOfMonth)
+  .lt('date', endOfMonth)
+  .is('deleted_at', null)
+  .order('date', { ascending: false });
 ```
 
 ---
 
-## Bénéfices attendus
+## Integration dans ForecastTable
 
-| Avant | Après |
-|-------|-------|
-| Groupes invisibles | Section dédiée avec liste claire |
-| Actions cachées au survol | Boutons toujours visibles |
-| Édition catégorie par catégorie | Sélection multiple + assignation en masse |
-| Distinction visuelle faible | Majuscules + gras + fond distinct |
-| UX confuse | Interface claire type Zenfirst |
+### Modification de renderCell
+La cellule "Reel" devient cliquable :
+```typescript
+// Cellule Reel - maintenant cliquable
+<div 
+  className={cn(
+    "flex-1 px-3 py-2 text-right border-r border-border/50 bg-muted/20 cursor-pointer hover:bg-muted/40",
+    hasActual && (isPositive ? "text-success" : "text-destructive")
+  )}
+  onClick={() => hasActual && openTransactionDetail(categoryId, monthIndex)}
+>
+  {hasActual ? formatValue(Math.abs(actual)) : '—'}
+</div>
+```
+
+### Nouvel Etat dans ForecastTable
+```typescript
+const [transactionDetailOpen, setTransactionDetailOpen] = useState(false);
+const [transactionDetailCategory, setTransactionDetailCategory] = useState<{
+  id: string;
+  name: string;
+  color: string;
+  type: 'income' | 'expense';
+  monthIndex: number;
+  forecast: number;
+} | null>(null);
+```
 
 ---
 
-## Estimation
+## Design UI
 
-- **Fichiers à modifier** : 5
-- **Complexité** : Moyenne-élevée
-- **Points clés** :
-  - Nouveau composant GroupsManager
-  - État de sélection multiple dans CategoryTable
-  - Barre d'actions bulk contextuelle
-  - Refonte CSS des lignes de groupe
+### Structure du Dialog
+```text
++----------------------------------------------------------+
+| Decaissements / Salaires                              X  |
++----------------------------------------------------------+
+|                    [ - ]  Fev 2026  [ + ]                |
+|                                                          |
+|              Total du mois / Budget                      |
+|              15 802 EUR / 18 000 EUR                     |
+|                                                          |
+|  +-----------------------+-----------------------+       |
+|  | Realise (88%)         |            15 802 EUR |       |
+|  +-----------------------+-----------------------+       |
+|  | Budget                |            18 000 EUR |       |
+|  +-----------------------+-----------------------+       |
+|  | Note                  |                     - |       |
+|  +-----------------------+-----------------------+       |
+|                                                          |
+|  Realise                                                 |
+|  --------------------------------------------------------|
+|  Date    | Libelle              | Categorie | Montant    |
+|  --------|----------------------|-----------|------------|
+|  18 Dec  | VIR REMISE Cloud...  | Salaires  | 15 802 EUR |
+|  ...     | ...                  | ...       | ...        |
+|  --------------------------------------------------------|
+|                    < 1 > 10 / page                       |
++----------------------------------------------------------+
+```
 
+### Classes Tailwind Cles
+- Modal large : `max-w-3xl`
+- En-tete avec fond subtil : `bg-muted/30`
+- Separateurs clairs entre sections
+- Badge de validation : `text-success`
+- Montants negatifs : `text-destructive`
+
+---
+
+## Fichiers a Modifier/Creer
+
+| Fichier | Action |
+|---------|--------|
+| `src/components/forecasts/TransactionDetailDialog.tsx` | CREER |
+| `src/components/forecasts/ForecastTable.tsx` | MODIFIER |
+
+---
+
+## Gestion de la Pagination
+
+```typescript
+const [page, setPage] = useState(1);
+const [pageSize, setPageSize] = useState(10);
+
+// Calcul des transactions affichees
+const paginatedTransactions = transactions.slice(
+  (page - 1) * pageSize,
+  page * pageSize
+);
+
+const totalPages = Math.ceil(transactions.length / pageSize);
+```
+
+---
+
+## Navigation entre Mois
+
+Le selecteur de mois permet de naviguer sans fermer le modal :
+```typescript
+const [currentMonth, setCurrentMonth] = useState(initialMonth);
+
+const handlePreviousMonth = () => {
+  setCurrentMonth(prev => addMonths(prev, -1));
+  setPage(1); // Reset pagination
+};
+
+const handleNextMonth = () => {
+  setCurrentMonth(prev => addMonths(prev, 1));
+  setPage(1);
+};
+```
+
+Les donnees se rechargent automatiquement grace a la dependance dans useQuery.
+
+---
+
+## Indicateur de Progression
+
+Barre de progression visuelle comparant realise vs budget :
+```typescript
+const progressPercent = forecastAmount > 0 
+  ? Math.min((actualTotal / forecastAmount) * 100, 100) 
+  : 0;
+
+<Progress value={progressPercent} className="h-2" />
+```
+
+---
+
+## Resume
+
+Cette fonctionnalite permet aux utilisateurs de :
+1. **Comprendre** d'ou vient chaque chiffre "Reel" 
+2. **Naviguer** entre les mois sans quitter le modal
+3. **Recategoriser** directement les transactions mal classees
+4. **Comparer** visuellement le realise vs le budget
+
+L'implementation suit le design Zenfirst en l'ameliorant avec une interface plus moderne et fluide.
