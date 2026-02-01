@@ -17,6 +17,8 @@ import {
   Loader2,
   Check,
   Sparkles,
+  Wand2,
+  Zap,
 } from 'lucide-react';
 import { Tables } from '@/integrations/supabase/types';
 import { Category } from '@/hooks/useCategories';
@@ -28,20 +30,80 @@ interface BulkCategorizeDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   selectedTransactions: Transaction[];
+  allTransactions: Transaction[];
   categories: Category[];
   onCategorize: (categoryId: string | null) => Promise<void>;
+  onCreateRule?: (rule: {
+    name: string;
+    condition_field: string;
+    condition_operator: string;
+    condition_value: string;
+    action_type: string;
+    target_category_id: string | null;
+  }) => Promise<any>;
   isLoading?: boolean;
+}
+
+// Extract common pattern from transactions
+function extractCommonPattern(transactions: Transaction[], allTransactions: Transaction[]): string | null {
+  if (transactions.length === 0) return null;
+
+  // Count word frequency across ALL transactions to detect company name
+  const globalWordFrequency = new Map<string, number>();
+  allTransactions.forEach(t => {
+    const words = t.description.toUpperCase().split(/\s+/);
+    new Set(words).forEach(w => {
+      if (w.length > 2) {
+        globalWordFrequency.set(w, (globalWordFrequency.get(w) || 0) + 1);
+      }
+    });
+  });
+  const globalThreshold = Math.max(2, allTransactions.length * 0.3);
+
+  // Words to exclude
+  const excludedWords = /^(CARTE|PAIEMENT|VIR|SEPA|PRLV|CB|PP\d*|FA\d*|F\d+|MCC|EUR|USD|INTERNET|PRELEVEMENT|COMMANDE|POUR|INST|DE|DU|LA|LE|LES|AU|AUX|\d{6,}|[A-Z0-9]{10,})$/i;
+
+  // Extract meaningful words from selected transactions
+  const wordCounts = new Map<string, number>();
+  transactions.forEach(t => {
+    const words = t.description.toUpperCase().split(/\s+/).filter(w => 
+      w.length >= 2 &&
+      !/^\d+$/.test(w) &&
+      !excludedWords.test(w) &&
+      (globalWordFrequency.get(w) || 0) < globalThreshold
+    );
+    
+    new Set(words).forEach(w => {
+      wordCounts.set(w, (wordCounts.get(w) || 0) + 1);
+    });
+  });
+
+  // Find words that appear in at least 50% of selected transactions
+  const threshold = Math.max(1, transactions.length * 0.5);
+  const commonWords = Array.from(wordCounts.entries())
+    .filter(([_, count]) => count >= threshold)
+    .sort((a, b) => b[1] - a[1])
+    .map(([word]) => word);
+
+  if (commonWords.length === 0) return null;
+
+  // Return the most common word(s)
+  return commonWords.slice(0, 2).join(' ');
 }
 
 export function BulkCategorizeDialog({
   open,
   onOpenChange,
   selectedTransactions,
+  allTransactions,
   categories,
   onCategorize,
+  onCreateRule,
   isLoading = false,
 }: BulkCategorizeDialogProps) {
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  const [createRuleChecked, setCreateRuleChecked] = useState(false);
+  const [isCreatingRule, setIsCreatingRule] = useState(false);
 
   // Analyze selected transactions
   const analysis = useMemo(() => {
@@ -59,6 +121,23 @@ export function BulkCategorizeDialog({
 
     return { incomeCount, expenseCount, totalAmount, dominantType };
   }, [selectedTransactions]);
+
+  // Detect common pattern for automation suggestion
+  const commonPattern = useMemo(() => 
+    extractCommonPattern(selectedTransactions, allTransactions),
+    [selectedTransactions, allTransactions]
+  );
+
+  // Count how many OTHER uncategorized transactions would match this pattern
+  const matchingUncategorized = useMemo(() => {
+    if (!commonPattern) return 0;
+    const selectedIds = new Set(selectedTransactions.map(t => t.id));
+    return allTransactions.filter(t => 
+      !selectedIds.has(t.id) &&
+      !t.category_id &&
+      t.description.toUpperCase().includes(commonPattern.toUpperCase())
+    ).length;
+  }, [commonPattern, selectedTransactions, allTransactions]);
 
   // Filter categories based on selection type
   const recommendedCategories = useMemo(() => {
@@ -90,13 +169,34 @@ export function BulkCategorizeDialog({
   };
 
   const handleCategorize = async () => {
+    // First, categorize the transactions
     await onCategorize(selectedCategoryId);
+    
+    // Then, create automation rule if checked
+    if (createRuleChecked && commonPattern && selectedCategoryId && onCreateRule) {
+      setIsCreatingRule(true);
+      try {
+        await onCreateRule({
+          name: `Auto: ${selectedCategory?.name} - ${commonPattern}`,
+          condition_field: 'description',
+          condition_operator: 'contains',
+          condition_value: commonPattern,
+          action_type: 'categorize',
+          target_category_id: selectedCategoryId,
+        });
+      } finally {
+        setIsCreatingRule(false);
+      }
+    }
+    
     setSelectedCategoryId(null);
+    setCreateRuleChecked(false);
     onOpenChange(false);
   };
 
   const handleClose = () => {
     setSelectedCategoryId(null);
+    setCreateRuleChecked(false);
     onOpenChange(false);
   };
 
@@ -267,6 +367,45 @@ export function BulkCategorizeDialog({
             </div>
           </ScrollArea>
 
+          {/* Automation Suggestion */}
+          {commonPattern && selectedCategoryId && onCreateRule && (
+            <div className="mx-6 mb-4">
+              <button
+                type="button"
+                onClick={() => setCreateRuleChecked(!createRuleChecked)}
+                className={cn(
+                  "w-full flex items-start gap-3 p-3 rounded-lg border transition-all text-left",
+                  createRuleChecked 
+                    ? "border-accent bg-accent/10" 
+                    : "border-border hover:border-accent/50 hover:bg-accent/5"
+                )}
+              >
+                <div className={cn(
+                  "w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 mt-0.5 transition-colors",
+                  createRuleChecked 
+                    ? "border-accent bg-accent text-accent-foreground" 
+                    : "border-muted-foreground"
+                )}>
+                  {createRuleChecked && <Check className="w-3 h-3" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Zap className="w-4 h-4 text-accent" />
+                    <span className="font-medium text-sm">Créer une règle automatique</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Pattern détecté : "<span className="font-mono bg-muted px-1 rounded">{commonPattern}</span>"
+                    {matchingUncategorized > 0 && (
+                      <span className="text-accent font-medium">
+                        {' '}→ {matchingUncategorized} autre{matchingUncategorized > 1 ? 's' : ''} transaction{matchingUncategorized > 1 ? 's' : ''} sera{matchingUncategorized > 1 ? 'ont' : ''} catégorisée{matchingUncategorized > 1 ? 's' : ''} automatiquement
+                      </span>
+                    )}
+                  </p>
+                </div>
+              </button>
+            </div>
+          )}
+
           {/* Mismatch Warning */}
           {hasMismatch && (
             <div className="mx-6 mb-4 flex items-start gap-2 text-sm text-destructive bg-destructive/10 p-3 rounded-lg">
@@ -297,15 +436,17 @@ export function BulkCategorizeDialog({
                 </Button>
                 <Button
                   onClick={handleCategorize}
-                  disabled={!selectedCategoryId || isLoading}
+                  disabled={!selectedCategoryId || isLoading || isCreatingRule}
                   className="gap-2"
                 >
-                  {isLoading ? (
+                  {(isLoading || isCreatingRule) ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : createRuleChecked ? (
+                    <Zap className="w-4 h-4" />
                   ) : (
                     <Tag className="w-4 h-4" />
                   )}
-                  Appliquer
+                  {createRuleChecked ? 'Appliquer + Créer règle' : 'Appliquer'}
                 </Button>
               </div>
             </div>
