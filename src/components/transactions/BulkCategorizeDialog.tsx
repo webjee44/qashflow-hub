@@ -7,8 +7,20 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { Input } from '@/components/ui/input';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import { 
   AlertTriangle, 
   Tag, 
@@ -17,8 +29,10 @@ import {
   Loader2,
   Check,
   Sparkles,
-  Wand2,
   Zap,
+  ChevronDown,
+  Search,
+  Pencil,
 } from 'lucide-react';
 import { Tables } from '@/integrations/supabase/types';
 import { Category } from '@/hooks/useCategories';
@@ -104,6 +118,9 @@ export function BulkCategorizeDialog({
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [createRuleChecked, setCreateRuleChecked] = useState(false);
   const [isCreatingRule, setIsCreatingRule] = useState(false);
+  const [otherCategoryOpen, setOtherCategoryOpen] = useState(false);
+  const [editingPattern, setEditingPattern] = useState(false);
+  const [customPattern, setCustomPattern] = useState<string>('');
 
   // Analyze selected transactions
   const analysis = useMemo(() => {
@@ -123,23 +140,33 @@ export function BulkCategorizeDialog({
   }, [selectedTransactions]);
 
   // Detect common pattern for automation suggestion
-  const commonPattern = useMemo(() => 
+  const detectedPattern = useMemo(() => 
     extractCommonPattern(selectedTransactions, allTransactions),
     [selectedTransactions, allTransactions]
   );
 
+  // Use custom pattern if set, otherwise use detected
+  const activePattern = customPattern || detectedPattern;
+
+  // Initialize custom pattern when dialog opens
+  useMemo(() => {
+    if (open && detectedPattern && !customPattern) {
+      setCustomPattern(detectedPattern);
+    }
+  }, [open, detectedPattern]);
+
   // Count how many OTHER uncategorized transactions would match this pattern
   const matchingUncategorized = useMemo(() => {
-    if (!commonPattern) return 0;
+    if (!activePattern) return 0;
     const selectedIds = new Set(selectedTransactions.map(t => t.id));
     return allTransactions.filter(t => 
       !selectedIds.has(t.id) &&
       !t.category_id &&
-      t.description.toUpperCase().includes(commonPattern.toUpperCase())
+      t.description.toUpperCase().includes(activePattern.toUpperCase())
     ).length;
-  }, [commonPattern, selectedTransactions, allTransactions]);
+  }, [activePattern, selectedTransactions, allTransactions]);
 
-  // Filter categories based on selection type
+  // Filter categories based on selection type - these are the recommended ones
   const recommendedCategories = useMemo(() => {
     if (analysis.dominantType === 'income') {
       return categories.filter(c => c.type === 'income');
@@ -149,8 +176,11 @@ export function BulkCategorizeDialog({
     return categories;
   }, [categories, analysis.dominantType]);
 
-  const incomeCategories = categories.filter(c => c.type === 'income');
-  const expenseCategories = categories.filter(c => c.type === 'expense');
+  // Other categories (not recommended)
+  const otherCategories = useMemo(() => {
+    const recommendedIds = new Set(recommendedCategories.map(c => c.id));
+    return categories.filter(c => !recommendedIds.has(c.id));
+  }, [categories, recommendedCategories]);
 
   // Check for type mismatch
   const selectedCategory = categories.find(c => c.id === selectedCategoryId);
@@ -161,26 +191,19 @@ export function BulkCategorizeDialog({
     return false;
   }, [selectedCategory, analysis]);
 
-  const formatAmount = (amount: number) => {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'EUR',
-    }).format(Math.abs(amount));
-  };
-
   const handleCategorize = async () => {
     // First, categorize the transactions
     await onCategorize(selectedCategoryId);
     
     // Then, create automation rule if checked
-    if (createRuleChecked && commonPattern && selectedCategoryId && onCreateRule) {
+    if (createRuleChecked && activePattern && selectedCategoryId && onCreateRule) {
       setIsCreatingRule(true);
       try {
         await onCreateRule({
-          name: `Auto: ${selectedCategory?.name} - ${commonPattern}`,
+          name: `Auto: ${selectedCategory?.name} - ${activePattern}`,
           condition_field: 'description',
           condition_operator: 'contains',
-          condition_value: commonPattern,
+          condition_value: activePattern,
           action_type: 'categorize',
           target_category_id: selectedCategoryId,
         });
@@ -191,18 +214,27 @@ export function BulkCategorizeDialog({
     
     setSelectedCategoryId(null);
     setCreateRuleChecked(false);
+    setCustomPattern('');
+    setEditingPattern(false);
     onOpenChange(false);
   };
 
   const handleClose = () => {
     setSelectedCategoryId(null);
     setCreateRuleChecked(false);
+    setCustomPattern('');
+    setEditingPattern(false);
     onOpenChange(false);
+  };
+
+  const handleSelectCategory = (categoryId: string) => {
+    setSelectedCategoryId(categoryId);
+    setOtherCategoryOpen(false);
   };
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-lg p-0">
+      <DialogContent className="max-w-md p-0">
         <div className="flex max-h-[85vh] flex-col overflow-hidden">
           {/* Header */}
           <div className="p-6 pb-4">
@@ -217,205 +249,247 @@ export function BulkCategorizeDialog({
             </DialogHeader>
           </div>
 
-          {/* Analysis Summary */}
+          {/* Analysis Summary - Compact */}
           <div className="px-6 pb-4">
-            <div className="bg-muted/50 rounded-lg p-4 space-y-3">
-              <div className="flex items-center gap-4">
-                {analysis.incomeCount > 0 && (
-                  <div className="flex items-center gap-2">
-                    <ArrowUpRight className="w-4 h-4 text-success" />
-                    <span className="text-sm">
-                      <span className="font-semibold text-success">{analysis.incomeCount}</span> encaissement{analysis.incomeCount > 1 ? 's' : ''}
-                    </span>
+            <div className="flex items-center gap-4 text-sm">
+              {analysis.incomeCount > 0 && (
+                <div className="flex items-center gap-1.5">
+                  <ArrowUpRight className="w-4 h-4 text-success" />
+                  <span className="font-semibold text-success">{analysis.incomeCount}</span>
+                  <span className="text-muted-foreground">encaissement{analysis.incomeCount > 1 ? 's' : ''}</span>
+                </div>
+              )}
+              {analysis.expenseCount > 0 && (
+                <div className="flex items-center gap-1.5">
+                  <ArrowDownRight className="w-4 h-4 text-destructive" />
+                  <span className="font-semibold text-destructive">{analysis.expenseCount}</span>
+                  <span className="text-muted-foreground">décaissement{analysis.expenseCount > 1 ? 's' : ''}</span>
+                </div>
+              )}
+            </div>
+
+            {analysis.dominantType === 'mixed' && (
+              <div className="flex items-start gap-2 text-sm text-warning bg-warning/10 p-2 rounded mt-3">
+                <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+                <span>Sélection mixte : vérifiez la compatibilité de la catégorie.</span>
+              </div>
+            )}
+          </div>
+
+          {/* Content */}
+          <div className="px-6 pb-4 space-y-4">
+            {/* Recommended Categories */}
+            {recommendedCategories.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1">
+                  <Sparkles className="w-3 h-3 text-accent" />
+                  RECOMMANDÉES
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  {recommendedCategories.slice(0, 6).map(cat => (
+                    <Button
+                      key={cat.id}
+                      variant={selectedCategoryId === cat.id ? 'default' : 'outline'}
+                      size="sm"
+                      className={cn(
+                        "justify-start gap-2 h-auto py-2",
+                        selectedCategoryId === cat.id && "ring-2 ring-primary"
+                      )}
+                      onClick={() => setSelectedCategoryId(cat.id)}
+                    >
+                      <div 
+                        className="w-3 h-3 rounded-full shrink-0" 
+                        style={{ backgroundColor: cat.color }}
+                      />
+                      <span className="truncate text-left flex-1">{cat.name}</span>
+                      {selectedCategoryId === cat.id && (
+                        <Check className="w-4 h-4 shrink-0" />
+                      )}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Other Categories - Dropdown with Search */}
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground mb-2">
+                AUTRE CATÉGORIE
+              </p>
+              <Popover open={otherCategoryOpen} onOpenChange={setOtherCategoryOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={otherCategoryOpen}
+                    className="w-full justify-between"
+                  >
+                    {selectedCategoryId && !recommendedCategories.find(c => c.id === selectedCategoryId) ? (
+                      <div className="flex items-center gap-2">
+                        <div 
+                          className="w-3 h-3 rounded-full shrink-0" 
+                          style={{ backgroundColor: selectedCategory?.color }}
+                        />
+                        <span>{selectedCategory?.name}</span>
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground flex items-center gap-2">
+                        <Search className="w-4 h-4" />
+                        Rechercher une catégorie...
+                      </span>
+                    )}
+                    <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0 z-[10000]" align="start">
+                  <Command>
+                    <CommandInput placeholder="Rechercher..." />
+                    <CommandList>
+                      <CommandEmpty>Aucune catégorie trouvée.</CommandEmpty>
+                      {recommendedCategories.length > 6 && (
+                        <CommandGroup heading="Recommandées">
+                          {recommendedCategories.slice(6).map(cat => (
+                            <CommandItem
+                              key={cat.id}
+                              value={cat.name}
+                              onSelect={() => handleSelectCategory(cat.id)}
+                              className="flex items-center gap-2"
+                            >
+                              <div 
+                                className="w-3 h-3 rounded-full shrink-0" 
+                                style={{ backgroundColor: cat.color }}
+                              />
+                              <span>{cat.name}</span>
+                              {selectedCategoryId === cat.id && (
+                                <Check className="w-4 h-4 ml-auto" />
+                              )}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      )}
+                      {otherCategories.length > 0 && (
+                        <CommandGroup heading={analysis.dominantType === 'income' ? 'Décaissements' : 'Encaissements'}>
+                          {otherCategories.map(cat => (
+                            <CommandItem
+                              key={cat.id}
+                              value={cat.name}
+                              onSelect={() => handleSelectCategory(cat.id)}
+                              className="flex items-center gap-2"
+                            >
+                              <div 
+                                className="w-3 h-3 rounded-full shrink-0" 
+                                style={{ backgroundColor: cat.color }}
+                              />
+                              <span>{cat.name}</span>
+                              {selectedCategoryId === cat.id && (
+                                <Check className="w-4 h-4 ml-auto" />
+                              )}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      )}
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            {/* Mismatch Warning */}
+            {hasMismatch && (
+              <div className="flex items-start gap-2 text-sm text-destructive bg-destructive/10 p-3 rounded-lg">
+                <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+                <span>
+                  <strong>Incohérence :</strong> catégorie de type{' '}
+                  "{selectedCategory?.type === 'income' ? 'encaissement' : 'décaissement'}" 
+                  appliquée à des transactions opposées.
+                </span>
+              </div>
+            )}
+
+            {/* Automation Rule - More Prominent */}
+            {detectedPattern && selectedCategoryId && onCreateRule && (
+              <div className={cn(
+                "rounded-lg border-2 p-4 transition-all",
+                createRuleChecked 
+                  ? "border-accent bg-accent/10" 
+                  : "border-dashed border-muted-foreground/30 hover:border-accent/50"
+              )}>
+                <button
+                  type="button"
+                  onClick={() => setCreateRuleChecked(!createRuleChecked)}
+                  className="w-full flex items-start gap-3 text-left"
+                >
+                  <div className={cn(
+                    "w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 mt-0.5 transition-colors",
+                    createRuleChecked 
+                      ? "border-accent bg-accent text-accent-foreground" 
+                      : "border-muted-foreground/50"
+                  )}>
+                    {createRuleChecked && <Check className="w-3 h-3" />}
                   </div>
-                )}
-                {analysis.expenseCount > 0 && (
-                  <div className="flex items-center gap-2">
-                    <ArrowDownRight className="w-4 h-4 text-destructive" />
-                    <span className="text-sm">
-                      <span className="font-semibold text-destructive">{analysis.expenseCount}</span> décaissement{analysis.expenseCount > 1 ? 's' : ''}
-                    </span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Zap className="w-4 h-4 text-accent" />
+                      <span className="font-semibold text-sm">Créer une règle automatique</span>
+                      {matchingUncategorized > 0 && (
+                        <span className="text-xs bg-accent text-accent-foreground px-2 py-0.5 rounded-full">
+                          +{matchingUncategorized} à catégoriser
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Les futures transactions contenant ce pattern seront catégorisées automatiquement
+                    </p>
+                  </div>
+                </button>
+
+                {/* Pattern Editor */}
+                {createRuleChecked && (
+                  <div className="mt-3 pt-3 border-t border-border">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground shrink-0">Pattern :</span>
+                      {editingPattern ? (
+                        <div className="flex items-center gap-2 flex-1">
+                          <Input
+                            value={customPattern}
+                            onChange={(e) => setCustomPattern(e.target.value.toUpperCase())}
+                            className="h-7 text-xs font-mono flex-1"
+                            placeholder="Ex: AMAZON"
+                            autoFocus
+                          />
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0"
+                            onClick={() => setEditingPattern(false)}
+                          >
+                            <Check className="w-4 h-4 text-success" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 flex-1">
+                          <code className="text-xs bg-muted px-2 py-1 rounded font-mono">
+                            {activePattern}
+                          </code>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0"
+                            onClick={() => {
+                              setCustomPattern(activePattern || '');
+                              setEditingPattern(true);
+                            }}
+                          >
+                            <Pencil className="w-3 h-3 text-muted-foreground" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
-
-              {/* Smart Recommendation */}
-              {analysis.dominantType !== 'mixed' && (
-                <div className="flex items-center gap-2 text-sm">
-                  <Sparkles className="w-4 h-4 text-accent" />
-                  <span className="text-muted-foreground">
-                    Recommandation : catégories de type{' '}
-                    <span className={cn(
-                      "font-medium",
-                      analysis.dominantType === 'income' ? 'text-success' : 'text-destructive'
-                    )}>
-                      {analysis.dominantType === 'income' ? 'encaissement' : 'décaissement'}
-                    </span>
-                  </span>
-                </div>
-              )}
-
-              {analysis.dominantType === 'mixed' && (
-                <div className="flex items-start gap-2 text-sm text-warning bg-warning/10 p-2 rounded">
-                  <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
-                  <span>
-                    Attention : vous avez sélectionné des encaissements ET des décaissements. 
-                    Choisissez une catégorie adaptée ou séparez votre sélection.
-                  </span>
-                </div>
-              )}
-            </div>
+            )}
           </div>
-
-          {/* Category Selection */}
-          <ScrollArea className="flex-1 px-6">
-            <div className="space-y-4 pb-4">
-              {/* Recommended Categories */}
-              {analysis.dominantType !== 'mixed' && recommendedCategories.length > 0 && (
-                <div>
-                  <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1">
-                    <Sparkles className="w-3 h-3" />
-                    RECOMMANDÉES
-                  </p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {recommendedCategories.map(cat => (
-                      <Button
-                        key={cat.id}
-                        variant={selectedCategoryId === cat.id ? 'default' : 'outline'}
-                        size="sm"
-                        className={cn(
-                          "justify-start gap-2 h-auto py-2",
-                          selectedCategoryId === cat.id && "ring-2 ring-primary"
-                        )}
-                        onClick={() => setSelectedCategoryId(cat.id)}
-                      >
-                        <div 
-                          className="w-3 h-3 rounded-full shrink-0" 
-                          style={{ backgroundColor: cat.color }}
-                        />
-                        <span className="truncate">{cat.name}</span>
-                        {selectedCategoryId === cat.id && (
-                          <Check className="w-4 h-4 ml-auto shrink-0" />
-                        )}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* All Income Categories */}
-              {incomeCategories.length > 0 && (analysis.dominantType === 'mixed' || analysis.dominantType === 'expense') && (
-                <div>
-                  <p className="text-xs font-semibold text-muted-foreground mb-2">ENCAISSEMENTS</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {incomeCategories.map(cat => (
-                      <Button
-                        key={cat.id}
-                        variant={selectedCategoryId === cat.id ? 'default' : 'outline'}
-                        size="sm"
-                        className={cn(
-                          "justify-start gap-2 h-auto py-2",
-                          selectedCategoryId === cat.id && "ring-2 ring-primary",
-                          analysis.expenseCount > 0 && "opacity-60"
-                        )}
-                        onClick={() => setSelectedCategoryId(cat.id)}
-                      >
-                        <div 
-                          className="w-3 h-3 rounded-full shrink-0" 
-                          style={{ backgroundColor: cat.color }}
-                        />
-                        <span className="truncate">{cat.name}</span>
-                        {selectedCategoryId === cat.id && (
-                          <Check className="w-4 h-4 ml-auto shrink-0" />
-                        )}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* All Expense Categories */}
-              {expenseCategories.length > 0 && (analysis.dominantType === 'mixed' || analysis.dominantType === 'income') && (
-                <div>
-                  <p className="text-xs font-semibold text-muted-foreground mb-2">DÉCAISSEMENTS</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {expenseCategories.map(cat => (
-                      <Button
-                        key={cat.id}
-                        variant={selectedCategoryId === cat.id ? 'default' : 'outline'}
-                        size="sm"
-                        className={cn(
-                          "justify-start gap-2 h-auto py-2",
-                          selectedCategoryId === cat.id && "ring-2 ring-primary",
-                          analysis.incomeCount > 0 && "opacity-60"
-                        )}
-                        onClick={() => setSelectedCategoryId(cat.id)}
-                      >
-                        <div 
-                          className="w-3 h-3 rounded-full shrink-0" 
-                          style={{ backgroundColor: cat.color }}
-                        />
-                        <span className="truncate">{cat.name}</span>
-                        {selectedCategoryId === cat.id && (
-                          <Check className="w-4 h-4 ml-auto shrink-0" />
-                        )}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </ScrollArea>
-
-          {/* Automation Suggestion */}
-          {commonPattern && selectedCategoryId && onCreateRule && (
-            <div className="mx-6 mb-4">
-              <button
-                type="button"
-                onClick={() => setCreateRuleChecked(!createRuleChecked)}
-                className={cn(
-                  "w-full flex items-start gap-3 p-3 rounded-lg border transition-all text-left",
-                  createRuleChecked 
-                    ? "border-accent bg-accent/10" 
-                    : "border-border hover:border-accent/50 hover:bg-accent/5"
-                )}
-              >
-                <div className={cn(
-                  "w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 mt-0.5 transition-colors",
-                  createRuleChecked 
-                    ? "border-accent bg-accent text-accent-foreground" 
-                    : "border-muted-foreground"
-                )}>
-                  {createRuleChecked && <Check className="w-3 h-3" />}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Zap className="w-4 h-4 text-accent" />
-                    <span className="font-medium text-sm">Créer une règle automatique</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Pattern détecté : "<span className="font-mono bg-muted px-1 rounded">{commonPattern}</span>"
-                    {matchingUncategorized > 0 && (
-                      <span className="text-accent font-medium">
-                        {' '}→ {matchingUncategorized} autre{matchingUncategorized > 1 ? 's' : ''} transaction{matchingUncategorized > 1 ? 's' : ''} sera{matchingUncategorized > 1 ? 'ont' : ''} catégorisée{matchingUncategorized > 1 ? 's' : ''} automatiquement
-                      </span>
-                    )}
-                  </p>
-                </div>
-              </button>
-            </div>
-          )}
-
-          {/* Mismatch Warning */}
-          {hasMismatch && (
-            <div className="mx-6 mb-4 flex items-start gap-2 text-sm text-destructive bg-destructive/10 p-3 rounded-lg">
-              <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
-              <span>
-                <strong>Incohérence détectée :</strong> vous essayez d'assigner une catégorie de type{' '}
-                "{selectedCategory?.type === 'income' ? 'encaissement' : 'décaissement'}" à des transactions de type opposé.
-              </span>
-            </div>
-          )}
 
           {/* Footer */}
           <div className="border-t border-border bg-background p-4">
@@ -426,13 +500,14 @@ export function BulkCategorizeDialog({
               <div className="flex items-center gap-2">
                 <Button 
                   variant="outline"
+                  size="sm"
                   onClick={() => {
                     onCategorize(null);
                     onOpenChange(false);
                   }}
                   disabled={isLoading}
                 >
-                  Retirer la catégorie
+                  Retirer
                 </Button>
                 <Button
                   onClick={handleCategorize}
@@ -446,7 +521,7 @@ export function BulkCategorizeDialog({
                   ) : (
                     <Tag className="w-4 h-4" />
                   )}
-                  {createRuleChecked ? 'Appliquer + Créer règle' : 'Appliquer'}
+                  {createRuleChecked ? 'Appliquer + Règle' : 'Appliquer'}
                 </Button>
               </div>
             </div>
