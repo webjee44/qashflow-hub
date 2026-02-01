@@ -142,6 +142,9 @@ export function BPSettingsDialog({ open, onOpenChange }: BPSettingsDialogProps) 
                       setBpStartDate(date);
                       setDatePickerOpen(false);
                     }}
+                    defaultMonth={bpStartDate || new Date(2026, 0, 1)}
+                    fromYear={2020}
+                    toYear={2030}
                     initialFocus
                     locale={fr}
                     className="pointer-events-auto"
