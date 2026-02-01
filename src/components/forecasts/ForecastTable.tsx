@@ -1,11 +1,11 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { useCategories, CategoryGroup } from '@/hooks/useCategories';
+import { useCategories, CategoryGroup, Category } from '@/hooks/useCategories';
 import { useForecasts } from '@/hooks/useForecasts';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { Loader2, Copy, Check, TrendingUp, ChevronRight, ChevronDown, Link2, ChevronsUpDown, ChevronsDownUp } from 'lucide-react';
+import { Loader2, Copy, Check, TrendingUp, ChevronRight, ChevronDown, Link2, ChevronsUpDown, ChevronsDownUp, MoreHorizontal, Edit3, Trash2 } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -14,13 +14,31 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { CategoryDialog } from '@/components/categories/CategoryDialog';
 import { ForecastChart } from './ForecastChart';
 import { PeriodSelector } from './PeriodSelector';
+import { supabase } from '@/integrations/supabase/client';
 
 const COLLAPSED_GROUPS_KEY = 'forecast-collapsed-groups';
 
 export function ForecastTable() {
-  const { categories, loading: categoriesLoading, getGroupedCategories } = useCategories();
+  const { categories, loading: categoriesLoading, getGroupedCategories, updateCategory, deleteCategory } = useCategories();
   const { 
     months, 
     getForecast, 
@@ -42,6 +60,13 @@ export function ForecastTable() {
   const [showGrowthInput, setShowGrowthInput] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  
+  // Category edit/delete state
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
+  const [transactionCount, setTransactionCount] = useState<number>(0);
 
   const isLoading = categoriesLoading || forecastsLoading;
 
@@ -461,6 +486,35 @@ export function ForecastTable() {
     );
   };
 
+  // Handle category edit
+  const handleEditCategory = (category: Category) => {
+    setEditingCategory(category);
+    setEditDialogOpen(true);
+  };
+
+  // Handle category delete with transaction count check
+  const handleDeleteClick = async (category: Category) => {
+    setCategoryToDelete(category);
+    
+    // Fetch transaction count
+    const { count } = await supabase
+      .from('transactions')
+      .select('*', { count: 'exact', head: true })
+      .eq('category_id', category.id)
+      .is('deleted_at', null);
+    
+    setTransactionCount(count || 0);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = () => {
+    if (categoryToDelete) {
+      deleteCategory(categoryToDelete.id);
+      setDeleteDialogOpen(false);
+      setCategoryToDelete(null);
+    }
+  };
+
   const renderCategoryRow = (category: typeof categories[0], index: number, type: 'income' | 'expense', isChild: boolean = false) => {
     return (
       <motion.tr
@@ -469,7 +523,7 @@ export function ForecastTable() {
         animate={{ opacity: 1, x: 0 }}
         exit={{ opacity: 0, height: 0 }}
         transition={{ delay: 0.03 * index }}
-        className="border-b border-border hover:bg-muted/20 transition-colors"
+        className="border-b border-border hover:bg-muted/20 transition-colors group"
       >
         <td className={cn(
           "p-3 sticky left-0 z-10 bg-card border-r border-border",
@@ -486,6 +540,32 @@ export function ForecastTable() {
                 ({(category.vat_rate * 100).toFixed(0)}%)
               </span>
             )}
+            
+            {/* Quick actions dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity ml-auto"
+                >
+                  <MoreHorizontal className="w-4 h-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="bg-popover">
+                <DropdownMenuItem onClick={() => handleEditCategory(category)}>
+                  <Edit3 className="w-4 h-4 mr-2" />
+                  Modifier
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  onClick={() => handleDeleteClick(category)}
+                  className="text-destructive focus:text-destructive"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Supprimer
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </td>
         {months.map((_, monthIndex) => renderCell(category.id, monthIndex, type))}
@@ -893,6 +973,52 @@ export function ForecastTable() {
         </table>
       </div>
     </motion.div>
+
+      {/* Edit Category Dialog */}
+      {editingCategory && (
+        <CategoryDialog
+          category={editingCategory}
+          open={editDialogOpen}
+          onOpenChange={(open) => {
+            setEditDialogOpen(open);
+            if (!open) setEditingCategory(null);
+          }}
+          onSave={async (data) => {
+            await updateCategory(editingCategory.id, data);
+            setEditDialogOpen(false);
+            setEditingCategory(null);
+          }}
+        />
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer la catégorie "{categoryToDelete?.name}" ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {transactionCount > 0 ? (
+                <>
+                  <span className="font-semibold text-destructive">{transactionCount} transaction{transactionCount > 1 ? 's' : ''}</span> associée{transactionCount > 1 ? 's' : ''} à cette catégorie ne seront plus catégorisée{transactionCount > 1 ? 's' : ''}.
+                </>
+              ) : (
+                "Aucune transaction n'est associée à cette catégorie."
+              )}
+              <br /><br />
+              Cette action est irréversible.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={confirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
