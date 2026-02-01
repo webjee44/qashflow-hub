@@ -603,6 +603,15 @@ export function ForecastTable() {
     );
   };
 
+  // Helper to check if a category has any amount on displayed period
+  const hasAnyAmount = useCallback((categoryId: string): boolean => {
+    return months.some(month => {
+      const forecast = getForecast(categoryId, month);
+      const actual = Math.abs(getActual(categoryId, month));
+      return forecast > 0 || actual > 0;
+    });
+  }, [months, getForecast, getActual]);
+
   const renderGroupedSection = (groups: CategoryGroup[], type: 'income' | 'expense', startIndex: number) => {
     let currentIndex = startIndex;
     
@@ -610,18 +619,24 @@ export function ForecastTable() {
       const groupId = group.group?.id || 'ungrouped';
       const isCollapsed = group.group ? collapsedGroups.has(groupId) : false;
       
+      // Filter categories without any amounts
+      const visibleChildren = group.children.filter(cat => hasAnyAmount(cat.id));
+      
+      // Don't render group if no visible children
+      if (visibleChildren.length === 0 && group.group) return null;
+      
       const elements = [];
       
-      // Render group header if it exists
-      if (group.group) {
-        elements.push(renderGroupRow(group, type));
+      // Render group header if it exists and has visible children
+      if (group.group && visibleChildren.length > 0) {
+        elements.push(renderGroupRow({ ...group, children: visibleChildren }, type));
       }
       
       // Render children if not collapsed (or if no group header)
       if (!isCollapsed) {
         elements.push(
           <AnimatePresence key={`children-${groupId}`}>
-            {group.children.map((category) => {
+            {visibleChildren.map((category) => {
               const row = renderCategoryRow(category, currentIndex, type, !!group.group);
               currentIndex++;
               return row;
