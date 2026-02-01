@@ -45,19 +45,24 @@ Deno.serve(async (req) => {
 
     const systemPrompt = `Tu es un expert en analyse de libellés bancaires français.
 
-TÂCHE : Identifier le nom du FOURNISSEUR/MARCHAND unique dans cette transaction.
+TÂCHE : Identifier UN SEUL MOT distinctif qui identifie le fournisseur/marchand.
 
 RÈGLES STRICTES :
-1. Le fournisseur est généralement AU DÉBUT du libellé
-2. IGNORER absolument :
+1. Retourne UN SEUL MOT (pas une combinaison de mots) car l'opérateur "contains" cherche une sous-chaîne consécutive
+2. Choisis le mot le plus distinctif et spécifique au fournisseur (souvent le nom de marque/société)
+3. IGNORER absolument :
    - Les codes alphanumériques (PP35634948, FA18747520, F2511348843, 20251671, etc.)
-   - Les mots bancaires : CARTE, PAIEMENT, VIR, SEPA, PRLV, CB, MCC, EUR, USD, INTERNET
+   - Les mots bancaires : CARTE, PAIEMENT, VIR, SEPA, PRLV, CB, MCC, EUR, USD, INTERNET, REMISE, EUROPRELEVEM
    - Les dates et numéros de référence
-   - Les mots qui apparaissent dans PLUSIEURS transactions différentes (c'est le nom de la société du titulaire, pas le fournisseur)
-3. Le pattern doit être SPÉCIFIQUE à CE fournisseur, pas un terme générique
+   - Les mots trop génériques (ACHAT, VENTE, SERVICE, etc.)
+   - Les mots qui apparaissent dans PLUSIEURS transactions différentes (c'est le nom de la société du titulaire)
+4. Exemples :
+   - "Prlv Remise Europrelevem Equium Webjee" → pattern: "EQUIUM" (mot distinctif du fournisseur)
+   - "CARTE CB AMAZON 1234" → pattern: "AMAZON"
+   - "VIR SEPA NETFLIX" → pattern: "NETFLIX"
 ${recurringWordsInfo}
 
-Réponds UNIQUEMENT en JSON : {"pattern":"NOM_FOURNISSEUR","operator":"contains","ruleName":"Auto: CATEGORIE - NOM_FOURNISSEUR"}`;
+Réponds UNIQUEMENT en JSON : {"pattern":"MOT_UNIQUE","operator":"contains","ruleName":"Auto: CATEGORIE - MOT_UNIQUE"}`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -141,7 +146,7 @@ Réponds UNIQUEMENT en JSON : {"pattern":"NOM_FOURNISSEUR","operator":"contains"
   }
 });
 
-// Local pattern extraction with frequency analysis
+// Local pattern extraction - returns single distinctive word
 function extractPatternLocally(description: string, sampleTransactions: string[]): string {
   const cleaned = description.toUpperCase();
   
@@ -159,12 +164,21 @@ function extractPatternLocally(description: string, sampleTransactions: string[]
   // If a word appears in more than 30% of transactions, it's probably the account holder's company name
   const threshold = Math.max(2, sampleTransactions.length * 0.3);
   
+  // Expanded list of generic banking/transaction words to ignore
+  const ignoreWords = new Set([
+    'CARTE', 'PAIEMENT', 'VIR', 'SEPA', 'PRLV', 'CB', 'MCC', 'EUR', 'USD', 
+    'INTERNET', 'REMISE', 'EUROPRELEVEM', 'PRELEVEMENT', 'VIREMENT', 'ACHAT',
+    'AVOIR', 'RETRAIT', 'FRAIS', 'COMMISSION', 'SERVICE', 'DEBIT', 'CREDIT'
+  ]);
+  
   const words = cleaned.split(/\s+/).filter((w: string) => 
     w.length > 2 && 
     !/^\d+$/.test(w) &&
-    !/^(CARTE|PAIEMENT|VIR|SEPA|PRLV|CB|PP\d*|FA\d*|F\d+|MCC|EUR|USD|INTERNET|\d{6,})$/i.test(w) &&
+    !/^(PP\d*|FA\d*|F\d+|\d{6,})$/i.test(w) &&
+    !ignoreWords.has(w) &&
     (wordFrequency.get(w) || 0) < threshold
   );
   
+  // Return the first valid distinctive word, or fallback to first word truncated
   return words[0] || description.split(/\s+/)[0]?.slice(0, 10) || description.slice(0, 8).trim();
 }
