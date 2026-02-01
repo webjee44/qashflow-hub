@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { Plus, TrendingUp, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { useBPRevenueStreams, BPRevenueStream } from '@/hooks/useBPRevenueStreams';
+import { useRevenueStreams, RevenueStream } from '@/hooks/useRevenueStreams';
 import { useCurrentBusinessPlan } from '@/hooks/useCurrentBusinessPlan';
 import { RevenueStreamDialog } from '@/components/businessplan/RevenueStreamDialog';
 import { RevenueTable } from '@/components/businessplan/RevenueTable';
@@ -14,11 +14,11 @@ import { PageHeader } from '@/components/layout/PageHeader';
 
 export default function RevenueAssumptions() {
   const { currentPlan, isLoading: isLoadingBP } = useCurrentBusinessPlan();
-  const { streams, createStream, updateStream, isLoading } = useBPRevenueStreams();
+  const { streams, createStream, updateStream, isLoading } = useRevenueStreams();
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingStream, setEditingStream] = useState<BPRevenueStream | null>(null);
+  const [editingStream, setEditingStream] = useState<RevenueStream | null>(null);
 
-  const handleSave = async (data: Partial<BPRevenueStream>) => {
+  const handleSave = async (data: Partial<RevenueStream>) => {
     if (data.id) {
       await updateStream.mutateAsync({ id: data.id, ...data });
     } else {
@@ -26,7 +26,7 @@ export default function RevenueAssumptions() {
     }
   };
 
-  const handleEdit = (stream: BPRevenueStream) => {
+  const handleEdit = (stream: RevenueStream) => {
     setEditingStream(stream);
     setDialogOpen(true);
   };
@@ -103,7 +103,7 @@ export default function RevenueAssumptions() {
       <RevenueStreamDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
-        stream={editingStream as any}
+        stream={editingStream}
         onSave={handleSave}
       />
     </div>
