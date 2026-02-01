@@ -276,7 +276,7 @@ export function RevenueTable({ onEditStream }: RevenueTableProps) {
                   </div>
                 </TableHead>
               ))}
-              <TableHead className="w-[80px]"></TableHead>
+              <TableHead className="w-[80px] sticky right-0 bg-background z-10">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -475,21 +475,23 @@ export function RevenueTable({ onEditStream }: RevenueTableProps) {
                       </TableCell>
                     );
                   })}
-                  <TableCell>
-                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <TableCell className="sticky right-0 bg-background z-10">
+                    <div className="flex gap-1">
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7"
+                        className="h-7 w-7 hover:bg-primary/10"
                         onClick={() => onEditStream(stream)}
+                        title="Modifier le flux"
                       >
                         <Edit className="h-4 w-4" />
                       </Button>
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7 text-destructive"
+                        className="h-7 w-7 text-destructive hover:bg-destructive/10"
                         onClick={() => deleteStream.mutate(stream.id)}
+                        title="Supprimer le flux"
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
