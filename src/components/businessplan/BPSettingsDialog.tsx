@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { format, parse } from 'date-fns';
+import { fr } from 'date-fns/locale';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,8 +8,11 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useBPSettings } from '@/hooks/useBPSettings';
-import { Package, Wallet, Calendar, Building2, Landmark, FileSpreadsheet } from 'lucide-react';
+import { Package, Calendar as CalendarIcon, Building2, Landmark, FileSpreadsheet } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 const MONTHS = [
   { value: 1, label: 'Janvier' },
@@ -24,23 +29,10 @@ const MONTHS = [
   { value: 12, label: 'Décembre' },
 ];
 
-// BP duration is fixed at 3 years for simplicity
-
 const TAX_REGIMES = [
   { value: 'is', label: 'IS - Impôt sur les Sociétés', description: 'SAS, SASU, SARL soumises à l\'IS' },
   { value: 'ir', label: 'IR - Impôt sur le Revenu', description: 'EI, EURL, SASU à l\'IR' },
   { value: 'micro', label: 'Micro-entreprise', description: 'Auto-entrepreneur, micro-BIC/BNC' },
-];
-
-const LEGAL_FORMS = [
-  { value: 'sas', label: 'SAS' },
-  { value: 'sasu', label: 'SASU' },
-  { value: 'sarl', label: 'SARL' },
-  { value: 'eurl', label: 'EURL' },
-  { value: 'ei', label: 'EI' },
-  { value: 'micro', label: 'Micro-entreprise' },
-  { value: 'sa', label: 'SA' },
-  { value: 'other', label: 'Autre' },
 ];
 
 interface BPSettingsDialogProps {
@@ -50,27 +42,36 @@ interface BPSettingsDialogProps {
 
 export function BPSettingsDialog({ open, onOpenChange }: BPSettingsDialogProps) {
   const { settings, updateSettings } = useBPSettings();
-  const [bpStartDate, setBpStartDate] = useState('');
-  // BP duration is fixed at 3 years
+  const [bpStartDate, setBpStartDate] = useState<Date | undefined>(undefined);
   const bpYears = 3;
   const [fiscalMonth, setFiscalMonth] = useState(1);
-  const [initialCash, setInitialCash] = useState('');
-  const [customerDelay, setCustomerDelay] = useState('');
-  const [supplierDelay, setSupplierDelay] = useState('');
+  const [initialCash, setInitialCash] = useState('0');
+  const [customerDelay, setCustomerDelay] = useState('30');
+  const [supplierDelay, setSupplierDelay] = useState('30');
   const [taxRegime, setTaxRegime] = useState('is');
   const [isPme, setIsPme] = useState(true);
   const [showStocks, setShowStocks] = useState(true);
   const [showFinancing, setShowFinancing] = useState(true);
   const [showFundingPlan, setShowFundingPlan] = useState(true);
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
 
   useEffect(() => {
-    if (settings) {
-      setBpStartDate(settings.bp_start_date || new Date().toISOString().split('T')[0]);
-      // bpYears is now fixed at 3
+    if (settings && open) {
+      // Parse date from string to Date object
+      if (settings.bp_start_date) {
+        try {
+          const parsed = parse(settings.bp_start_date, 'yyyy-MM-dd', new Date());
+          setBpStartDate(parsed);
+        } catch {
+          setBpStartDate(new Date());
+        }
+      } else {
+        setBpStartDate(new Date());
+      }
       setFiscalMonth(settings.fiscal_year_start_month || 1);
-      setInitialCash(settings.initial_cash.toString());
-      setCustomerDelay(settings.customer_payment_delay.toString());
-      setSupplierDelay(settings.supplier_payment_delay.toString());
+      setInitialCash(String(settings.initial_cash ?? 0));
+      setCustomerDelay(String(settings.customer_payment_delay ?? 30));
+      setSupplierDelay(String(settings.supplier_payment_delay ?? 30));
       setTaxRegime(settings.tax_regime || 'is');
       setIsPme(settings.is_pme ?? true);
       setShowStocks(settings.show_stocks ?? true);
@@ -88,7 +89,7 @@ export function BPSettingsDialog({ open, onOpenChange }: BPSettingsDialogProps) 
 
   const handleSave = async () => {
     await updateSettings.mutateAsync({
-      bp_start_date: bpStartDate,
+      bp_start_date: bpStartDate ? format(bpStartDate, 'yyyy-MM-dd') : null,
       bp_years: bpYears,
       fiscal_year_start_month: fiscalMonth,
       fiscal_year_start_day: 1,
@@ -114,29 +115,50 @@ export function BPSettingsDialog({ open, onOpenChange }: BPSettingsDialogProps) 
           {/* Fiscal Year Settings */}
           <div className="space-y-4">
             <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <Calendar className="h-4 w-4" />
+              <CalendarIcon className="h-4 w-4" />
               Exercice comptable
             </h4>
             
             <div className="grid gap-2">
-              <Label htmlFor="bpStartDate">Date de début du Business Plan</Label>
-              <Input
-                id="bpStartDate"
-                type="date"
-                value={bpStartDate}
-                onChange={(e) => setBpStartDate(e.target.value)}
-              />
+              <Label>Date de début du Business Plan</Label>
+              <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !bpStartDate && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {bpStartDate ? format(bpStartDate, "d MMMM yyyy", { locale: fr }) : "Sélectionner une date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={bpStartDate}
+                    onSelect={(date) => {
+                      setBpStartDate(date);
+                      setDatePickerOpen(false);
+                    }}
+                    initialFocus
+                    locale={fr}
+                    className="pointer-events-auto"
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
             
             <div className="grid gap-2">
               <Label htmlFor="fiscalMonth">Début d'exercice</Label>
-              <Select value={fiscalMonth.toString()} onValueChange={(v) => setFiscalMonth(parseInt(v))}>
-                <SelectTrigger>
+              <Select value={String(fiscalMonth)} onValueChange={(v) => setFiscalMonth(parseInt(v))}>
+                <SelectTrigger id="fiscalMonth">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {MONTHS.map((m) => (
-                    <SelectItem key={m.value} value={m.value.toString()}>
+                    <SelectItem key={m.value} value={String(m.value)}>
                       {m.label}
                     </SelectItem>
                   ))}
@@ -161,15 +183,13 @@ export function BPSettingsDialog({ open, onOpenChange }: BPSettingsDialogProps) 
             <div className="grid gap-2">
               <Label htmlFor="taxRegime">Régime fiscal</Label>
               <Select value={taxRegime} onValueChange={setTaxRegime}>
-                <SelectTrigger>
+                <SelectTrigger id="taxRegime">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {TAX_REGIMES.map((r) => (
                     <SelectItem key={r.value} value={r.value}>
-                      <div className="flex flex-col">
-                        <span>{r.label}</span>
-                      </div>
+                      {r.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -270,8 +290,8 @@ export function BPSettingsDialog({ open, onOpenChange }: BPSettingsDialogProps) 
               <Label htmlFor="initialCash">Trésorerie initiale (€)</Label>
               <Input
                 id="initialCash"
-                type="number"
-                step="any"
+                type="text"
+                inputMode="decimal"
                 value={initialCash}
                 onChange={(e) => setInitialCash(e.target.value)}
                 placeholder="0"
@@ -282,9 +302,8 @@ export function BPSettingsDialog({ open, onOpenChange }: BPSettingsDialogProps) 
                 <Label htmlFor="customerDelay">Délai clients (jours)</Label>
                 <Input
                   id="customerDelay"
-                  type="number"
-                  step="1"
-                  min="0"
+                  type="text"
+                  inputMode="numeric"
                   value={customerDelay}
                   onChange={(e) => setCustomerDelay(e.target.value)}
                   placeholder="30"
@@ -294,9 +313,8 @@ export function BPSettingsDialog({ open, onOpenChange }: BPSettingsDialogProps) 
                 <Label htmlFor="supplierDelay">Délai fournisseurs (jours)</Label>
                 <Input
                   id="supplierDelay"
-                  type="number"
-                  step="1"
-                  min="0"
+                  type="text"
+                  inputMode="numeric"
                   value={supplierDelay}
                   onChange={(e) => setSupplierDelay(e.target.value)}
                   placeholder="30"
