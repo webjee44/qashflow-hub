@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { 
@@ -14,8 +15,9 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { useAutomationRules } from '@/hooks/useAutomationRules';
+import { useAutomationRules, AutomationRule } from '@/hooks/useAutomationRules';
 import { CreateRuleDialog } from './CreateRuleDialog';
+import { EditRuleDialog } from './EditRuleDialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -45,7 +47,8 @@ const fieldLabels: Record<string, string> = {
 };
 
 export function AutomationRules() {
-  const { rules, categories, loading, stats, createRule, createCategory, toggleRule, deleteRule } = useAutomationRules();
+  const { rules, categories, loading, stats, createRule, createCategory, updateRule, toggleRule, deleteRule } = useAutomationRules();
+  const [editingRule, setEditingRule] = useState<AutomationRule | null>(null);
 
   const formatCondition = (rule: typeof rules[0]) => {
     const field = fieldLabels[rule.condition_field] || rule.condition_field;
@@ -200,7 +203,14 @@ export function AutomationRules() {
                   </div>
 
                   {/* Actions */}
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-3">
+                    <button 
+                      onClick={() => setEditingRule(rule)}
+                      className="p-2 rounded-lg hover:bg-primary/10 transition-colors text-muted-foreground hover:text-primary"
+                      title="Modifier la règle"
+                    >
+                      <Edit3 className="w-4 h-4" />
+                    </button>
                     <Switch
                       checked={rule.is_active}
                       onCheckedChange={() => toggleRule(rule.id)}
@@ -278,6 +288,15 @@ export function AutomationRules() {
           </div>
         </div>
       </motion.div>
+
+      {/* Edit Rule Dialog */}
+      <EditRuleDialog
+        open={!!editingRule}
+        onOpenChange={(open) => !open && setEditingRule(null)}
+        categories={categories}
+        rule={editingRule}
+        onUpdateRule={updateRule}
+      />
     </div>
   );
 }
