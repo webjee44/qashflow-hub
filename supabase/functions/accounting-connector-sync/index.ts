@@ -11,6 +11,7 @@ interface OdooCredentials {
   url: string;
   db: string;
   username: string;
+  password: string;
   apiKey: string;
 }
 
@@ -69,11 +70,15 @@ async function odooJsonRpc(url: string, service: string, method: string, args: a
 }
 
 async function odooAuthenticate(creds: OdooCredentials): Promise<number> {
+  // Odoo auth uses password for authentication, then API key for subsequent calls
+  // Try password first (more common), fall back to API key
+  const authPassword = creds.password || creds.apiKey;
+  
   const uid = await odooJsonRpc(
     creds.url,
     "common",
     "authenticate",
-    [creds.db, creds.username, creds.apiKey, {}]
+    [creds.db, creds.username, authPassword, {}]
   );
 
   if (!uid) {
@@ -90,11 +95,14 @@ async function odooSearchRead(
   domain: any[],
   fields: string[]
 ): Promise<any[]> {
+  // For API calls, use API key if available, otherwise password
+  const callPassword = creds.apiKey || creds.password;
+  
   return await odooJsonRpc(
     creds.url,
     "object",
     "execute_kw",
-    [creds.db, uid, creds.apiKey, model, "search_read", [domain], { fields, limit: 500 }]
+    [creds.db, uid, callPassword, model, "search_read", [domain], { fields, limit: 500 }]
   );
 }
 
@@ -475,6 +483,7 @@ Deno.serve(async (req) => {
           url: secrets.get("odoo_url") || "",
           db: secrets.get("odoo_db") || "",
           username: secrets.get("odoo_username") || "",
+          password: secrets.get("odoo_password") || "",
           apiKey: secrets.get("odoo_api_key") || "",
         };
 

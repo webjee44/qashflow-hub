@@ -15,6 +15,7 @@ export interface OdooCredentials {
   url: string;
   db: string;
   username: string;
+  password: string;
   apiKey: string;
 }
 
@@ -102,6 +103,7 @@ export function useAccountingConnector() {
         { type: 'odoo_url', value: credentials.url },
         { type: 'odoo_db', value: credentials.db },
         { type: 'odoo_username', value: credentials.username },
+        { type: 'odoo_password', value: credentials.password },
         { type: 'odoo_api_key', value: credentials.apiKey },
       ];
 
@@ -311,7 +313,7 @@ export function useAccountingConnector() {
     try {
       // Delete all connector secrets
       const secretTypes = [
-        'odoo_url', 'odoo_db', 'odoo_username', 'odoo_api_key',
+        'odoo_url', 'odoo_db', 'odoo_username', 'odoo_password', 'odoo_api_key',
         'pennylane_api_key',
       ];
 

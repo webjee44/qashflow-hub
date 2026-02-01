@@ -24,6 +24,7 @@ export function OdooConfigForm({
     url: '',
     db: '',
     username: '',
+    password: '',
     apiKey: '',
   });
   const [testPassed, setTestPassed] = useState(false);
@@ -47,7 +48,7 @@ export function OdooConfigForm({
     }
   };
 
-  const isValid = credentials.url && credentials.db && credentials.username && credentials.apiKey;
+  const isValid = credentials.url && credentials.db && credentials.username && credentials.password && credentials.apiKey;
 
   return (
     <div className="space-y-4">
@@ -89,7 +90,21 @@ export function OdooConfigForm({
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="odoo-apikey">Clé API ou mot de passe</Label>
+        <Label htmlFor="odoo-password">Mot de passe Odoo</Label>
+        <Input
+          id="odoo-password"
+          type="password"
+          placeholder="••••••••••••••••"
+          value={credentials.password}
+          onChange={handleChange('password')}
+        />
+        <p className="text-xs text-muted-foreground">
+          Votre mot de passe de connexion Odoo (pour l'authentification)
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="odoo-apikey">Clé API</Label>
         <Input
           id="odoo-apikey"
           type="password"
