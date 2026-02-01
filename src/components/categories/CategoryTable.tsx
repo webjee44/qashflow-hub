@@ -1,4 +1,4 @@
-import { Edit3, Trash2, TrendingUp, TrendingDown, Folder, ChevronDown, ChevronRight, ChevronsUpDown, ChevronsDownUp } from 'lucide-react';
+import { Edit3, Trash2, TrendingUp, TrendingDown, Folder, ChevronDown, ChevronRight, ChevronsUpDown, ChevronsDownUp, CheckSquare } from 'lucide-react';
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Category, CategoryGroup } from '@/hooks/useCategories';
@@ -22,7 +22,9 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { BulkAssignBar } from './BulkAssignDialog';
 import { cn } from '@/lib/utils';
 
 interface CategoryTableProps {
@@ -32,11 +34,28 @@ interface CategoryTableProps {
   onEditGroup: (group: Category) => void;
   onDelete: (id: string) => void;
   onDeleteGroup: (id: string, deleteChildren: boolean) => void;
+  availableGroups: Category[];
+  onBulkAssign: (categoryIds: string[], groupId: string) => void;
+  onBulkUnassign: (categoryIds: string[]) => void;
 }
 
 const COLLAPSED_KEY = 'category-collapsed-groups';
 
-export function CategoryTable({ groups, type, onEdit, onEditGroup, onDelete, onDeleteGroup }: CategoryTableProps) {
+export function CategoryTable({ 
+  groups, 
+  type, 
+  onEdit, 
+  onEditGroup, 
+  onDelete, 
+  onDeleteGroup,
+  availableGroups,
+  onBulkAssign,
+  onBulkUnassign
+}: CategoryTableProps) {
+  // Selection mode state
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
   // Get all group IDs for default collapsed state
   const allGroupIds = useMemo(() => 
     groups.filter(g => g.group).map(g => g.group!.id),
@@ -91,6 +110,51 @@ export function CategoryTable({ groups, type, onEdit, onEditGroup, onDelete, onD
   const allCollapsed = allGroupIds.length > 0 && allGroupIds.every(id => collapsedGroups.has(id));
   const allExpanded = allGroupIds.length > 0 && !allGroupIds.some(id => collapsedGroups.has(id));
 
+  // Get all selectable categories (not groups)
+  const allCategories = useMemo(() => {
+    return groups.flatMap(g => g.children);
+  }, [groups]);
+
+  // Toggle selection for a category
+  const toggleSelection = (categoryId: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(categoryId)) {
+        next.delete(categoryId);
+      } else {
+        next.add(categoryId);
+      }
+      return next;
+    });
+  };
+
+  // Select all / deselect all
+  const toggleSelectAll = () => {
+    if (selectedIds.size === allCategories.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(allCategories.map(c => c.id)));
+    }
+  };
+
+  // Exit selection mode
+  const exitSelectionMode = () => {
+    setSelectionMode(false);
+    setSelectedIds(new Set());
+  };
+
+  // Handle bulk assign
+  const handleBulkAssign = (groupId: string) => {
+    onBulkAssign(Array.from(selectedIds), groupId);
+    exitSelectionMode();
+  };
+
+  // Handle bulk unassign
+  const handleBulkUnassign = () => {
+    onBulkUnassign(Array.from(selectedIds));
+    exitSelectionMode();
+  };
+
   // Count all categories (including in groups)
   const totalCount = groups.reduce((acc, g) => acc + g.children.length + (g.group ? 1 : 0), 0);
   if (totalCount === 0) return null;
@@ -100,112 +164,158 @@ export function CategoryTable({ groups, type, onEdit, onEditGroup, onDelete, onD
   const ungroupedCategories = groups.filter(g => !g.group).flatMap(g => g.children);
 
   return (
-    <div className="bg-card rounded-xl border border-border overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/30">
-        <div className="flex items-center gap-3">
-          <div className={`w-6 h-6 rounded-md flex items-center justify-center ${
-            type === 'income' ? 'bg-success/10' : 'bg-destructive/10'
-          }`}>
-            {type === 'income' ? (
-              <TrendingUp className="w-3.5 h-3.5 text-success" />
-            ) : (
-              <TrendingDown className="w-3.5 h-3.5 text-destructive" />
+    <>
+      <div className="bg-card rounded-xl border border-border overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/30">
+          <div className="flex items-center gap-3">
+            <div className={`w-6 h-6 rounded-md flex items-center justify-center ${
+              type === 'income' ? 'bg-success/10' : 'bg-destructive/10'
+            }`}>
+              {type === 'income' ? (
+                <TrendingUp className="w-3.5 h-3.5 text-success" />
+              ) : (
+                <TrendingDown className="w-3.5 h-3.5 text-destructive" />
+              )}
+            </div>
+            <h3 className="font-medium text-foreground">
+              {type === 'income' ? 'Revenus' : 'Dépenses'}
+            </h3>
+            <span className="text-xs text-muted-foreground">({totalCount})</span>
+          </div>
+          
+          {/* Actions */}
+          <div className="flex items-center gap-1">
+            {/* Selection mode toggle */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant={selectionMode ? "secondary" : "ghost"}
+                  size="sm" 
+                  className="h-7 px-2"
+                  onClick={() => selectionMode ? exitSelectionMode() : setSelectionMode(true)}
+                >
+                  <CheckSquare className="w-4 h-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{selectionMode ? 'Quitter le mode sélection' : 'Organiser les catégories'}</TooltipContent>
+            </Tooltip>
+            
+            {/* Expand/Collapse All buttons */}
+            {allGroupIds.length > 0 && (
+              <>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-7 px-2"
+                      onClick={expandAll}
+                      disabled={allExpanded}
+                    >
+                      <ChevronsDownUp className="w-4 h-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Tout déplier</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-7 px-2"
+                      onClick={collapseAll}
+                      disabled={allCollapsed}
+                    >
+                      <ChevronsUpDown className="w-4 h-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Tout replier</TooltipContent>
+                </Tooltip>
+              </>
             )}
           </div>
-          <h3 className="font-medium text-foreground">
-            {type === 'income' ? 'Revenus' : 'Dépenses'}
-          </h3>
-          <span className="text-xs text-muted-foreground">({totalCount})</span>
         </div>
         
-        {/* Expand/Collapse All buttons */}
-        {allGroupIds.length > 0 && (
-          <div className="flex items-center gap-1">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className="h-7 px-2"
-                  onClick={expandAll}
-                  disabled={allExpanded}
-                >
-                  <ChevronsDownUp className="w-4 h-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Tout déplier</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className="h-7 px-2"
-                  onClick={collapseAll}
-                  disabled={allCollapsed}
-                >
-                  <ChevronsUpDown className="w-4 h-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Tout replier</TooltipContent>
-            </Tooltip>
-          </div>
-        )}
-      </div>
-      
-      <Table>
-        <TableHeader>
-          <TableRow className="hover:bg-transparent">
-            <TableHead className="w-[40px]"></TableHead>
-            <TableHead>Nom</TableHead>
-            <TableHead className="w-[100px] text-right">TVA</TableHead>
-            <TableHead className="w-[80px]"></TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {/* Grouped categories */}
-          {groupedEntries.map((group) => {
-            const isCollapsed = collapsedGroups.has(group.group!.id);
-
-            return (
-              <GroupSection
-                key={group.group!.id}
-                group={group.group!}
-                children={group.children}
-                isCollapsed={isCollapsed}
-                onToggle={() => toggleGroup(group.group!.id)}
-                onEditGroup={onEditGroup}
-                onDeleteGroup={onDeleteGroup}
-                onEdit={onEdit}
-                onDelete={onDelete}
-              />
-            );
-          })}
-          
-          {/* Ungrouped categories */}
-          {ungroupedCategories.length > 0 && (
-            <>
-              {groupedEntries.length > 0 && (
-                <TableRow className="hover:bg-transparent">
-                  <TableCell colSpan={4} className="py-1">
-                    <div className="border-t border-border/50" />
-                  </TableCell>
-                </TableRow>
+        <Table>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              {selectionMode && (
+                <TableHead className="w-[40px]">
+                  <Checkbox
+                    checked={selectedIds.size === allCategories.length && allCategories.length > 0}
+                    onCheckedChange={toggleSelectAll}
+                  />
+                </TableHead>
               )}
-              {ungroupedCategories.map((category) => (
-                <CategoryRow
-                  key={category.id}
-                  category={category}
+              <TableHead className="w-[40px]"></TableHead>
+              <TableHead>Nom</TableHead>
+              <TableHead className="w-[100px] text-right">TVA</TableHead>
+              <TableHead className="w-[80px]"></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {/* Grouped categories */}
+            {groupedEntries.map((group) => {
+              const isCollapsed = collapsedGroups.has(group.group!.id);
+
+              return (
+                <GroupSection
+                  key={group.group!.id}
+                  group={group.group!}
+                  children={group.children}
+                  isCollapsed={isCollapsed}
+                  onToggle={() => toggleGroup(group.group!.id)}
+                  onEditGroup={onEditGroup}
+                  onDeleteGroup={onDeleteGroup}
                   onEdit={onEdit}
                   onDelete={onDelete}
+                  selectionMode={selectionMode}
+                  selectedIds={selectedIds}
+                  onToggleSelection={toggleSelection}
                 />
-              ))}
-            </>
-          )}
-        </TableBody>
-      </Table>
-    </div>
+              );
+            })}
+            
+            {/* Ungrouped categories */}
+            {ungroupedCategories.length > 0 && (
+              <>
+                {groupedEntries.length > 0 && (
+                  <TableRow className="hover:bg-transparent">
+                    <TableCell colSpan={selectionMode ? 5 : 4} className="py-1">
+                      <div className="border-t border-border/50" />
+                    </TableCell>
+                  </TableRow>
+                )}
+                {ungroupedCategories.map((category) => (
+                  <CategoryRow
+                    key={category.id}
+                    category={category}
+                    onEdit={onEdit}
+                    onDelete={onDelete}
+                    selectionMode={selectionMode}
+                    isSelected={selectedIds.has(category.id)}
+                    onToggleSelection={toggleSelection}
+                  />
+                ))}
+              </>
+            )}
+          </TableBody>
+        </Table>
+      </div>
+
+      {/* Bulk Action Bar */}
+      {selectionMode && selectedIds.size > 0 && (
+        <BulkAssignBar
+          selectedCount={selectedIds.size}
+          type={type}
+          groups={availableGroups}
+          onAssign={handleBulkAssign}
+          onUnassign={handleBulkUnassign}
+          onCancel={exitSelectionMode}
+        />
+      )}
+    </>
   );
 }
 
@@ -215,11 +325,34 @@ interface CategoryRowProps {
   onDelete: (id: string) => void;
   isChild?: boolean;
   isLast?: boolean;
+  selectionMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelection?: (id: string) => void;
 }
 
-function CategoryRow({ category, onEdit, onDelete, isChild = false, isLast = false }: CategoryRowProps) {
+function CategoryRow({ 
+  category, 
+  onEdit, 
+  onDelete, 
+  isChild = false, 
+  isLast = false,
+  selectionMode = false,
+  isSelected = false,
+  onToggleSelection
+}: CategoryRowProps) {
   return (
-    <TableRow className="group hover:bg-muted/30">
+    <TableRow className={cn(
+      "group hover:bg-muted/30",
+      isSelected && "bg-primary/5"
+    )}>
+      {selectionMode && (
+        <TableCell className="py-2 w-[40px]">
+          <Checkbox
+            checked={isSelected}
+            onCheckedChange={() => onToggleSelection?.(category.id)}
+          />
+        </TableCell>
+      )}
       <TableCell className="py-2">
         <div className={cn("flex items-center", isChild && "pl-6")}>
           {isChild && (
@@ -244,45 +377,47 @@ function CategoryRow({ category, onEdit, onDelete, isChild = false, isLast = fal
         {(category.vat_rate * 100).toFixed(category.vat_rate * 100 % 1 === 0 ? 0 : 1)}%
       </TableCell>
       <TableCell className="py-2">
-        <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            onClick={() => onEdit(category)}
-          >
-            <Edit3 className="w-3.5 h-3.5" />
-          </Button>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 hover:bg-destructive/10 hover:text-destructive"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Supprimer la catégorie ?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Cette action est irréversible. La catégorie "{category.name}" sera définitivement supprimée.
-                  Les transactions associées ne seront pas supprimées mais n'auront plus de catégorie.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Annuler</AlertDialogCancel>
-                <AlertDialogAction 
-                  onClick={() => onDelete(category.id)}
-                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+        {!selectionMode && (
+          <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => onEdit(category)}
+            >
+              <Edit3 className="w-3.5 h-3.5" />
+            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 hover:bg-destructive/10 hover:text-destructive"
                 >
-                  Supprimer
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </div>
+                  <Trash2 className="w-3.5 h-3.5" />
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Supprimer la catégorie ?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Cette action est irréversible. La catégorie "{category.name}" sera définitivement supprimée.
+                    Les transactions associées ne seront pas supprimées mais n'auront plus de catégorie.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Annuler</AlertDialogCancel>
+                  <AlertDialogAction 
+                    onClick={() => onDelete(category.id)}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    Supprimer
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        )}
       </TableCell>
     </TableRow>
   );
@@ -297,6 +432,9 @@ interface GroupSectionProps {
   onDeleteGroup: (id: string, deleteChildren: boolean) => void;
   onEdit: (category: Category) => void;
   onDelete: (id: string) => void;
+  selectionMode: boolean;
+  selectedIds: Set<string>;
+  onToggleSelection: (id: string) => void;
 }
 
 function GroupSection({ 
@@ -307,18 +445,51 @@ function GroupSection({
   onEditGroup, 
   onDeleteGroup,
   onEdit,
-  onDelete
+  onDelete,
+  selectionMode,
+  selectedIds,
+  onToggleSelection
 }: GroupSectionProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  
+  // Check if all children are selected
+  const allChildrenSelected = children.length > 0 && children.every(c => selectedIds.has(c.id));
+  const someChildrenSelected = children.some(c => selectedIds.has(c.id));
+  
+  // Toggle all children
+  const toggleAllChildren = () => {
+    if (allChildrenSelected) {
+      children.forEach(c => {
+        if (selectedIds.has(c.id)) {
+          onToggleSelection(c.id);
+        }
+      });
+    } else {
+      children.forEach(c => {
+        if (!selectedIds.has(c.id)) {
+          onToggleSelection(c.id);
+        }
+      });
+    }
+  };
 
   return (
     <>
-      {/* Group Header Row - More prominent styling */}
+      {/* Group Header Row - Enhanced visual styling */}
       <TableRow 
-        className="bg-muted/50 hover:bg-muted/70 cursor-pointer group border-t border-border"
-        onClick={onToggle}
+        className="bg-muted/50 hover:bg-muted/70 cursor-pointer group border-t-2 border-border"
+        onClick={selectionMode ? undefined : onToggle}
       >
-        <TableCell className="py-3">
+        {selectionMode && (
+          <TableCell className="py-3 w-[40px]">
+            <Checkbox
+              checked={allChildrenSelected}
+              onCheckedChange={toggleAllChildren}
+              className={cn(someChildrenSelected && !allChildrenSelected && "opacity-50")}
+            />
+          </TableCell>
+        )}
+        <TableCell className="py-3" onClick={onToggle}>
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="icon" className="h-6 w-6 p-0">
               {isCollapsed ? (
@@ -335,9 +506,9 @@ function GroupSection({
             </div>
           </div>
         </TableCell>
-        <TableCell className="py-3">
+        <TableCell className="py-3" onClick={onToggle}>
           <div className="flex items-center gap-2">
-            <span className="font-semibold text-foreground text-base">{group.name}</span>
+            <span className="font-bold text-foreground uppercase tracking-wide">{group.name}</span>
             <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
               {children.length}
             </span>
@@ -345,61 +516,63 @@ function GroupSection({
         </TableCell>
         <TableCell className="py-3"></TableCell>
         <TableCell className="py-3" onClick={(e) => e.stopPropagation()}>
-          <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              onClick={() => onEditGroup(group)}
-            >
-              <Edit3 className="w-3.5 h-3.5" />
-            </Button>
-            <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-              <AlertDialogTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 hover:bg-destructive/10 hover:text-destructive"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Supprimer le groupe "{group.name}" ?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Ce groupe contient {children.length} catégorie{children.length > 1 ? 's' : ''}.
-                    Que souhaitez-vous faire ?
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter className="flex-col sm:flex-row gap-2">
-                  <AlertDialogCancel>Annuler</AlertDialogCancel>
+          {!selectionMode && (
+            <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={() => onEditGroup(group)}
+              >
+                <Edit3 className="w-3.5 h-3.5" />
+              </Button>
+              <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+                <AlertDialogTrigger asChild>
                   <Button
-                    variant="outline"
-                    onClick={() => {
-                      onDeleteGroup(group.id, false);
-                      setDeleteDialogOpen(false);
-                    }}
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 hover:bg-destructive/10 hover:text-destructive"
                   >
-                    Libérer les catégories
+                    <Trash2 className="w-3.5 h-3.5" />
                   </Button>
-                  <AlertDialogAction 
-                    onClick={() => {
-                      onDeleteGroup(group.id, true);
-                      setDeleteDialogOpen(false);
-                    }}
-                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                  >
-                    Tout supprimer
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </div>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Supprimer le groupe "{group.name}" ?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Ce groupe contient {children.length} catégorie{children.length > 1 ? 's' : ''}.
+                      Que souhaitez-vous faire ?
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+                    <AlertDialogCancel>Annuler</AlertDialogCancel>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        onDeleteGroup(group.id, false);
+                        setDeleteDialogOpen(false);
+                      }}
+                    >
+                      Libérer les catégories
+                    </Button>
+                    <AlertDialogAction 
+                      onClick={() => {
+                        onDeleteGroup(group.id, true);
+                        setDeleteDialogOpen(false);
+                      }}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      Tout supprimer
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
+          )}
         </TableCell>
       </TableRow>
 
-      {/* Children Rows with enhanced visual hierarchy */}
+      {/* Children Rows with enhanced visual hierarchy - indented */}
       <AnimatePresence>
         {!isCollapsed && children.map((category, index) => (
           <motion.tr
@@ -408,21 +581,23 @@ function GroupSection({
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.15, delay: index * 0.02 }}
-            className="group border-b border-border/50 hover:bg-muted/20"
+            className={cn(
+              "group border-b border-border/50 hover:bg-muted/20",
+              selectedIds.has(category.id) && "bg-primary/5"
+            )}
           >
+            {selectionMode && (
+              <TableCell className="py-2 w-[40px]">
+                <Checkbox
+                  checked={selectedIds.has(category.id)}
+                  onCheckedChange={() => onToggleSelection(category.id)}
+                />
+              </TableCell>
+            )}
             <TableCell className="py-2">
-              <div className="flex items-center pl-6">
-                <div className="relative mr-2 h-5">
-                  {/* Vertical line connecting to parent */}
-                  <div className={cn(
-                    "absolute left-0 w-px bg-border",
-                    index === children.length - 1 ? "h-2 top-0" : "h-full -top-2"
-                  )} style={{ width: '2px' }} />
-                  {/* Horizontal connector */}
-                  <div className="absolute left-0 top-2 w-3 border-b-2 border-border rounded-bl-md" />
-                </div>
+              <div className="flex items-center pl-8">
                 <div 
-                  className="w-6 h-6 rounded-md flex-shrink-0 ml-2"
+                  className="w-5 h-5 rounded-md flex-shrink-0"
                   style={{ backgroundColor: category.color }}
                 />
               </div>
@@ -434,44 +609,46 @@ function GroupSection({
               {(category.vat_rate * 100).toFixed(category.vat_rate * 100 % 1 === 0 ? 0 : 1)}%
             </TableCell>
             <TableCell className="py-2">
-              <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  onClick={() => onEdit(category)}
-                >
-                  <Edit3 className="w-3.5 h-3.5" />
-                </Button>
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 hover:bg-destructive/10 hover:text-destructive"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Supprimer la catégorie ?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        Cette action est irréversible. La catégorie "{category.name}" sera définitivement supprimée.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Annuler</AlertDialogCancel>
-                      <AlertDialogAction 
-                        onClick={() => onDelete(category.id)}
-                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              {!selectionMode && (
+                <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={() => onEdit(category)}
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 hover:bg-destructive/10 hover:text-destructive"
                       >
-                        Supprimer
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              </div>
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Supprimer la catégorie ?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Cette action est irréversible. La catégorie "{category.name}" sera définitivement supprimée.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Annuler</AlertDialogCancel>
+                        <AlertDialogAction 
+                          onClick={() => onDelete(category.id)}
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                          Supprimer
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              )}
             </TableCell>
           </motion.tr>
         ))}

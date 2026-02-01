@@ -436,6 +436,62 @@ export function useCategories() {
     return categories.some(c => c.parent_id === categoryId);
   };
 
+  // Bulk assign categories to a group
+  const bulkAssignMutation = useMutation({
+    mutationFn: async ({ categoryIds, groupId }: { categoryIds: string[]; groupId: string }) => {
+      const { error } = await supabase
+        .from('categories')
+        .update({ parent_id: groupId })
+        .in('id', categoryIds);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey });
+      toast.success('Catégories assignées au groupe');
+    },
+    onError: (error) => {
+      logError('Error bulk assigning categories:', error);
+      toast.error('Erreur lors de l\'assignation');
+    },
+  });
+
+  const bulkAssignToGroup = async (categoryIds: string[], groupId: string) => {
+    try {
+      await bulkAssignMutation.mutateAsync({ categoryIds, groupId });
+    } catch {
+      // Error handled in mutation
+    }
+  };
+
+  // Bulk remove categories from their groups
+  const bulkRemoveMutation = useMutation({
+    mutationFn: async (categoryIds: string[]) => {
+      const { error } = await supabase
+        .from('categories')
+        .update({ parent_id: null })
+        .in('id', categoryIds);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey });
+      toast.success('Catégories retirées du groupe');
+    },
+    onError: (error) => {
+      logError('Error removing categories from group:', error);
+      toast.error('Erreur lors du retrait');
+    },
+  });
+
+  const bulkRemoveFromGroup = async (categoryIds: string[]) => {
+    try {
+      await bulkRemoveMutation.mutateAsync(categoryIds);
+    } catch {
+      // Error handled in mutation
+    }
+  };
+
   return {
     categories,
     incomeCategories,
@@ -451,6 +507,8 @@ export function useCategories() {
     createGroup,
     updateGroup,
     deleteGroup,
-    isGroup
+    isGroup,
+    bulkAssignToGroup,
+    bulkRemoveFromGroup
   };
 }

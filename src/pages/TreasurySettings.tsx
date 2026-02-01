@@ -41,7 +41,9 @@ export default function TreasurySettings() {
     createGroup,
     updateGroup,
     deleteGroup,
-    isGroup
+    isGroup,
+    bulkAssignToGroup,
+    bulkRemoveFromGroup
   } = useCategories();
   
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
@@ -268,6 +270,9 @@ export default function TreasurySettings() {
                   onEditGroup={handleEditGroup}
                   onDelete={deleteCategory}
                   onDeleteGroup={handleDeleteGroup}
+                  availableGroups={incomeGroups.filter(g => g.group).map(g => g.group!)}
+                  onBulkAssign={bulkAssignToGroup}
+                  onBulkUnassign={bulkRemoveFromGroup}
                 />
                 <CategoryTable 
                   groups={expenseGroups}
@@ -276,6 +281,9 @@ export default function TreasurySettings() {
                   onEditGroup={handleEditGroup}
                   onDelete={deleteCategory}
                   onDeleteGroup={handleDeleteGroup}
+                  availableGroups={expenseGroups.filter(g => g.group).map(g => g.group!)}
+                  onBulkAssign={bulkAssignToGroup}
+                  onBulkUnassign={bulkRemoveFromGroup}
                 />
               </div>
 
