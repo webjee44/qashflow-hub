@@ -5,6 +5,15 @@ import { useCompany } from './useCompany';
 import { toast } from 'sonner';
 import { logError } from '@/lib/logger';
 
+export interface RuleCondition {
+  id?: string;
+  rule_id?: string;
+  condition_field: string;
+  condition_operator: string;
+  condition_value: string;
+  created_at?: string;
+}
+
 export interface AutomationRule {
   id: string;
   name: string;
@@ -24,6 +33,7 @@ export interface AutomationRule {
     name: string;
     color: string;
   };
+  conditions?: RuleCondition[];
 }
 
 export interface Category {
@@ -67,7 +77,37 @@ export function useAutomationRules() {
       const { data, error } = await query;
 
       if (error) throw error;
-      setRules(data || []);
+      
+      // Fetch conditions for all rules
+      if (data && data.length > 0) {
+        const ruleIds = data.map(r => r.id);
+        const { data: conditions, error: conditionsError } = await supabase
+          .from('automation_rule_conditions')
+          .select('*')
+          .in('rule_id', ruleIds);
+
+        if (conditionsError) {
+          logError('Error fetching conditions:', conditionsError);
+        }
+
+        // Group conditions by rule_id
+        const conditionsByRule = new Map<string, RuleCondition[]>();
+        for (const condition of (conditions || [])) {
+          const ruleConditions = conditionsByRule.get(condition.rule_id) || [];
+          ruleConditions.push(condition as RuleCondition);
+          conditionsByRule.set(condition.rule_id, ruleConditions);
+        }
+
+        // Attach conditions to rules
+        const rulesWithConditions = data.map(rule => ({
+          ...rule,
+          conditions: conditionsByRule.get(rule.id) || []
+        }));
+
+        setRules(rulesWithConditions);
+      } else {
+        setRules(data || []);
+      }
       
       // Calculate stats
       const totalMatches = (data || []).reduce((acc, rule) => acc + (rule.match_count || 0), 0);
@@ -138,14 +178,21 @@ export function useAutomationRules() {
     condition_value: string;
     action_type: string;
     target_category_id: string | null;
+    conditions?: RuleCondition[];
   }) => {
     if (!user) return null;
 
     try {
+      // Create the rule first
       const { data, error } = await supabase
         .from('automation_rules')
         .insert({
-          ...rule,
+          name: rule.name,
+          condition_field: rule.condition_field,
+          condition_operator: rule.condition_operator,
+          condition_value: rule.condition_value,
+          action_type: rule.action_type,
+          target_category_id: rule.target_category_id,
           user_id: user.id,
           company_id: currentCompany?.id || null,
           is_active: true,
@@ -158,14 +205,44 @@ export function useAutomationRules() {
         .single();
 
       if (error) throw error;
+
+      // Create conditions in the new table
+      const conditions = rule.conditions || [
+        {
+          condition_field: rule.condition_field as 'description' | 'amount' | 'type',
+          condition_operator: rule.condition_operator,
+          condition_value: rule.condition_value
+        }
+      ];
+
+      const conditionsToInsert = conditions.map(c => ({
+        rule_id: data.id,
+        condition_field: c.condition_field,
+        condition_operator: c.condition_operator,
+        condition_value: c.condition_value
+      }));
+
+      const { data: insertedConditions, error: conditionsError } = await supabase
+        .from('automation_rule_conditions')
+        .insert(conditionsToInsert)
+        .select();
+
+      if (conditionsError) {
+        logError('Error creating conditions:', conditionsError);
+      }
       
-      setRules(prev => [data, ...prev]);
+      const ruleWithConditions = {
+        ...data,
+        conditions: insertedConditions || conditions
+      };
+
+      setRules(prev => [ruleWithConditions, ...prev]);
       
-      // Appliquer immédiatement aux transactions existantes
+      // Apply immediately to existing transactions
       const updated = await applyRuleToExistingTransactions(data.id);
       if (updated > 0) {
         toast.success(`Règle créée - ${updated} transaction${updated > 1 ? 's' : ''} catégorisée${updated > 1 ? 's' : ''}`);
-        // Mettre à jour le match_count localement
+        // Update match_count locally
         setRules(prev => prev.map(r => 
           r.id === data.id ? { ...r, match_count: updated } : r
         ));
@@ -173,7 +250,7 @@ export function useAutomationRules() {
         toast.success('Règle créée avec succès');
       }
       
-      return data;
+      return ruleWithConditions;
     } catch (error) {
       logError('Error creating rule:', error);
       toast.error('Erreur lors de la création de la règle');
@@ -212,11 +289,15 @@ export function useAutomationRules() {
     }
   };
 
-  const updateRule = async (id: string, updates: Partial<AutomationRule>) => {
+  const updateRule = async (id: string, updates: Partial<AutomationRule> & { conditions?: RuleCondition[] }) => {
     try {
+      // Separate conditions from rule updates
+      const { conditions, ...ruleUpdates } = updates;
+
+      // Update the rule itself
       const { data, error } = await supabase
         .from('automation_rules')
-        .update(updates)
+        .update(ruleUpdates)
         .eq('id', id)
         .select(`
           *,
@@ -225,8 +306,45 @@ export function useAutomationRules() {
         .single();
 
       if (error) throw error;
+
+      // Update conditions if provided
+      if (conditions) {
+        // Delete existing conditions
+        await supabase
+          .from('automation_rule_conditions')
+          .delete()
+          .eq('rule_id', id);
+
+        // Insert new conditions
+        if (conditions.length > 0) {
+          const conditionsToInsert = conditions.map(c => ({
+            rule_id: id,
+            condition_field: c.condition_field,
+            condition_operator: c.condition_operator,
+            condition_value: c.condition_value
+          }));
+
+          const { data: insertedConditions, error: conditionsError } = await supabase
+            .from('automation_rule_conditions')
+            .insert(conditionsToInsert)
+            .select();
+
+          if (conditionsError) {
+            logError('Error updating conditions:', conditionsError);
+          }
+
+          const ruleWithConditions = {
+            ...data,
+            conditions: insertedConditions || conditions
+          };
+
+          setRules(prev => prev.map(r => r.id === id ? ruleWithConditions : r));
+          toast.success('Règle mise à jour');
+          return ruleWithConditions;
+        }
+      }
       
-      setRules(prev => prev.map(r => r.id === id ? data : r));
+      setRules(prev => prev.map(r => r.id === id ? { ...data, conditions: r.conditions } : r));
       toast.success('Règle mise à jour');
       return data;
     } catch (error) {
@@ -243,12 +361,12 @@ export function useAutomationRules() {
     const newState = !rule.is_active;
     await updateRule(id, { is_active: newState });
     
-    // Si on active la règle, l'appliquer aux transactions existantes
+    // If activating the rule, apply to existing transactions
     if (newState) {
       const updated = await applyRuleToExistingTransactions(id);
       if (updated > 0) {
         toast.success(`${updated} transaction${updated > 1 ? 's' : ''} catégorisée${updated > 1 ? 's' : ''}`);
-        // Mettre à jour le match_count localement
+        // Update match_count locally
         setRules(prev => prev.map(r => 
           r.id === id ? { ...r, match_count: (r.match_count || 0) + updated } : r
         ));
@@ -258,6 +376,7 @@ export function useAutomationRules() {
 
   const deleteRule = async (id: string) => {
     try {
+      // Conditions will be deleted automatically due to CASCADE
       const { error } = await supabase
         .from('automation_rules')
         .delete()

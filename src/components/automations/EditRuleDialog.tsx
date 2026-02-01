@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Zap, Lightbulb, Check } from 'lucide-react';
+import { Zap, Lightbulb, Check, Euro, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,7 +9,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Category } from '@/hooks/useAutomationRules';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Category, RuleCondition } from '@/hooks/useAutomationRules';
 import { cn } from '@/lib/utils';
 
 interface EditRuleDialogProps {
@@ -23,6 +30,7 @@ interface EditRuleDialogProps {
     condition_operator: string;
     condition_value: string;
     target_category_id: string | null;
+    conditions?: RuleCondition[];
   } | null;
   onUpdateRule: (id: string, data: {
     name: string;
@@ -30,21 +38,51 @@ interface EditRuleDialogProps {
     condition_operator: string;
     condition_value: string;
     target_category_id: string | null;
+    conditions?: RuleCondition[];
   }) => Promise<any>;
 }
+
+const amountOperators = [
+  { value: 'equals', label: 'est égal à' },
+  { value: 'greater_than', label: 'est supérieur à' },
+  { value: 'less_than', label: 'est inférieur à' },
+];
 
 export function EditRuleDialog({ open, onOpenChange, categories, rule, onUpdateRule }: EditRuleDialogProps) {
   const [loading, setLoading] = useState(false);
   const [conditionValue, setConditionValue] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [ruleName, setRuleName] = useState('');
+  
+  // Amount condition
+  const [showAmountCondition, setShowAmountCondition] = useState(false);
+  const [amountOperator, setAmountOperator] = useState('equals');
+  const [amountValue, setAmountValue] = useState('');
 
   // Reset form when rule changes
   useEffect(() => {
     if (rule) {
-      setConditionValue(rule.condition_value);
-      setSelectedCategoryId(rule.target_category_id);
       setRuleName(rule.name);
+      setSelectedCategoryId(rule.target_category_id);
+      
+      // Parse conditions
+      const conditions = rule.conditions || [];
+      
+      // Find description condition
+      const descCondition = conditions.find(c => c.condition_field === 'description');
+      setConditionValue(descCondition?.condition_value || rule.condition_value || '');
+      
+      // Find amount condition
+      const amountCondition = conditions.find(c => c.condition_field === 'amount');
+      if (amountCondition) {
+        setShowAmountCondition(true);
+        setAmountOperator(amountCondition.condition_operator || 'equals');
+        setAmountValue(amountCondition.condition_value || '');
+      } else {
+        setShowAmountCondition(false);
+        setAmountOperator('equals');
+        setAmountValue('');
+      }
     }
   }, [rule]);
 
@@ -54,7 +92,33 @@ export function EditRuleDialog({ open, onOpenChange, categories, rule, onUpdateR
     e.preventDefault();
     if (!rule || !conditionValue.trim() || !selectedCategoryId) return;
 
-    const finalName = ruleName.trim() || `${conditionValue.toUpperCase()} → ${selectedCategory?.name || 'Catégorie'}`;
+    // Build conditions array
+    const conditions: RuleCondition[] = [
+      {
+        condition_field: 'description',
+        condition_operator: 'contains',
+        condition_value: conditionValue.trim(),
+      }
+    ];
+
+    // Add amount condition if enabled
+    if (showAmountCondition && amountValue.trim()) {
+      conditions.push({
+        condition_field: 'amount',
+        condition_operator: amountOperator,
+        condition_value: amountValue.trim().replace(',', '.'),
+      });
+    }
+
+    // Auto-generate name if empty
+    let finalName = ruleName.trim();
+    if (!finalName) {
+      finalName = `${conditionValue.toUpperCase()}`;
+      if (showAmountCondition && amountValue.trim()) {
+        finalName += ` + ${amountValue} €`;
+      }
+      finalName += ` → ${selectedCategory?.name || 'Catégorie'}`;
+    }
 
     setLoading(true);
     const result = await onUpdateRule(rule.id, {
@@ -63,6 +127,7 @@ export function EditRuleDialog({ open, onOpenChange, categories, rule, onUpdateR
       condition_operator: 'contains',
       condition_value: conditionValue.trim(),
       target_category_id: selectedCategoryId,
+      conditions,
     });
     setLoading(false);
 
@@ -75,7 +140,7 @@ export function EditRuleDialog({ open, onOpenChange, categories, rule, onUpdateR
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[480px]" aria-describedby={undefined}>
+      <DialogContent className="sm:max-w-[500px]" aria-describedby={undefined}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Zap className="w-5 h-5 text-primary" />
@@ -83,8 +148,8 @@ export function EditRuleDialog({ open, onOpenChange, categories, rule, onUpdateR
           </DialogTitle>
         </DialogHeader>
         
-        <form onSubmit={handleSubmit} className="space-y-6 mt-4">
-          {/* Condition Section */}
+        <form onSubmit={handleSubmit} className="space-y-5 mt-4">
+          {/* Description Condition */}
           <div className="space-y-3 p-4 bg-muted/50 rounded-xl border border-border/50">
             <Label htmlFor="edit-condition-value" className="text-base font-medium">
               Si la description contient...
@@ -102,6 +167,69 @@ export function EditRuleDialog({ open, onOpenChange, categories, rule, onUpdateR
               Entrez un mot-clé présent dans vos transactions
             </p>
           </div>
+
+          {/* Amount Condition (optional) */}
+          {showAmountCondition ? (
+            <div className="space-y-3 p-4 bg-accent/5 rounded-xl border border-accent/20">
+              <div className="flex items-center justify-between">
+                <Label className="text-base font-medium flex items-center gap-2">
+                  <Euro className="w-4 h-4 text-accent" />
+                  ET le montant...
+                </Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setShowAmountCondition(false);
+                    setAmountValue('');
+                  }}
+                  className="h-7 px-2 text-muted-foreground hover:text-destructive"
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+              
+              <div className="flex gap-2 items-center">
+                <Select value={amountOperator} onValueChange={setAmountOperator}>
+                  <SelectTrigger className="w-[160px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {amountOperators.map(op => (
+                      <SelectItem key={op.value} value={op.value}>
+                        {op.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="relative flex-1">
+                  <Input
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="9622.80"
+                    value={amountValue}
+                    onChange={(e) => setAmountValue(e.target.value)}
+                    className="pr-8"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">€</span>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Tolérance de 0.01 € pour les arrondis bancaires
+              </p>
+            </div>
+          ) : (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowAmountCondition(true)}
+              className="w-full border-dashed border-accent/30 text-accent hover:bg-accent/5 hover:border-accent"
+            >
+              <Euro className="w-4 h-4 mr-2" />
+              + Ajouter un critère de montant
+            </Button>
+          )}
 
           {/* Category Selection */}
           <div className="space-y-3 p-4 bg-primary/5 rounded-xl border border-primary/10">
@@ -145,7 +273,7 @@ export function EditRuleDialog({ open, onOpenChange, categories, rule, onUpdateR
             <Input
               id="edit-rule-name"
               placeholder={conditionValue && selectedCategory 
-                ? `${conditionValue.toUpperCase()} → ${selectedCategory.name}` 
+                ? `${conditionValue.toUpperCase()}${showAmountCondition && amountValue ? ` + ${amountValue} €` : ''} → ${selectedCategory.name}` 
                 : "Généré automatiquement"
               }
               value={ruleName}

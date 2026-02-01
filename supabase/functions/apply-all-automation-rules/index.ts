@@ -5,15 +5,22 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-interface AutomationRule {
+interface RuleCondition {
   id: string;
+  rule_id: string;
   condition_field: string;
   condition_operator: string;
   condition_value: string;
+}
+
+interface AutomationRule {
+  id: string;
   target_category_id: string;
   user_id: string;
   company_id: string | null;
   match_count: number;
+  is_active: boolean;
+  conditions: RuleCondition[];
 }
 
 interface Transaction {
@@ -26,46 +33,66 @@ interface Transaction {
   company_id: string | null;
 }
 
-function matchesRule(transaction: Transaction, rule: AutomationRule): boolean {
-  const { condition_field, condition_operator, condition_value } = rule;
-  
-  let fieldValue: string | number;
+// Match a single condition against a transaction
+function matchCondition(transaction: Transaction, condition: RuleCondition): boolean {
+  const { condition_field, condition_operator, condition_value } = condition;
   
   switch (condition_field) {
-    case 'description':
-      fieldValue = transaction.description.toLowerCase();
-      break;
-    case 'amount':
-      fieldValue = Math.abs(transaction.amount);
-      break;
+    case 'description': {
+      const fieldValue = transaction.description.toLowerCase();
+      const compareValue = condition_value.toLowerCase();
+      
+      switch (condition_operator) {
+        case 'contains':
+          return fieldValue.includes(compareValue);
+        case 'equals':
+          return fieldValue === compareValue;
+        case 'starts_with':
+          return fieldValue.startsWith(compareValue);
+        case 'ends_with':
+          return fieldValue.endsWith(compareValue);
+        default:
+          return false;
+      }
+    }
+    
+    case 'amount': {
+      const amount = Math.abs(transaction.amount);
+      const value = parseFloat(condition_value);
+      
+      switch (condition_operator) {
+        case 'equals':
+          // Tolerance of 0.01 for rounding
+          return Math.abs(amount - value) < 0.01;
+        case 'greater_than':
+          return amount > value;
+        case 'less_than':
+          return amount < value;
+        case 'between': {
+          try {
+            const { min, max } = JSON.parse(condition_value);
+            return amount >= min && amount <= max;
+          } catch {
+            return false;
+          }
+        }
+        default:
+          return false;
+      }
+    }
+    
     case 'type':
-      fieldValue = transaction.type;
-      break;
+      return transaction.type === condition_value;
+    
     default:
       return false;
   }
+}
 
-  const compareValue = condition_field === 'amount' 
-    ? parseFloat(condition_value) 
-    : condition_value.toLowerCase();
-
-  switch (condition_operator) {
-    case 'contains':
-      return typeof fieldValue === 'string' && fieldValue.includes(compareValue as string);
-    case 'equals':
-      return fieldValue === compareValue || 
-        (typeof fieldValue === 'string' && fieldValue === (compareValue as string));
-    case 'starts_with':
-      return typeof fieldValue === 'string' && fieldValue.startsWith(compareValue as string);
-    case 'ends_with':
-      return typeof fieldValue === 'string' && fieldValue.endsWith(compareValue as string);
-    case 'greater_than':
-      return typeof fieldValue === 'number' && fieldValue > (compareValue as number);
-    case 'less_than':
-      return typeof fieldValue === 'number' && fieldValue < (compareValue as number);
-    default:
-      return false;
-  }
+// Check if transaction matches ALL conditions (AND logic)
+function matchesRule(transaction: Transaction, conditions: RuleCondition[]): boolean {
+  if (!conditions || conditions.length === 0) return false;
+  return conditions.every(condition => matchCondition(transaction, condition));
 }
 
 function chunkArray<T>(array: T[], chunkSize: number): T[][] {
@@ -152,14 +179,54 @@ Deno.serve(async (req) => {
 
     console.log(`[apply-all-automation-rules] Found ${rules.length} active rules`);
 
+    // 2. Fetch all conditions for these rules
+    const ruleIds = rules.map(r => r.id);
+    const { data: allConditions, error: conditionsError } = await supabaseAdmin
+      .from('automation_rule_conditions')
+      .select('*')
+      .in('rule_id', ruleIds);
+
+    if (conditionsError) {
+      console.error('[apply-all-automation-rules] Error fetching conditions:', conditionsError);
+      return new Response(
+        JSON.stringify({ error: 'Failed to fetch conditions' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Group conditions by rule_id
+    const conditionsByRule = new Map<string, RuleCondition[]>();
+    for (const condition of (allConditions || [])) {
+      const ruleConditions = conditionsByRule.get(condition.rule_id) || [];
+      ruleConditions.push(condition as RuleCondition);
+      conditionsByRule.set(condition.rule_id, ruleConditions);
+    }
+
+    // Create rules with conditions
+    const rulesWithConditions: AutomationRule[] = rules
+      .map(rule => ({
+        ...rule,
+        conditions: conditionsByRule.get(rule.id) || []
+      }))
+      .filter(rule => rule.conditions.length > 0) as AutomationRule[];
+
+    console.log(`[apply-all-automation-rules] ${rulesWithConditions.length} rules have conditions`);
+
+    if (rulesWithConditions.length === 0) {
+      return new Response(
+        JSON.stringify({ message: 'No rules with conditions', matched: 0, updated: 0 }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Group rules by user_id for efficient processing
     const rulesByUser = new Map<string, AutomationRule[]>();
-    for (const rule of rules) {
+    for (const rule of rulesWithConditions) {
       const userId = rule.user_id;
       if (!rulesByUser.has(userId)) {
         rulesByUser.set(userId, []);
       }
-      rulesByUser.get(userId)!.push(rule as AutomationRule);
+      rulesByUser.get(userId)!.push(rule);
     }
 
     let totalMatched = 0;
@@ -220,7 +287,7 @@ Deno.serve(async (req) => {
           // Check company match if rule has company_id
           if (rule.company_id && tx.company_id !== rule.company_id) return false;
           
-          return matchesRule(tx, rule);
+          return matchesRule(tx, rule.conditions);
         });
 
         for (const tx of matchingTxs) {
@@ -278,7 +345,7 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: true,
-        rules_processed: rules.length,
+        rules_processed: rulesWithConditions.length,
         matched: totalMatched, 
         updated: totalUpdated,
         duration_ms: duration
