@@ -193,7 +193,7 @@ export const TransactionRow = memo(function TransactionRow({
             <span className="text-sm text-muted-foreground">
               {formatDate(transaction.date)}
             </span>
-            {transaction.source && (
+            {transaction.source && transaction.source.toLowerCase() !== 'bridge' && (
               <span className="text-xs text-muted-foreground px-2 py-0.5 rounded-full bg-muted">
                 {transaction.source}
               </span>
