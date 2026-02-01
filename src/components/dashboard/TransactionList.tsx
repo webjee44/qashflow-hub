@@ -31,9 +31,9 @@ export function TransactionList() {
         .from('categories')
         .select('*');
 
-      // Filter by company if one is selected
+      // Filter by company - strict filtering for data isolation
       if (currentCompany) {
-        transactionsQuery = transactionsQuery.or(`company_id.eq.${currentCompany.id},company_id.is.null`);
+        transactionsQuery = transactionsQuery.eq('company_id', currentCompany.id);
         categoriesQuery = categoriesQuery.or(`company_id.eq.${currentCompany.id},company_id.is.null`);
       }
 
