@@ -502,7 +502,8 @@ export function TransactionsView() {
         ) : (
           <div 
             ref={parentRef} 
-            className="max-h-[600px] overflow-auto"
+            className="max-h-[600px] overflow-auto scrollbar-none"
+            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
           >
             <div
               style={{
