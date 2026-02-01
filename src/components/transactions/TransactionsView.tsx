@@ -29,6 +29,7 @@ import { useCompany } from '@/hooks/useCompany';
 import { useAutomationRules } from '@/hooks/useAutomationRules';
 import { useCategories, Category } from '@/hooks/useCategories';
 import { useTransactions, sortTransactions, filterTransactions, SortOption } from '@/hooks/useTransactions';
+import { useBankBalance } from '@/hooks/useBankBalance';
 import { SuggestAutomationDialog } from './SuggestAutomationDialog';
 import { CategoryDialog } from '@/components/categories/CategoryDialog';
 import { TransactionRow } from './TransactionRow';
@@ -64,6 +65,7 @@ export function TransactionsView() {
   } = useTransactions();
   
   const { categories } = useCategories();
+  const { balance: bankBalance } = useBankBalance();
 
   // Memoized category lookups
   const categoryMap = useMemo(() => {
@@ -368,9 +370,9 @@ export function TransactionsView() {
           <p className="text-sm text-muted-foreground">Solde bancaire</p>
           <p className={cn(
             "text-2xl font-bold",
-            (currentCompany?.bank_balance ?? 0) >= 0 ? "text-success" : "text-destructive"
+            bankBalance >= 0 ? "text-success" : "text-destructive"
           )}>
-            {formatAmount(currentCompany?.bank_balance ?? 0)}
+            {formatAmount(bankBalance)}
           </p>
         </div>
       </motion.div>
