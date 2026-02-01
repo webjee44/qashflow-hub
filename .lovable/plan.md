@@ -1,147 +1,194 @@
 
-# Amélioration de l'affichage hiérarchique des groupes
 
-## Problème identifié
-Les groupes de catégories existent dans la base de données (via `parent_id`) mais l'affichage actuel ne les met pas suffisamment en valeur :
-- Dans `/reglages-tresorerie` : les catégories sont listées d'affilée, difficile de voir la hiérarchie
-- Dans `/previsions` : idem, pas de vraie structure visuelle
-- Contrairement à Zenfirst qui montre clairement les groupes pliables avec indentation
+# Refonte complète de la gestion des groupes
 
----
+## Problème actuel
 
-## Solution proposée
+L'implémentation actuelle des groupes pose plusieurs problèmes d'UX critiques :
 
-### 1. Améliorer le tableau des catégories (`/reglages-tresorerie`)
-
-**Avant** : Liste plate avec indentation minimale
-**Après** : Sections visuellement distinctes comme Zenfirst
-
-Modifications :
-- Groupe affiché comme une barre distincte (fond coloré, police plus grande)
-- Bouton `+`/`-` explicite pour plier/déplier
-- Catégories enfants clairement indentées sous leur groupe
-- Ligne de connexion verticale entre groupe et enfants
-- Par défaut : groupes repliés pour une vue épurée
-
-### 2. Améliorer la table des prévisions (`/previsions`)
-
-Même logique :
-- Les groupes deviennent des lignes cliquables avec sous-total
-- Quand le groupe est replié : on voit juste le total du groupe
-- Quand déplié : les catégories enfants apparaissent indentées
-- Par défaut : **replié** pour une vue claire
-
-### 3. Option "Tout replier / Tout déplier"
-
-Ajouter des boutons dans l'en-tête pour gérer tous les groupes d'un coup.
+1. **Invisibilité** : Les groupes existants sont noyés dans la liste des catégories
+2. **Actions cachées** : Impossible de savoir comment éditer ou supprimer un groupe
+3. **Pas d'édition en masse** : Pour associer plusieurs catégories à un groupe, il faut les éditer une par une
+4. **Distinction visuelle faible** : Les groupes ne ressortent pas assez visuellement
 
 ---
 
-## Maquette visuelle (style Zenfirst)
+## Solution proposée : Interface à 2 niveaux
+
+### 1. Section dédiée "Gestion des groupes"
+
+Ajouter une section distincte au-dessus des tableaux de catégories :
 
 ```text
-┌─────────────────────────────────────────────────────────────┐
-│ Dépenses                                               (12) │
-├─────────────────────────────────────────────────────────────┤
-│ [−] Fournisseurs                                       (3)  │  ◄── Groupe (cliquable)
-│      ├─ Toutatis                              20%     ✎ 🗑  │  ◄── Enfant indenté
-│      ├─ Flavor District                       20%     ✎ 🗑  │
-│      └─ Autres fournisseurs                   20%     ✎ 🗑  │
-├─────────────────────────────────────────────────────────────┤
-│ [+] RH / Rémunération                                  (4)  │  ◄── Groupe replié
-├─────────────────────────────────────────────────────────────┤
-│ [−] Frais Généraux                                     (5)  │
-│      ├─ Transport sur ventes                  20%     ✎ 🗑  │
-│      ├─ Logiciels                             20%     ✎ 🗑  │
-│      └─ [−] Honoraires                         (3)          │  ◄── Sous-groupe
-│           ├─ Avocat                           20%     ✎ 🗑  │
-│           ├─ Comptables                       20%     ✎ 🗑  │
-│           └─ Coachflix                        20%     ✎ 🗑  │
-├─────────────────────────────────────────────────────────────┤
-│    Loyer                                      20%     ✎ 🗑  │  ◄── Catégorie sans groupe
-│    Marketing                                  20%     ✎ 🗑  │
-└─────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────┐
+│ 📁 Groupes                                              [+ Créer] │
+├────────────────────────────────────────────────────────────────┤
+│  🟡 Fournisseurs (3)                                    ✎  🗑  │
+│  🔴 RH / Rémunération (4)                               ✎  🗑  │
+│  🟢 Frais Généraux (5)                                  ✎  🗑  │
+│  🔵 Transport (2)                                       ✎  🗑  │
+└────────────────────────────────────────────────────────────────┘
 ```
 
----
+**Fonctionnalités** :
+- Liste claire de tous les groupes existants (revenus + dépenses)
+- Badge de couleur + compteur d'enfants
+- Boutons d'action toujours visibles (pas au survol)
+- Clic sur un groupe = ouvre l'éditeur
 
-## Fichiers à modifier
+### 2. Mode d'édition en masse (bulk edit)
+
+Ajouter un bouton "Organiser" qui active le mode sélection :
 
 ```text
-src/components/categories/CategoryTable.tsx      # Refonte complète de l'affichage
-src/components/forecasts/ForecastTable.tsx       # Mêmes améliorations
-src/hooks/useCategories.ts                       # Aucun changement (logique OK)
+┌─────────────────────────────────────────────────────────────────┐
+│ Dépenses                                        [✓ Organiser]   │
+├─────────────────────────────────────────────────────────────────┤
+│ [✓] Toutatis                              20%                    │
+│ [✓] Flavor District                       20%                    │
+│ [ ] Logiciels                             20%                    │
+│ [✓] Marketing                             20%                    │
+│ [ ] Loyer                                 20%                    │
+└─────────────────────────────────────────────────────────────────┘
+     [ 3 sélectionnées ] → [Assigner au groupe ▼] [Retirer du groupe]
+```
+
+**Fonctionnalités** :
+- Checkboxes pour sélection multiple
+- Barre d'actions contextuelle en bas
+- Dropdown pour choisir le groupe cible
+- Option "Retirer du groupe" pour les catégories déjà groupées
+
+### 3. Distinction visuelle renforcée dans les tableaux
+
+Dans `/reglages-tresorerie` et `/previsions`, les groupes seront clairement distingués :
+
+```text
+┌──────────────────────────────────────────────────────────────────┐
+│ Dépenses                                                    (12) │
+├──────────────────────────────────────────────────────────────────┤
+│ ▼ FOURNISSEURS                                              (3)  │  ← Groupe : majuscules, gras, fond distinct
+│       Toutatis                             20%              ✎ 🗑 │  ← Catégorie : indentation + style normal
+│       Flavor District                      20%              ✎ 🗑 │
+│       Autres fournisseurs                  20%              ✎ 🗑 │
+├──────────────────────────────────────────────────────────────────┤
+│ ▶ RH / RÉMUNÉRATION                                         (4)  │  ← Groupe replié
+├──────────────────────────────────────────────────────────────────┤
+│   Loyer                                    20%              ✎ 🗑 │  ← Catégorie sans groupe
+│   Marketing                                20%              ✎ 🗑 │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+**Différences visuelles Groupe vs Catégorie** :
+
+| Élément | Groupe | Catégorie |
+|---------|--------|-----------|
+| Texte | **MAJUSCULES + Gras** | Normal |
+| Fond | `bg-muted/50` distinct | Transparent |
+| Indentation | Aucune (aligné à gauche) | `pl-8` (24px) |
+| Icône | Chevron ▼/▶ | Pastille couleur |
+| Séparateur | Bordure au-dessus | Aucune |
+
+---
+
+## Fichiers à créer/modifier
+
+```text
+src/components/categories/GroupsManager.tsx     # NOUVEAU - Section de gestion des groupes
+src/components/categories/CategoryTable.tsx     # Refonte avec checkboxes + bulk actions
+src/components/categories/BulkAssignDialog.tsx  # NOUVEAU - Dialog d'assignation en masse
+src/pages/Categories.tsx                        # Intégration du GroupsManager
+src/components/forecasts/ForecastTable.tsx      # Amélioration visuelle des groupes
 ```
 
 ---
 
-## Section technique
+## Détails techniques
 
-### Modifications CategoryTable.tsx
+### Nouveau composant GroupsManager
 
-1. **Ajouter état par défaut replié**
 ```typescript
-// Initialiser tous les groupes comme repliés par défaut
-const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => {
-  const saved = localStorage.getItem(COLLAPSED_KEY);
-  if (saved) return new Set(JSON.parse(saved));
-  // Par défaut : tous les groupes repliés
-  return new Set(groups.filter(g => g.group).map(g => g.group!.id));
-});
+// Affiche une carte avec tous les groupes existants
+// Permet création, édition, suppression directe
+export function GroupsManager({
+  groups,           // CategoryGroup[]
+  onCreateGroup,    // () => void
+  onEditGroup,      // (group) => void  
+  onDeleteGroup,    // (id, deleteChildren) => void
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Groupes</CardTitle>
+        <Button onClick={onCreateGroup}>Créer un groupe</Button>
+      </CardHeader>
+      <CardContent>
+        {/* Liste des groupes avec actions visibles */}
+      </CardContent>
+    </Card>
+  );
+}
 ```
 
-2. **Améliorer le rendu visuel des groupes**
-- Séparateur visuel (border-top) avant chaque groupe
-- Fond distinct (bg-muted/50)
-- Icône `ChevronRight`/`ChevronDown` plus visible
-- Compteur de catégories enfants
+### Mode sélection dans CategoryTable
 
-3. **Indentation des enfants**
-- `pl-8` au lieu de `pl-4`
-- Ligne de connexion verticale continue (border-left)
-- Dernier enfant avec `└─` au lieu de `├─`
-
-### Modifications ForecastTable.tsx
-
-1. **Groupes repliés par défaut**
 ```typescript
-// Tous les groupes repliés au chargement
-const defaultCollapsed = new Set(
-  [...incomeGroups, ...expenseGroups]
-    .filter(g => g.group)
-    .map(g => g.group!.id)
-);
+const [selectionMode, setSelectionMode] = useState(false);
+const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+// Barre d'actions bulk
+{selectionMode && selectedIds.size > 0 && (
+  <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 
+                  bg-card shadow-lg rounded-lg p-3 flex items-center gap-3">
+    <span>{selectedIds.size} sélectionnée(s)</span>
+    <Select>
+      <SelectTrigger>Assigner au groupe</SelectTrigger>
+      {/* Options : groupes existants */}
+    </Select>
+    <Button variant="outline">Retirer du groupe</Button>
+  </div>
+)}
 ```
 
-2. **Ligne de groupe avec totaux agrégés**
-- Quand replié : affiche la somme des enfants
-- Cliquable pour déplier
-- Style distinct (bg-muted, font-semibold)
+### Styles CSS distincts pour groupes
 
-3. **Boutons "Tout replier/déplier"**
 ```typescript
-<Button variant="ghost" size="sm" onClick={collapseAll}>
-  <ChevronsUpDown className="w-4 h-4" />
-</Button>
+// Ligne de groupe
+<TableRow className="bg-muted/50 border-t-2 border-border font-semibold">
+  <TableCell className="uppercase tracking-wide text-sm">
+    {group.name}
+  </TableCell>
+</TableRow>
+
+// Ligne de catégorie enfant
+<TableRow className="pl-8">
+  <TableCell className="font-normal text-foreground">
+    {category.name}
+  </TableCell>
+</TableRow>
 ```
 
 ---
 
 ## Bénéfices attendus
 
-- Vue épurée par défaut (groupes repliés)
-- Navigation intuitive (clic pour déplier)
-- Hiérarchie claire (indentation + connecteurs)
-- Cohérence avec Zenfirst (familiarité utilisateur)
-- Persistance de l'état (localStorage)
+| Avant | Après |
+|-------|-------|
+| Groupes invisibles | Section dédiée avec liste claire |
+| Actions cachées au survol | Boutons toujours visibles |
+| Édition catégorie par catégorie | Sélection multiple + assignation en masse |
+| Distinction visuelle faible | Majuscules + gras + fond distinct |
+| UX confuse | Interface claire type Zenfirst |
 
 ---
 
 ## Estimation
 
-- Fichiers à modifier : 2
-- Complexité : Moyenne
-- Points clés :
-  - CSS d'indentation et connecteurs
-  - État replié par défaut
-  - Animation fluide au déploiement
+- **Fichiers à modifier** : 5
+- **Complexité** : Moyenne-élevée
+- **Points clés** :
+  - Nouveau composant GroupsManager
+  - État de sélection multiple dans CategoryTable
+  - Barre d'actions bulk contextuelle
+  - Refonte CSS des lignes de groupe
+
