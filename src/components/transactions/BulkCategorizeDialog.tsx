@@ -324,7 +324,7 @@ export function BulkCategorizeDialog({
                     aria-expanded={otherCategoryOpen}
                     className="w-full justify-between"
                   >
-                    {selectedCategoryId && !recommendedCategories.find(c => c.id === selectedCategoryId) ? (
+                    {selectedCategoryId && !recommendedCategories.slice(0, 6).find(c => c.id === selectedCategoryId) ? (
                       <div className="flex items-center gap-2">
                         <div 
                           className="w-3 h-3 rounded-full shrink-0" 
