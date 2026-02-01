@@ -5,7 +5,7 @@ import { useCategories, CategoryGroup } from '@/hooks/useCategories';
 import { useForecasts } from '@/hooks/useForecasts';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { Loader2, Copy, Check, TrendingUp, ChevronRight, ChevronDown, Link2 } from 'lucide-react';
+import { Loader2, Copy, Check, TrendingUp, ChevronRight, ChevronDown, Link2, ChevronsUpDown, ChevronsDownUp } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -39,21 +39,54 @@ export function ForecastTable() {
   const [showGrowthInput, setShowGrowthInput] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const isLoading = categoriesLoading || forecastsLoading;
+
+  // Get grouped categories
+  const incomeGroups = useMemo(() => getGroupedCategories('income'), [categories]);
+  const expenseGroups = useMemo(() => getGroupedCategories('expense'), [categories]);
+
+  // Get all group IDs for default collapsed state
+  const allGroupIds = useMemo(() => 
+    [...incomeGroups, ...expenseGroups]
+      .filter(g => g.group)
+      .map(g => g.group!.id),
+    [incomeGroups, expenseGroups]
+  );
   
-  // Collapsed groups state with localStorage persistence
+  // Collapsed groups state with localStorage persistence - DEFAULT COLLAPSED
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => {
     try {
       const saved = localStorage.getItem(COLLAPSED_GROUPS_KEY);
-      return saved ? new Set(JSON.parse(saved)) : new Set();
+      if (saved) {
+        return new Set(JSON.parse(saved));
+      }
+      // No saved state - will be set to all collapsed once groups load
+      return new Set();
     } catch {
       return new Set();
     }
   });
 
+  // Initialize to collapsed by default when groups first load
+  const [hasInitialized, setHasInitialized] = useState(false);
+  useEffect(() => {
+    if (!hasInitialized && allGroupIds.length > 0) {
+      const saved = localStorage.getItem(COLLAPSED_GROUPS_KEY);
+      if (!saved) {
+        // First load with no saved state: collapse all groups
+        setCollapsedGroups(new Set(allGroupIds));
+      }
+      setHasInitialized(true);
+    }
+  }, [allGroupIds, hasInitialized]);
+
   // Save collapsed state to localStorage
   useEffect(() => {
-    localStorage.setItem(COLLAPSED_GROUPS_KEY, JSON.stringify([...collapsedGroups]));
-  }, [collapsedGroups]);
+    if (hasInitialized) {
+      localStorage.setItem(COLLAPSED_GROUPS_KEY, JSON.stringify([...collapsedGroups]));
+    }
+  }, [collapsedGroups, hasInitialized]);
 
   const toggleGroup = (groupId: string) => {
     setCollapsedGroups(prev => {
@@ -67,11 +100,16 @@ export function ForecastTable() {
     });
   };
 
-  const isLoading = categoriesLoading || forecastsLoading;
+  const expandAll = () => {
+    setCollapsedGroups(new Set());
+  };
 
-  // Get grouped categories
-  const incomeGroups = useMemo(() => getGroupedCategories('income'), [categories]);
-  const expenseGroups = useMemo(() => getGroupedCategories('expense'), [categories]);
+  const collapseAll = () => {
+    setCollapsedGroups(new Set(allGroupIds));
+  };
+
+  const allCollapsed = allGroupIds.length > 0 && allGroupIds.every(id => collapsedGroups.has(id));
+  const allExpanded = allGroupIds.length > 0 && !allGroupIds.some(id => collapsedGroups.has(id));
 
   // Separate categories by type (for backward compatibility)
   const incomeCategories = categories.filter(c => c.type === 'income');
@@ -734,11 +772,49 @@ export function ForecastTable() {
         transition={{ delay: 0.2 }}
         className="bg-card rounded-2xl border border-border shadow-card overflow-hidden"
       >
-      <div className="p-6 border-b border-border">
-        <h3 className="text-lg font-semibold text-foreground">Prévisions par catégorie</h3>
-        <p className="text-sm text-muted-foreground">
-          Cliquez sur une cellule "Prévu" pour modifier • Les montants sont HT, la TVA est calculée automatiquement
-        </p>
+      <div className="p-6 border-b border-border flex items-start justify-between">
+        <div>
+          <h3 className="text-lg font-semibold text-foreground">Prévisions par catégorie</h3>
+          <p className="text-sm text-muted-foreground">
+            Cliquez sur une cellule "Prévu" pour modifier • Les montants sont HT, la TVA est calculée automatiquement
+          </p>
+        </div>
+        
+        {/* Expand/Collapse All buttons */}
+        {allGroupIds.length > 0 && (
+          <div className="flex items-center gap-1">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-8 px-2"
+                  onClick={expandAll}
+                  disabled={allExpanded}
+                >
+                  <ChevronsDownUp className="w-4 h-4 mr-1" />
+                  <span className="text-xs">Déplier</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Tout déplier</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-8 px-2"
+                  onClick={collapseAll}
+                  disabled={allCollapsed}
+                >
+                  <ChevronsUpDown className="w-4 h-4 mr-1" />
+                  <span className="text-xs">Replier</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Tout replier</TooltipContent>
+            </Tooltip>
+          </div>
+        )}
       </div>
 
       <div className="overflow-x-auto">
