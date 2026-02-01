@@ -19,6 +19,40 @@ import {
 } from '../_shared/validation.ts';
 
 // ============================================
+// Helper: Build account_id -> company_id map
+// ============================================
+async function getAccountToCompanyMap(
+  supabaseAdmin: any,
+  bridgeUserUuid: string
+): Promise<Record<number, string>> {
+  // Get all bridge accounts for this bridge_user_uuid
+  const { data: bridgeAccounts } = await supabaseAdmin
+    .from('bridge_accounts')
+    .select('bridge_account_id')
+    .eq('bridge_user_uuid', bridgeUserUuid);
+
+  if (!bridgeAccounts || bridgeAccounts.length === 0) {
+    return {};
+  }
+
+  const accountIds = bridgeAccounts.map((a: { bridge_account_id: number }) => a.bridge_account_id);
+
+  // Get the company assignments for these accounts
+  const { data: assignments } = await supabaseAdmin
+    .from('company_bridge_accounts')
+    .select('bridge_account_id, company_id')
+    .in('bridge_account_id', accountIds);
+
+  const map: Record<number, string> = {};
+  for (const row of assignments || []) {
+    map[row.bridge_account_id] = row.company_id;
+  }
+
+  console.info(`[bridge-sync] Account→Company map: ${Object.keys(map).length} mappings found`);
+  return map;
+}
+
+// ============================================
 // Helper: Calculate assigned balance and count
 // ============================================
 async function getAssignedAccountsStats(
@@ -116,7 +150,8 @@ async function syncCompanyTransactions(
   companyId: string,
   userId: string,
   accounts: BridgeAccount[],
-  transactions: BridgeTransaction[]
+  transactions: BridgeTransaction[],
+  accountToCompanyMap: Record<number, string>
 ): Promise<{ inserted: number; updated: number }> {
   const accountNameMap = bridgeClient.buildAccountNameMap(accounts);
   let insertedCount = 0;
@@ -126,6 +161,10 @@ async function syncCompanyTransactions(
     const transactionType = bridgeClient.getTransactionType(transaction);
     const accountName = accountNameMap[transaction.account_id] || null;
     const description = bridgeClient.getTransactionDescription(transaction);
+
+    // CRITICAL: Assign transaction to the company that owns this account
+    // Fall back to the sync-requesting company only if no mapping exists
+    const correctCompanyId = accountToCompanyMap[transaction.account_id] || companyId;
 
     const { data: existing } = await supabaseAdmin
       .from('transactions')
@@ -143,6 +182,7 @@ async function syncCompanyTransactions(
           type: transactionType,
           bank_account_name: accountName,
           source: 'bridge',
+          company_id: correctCompanyId, // Update company_id in case mapping changed
           updated_at: new Date().toISOString(),
         })
         .eq('id', existing.id);
@@ -153,7 +193,7 @@ async function syncCompanyTransactions(
         .from('transactions')
         .insert({
           user_id: userId,
-          company_id: companyId,
+          company_id: correctCompanyId, // Use correct company based on account mapping
           pennylane_id: `bridge_${transaction.id}`,
           amount: Math.abs(transaction.amount),
           description: description,
@@ -279,14 +319,18 @@ Deno.serve(async (req) => {
           // Get transactions
           const allTransactions = await bridgeClient.fetchAllTransactions(90);
 
-          // Sync transactions
+          // Build account→company map for proper transaction assignment
+          const accountToCompanyMap = await getAccountToCompanyMap(supabaseAdmin, company.bridge_user_uuid!);
+
+          // Sync transactions with correct company assignments
           const { inserted, updated } = await syncCompanyTransactions(
             supabaseAdmin,
             bridgeClient,
             company.id,
             company.user_id,
             allAccounts,
-            allTransactions
+            allTransactions,
+            accountToCompanyMap
           );
 
           syncedCount++;
@@ -387,14 +431,18 @@ Deno.serve(async (req) => {
       // Get transactions
       const allTransactions = await bridgeClient.fetchAllTransactions(90);
 
-      // Sync transactions
+      // Build account→company map for proper transaction assignment
+      const accountToCompanyMap = await getAccountToCompanyMap(supabaseAdmin, bridge_user_uuid);
+
+      // Sync transactions with correct company assignments
       const { inserted, updated } = await syncCompanyTransactions(
         supabaseAdmin,
         bridgeClient,
         company_id,
         userId,
         allAccounts,
-        allTransactions
+        allTransactions,
+        accountToCompanyMap
       );
 
       console.info(`[bridge-sync] Full sync complete: ${allAccounts.length} accounts, ${inserted} new, ${updated} updated transactions`);
