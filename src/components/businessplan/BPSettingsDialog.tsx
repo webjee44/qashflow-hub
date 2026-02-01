@@ -54,31 +54,41 @@ export function BPSettingsDialog({ open, onOpenChange }: BPSettingsDialogProps) 
   const [showFinancing, setShowFinancing] = useState(true);
   const [showFundingPlan, setShowFundingPlan] = useState(true);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [formInitialized, setFormInitialized] = useState(false);
 
   useEffect(() => {
-    if (settings && open) {
-      // Parse date from string to Date object
-      if (settings.bp_start_date) {
-        try {
-          const parsed = parse(settings.bp_start_date, 'yyyy-MM-dd', new Date());
-          setBpStartDate(parsed);
-        } catch {
-          setBpStartDate(new Date());
-        }
-      } else {
+    // Reset when closing so next open re-initializes from latest settings
+    if (!open) {
+      setFormInitialized(false);
+      return;
+    }
+
+    // Initialize once per open to avoid overwriting user edits
+    if (!settings || formInitialized) return;
+
+    // Parse date from string to Date object
+    if (settings.bp_start_date) {
+      try {
+        const parsed = parse(settings.bp_start_date, 'yyyy-MM-dd', new Date());
+        setBpStartDate(parsed);
+      } catch {
         setBpStartDate(new Date());
       }
-      setFiscalMonth(settings.fiscal_year_start_month || 1);
-      setInitialCash(String(settings.initial_cash ?? 0));
-      setCustomerDelay(String(settings.customer_payment_delay ?? 30));
-      setSupplierDelay(String(settings.supplier_payment_delay ?? 30));
-      setTaxRegime(settings.tax_regime || 'is');
-      setIsPme(settings.is_pme ?? true);
-      setShowStocks(settings.show_stocks ?? true);
-      setShowFinancing(settings.show_financing ?? true);
-      setShowFundingPlan(settings.show_funding_plan ?? true);
+    } else {
+      setBpStartDate(new Date());
     }
-  }, [settings, open]);
+
+    setFiscalMonth(settings.fiscal_year_start_month || 1);
+    setInitialCash(String(settings.initial_cash ?? 0));
+    setCustomerDelay(String(settings.customer_payment_delay ?? 30));
+    setSupplierDelay(String(settings.supplier_payment_delay ?? 30));
+    setTaxRegime(settings.tax_regime || 'is');
+    setIsPme(settings.is_pme ?? true);
+    setShowStocks(settings.show_stocks ?? true);
+    setShowFinancing(settings.show_financing ?? true);
+    setShowFundingPlan(settings.show_funding_plan ?? true);
+    setFormInitialized(true);
+  }, [open, settings, formInitialized]);
 
   const getFiscalYearDisplay = () => {
     const startMonth = MONTHS.find(m => m.value === fiscalMonth)?.label || 'Janvier';
