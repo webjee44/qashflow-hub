@@ -1,117 +1,75 @@
 
-# Correction de l'Isolation des Transactions par Société
 
-## Problème Identifié
+# Correction Critique : Isolation Hermétique des Flux Bancaires
 
-Le système a une faille majeure dans l'isolation des données :
+## Diagnostic
 
-| Élément | État Actuel | État Souhaité |
-|---------|-------------|---------------|
-| Transactions | Assignées à la société qui possède `bridge_user_uuid` | Assignées à la société dont le compte bancaire est dans `company_bridge_accounts` |
-| Filtrage Dashboard | Inclut transactions avec `company_id = null` | Strictement `company_id = société sélectionnée` |
-| Filtrage /transactions | Filtre strict (correct) | Correct |
+### Problème Identifié
+Les comptes bancaires **non assignés** dans `company_bridge_accounts` ont leurs transactions qui "fuient" vers les sociétés qui déclenchent la synchronisation. C'est une violation grave de l'isolation des données.
 
-## Cause Racine
-
-```text
-┌─────────────────────────────────────────────────────────────────────────┐
-│ Connexion Bridge unique (bridge_user_uuid) → E-fumeur                   │
-│                                                                         │
-│ Comptes bancaires Bridge :                                              │
-│   • Compte 59339981 → Assigné à Cloud Vapor                             │
-│   • Compte 59339667 → Assigné à Cloud Vapor                             │
-│   • Compte 59339669 → Assigné à E-fumeur                                │
-│   • Compte 59339375 → Assigné à E-fumeur                                │
-│                                                                         │
-│ PROBLÈME : bridge-sync/index.ts assigne TOUTES les transactions        │
-│ à company_id = E-fumeur (qui a le bridge_user_uuid)                     │
-│ au lieu de regarder company_bridge_accounts                             │
-└─────────────────────────────────────────────────────────────────────────┘
-```
-
-## Solution en 2 Parties
-
-### Partie 1 : Corriger bridge-sync (Edge Function)
-
-Modifier `syncCompanyTransactions` pour assigner les transactions à la bonne société basée sur le compte bancaire :
-
+### Cause Racine (bridge-sync/index.ts ligne 167)
 ```typescript
-// AVANT (ligne 156-157)
-company_id: companyId, // Toujours la même société
-
-// APRÈS
-// 1. Récupérer la map compte → société
-const accountToCompanyMap = await getAccountToCompanyMap(supabaseAdmin, bridgeUserUuid);
-
-// 2. Pour chaque transaction, trouver la bonne société
+// LE BUG
 const correctCompanyId = accountToCompanyMap[transaction.account_id] || companyId;
-company_id: correctCompanyId,
+//                                                                   ^^^^^^^^^^^
+// Si pas de mapping → fallback vers la société qui sync = FUITE DE DONNÉES
 ```
 
-Nouvelle fonction helper :
-```typescript
-async function getAccountToCompanyMap(
-  supabaseAdmin: any,
-  bridgeUserUuid: string
-): Promise<Record<number, string>> {
-  // Récupérer tous les mappings compte → société
-  const { data } = await supabaseAdmin
-    .from('company_bridge_accounts')
-    .select('bridge_account_id, company_id')
-    .in('bridge_account_id', (
-      await supabaseAdmin
-        .from('bridge_accounts')
-        .select('bridge_account_id')
-        .eq('bridge_user_uuid', bridgeUserUuid)
-    ).data?.map(a => a.bridge_account_id) || []);
+### Impact Actuel
+| Compte non assigné | Transactions concernées | Sociétés polluées |
+|-------------------|------------------------|-------------------|
+| C/C PRO Global E-Fumeur Nantes | 1491 | 2 (doublons) |
+| SAS Immoflix | 287 | 1 |
+| Fridaflix | 157 | 1 |
+| Visabusiness M Flatres Jean-Paul | 30 | 2 (doublons) |
+| Compte Courant Entreprise EUR SAS Immoflix | 49 | 2 (doublons) |
+| Coachflix - Épargne | 13 | 1 |
+| Immoflix | 12 | 1 |
 
-  const map: Record<number, string> = {};
-  for (const row of data || []) {
-    map[row.bridge_account_id] = row.company_id;
-  }
-  return map;
+**Total : ~2700+ transactions mal assignées ou dupliquées**
+
+---
+
+## Solution : Politique de Sécurité "Pas d'Assignation = Pas de Sync"
+
+### Principe
+Si un compte bancaire n'est **pas explicitement assigné** à une société dans `company_bridge_accounts`, ses transactions **NE DOIVENT PAS être importées**.
+
+### Modifications
+
+#### 1. Edge Function bridge-sync (Partie critique)
+
+```typescript
+// AVANT (ligne 167)
+const correctCompanyId = accountToCompanyMap[transaction.account_id] || companyId;
+
+// APRÈS - Ignorer les transactions de comptes non assignés
+if (!accountToCompanyMap[transaction.account_id]) {
+  // Compte non assigné → on IGNORE cette transaction
+  console.info(`[bridge-sync] Skipping transaction from unassigned account ${transaction.account_id}`);
+  continue; // Passer à la transaction suivante
 }
+const correctCompanyId = accountToCompanyMap[transaction.account_id];
 ```
 
-### Partie 2 : Corriger les filtres Frontend
-
-#### TransactionList.tsx (Dashboard)
-```typescript
-// AVANT (ligne 36)
-query.or(`company_id.eq.${currentCompany.id},company_id.is.null`);
-
-// APRÈS - Filtre strict
-query.eq('company_id', currentCompany.id);
-```
-
-### Partie 3 : Migrer les transactions existantes
-
-Créer un script SQL pour réassigner les transactions aux bonnes sociétés basées sur les comptes bancaires :
+#### 2. Migration SQL : Nettoyage des données polluées
 
 ```sql
--- Mettre à jour les transactions existantes vers la bonne société
-UPDATE transactions t
-SET company_id = cba.company_id
-FROM bridge_accounts ba
-JOIN company_bridge_accounts cba ON cba.bridge_account_id = ba.bridge_account_id
-WHERE t.pennylane_id LIKE 'bridge_%'
-  AND CAST(REPLACE(t.pennylane_id, 'bridge_', '') AS text) IN (
-    SELECT CAST(bridge_account_id AS text) FROM bridge_accounts
-  )
-  AND t.bank_account_name = ba.name
-  AND cba.company_id != t.company_id;
+-- Supprimer les transactions de comptes non assignés
+DELETE FROM transactions t
+WHERE t.source = 'bridge'
+  AND NOT EXISTS (
+    SELECT 1 
+    FROM bridge_accounts ba
+    JOIN company_bridge_accounts cba ON cba.bridge_account_id = ba.bridge_account_id
+    WHERE ba.name = t.bank_account_name
+      AND cba.company_id = t.company_id
+  );
 ```
 
-Alternative plus fiable : mapper via le nom du compte bancaire :
-```sql
--- Réassigner les transactions E-fumeur vers Cloud Vapor si le compte appartient à Cloud Vapor
-UPDATE transactions t
-SET company_id = cba.company_id
-FROM bridge_accounts ba
-JOIN company_bridge_accounts cba ON cba.bridge_account_id = ba.bridge_account_id
-WHERE t.bank_account_name = ba.name
-  AND t.company_id != cba.company_id;
-```
+Cette requête supprime uniquement les transactions où :
+- La source est 'bridge'
+- Le compte bancaire (via son nom) n'est PAS assigné à la société de la transaction
 
 ---
 
@@ -119,9 +77,8 @@ WHERE t.bank_account_name = ba.name
 
 | Fichier | Action |
 |---------|--------|
-| `supabase/functions/bridge-sync/index.ts` | Ajouter lookup compte→société pour les transactions |
-| `src/components/dashboard/TransactionList.tsx` | Supprimer le `OR company_id.is.null` |
-| Migration SQL | Réassigner les transactions existantes |
+| `supabase/functions/bridge-sync/index.ts` | Ignorer les transactions de comptes non assignés (ligne 167) |
+| Migration SQL | Nettoyer les transactions existantes mal assignées |
 
 ---
 
@@ -129,15 +86,18 @@ WHERE t.bank_account_name = ba.name
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────┐
-│ Synchronisation Bridge                                                  │
+│ Synchronisation Bridge - NOUVEAU COMPORTEMENT                          │
 ├─────────────────────────────────────────────────────────────────────────┤
-│ 1. Récupérer toutes les transactions de tous les comptes               │
-│ 2. Pour chaque transaction :                                           │
-│    - Trouver account_id de la transaction                              │
-│    - Chercher dans company_bridge_accounts quelle société              │
-│      possède ce compte                                                 │
-│    - Assigner company_id = société propriétaire                        │
-│ 3. Si aucune société n'a le compte → assigner à la société "par défaut"│
+│ Pour chaque transaction :                                              │
+│                                                                         │
+│   1. Chercher account_id dans accountToCompanyMap                      │
+│                                                                         │
+│   2. SI trouvé → assigner à la société mappée                          │
+│                                                                         │
+│   3. SI NON trouvé → IGNORER la transaction (skip)                     │
+│      ⚠️ Log: "Skipping transaction from unassigned account"            │
+│                                                                         │
+│   ❌ PLUS DE FALLBACK vers la société qui sync                         │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -145,19 +105,18 @@ WHERE t.bank_account_name = ba.name
 
 ## Sécurité Renforcée
 
-Pour garantir l'étanchéité totale, le filtrage sera appliqué à tous les niveaux :
-
 | Niveau | Mécanisme |
 |--------|-----------|
-| Base de données | RLS policy existante (transactions.company_id + has_company_access) |
-| Edge Function | Attribution correcte lors de l'insertion |
-| Frontend | Filtre strict sans fallback "null" |
+| Edge Function | Transactions ignorées si compte non assigné |
+| Base de données | Nettoyage des données polluées existantes |
+| Interface | L'utilisateur voit uniquement les comptes assignés à sa société |
 
 ---
 
-## Impact
+## Bénéfices
 
-Après cette correction :
-- Les transactions de chaque compte bancaire seront assignées à la société qui possède ce compte
-- Le dashboard Cloud Vapor n'affichera que les transactions Cloud Vapor
-- Les transactions existantes seront migrées vers leurs bonnes sociétés
+1. **Isolation hermétique** : Aucune fuite de données entre sociétés
+2. **Pas de doublons** : Une transaction n'existe que dans une seule société
+3. **Contrôle explicite** : L'utilisateur doit assigner un compte pour voir ses transactions
+4. **Données propres** : Suppression des ~2700 transactions mal assignées
+
