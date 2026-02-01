@@ -91,7 +91,9 @@ export function TransactionsView() {
     const map = new Map<string, string>();
     bridgeAccounts.forEach(acc => {
       if (acc.name) {
-        const displayName = acc.bank_name ? `${acc.bank_name} - ${acc.name}` : acc.name;
+        // Filter out "Bridge" as it's not useful info - show only real bank names
+        const bankName = acc.bank_name && acc.bank_name.toLowerCase() !== 'bridge' ? acc.bank_name : null;
+        const displayName = bankName ? `${bankName} - ${acc.name}` : acc.name;
         map.set(acc.name, displayName);
       }
     });
