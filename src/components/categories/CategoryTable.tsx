@@ -1,7 +1,9 @@
-import { Edit3, Trash2, TrendingUp, TrendingDown, Folder, ChevronDown, ChevronRight, ChevronsUpDown, ChevronsDownUp, CheckSquare } from 'lucide-react';
+import { Edit3, Trash2, TrendingUp, TrendingDown, Folder, ChevronDown, ChevronRight, ChevronsUpDown, ChevronsDownUp, CheckSquare, Ghost, Loader2 } from 'lucide-react';
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Category, CategoryGroup } from '@/hooks/useCategories';
+import { useCategoryTransactionCounts } from '@/hooks/useCategoryTransactionCounts';
+import { Badge } from '@/components/ui/badge';
 import {
   Table,
   TableBody,
@@ -55,6 +57,10 @@ export function CategoryTable({
   // Selection mode state
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  
+  // Orphan filter state
+  const [showOrphansOnly, setShowOrphansOnly] = useState(false);
+  const { counts, loading: countsLoading, loaded: countsLoaded, fetchCounts, isOrphan, getCount } = useCategoryTransactionCounts();
 
   // Get all group IDs for default collapsed state
   const allGroupIds = useMemo(() => 
@@ -85,6 +91,16 @@ export function CategoryTable({
       }
     }
   }, [allGroupIds]);
+  
+  // Toggle orphan filter
+  const toggleOrphanFilter = async () => {
+    if (!countsLoaded && !showOrphansOnly) {
+      // First time enabling: fetch counts
+      await fetchCounts();
+    }
+    setShowOrphansOnly(!showOrphansOnly);
+  };
+
 
   const toggleGroup = (groupId: string) => {
     const newSet = new Set(collapsedGroups);
@@ -114,6 +130,30 @@ export function CategoryTable({
   const allCategories = useMemo(() => {
     return groups.flatMap(g => g.children);
   }, [groups]);
+
+  // Count orphans for badge (must be after allCategories is defined)
+  const orphanCount = useMemo(() => {
+    if (!countsLoaded) return 0;
+    return allCategories.filter(c => isOrphan(c.id)).length;
+  }, [countsLoaded, allCategories, isOrphan]);
+
+  // Filter categories based on orphan filter
+  const filteredGroupedEntries = useMemo(() => {
+    if (!showOrphansOnly || !countsLoaded) return groups.filter(g => g.group);
+    return groups
+      .filter(g => g.group)
+      .map(g => ({
+        ...g,
+        children: g.children.filter(c => isOrphan(c.id))
+      }))
+      .filter(g => g.children.length > 0);
+  }, [groups, showOrphansOnly, countsLoaded, isOrphan]);
+
+  const filteredUngroupedCategories = useMemo(() => {
+    const ungrouped = groups.filter(g => !g.group).flatMap(g => g.children);
+    if (!showOrphansOnly || !countsLoaded) return ungrouped;
+    return ungrouped.filter(c => isOrphan(c.id));
+  }, [groups, showOrphansOnly, countsLoaded, isOrphan]);
 
   // Toggle selection for a category
   const toggleSelection = (categoryId: string) => {
@@ -186,6 +226,31 @@ export function CategoryTable({
           
           {/* Actions */}
           <div className="flex items-center gap-1">
+            {/* Orphan filter toggle */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant={showOrphansOnly ? "secondary" : "ghost"}
+                  size="sm" 
+                  className="h-7 px-2 gap-1"
+                  onClick={toggleOrphanFilter}
+                  disabled={countsLoading}
+                >
+                  {countsLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Ghost className="w-4 h-4" />
+                  )}
+                  {countsLoaded && orphanCount > 0 && (
+                    <span className="text-xs">{orphanCount}</span>
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {showOrphansOnly ? 'Afficher toutes les catégories' : 'Afficher les catégories orphelines (0 transactions)'}
+              </TooltipContent>
+            </Tooltip>
+
             {/* Selection mode toggle */}
             <Tooltip>
               <TooltipTrigger asChild>
@@ -256,7 +321,7 @@ export function CategoryTable({
           </TableHeader>
           <TableBody>
             {/* Grouped categories */}
-            {groupedEntries.map((group) => {
+            {filteredGroupedEntries.map((group) => {
               const isCollapsed = collapsedGroups.has(group.group!.id);
 
               return (
@@ -273,21 +338,24 @@ export function CategoryTable({
                   selectionMode={selectionMode}
                   selectedIds={selectedIds}
                   onToggleSelection={toggleSelection}
+                  showOrphanBadge={countsLoaded}
+                  isOrphan={isOrphan}
+                  getCount={getCount}
                 />
               );
             })}
             
             {/* Ungrouped categories */}
-            {ungroupedCategories.length > 0 && (
+            {filteredUngroupedCategories.length > 0 && (
               <>
-                {groupedEntries.length > 0 && (
+                {filteredGroupedEntries.length > 0 && (
                   <TableRow className="hover:bg-transparent">
                     <TableCell colSpan={selectionMode ? 5 : 4} className="py-1">
                       <div className="border-t border-border/50" />
                     </TableCell>
                   </TableRow>
                 )}
-                {ungroupedCategories.map((category) => (
+                {filteredUngroupedCategories.map((category) => (
                   <CategoryRow
                     key={category.id}
                     category={category}
@@ -296,9 +364,23 @@ export function CategoryTable({
                     selectionMode={selectionMode}
                     isSelected={selectedIds.has(category.id)}
                     onToggleSelection={toggleSelection}
+                    showOrphanBadge={countsLoaded}
+                    isOrphan={countsLoaded && isOrphan(category.id)}
+                    transactionCount={getCount(category.id)}
                   />
                 ))}
               </>
+            )}
+
+            {/* Empty state when filtering */}
+            {showOrphansOnly && countsLoaded && filteredGroupedEntries.length === 0 && filteredUngroupedCategories.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={selectionMode ? 5 : 4} className="py-8 text-center text-muted-foreground">
+                  <Ghost className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                  <p>Aucune catégorie orpheline</p>
+                  <p className="text-xs">Toutes vos catégories ont au moins une transaction associée</p>
+                </TableCell>
+              </TableRow>
             )}
           </TableBody>
         </Table>
@@ -328,6 +410,9 @@ interface CategoryRowProps {
   selectionMode?: boolean;
   isSelected?: boolean;
   onToggleSelection?: (id: string) => void;
+  showOrphanBadge?: boolean;
+  isOrphan?: boolean;
+  transactionCount?: number;
 }
 
 function CategoryRow({ 
@@ -338,7 +423,10 @@ function CategoryRow({
   isLast = false,
   selectionMode = false,
   isSelected = false,
-  onToggleSelection
+  onToggleSelection,
+  showOrphanBadge = false,
+  isOrphan = false,
+  transactionCount = 0
 }: CategoryRowProps) {
   return (
     <TableRow className={cn(
@@ -371,7 +459,14 @@ function CategoryRow({
         </div>
       </TableCell>
       <TableCell className={cn("py-2 font-medium", isChild && "pl-4")}>
-        {category.name}
+        <div className="flex items-center gap-2">
+          <span>{category.name}</span>
+          {showOrphanBadge && isOrphan && (
+            <Badge variant="outline" className="text-xs px-1.5 py-0 h-5 text-muted-foreground border-dashed">
+              0 tx
+            </Badge>
+          )}
+        </div>
       </TableCell>
       <TableCell className="py-2 text-right text-muted-foreground">
         {(category.vat_rate * 100).toFixed(category.vat_rate * 100 % 1 === 0 ? 0 : 1)}%
@@ -435,6 +530,9 @@ interface GroupSectionProps {
   selectionMode: boolean;
   selectedIds: Set<string>;
   onToggleSelection: (id: string) => void;
+  showOrphanBadge?: boolean;
+  isOrphan?: (categoryId: string) => boolean;
+  getCount?: (categoryId: string) => number;
 }
 
 function GroupSection({ 
@@ -448,7 +546,10 @@ function GroupSection({
   onDelete,
   selectionMode,
   selectedIds,
-  onToggleSelection
+  onToggleSelection,
+  showOrphanBadge = false,
+  isOrphan,
+  getCount
 }: GroupSectionProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   
@@ -603,7 +704,14 @@ function GroupSection({
               </div>
             </TableCell>
             <TableCell className="py-2 font-medium text-foreground pl-4">
-              {category.name}
+              <div className="flex items-center gap-2">
+                <span>{category.name}</span>
+                {showOrphanBadge && isOrphan && isOrphan(category.id) && (
+                  <Badge variant="outline" className="text-xs px-1.5 py-0 h-5 text-muted-foreground border-dashed">
+                    0 tx
+                  </Badge>
+                )}
+              </div>
             </TableCell>
             <TableCell className="py-2 text-right text-muted-foreground">
               {(category.vat_rate * 100).toFixed(category.vat_rate * 100 % 1 === 0 ? 0 : 1)}%
