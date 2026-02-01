@@ -4,7 +4,6 @@ import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { logError } from '@/lib/logger';
 import { 
-  Wand2,
   Search,
   Loader2,
   Tag,
@@ -49,10 +48,9 @@ export function TransactionsView() {
   const [showCategoryDialog, setShowCategoryDialog] = useState(false);
   const [pendingTransactionId, setPendingTransactionId] = useState<string | null>(null);
   const [selectedTransactionIds, setSelectedTransactionIds] = useState<Set<string>>(new Set());
-  const [categorizing, setCategorizing] = useState(false);
   const [showBulkCategorizeDialog, setShowBulkCategorizeDialog] = useState(false);
   const [applyingRules, setApplyingRules] = useState(false);
-  
+
   const parentRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   const { currentCompany } = useCompany();
@@ -199,66 +197,6 @@ export function TransactionsView() {
       });
     }
   }, [selectedTransactionIds, bulkUpdateCategory, toast]);
-
-  const categorizeWithAI = useCallback(async () => {
-    const uncategorizedIds = transactions
-      .filter(t => !t.category_id)
-      .map(t => t.id);
-
-    if (uncategorizedIds.length === 0) {
-      toast({
-        title: 'Aucune transaction à catégoriser',
-        description: 'Toutes les transactions sont déjà catégorisées',
-      });
-      return;
-    }
-
-    setCategorizing(true);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session) {
-        toast({
-          title: 'Erreur',
-          description: 'Vous devez être connecté',
-          variant: 'destructive',
-        });
-        return;
-      }
-
-      const { data, error } = await supabase.functions.invoke('categorize-transaction', {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-        body: {
-          transactionIds: uncategorizedIds,
-          companyId: currentCompany?.id,
-        },
-      });
-
-      if (error) {
-        logError('AI categorization error:', error);
-        toast({
-          title: 'Erreur de catégorisation',
-          description: error.message || 'Une erreur est survenue',
-          variant: 'destructive',
-        });
-      } else {
-        toast({
-          title: 'Catégorisation IA terminée',
-          description: `${data.categorized}/${data.total} transactions catégorisées`,
-        });
-        refetchTransactions();
-      }
-    } catch (err) {
-      logError('AI error:', err);
-      toast({
-        title: 'Erreur',
-        description: 'Impossible de catégoriser les transactions',
-        variant: 'destructive',
-      });
-    } finally {
-      setCategorizing(false);
-    }
-  }, [transactions, currentCompany, toast, refetchTransactions]);
 
   const applyAutomationRules = useCallback(async () => {
     setApplyingRules(true);
@@ -410,15 +348,6 @@ export function TransactionsView() {
           >
             {applyingRules ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
             Appliquer les règles
-          </Button>
-          <Button 
-            onClick={categorizeWithAI} 
-            disabled={categorizing}
-            variant="outline"
-            className="gap-2"
-          >
-            {categorizing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
-            Catégoriser avec l'IA
           </Button>
         </div>
       </motion.div>
