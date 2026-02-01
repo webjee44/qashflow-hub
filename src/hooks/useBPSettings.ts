@@ -51,23 +51,24 @@ export function useBPSettings() {
   // Only company owners can auto-create settings
   const isCompanyOwner = currentCompany?.user_id === user?.id;
 
-  // Fetch settings
+  // Fetch settings - ALWAYS filter by company_id when available
   const { data: settings, isLoading, refetch } = useQuery({
     queryKey: ['bp_settings', currentCompany?.id],
     queryFn: async () => {
-      let query = supabase
-        .from('bp_settings')
-        .select('*');
-
-      if (currentCompany?.id) {
-        query = query.eq('company_id', currentCompany.id);
+      if (!currentCompany?.id) {
+        return null;
       }
-
-      const { data, error } = await query.maybeSingle();
+      
+      const { data, error } = await supabase
+        .from('bp_settings')
+        .select('*')
+        .eq('company_id', currentCompany.id)
+        .maybeSingle();
+        
       if (error) throw error;
       return data as BPSettings | null;
     },
-    enabled: !!user,
+    enabled: !!user && !!currentCompany?.id,
   });
 
   // Initialize default settings if none exist - ONLY for company owners
