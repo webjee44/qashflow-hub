@@ -351,9 +351,12 @@ export function BulkCategorizeDialog({
                           {recommendedCategories.slice(6).map(cat => (
                             <CommandItem
                               key={cat.id}
-                              value={cat.name}
-                              onSelect={() => handleSelectCategory(cat.id)}
-                              className="flex items-center gap-2"
+                              value={`${cat.name}-${cat.id}`}
+                              onSelect={() => {
+                                setSelectedCategoryId(cat.id);
+                                setOtherCategoryOpen(false);
+                              }}
+                              className="flex items-center gap-2 cursor-pointer"
                             >
                               <div 
                                 className="w-3 h-3 rounded-full shrink-0" 
@@ -372,9 +375,12 @@ export function BulkCategorizeDialog({
                           {otherCategories.map(cat => (
                             <CommandItem
                               key={cat.id}
-                              value={cat.name}
-                              onSelect={() => handleSelectCategory(cat.id)}
-                              className="flex items-center gap-2"
+                              value={`${cat.name}-${cat.id}`}
+                              onSelect={() => {
+                                setSelectedCategoryId(cat.id);
+                                setOtherCategoryOpen(false);
+                              }}
+                              className="flex items-center gap-2 cursor-pointer"
                             >
                               <div 
                                 className="w-3 h-3 rounded-full shrink-0" 
