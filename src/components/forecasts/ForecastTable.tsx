@@ -973,26 +973,22 @@ export function ForecastTable() {
             {/* Income Section */}
             <tr className="bg-success/5">
               <td colSpan={months.length + 1} className="p-2 font-semibold text-success border-b border-border">
-                📈 Encaissements (HT)
+                📈 Encaissements
               </td>
             </tr>
             {renderGroupedSection(incomeGroups, 'income', 0)}
             {renderUncategorizedRow('income')}
-            {renderTotalRow('Total Encaissements HT', 'income')}
-            {renderVatRow('TVA collectée', 'income')}
-            {renderTtcRow('Total Encaissements TTC', 'income')}
+            {renderTtcRow('Total Encaissements', 'income')}
 
             {/* Expense Section */}
             <tr className="bg-destructive/5">
               <td colSpan={months.length + 1} className="p-2 font-semibold text-destructive border-b border-border">
-                📉 Décaissements (HT)
+                📉 Décaissements
               </td>
             </tr>
             {renderGroupedSection(expenseGroups, 'expense', incomeCategories.length)}
             {renderUncategorizedRow('expense')}
-            {renderTotalRow('Total Décaissements HT', 'expense')}
-            {renderVatRow('TVA déductible', 'expense')}
-            {renderTtcRow('Total Décaissements TTC', 'expense')}
+            {renderTtcRow('Total Décaissements', 'expense')}
 
             {/* VAT to Pay Row */}
             {renderVatToPayRow()}
