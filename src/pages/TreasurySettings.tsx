@@ -232,6 +232,7 @@ export default function TreasurySettings() {
                     <CategoryTable 
                       groups={incomeGroups}
                       type="income"
+                      allCategories={categories}
                       onEdit={handleEdit}
                       onEditGroup={handleEditGroup}
                       onDelete={deleteCategory}
@@ -261,6 +262,7 @@ export default function TreasurySettings() {
                     <CategoryTable 
                       groups={expenseGroups}
                       type="expense"
+                      allCategories={categories}
                       onEdit={handleEdit}
                       onEditGroup={handleEditGroup}
                       onDelete={deleteCategory}

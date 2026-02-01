@@ -27,14 +27,16 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { BulkAssignBar } from './BulkAssignDialog';
+import { DeleteCategoryDialog } from './DeleteCategoryDialog';
 import { cn } from '@/lib/utils';
 
 interface CategoryTableProps {
   groups: CategoryGroup[];
   type: 'income' | 'expense';
+  allCategories: Category[];
   onEdit: (category: Category) => void;
   onEditGroup: (group: Category) => void;
-  onDelete: (id: string) => void;
+  onDelete: (id: string, reassignToId: string | null) => void;
   onDeleteGroup: (id: string, deleteChildren: boolean) => void;
   availableGroups: Category[];
   onBulkAssign: (categoryIds: string[], groupId: string) => void;
@@ -45,7 +47,8 @@ const COLLAPSED_KEY = 'category-collapsed-groups';
 
 export function CategoryTable({ 
   groups, 
-  type, 
+  type,
+  allCategories: allCategoriesFromProps,
   onEdit, 
   onEditGroup, 
   onDelete, 
@@ -329,6 +332,7 @@ export function CategoryTable({
                   key={group.group!.id}
                   group={group.group!}
                   children={group.children}
+                  allCategories={allCategoriesFromProps}
                   isCollapsed={isCollapsed}
                   onToggle={() => toggleGroup(group.group!.id)}
                   onEditGroup={onEditGroup}
@@ -359,6 +363,7 @@ export function CategoryTable({
                   <CategoryRow
                     key={category.id}
                     category={category}
+                    allCategories={allCategoriesFromProps}
                     onEdit={onEdit}
                     onDelete={onDelete}
                     selectionMode={selectionMode}
@@ -403,8 +408,9 @@ export function CategoryTable({
 
 interface CategoryRowProps {
   category: Category;
+  allCategories: Category[];
   onEdit: (category: Category) => void;
-  onDelete: (id: string) => void;
+  onDelete: (id: string, reassignToId: string | null) => void;
   isChild?: boolean;
   isLast?: boolean;
   selectionMode?: boolean;
@@ -416,7 +422,8 @@ interface CategoryRowProps {
 }
 
 function CategoryRow({ 
-  category, 
+  category,
+  allCategories,
   onEdit, 
   onDelete, 
   isChild = false, 
@@ -428,105 +435,103 @@ function CategoryRow({
   isOrphan = false,
   transactionCount = 0
 }: CategoryRowProps) {
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+
+  const handleDeleteConfirm = (reassignToId: string | null) => {
+    onDelete(category.id, reassignToId);
+    setDeleteDialogOpen(false);
+  };
+
   return (
-    <TableRow className={cn(
-      "group hover:bg-muted/30",
-      isSelected && "bg-primary/5"
-    )}>
-      {selectionMode && (
-        <TableCell className="py-2 w-[40px]">
-          <Checkbox
-            checked={isSelected}
-            onCheckedChange={() => onToggleSelection?.(category.id)}
-          />
+    <>
+      <TableRow className={cn(
+        "group hover:bg-muted/30",
+        isSelected && "bg-primary/5"
+      )}>
+        {selectionMode && (
+          <TableCell className="py-2 w-[40px]">
+            <Checkbox
+              checked={isSelected}
+              onCheckedChange={() => onToggleSelection?.(category.id)}
+            />
+          </TableCell>
+        )}
+        <TableCell className="py-2">
+          <div className={cn("flex items-center", isChild && "pl-6")}>
+            {isChild && (
+              <div className="relative mr-2">
+                <div className={cn(
+                  "absolute w-4 border-l-2 border-border",
+                  isLast ? "h-3 -top-1" : "h-full -top-4 bottom-0"
+                )} />
+                <div className="w-4 h-3 border-b-2 border-border rounded-bl-md" />
+              </div>
+            )}
+            <div 
+              className="w-6 h-6 rounded-md flex-shrink-0"
+              style={{ backgroundColor: category.color }}
+            />
+          </div>
         </TableCell>
-      )}
-      <TableCell className="py-2">
-        <div className={cn("flex items-center", isChild && "pl-6")}>
-          {isChild && (
-            <div className="relative mr-2">
-              <div className={cn(
-                "absolute w-4 border-l-2 border-border",
-                isLast ? "h-3 -top-1" : "h-full -top-4 bottom-0"
-              )} />
-              <div className="w-4 h-3 border-b-2 border-border rounded-bl-md" />
+        <TableCell className={cn("py-2 font-medium", isChild && "pl-4")}>
+          <div className="flex items-center gap-2">
+            <span>{category.name}</span>
+            {showOrphanBadge && isOrphan && (
+              <Badge variant="outline" className="text-xs px-1.5 py-0 h-5 text-muted-foreground border-dashed">
+                0 tx
+              </Badge>
+            )}
+          </div>
+        </TableCell>
+        <TableCell className="py-2 text-right text-muted-foreground">
+          {(category.vat_rate * 100).toFixed(category.vat_rate * 100 % 1 === 0 ? 0 : 1)}%
+        </TableCell>
+        <TableCell className="py-2">
+          {!selectionMode && (
+            <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={() => onEdit(category)}
+              >
+                <Edit3 className="w-3.5 h-3.5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 hover:bg-destructive/10 hover:text-destructive"
+                onClick={() => setDeleteDialogOpen(true)}
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </Button>
             </div>
           )}
-          <div 
-            className="w-6 h-6 rounded-md flex-shrink-0"
-            style={{ backgroundColor: category.color }}
-          />
-        </div>
-      </TableCell>
-      <TableCell className={cn("py-2 font-medium", isChild && "pl-4")}>
-        <div className="flex items-center gap-2">
-          <span>{category.name}</span>
-          {showOrphanBadge && isOrphan && (
-            <Badge variant="outline" className="text-xs px-1.5 py-0 h-5 text-muted-foreground border-dashed">
-              0 tx
-            </Badge>
-          )}
-        </div>
-      </TableCell>
-      <TableCell className="py-2 text-right text-muted-foreground">
-        {(category.vat_rate * 100).toFixed(category.vat_rate * 100 % 1 === 0 ? 0 : 1)}%
-      </TableCell>
-      <TableCell className="py-2">
-        {!selectionMode && (
-          <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              onClick={() => onEdit(category)}
-            >
-              <Edit3 className="w-3.5 h-3.5" />
-            </Button>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 hover:bg-destructive/10 hover:text-destructive"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Supprimer la catégorie ?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Cette action est irréversible. La catégorie "{category.name}" sera définitivement supprimée.
-                    Les transactions associées ne seront pas supprimées mais n'auront plus de catégorie.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Annuler</AlertDialogCancel>
-                  <AlertDialogAction 
-                    onClick={() => onDelete(category.id)}
-                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                  >
-                    Supprimer
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </div>
-        )}
-      </TableCell>
-    </TableRow>
+        </TableCell>
+      </TableRow>
+
+      <DeleteCategoryDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        category={category}
+        allCategories={allCategories}
+        transactionCount={transactionCount}
+        onConfirm={handleDeleteConfirm}
+      />
+    </>
   );
 }
 
 interface GroupSectionProps {
   group: Category;
   children: Category[];
+  allCategories: Category[];
   isCollapsed: boolean;
   onToggle: () => void;
   onEditGroup: (group: Category) => void;
   onDeleteGroup: (id: string, deleteChildren: boolean) => void;
   onEdit: (category: Category) => void;
-  onDelete: (id: string) => void;
+  onDelete: (id: string, reassignToId: string | null) => void;
   selectionMode: boolean;
   selectedIds: Set<string>;
   onToggleSelection: (id: string) => void;
@@ -538,6 +543,7 @@ interface GroupSectionProps {
 function GroupSection({ 
   group, 
   children, 
+  allCategories,
   isCollapsed, 
   onToggle, 
   onEditGroup, 
@@ -552,6 +558,7 @@ function GroupSection({
   getCount
 }: GroupSectionProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deletingCategory, setDeletingCategory] = useState<Category | null>(null);
   
   // Check if all children are selected
   const allChildrenSelected = children.length > 0 && children.every(c => selectedIds.has(c.id));
@@ -572,6 +579,19 @@ function GroupSection({
         }
       });
     }
+  };
+
+  const handleOpenDeleteDialog = (category: Category) => {
+    setDeletingCategory(category);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = (reassignToId: string | null) => {
+    if (deletingCategory) {
+      onDelete(deletingCategory.id, reassignToId);
+    }
+    setDeleteDialogOpen(false);
+    setDeletingCategory(null);
   };
 
   return (
@@ -727,40 +747,35 @@ function GroupSection({
                   >
                     <Edit3 className="w-3.5 h-3.5" />
                   </Button>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 hover:bg-destructive/10 hover:text-destructive"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Supprimer la catégorie ?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          Cette action est irréversible. La catégorie "{category.name}" sera définitivement supprimée.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Annuler</AlertDialogCancel>
-                        <AlertDialogAction 
-                          onClick={() => onDelete(category.id)}
-                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                        >
-                          Supprimer
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 hover:bg-destructive/10 hover:text-destructive"
+                    onClick={() => handleOpenDeleteDialog(category)}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
                 </div>
               )}
             </TableCell>
           </motion.tr>
         ))}
       </AnimatePresence>
+
+      {/* Delete Category Dialog */}
+      {deletingCategory && (
+        <DeleteCategoryDialog
+          open={deleteDialogOpen}
+          onOpenChange={(open) => {
+            setDeleteDialogOpen(open);
+            if (!open) setDeletingCategory(null);
+          }}
+          category={deletingCategory}
+          allCategories={allCategories}
+          transactionCount={getCount ? getCount(deletingCategory.id) : 0}
+          onConfirm={handleDeleteConfirm}
+        />
+      )}
     </>
   );
 }
