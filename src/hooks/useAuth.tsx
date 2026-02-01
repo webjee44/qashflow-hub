@@ -30,7 +30,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(currentSession?.user ?? null);
         setLoading(false);
         
-        // Handle specific events that require session refresh
+        // Handle specific events
         if (event === 'TOKEN_REFRESHED') {
           console.info('[Auth] Token refreshed successfully');
         }
@@ -50,6 +50,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         if (error) {
           console.error('[Auth] Error getting session:', error);
+          // Try to refresh the session if there's an error
+          const { data: refreshData } = await supabase.auth.refreshSession();
+          if (refreshData.session) {
+            setSession(refreshData.session);
+            setUser(refreshData.session.user);
+            console.info('[Auth] Session refreshed after error');
+          }
           setLoading(false);
           return;
         }
@@ -69,7 +76,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     initSession();
 
-    return () => subscription.unsubscribe();
+    // Refresh session periodically (every 10 minutes) to prevent expiration
+    const refreshInterval = setInterval(async () => {
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
+      if (currentSession) {
+        const { data: refreshData, error } = await supabase.auth.refreshSession();
+        if (!error && refreshData.session) {
+          console.info('[Auth] Proactive session refresh');
+        }
+      }
+    }, 10 * 60 * 1000); // 10 minutes
+
+    return () => {
+      subscription.unsubscribe();
+      clearInterval(refreshInterval);
+    };
   }, []);
 
   const signIn = async (email: string, password: string) => {
