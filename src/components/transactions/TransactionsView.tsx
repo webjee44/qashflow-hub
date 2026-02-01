@@ -34,6 +34,7 @@ import { SuggestAutomationDialog } from './SuggestAutomationDialog';
 import { CategoryDialog } from '@/components/categories/CategoryDialog';
 import { TransactionRow } from './TransactionRow';
 import { SortDropdown } from './SortDropdown';
+import { BulkCategorizeDialog } from './BulkCategorizeDialog';
 
 type Transaction = Tables<'transactions'>;
 
@@ -48,6 +49,7 @@ export function TransactionsView() {
   const [pendingTransactionId, setPendingTransactionId] = useState<string | null>(null);
   const [selectedTransactionIds, setSelectedTransactionIds] = useState<Set<string>>(new Set());
   const [categorizing, setCategorizing] = useState(false);
+  const [showBulkCategorizeDialog, setShowBulkCategorizeDialog] = useState(false);
   
   const parentRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
@@ -440,45 +442,15 @@ export function TransactionsView() {
           
           <div className="flex-1" />
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button size="sm" className="gap-2" disabled={isBulkUpdating}>
-                {isBulkUpdating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Tag className="w-4 h-4" />}
-                Catégoriser
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56 max-h-80 overflow-y-auto">
-              <DropdownMenuItem onClick={() => handleBulkUpdateCategory(null)} className="text-muted-foreground">
-                Retirer la catégorie
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              
-              {incomeCategories.length > 0 && (
-                <>
-                  <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Encaissements</div>
-                  {incomeCategories.map(cat => (
-                    <DropdownMenuItem key={cat.id} onClick={() => handleBulkUpdateCategory(cat.id)} className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: cat.color }} />
-                      {cat.name}
-                    </DropdownMenuItem>
-                  ))}
-                </>
-              )}
-              
-              {expenseCategories.length > 0 && (
-                <>
-                  {incomeCategories.length > 0 && <DropdownMenuSeparator />}
-                  <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Décaissements</div>
-                  {expenseCategories.map(cat => (
-                    <DropdownMenuItem key={cat.id} onClick={() => handleBulkUpdateCategory(cat.id)} className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: cat.color }} />
-                      {cat.name}
-                    </DropdownMenuItem>
-                  ))}
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <Button 
+            size="sm" 
+            className="gap-2" 
+            disabled={isBulkUpdating}
+            onClick={() => setShowBulkCategorizeDialog(true)}
+          >
+            {isBulkUpdating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Tag className="w-4 h-4" />}
+            Catégoriser
+          </Button>
 
           <Button variant="ghost" size="sm" onClick={clearSelection} className="gap-1">
             <X className="w-4 h-4" />
@@ -572,6 +544,18 @@ export function TransactionsView() {
           if (!open) setPendingTransactionId(null);
         }}
         onSave={handleCreateCategory}
+      />
+
+      <BulkCategorizeDialog
+        open={showBulkCategorizeDialog}
+        onOpenChange={setShowBulkCategorizeDialog}
+        selectedTransactions={filteredTransactions.filter(t => selectedTransactionIds.has(t.id))}
+        categories={categories}
+        onCategorize={async (categoryId) => {
+          await handleBulkUpdateCategory(categoryId);
+          setSelectedTransactionIds(new Set());
+        }}
+        isLoading={isBulkUpdating}
       />
     </div>
   );
