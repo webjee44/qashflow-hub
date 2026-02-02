@@ -70,6 +70,7 @@ const SuperAdminOrganizations = lazy(() => import("./pages/SuperAdmin/Organizati
 const SuperAdminOrganizationDetail = lazy(() => import("./pages/SuperAdmin/OrganizationDetail"));
 const SuperAdminSubscriptions = lazy(() => import("./pages/SuperAdmin/Subscriptions"));
 
+// Create QueryClient outside component to prevent HMR issues
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -80,6 +81,13 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+// Prevent HMR from breaking QueryClient
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    queryClient.clear();
+  });
+}
 
 const App = () => (
 <QueryClientProvider client={queryClient}>
