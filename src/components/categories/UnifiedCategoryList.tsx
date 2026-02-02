@@ -10,7 +10,8 @@ import {
   ChevronsDownUp,
   Ghost,
   Loader2,
-  GripVertical
+  GripVertical,
+  Folder
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -55,20 +56,27 @@ export function UnifiedCategoryList({
   onDeleteCategory,
   onMoveToGroup,
 }: UnifiedCategoryListProps) {
-  // Get all group IDs for this type
+  // Get all group IDs for this type (only groups with children for default collapse)
   const allGroupIds = useMemo(() => 
     groups.filter(g => g.group).map(g => g.group!.id),
     [groups]
   );
 
+  // Groups with children (for default collapsed state)
+  const groupsWithChildren = useMemo(() => 
+    groups.filter(g => g.group && g.children.length > 0).map(g => g.group!.id),
+    [groups]
+  );
+
   // Collapsed state with localStorage persistence
+  // Empty groups are expanded by default to show the placeholder
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => {
     try {
       const saved = localStorage.getItem(`${COLLAPSED_KEY}-${type}`);
       if (saved) return new Set(JSON.parse(saved));
-      return new Set(allGroupIds); // Default: all collapsed
+      return new Set(groupsWithChildren); // Default: only groups with children are collapsed
     } catch {
-      return new Set(allGroupIds);
+      return new Set(groupsWithChildren);
     }
   });
 
@@ -309,22 +317,24 @@ export function UnifiedCategoryList({
                   onDragLeave={handleDragLeave}
                   onDrop={(e) => handleDropOnGroup(e, group.id)}
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
                     {isCollapsed ? (
-                      <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                      <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                     ) : (
-                      <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                      <ChevronDown className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                     )}
                     <div
-                      className="w-3 h-3 rounded-full"
-                      style={{ backgroundColor: group.color }}
-                    />
+                      className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0"
+                      style={{ backgroundColor: `${group.color}20` }}
+                    >
+                      <Folder className="w-3.5 h-3.5" style={{ color: group.color }} />
+                    </div>
                     <span className="font-semibold text-sm uppercase tracking-wide text-foreground">
                       {group.name}
                     </span>
-                    <span className="text-xs text-muted-foreground">
-                      ({children.length})
-                    </span>
+                    <Badge variant="secondary" className="text-xs px-1.5 py-0 h-5">
+                      {children.length}
+                    </Badge>
                   </div>
                   
                   <div 
@@ -360,21 +370,33 @@ export function UnifiedCategoryList({
                       transition={{ duration: 0.15 }}
                       className="overflow-hidden"
                     >
-                      {children.map((category) => (
-                        <CategoryRow
-                          key={category.id}
-                          category={category}
-                          allCategories={allCategories}
-                          onEdit={onEditCategory}
-                          onDelete={onDeleteCategory}
-                          isDragging={draggedCategoryId === category.id}
-                          onDragStart={handleDragStart}
-                          onDragEnd={handleDragEnd}
-                          showOrphanBadge={countsLoaded}
-                          isOrphan={countsLoaded && isOrphan(category.id)}
-                          transactionCount={getCount(category.id)}
-                        />
-                      ))}
+                      {children.length === 0 ? (
+                        // Empty group placeholder
+                        <div 
+                          className={cn(
+                            "px-4 py-4 pl-12 text-sm text-muted-foreground italic border-l-2 border-dashed border-muted ml-4 my-2",
+                            isDropTarget && "border-primary text-primary"
+                          )}
+                        >
+                          Glissez des catégories ici
+                        </div>
+                      ) : (
+                        children.map((category) => (
+                          <CategoryRow
+                            key={category.id}
+                            category={category}
+                            allCategories={allCategories}
+                            onEdit={onEditCategory}
+                            onDelete={onDeleteCategory}
+                            isDragging={draggedCategoryId === category.id}
+                            onDragStart={handleDragStart}
+                            onDragEnd={handleDragEnd}
+                            showOrphanBadge={countsLoaded}
+                            isOrphan={countsLoaded && isOrphan(category.id)}
+                            transactionCount={getCount(category.id)}
+                          />
+                        ))
+                      )}
                     </motion.div>
                   )}
                 </AnimatePresence>
