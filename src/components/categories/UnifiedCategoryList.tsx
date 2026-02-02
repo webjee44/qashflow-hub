@@ -472,29 +472,18 @@ export function UnifiedCategoryList({
               Ce groupe contient {deleteGroupDialog.childrenCount} catégorie{deleteGroupDialog.childrenCount > 1 ? 's' : ''}.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+          <AlertDialogFooter>
             <AlertDialogCancel>Annuler</AlertDialogCancel>
-            <Button
-              variant="outline"
+            <AlertDialogAction
               onClick={() => {
                 if (deleteGroupDialog.group) {
                   onDeleteGroup(deleteGroupDialog.group.id, false);
                   setDeleteGroupDialog({ open: false, group: null, childrenCount: 0 });
                 }
               }}
-            >
-              Libérer les catégories
-            </Button>
-            <AlertDialogAction
-              onClick={() => {
-                if (deleteGroupDialog.group) {
-                  onDeleteGroup(deleteGroupDialog.group.id, true);
-                  setDeleteGroupDialog({ open: false, group: null, childrenCount: 0 });
-                }
-              }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Tout supprimer
+              Supprimer le groupe
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
