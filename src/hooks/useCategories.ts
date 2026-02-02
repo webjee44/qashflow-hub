@@ -254,6 +254,7 @@ export function useCategories() {
     const childrenByParent = new Map<string, Category[]>();
     const topLevelCats: Category[] = [];
 
+    // First pass: identify children
     typeCats.forEach(cat => {
       if (cat.parent_id) {
         const existing = childrenByParent.get(cat.parent_id) || [];
@@ -262,14 +263,23 @@ export function useCategories() {
       }
     });
 
+    // Second pass: separate groups from regular categories
+    // A category is a group if:
+    // - It has children, OR
+    // - It was created as a group (icon === 'Folder' and no parent_id)
     typeCats.forEach(cat => {
       if (!cat.parent_id) {
-        if (childrenByParent.has(cat.id)) {
+        const hasChildren = childrenByParent.has(cat.id);
+        const isGroupByIcon = cat.icon === 'Folder';
+        
+        if (hasChildren || isGroupByIcon) {
+          // This is a group (with or without children)
           groups.push({
             group: cat,
-            children: childrenByParent.get(cat.id)!.sort((a, b) => a.name.localeCompare(b.name))
+            children: childrenByParent.get(cat.id)?.sort((a, b) => a.name.localeCompare(b.name)) || []
           });
         } else {
+          // Regular ungrouped category
           topLevelCats.push(cat);
         }
       }
