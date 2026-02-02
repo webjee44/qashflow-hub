@@ -1,133 +1,89 @@
 
-# Plan : Intégration des Dettes Fournisseurs dans les Prévisions
+# Plan : Ajouter une barre de recherche sur la page Créances & Dettes
 
 ## Objectif
 
-Afficher les dettes fournisseurs (factures de type `payable`) dans le tableau de prévisions, en les répartissant sur les mois correspondants selon la règle suivante :
-- **Factures échues** (due_date < aujourd'hui) → placées à la fin du mois en cours
-- **Factures en attente** → placées sur leur mois d'échéance (due_date)
+Ajouter une barre de recherche permettant de filtrer les factures par nom de partenaire ou numéro de facture, afin de faciliter la navigation dans la liste des créances et dettes.
 
 ---
 
-## Architecture de la Solution
+## Modification du fichier `src/pages/Invoices.tsx`
+
+### 1. Ajouts
+
+- Importer l'icône `Search` depuis `lucide-react`
+- Importer le composant `Input` depuis `@/components/ui/input`
+- Ajouter un state `searchQuery` pour stocker la valeur de recherche
+- Intégrer la barre de recherche dans la zone des filtres
+
+### 2. Logique de filtrage
+
+La recherche s'appliquera sur :
+- `partner_name` : nom du partenaire (client ou fournisseur)
+- `invoice_number` : numéro de facture
+
+Recherche insensible à la casse (lowercase comparison).
+
+### 3. Position dans l'interface
 
 ```text
-+----------------+     +------------------+     +-------------------+
-|   invoices     | --> | useForecasts.ts  | --> | ForecastTable.tsx |
-|   (payable)    |     | + query factures |     | + ligne "Dettes   |
-|                |     | + getPayableFlow |     |   à payer"        |
-+----------------+     +------------------+     +-------------------+
+[Tabs: Toutes | Créances | Dettes]     [🔍 Rechercher...] [Filtre statut ▼]
 ```
 
----
+La barre de recherche sera placée entre les tabs et le filtre de statut, alignée à droite avec le filtre.
 
-## Modifications Fichier par Fichier
+### 4. Code à ajouter
 
-### 1. `src/hooks/useForecasts.ts`
-
-**Ajouts :**
-- Nouvelle query pour récupérer les factures `payable` de la table `invoices`
-- Helper `getPayableOutflow(month: Date): number` qui calcule le montant TTC des dettes à payer pour un mois donné
-
-**Logique de placement :**
+**Nouveau state :**
 ```typescript
-const getPayableOutflow = (month: Date): number => {
-  const today = startOfMonth(new Date());
-  const currentMonthEnd = endOfMonth(today);
-  const targetStart = startOfMonth(month);
-  const targetEnd = endOfMonth(month);
-  
-  return payableInvoices
-    .filter(inv => {
-      const dueDate = new Date(inv.due_date);
-      
-      // Facture échue → fin du mois en cours
-      if (dueDate < today) {
-        return targetStart <= currentMonthEnd && currentMonthEnd <= targetEnd;
-      }
-      
-      // Facture normale → mois de l'échéance
-      return dueDate >= targetStart && dueDate <= targetEnd;
-    })
-    .reduce((sum, inv) => sum + Number(inv.amount_ttc), 0);
-};
+const [searchQuery, setSearchQuery] = useState('');
 ```
 
-**Export additionnel :**
-- `payableInvoices` : liste brute des factures fournisseurs
-- `getPayableOutflow` : helper pour récupérer le montant par mois
-- `payablesLoading` : état de chargement
-
-### 2. `src/components/forecasts/ForecastTable.tsx`
-
-**Ajouts UI :**
-- Nouvelle ligne **"📤 Dettes à payer"** après la section Décaissements
-- Style distinctif : icône `ArrowUpRight`, fond rouge léger (`bg-destructive/10`)
-- Affichage du montant TTC prévu par mois (non éditable, lecture seule)
-
-**Position dans le tableau :**
-```text
-📈 Encaissements
-   ...
-   Total Encaissements TTC
-
-📉 Décaissements  
-   ...
-   Total Décaissements TTC
-
-📤 Dettes à payer (NOUVEAU)
-   → Montant des factures fournisseurs à régler ce mois
-
-💰 TVA à payer
-Solde Net TTC (mis à jour pour inclure les dettes)
+**Mise à jour du filtrage :**
+```typescript
+const filteredInvoices = useMemo(() => {
+  return invoices.filter(invoice => {
+    // Filtre par type
+    if (tabFilter !== 'all' && invoice.type !== tabFilter) return false;
+    // Filtre par statut
+    if (statusFilter !== 'all' && invoice.status !== statusFilter) return false;
+    // Filtre par recherche
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      const matchesPartner = invoice.partner_name.toLowerCase().includes(query);
+      const matchesNumber = invoice.invoice_number?.toLowerCase().includes(query);
+      if (!matchesPartner && !matchesNumber) return false;
+    }
+    return true;
+  });
+}, [invoices, tabFilter, statusFilter, searchQuery]);
 ```
 
-**Intégration dans le Solde Net :**
-- Modifier `renderNetRow()` pour soustraire `getPayableOutflow(month)` du solde net
-
-### 3. `src/components/forecasts/ForecastChart.tsx`
-
-**Mise à jour :**
-- Inclure les dettes fournisseurs dans les barres "Dépenses" (outflows)
-- Le solde cumulé reflétera la projection de trésorerie avec les dettes
+**UI - Barre de recherche :**
+```tsx
+<div className="relative">
+  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+  <Input
+    placeholder="Rechercher..."
+    value={searchQuery}
+    onChange={(e) => setSearchQuery(e.target.value)}
+    className="pl-9 w-[200px]"
+  />
+</div>
+```
 
 ---
 
-## Détails Techniques
-
-### Structure des données
-
-| Champ | Utilisation |
-|-------|-------------|
-| `due_date` | Détermine le mois de placement |
-| `amount_ttc` | Montant affiché (flux de trésorerie réel) |
-| `type = 'payable'` | Filtre pour les dettes fournisseurs |
-| `status = 'pending'` | Seules les factures non payées |
-
-### Règle de placement (rappel)
-
-| Situation | Mois de placement |
-|-----------|-------------------|
-| `due_date < today` (échue) | Fin du mois en cours |
-| `due_date >= today` | Mois de la `due_date` |
-
----
-
-## Fichiers à Modifier
+## Fichier à modifier
 
 | Fichier | Action |
 |---------|--------|
-| `src/hooks/useForecasts.ts` | Ajouter query invoices + helper getPayableOutflow |
-| `src/components/forecasts/ForecastTable.tsx` | Ajouter ligne dettes + modifier Solde Net |
-| `src/components/forecasts/ForecastChart.tsx` | Intégrer dettes dans les dépenses du graphique |
+| `src/pages/Invoices.tsx` | Ajouter state, input, et logique de filtrage |
 
 ---
 
-## Résultat Attendu
+## Résultat attendu
 
-Le prévisionnel affichera :
-1. Les flux manuels par catégorie (existant)
-2. **Les dettes fournisseurs à payer par mois (nouveau)**
-3. Un solde net intégrant les dettes prévues
-
-L'utilisateur verra clairement quand les dettes fournisseurs doivent être réglées et leur impact sur la trésorerie prévisionnelle.
+- Une barre de recherche avec icône loupe
+- Filtrage instantané sur le nom du partenaire et le numéro de facture
+- Combinable avec les filtres de type et de statut existants
