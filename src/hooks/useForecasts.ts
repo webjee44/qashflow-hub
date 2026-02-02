@@ -5,7 +5,7 @@ import { useCompany } from './useCompany';
 import { useCategories, Category } from './useCategories';
 import { toast } from 'sonner';
 import { addMonths, startOfMonth, format, differenceInMonths } from 'date-fns';
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 
 export interface CategoryForecast {
   id: string;
@@ -32,20 +32,33 @@ export function useForecasts() {
   const { categories } = useCategories();
   const queryClient = useQueryClient();
 
-  // Dynamic period state - persisted in localStorage
-  const today = startOfMonth(new Date());
+  // Dynamic period state - persisted in localStorage with stable reference
+  const todayRef = useRef(startOfMonth(new Date()));
+  const today = todayRef.current;
   
-  // Load initial values from localStorage
-  const getStoredValue = (key: string, defaultValue: number): number => {
+  // Load initial values from localStorage with stable keys
+  const MONTHS_BEFORE_KEY = 'forecast-monthsBefore';
+  const MONTHS_AFTER_KEY = 'forecast-monthsAfter';
+  
+  const getStoredValue = useCallback((key: string, defaultValue: number): number => {
     if (typeof window === 'undefined') return defaultValue;
-    const stored = localStorage.getItem(`forecast-${key}`);
+    const stored = localStorage.getItem(key);
     return stored !== null ? parseInt(stored, 10) : defaultValue;
-  };
+  }, []);
   
-  const [monthsBefore, setMonthsBefore] = useState(() => getStoredValue('monthsBefore', 0));
-  const [monthsAfter, setMonthsAfter] = useState(() => getStoredValue('monthsAfter', 5));
+  const [monthsBefore, setMonthsBeforeState] = useState(() => getStoredValue(MONTHS_BEFORE_KEY, 0));
+  const [monthsAfter, setMonthsAfterState] = useState(() => getStoredValue(MONTHS_AFTER_KEY, 5));
 
-  // Compute months array based on period
+  // Sync with localStorage when values change
+  useEffect(() => {
+    localStorage.setItem(MONTHS_BEFORE_KEY, String(monthsBefore));
+  }, [monthsBefore]);
+
+  useEffect(() => {
+    localStorage.setItem(MONTHS_AFTER_KEY, String(monthsAfter));
+  }, [monthsAfter]);
+
+  // Compute months array based on period - use stable today reference
   const months = useMemo(() => {
     const result: Date[] = [];
     const startMonth = addMonths(today, -monthsBefore);
@@ -54,30 +67,20 @@ export function useForecasts() {
       result.push(addMonths(startMonth, i));
     }
     return result;
-  }, [today.getTime(), monthsBefore, monthsAfter]);
+  }, [today, monthsBefore, monthsAfter]);
 
-  // Period control functions - persist to localStorage
+  // Period control functions
   const extendBefore = useCallback(() => {
-    setMonthsBefore(prev => {
-      const newValue = prev + 1;
-      localStorage.setItem('forecast-monthsBefore', String(newValue));
-      return newValue;
-    });
+    setMonthsBeforeState(prev => prev + 1);
   }, []);
 
   const extendAfter = useCallback(() => {
-    setMonthsAfter(prev => {
-      const newValue = prev + 1;
-      localStorage.setItem('forecast-monthsAfter', String(newValue));
-      return newValue;
-    });
+    setMonthsAfterState(prev => prev + 1);
   }, []);
 
   const resetPeriod = useCallback(() => {
-    setMonthsBefore(0);
-    setMonthsAfter(5);
-    localStorage.setItem('forecast-monthsBefore', '0');
-    localStorage.setItem('forecast-monthsAfter', '5');
+    setMonthsBeforeState(0);
+    setMonthsAfterState(5);
   }, []);
 
   // Compute query date range
