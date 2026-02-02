@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils';
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useCategories, CategoryGroup, Category } from '@/hooks/useCategories';
 import { useForecasts } from '@/hooks/useForecasts';
-import { format } from 'date-fns';
+import { format, startOfMonth, isBefore, isSameMonth } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Loader2, Copy, Check, TrendingUp, ChevronRight, ChevronDown, Link2, ChevronsUpDown, ChevronsDownUp, MoreHorizontal, Edit3, Trash2, Eye, EyeOff, ArrowUpRight } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -38,6 +38,19 @@ import { supabase } from '@/integrations/supabase/client';
 
 const COLLAPSED_GROUPS_KEY = 'forecast-collapsed-groups';
 const SHOW_ALL_CATEGORIES_KEY = 'forecast-show-all-categories';
+
+// Helper to determine the period type for a given month
+type MonthPeriodType = 'past' | 'current' | 'future';
+
+const getMonthPeriodType = (month: Date): MonthPeriodType => {
+  const today = new Date();
+  const currentMonthStart = startOfMonth(today);
+  const monthStart = startOfMonth(month);
+  
+  if (isBefore(monthStart, currentMonthStart)) return 'past';
+  if (isSameMonth(month, today)) return 'current';
+  return 'future';
+};
 
 export function ForecastTable() {
   const { categories, loading: categoriesLoading, getGroupedCategories, updateCategory, deleteCategory } = useCategories();
@@ -311,6 +324,12 @@ export function ForecastTable() {
       : getVatActual(type, months[monthIndex]);
   }, [getVatForecast, getVatActual, months]);
 
+  // Get colspan for a month based on its period type
+  const getMonthColspan = (month: Date): number => {
+    const periodType = getMonthPeriodType(month);
+    return periodType === 'current' ? 2 : 1;
+  };
+
   const renderCell = (category: Category, monthIndex: number, type: 'income' | 'expense') => {
     const categoryId = category.id;
     const cellKey = `${categoryId}-${monthIndex}`;
@@ -321,6 +340,8 @@ export function ForecastTable() {
     const showingCopyForThis = showCopyOption && pendingSave?.categoryId === categoryId && pendingSave?.monthIndex === monthIndex;
     const isIncomeCategory = pendingSave?.type === 'income';
     
+    const periodType = getMonthPeriodType(months[monthIndex]);
+    
     // Color logic: green if actual >= forecast (for income) or actual <= forecast (for expense)
     const hasActual = actual !== 0;
     const isPositive = type === 'income' 
@@ -329,13 +350,13 @@ export function ForecastTable() {
 
     const isBpSource = source === 'bp_import' || source === 'bp_synced';
 
-    return (
-      <td key={cellKey} className="p-0 border-r border-border">
-        <div className="flex">
-          {/* Actual - clickable to open detail */}
+    // Past: only show actual
+    if (periodType === 'past') {
+      return (
+        <td key={cellKey} className="p-0 border-r border-border min-w-[90px]">
           <div 
             className={cn(
-              "flex-1 px-3 py-2 text-right border-r border-border/50 bg-muted/20 transition-colors",
+              "px-3 py-2 text-right bg-muted/20 transition-colors",
               hasActual && (isPositive ? "text-success" : "text-destructive"),
               hasActual && "cursor-pointer hover:bg-muted/40"
             )}
@@ -343,11 +364,15 @@ export function ForecastTable() {
           >
             {hasActual ? formatValue(Math.abs(actual)) : '—'}
           </div>
-          
-          {/* Forecast (editable) */}
+        </td>
+      );
+    }
+
+    // Future: only show forecast (editable)
+    if (periodType === 'future') {
+      return (
+        <td key={cellKey} className="p-0 border-r border-border min-w-[90px]">
           <Popover open={showingCopyForThis} onOpenChange={(open) => {
-            // Only trigger single save when user clicks outside (dismisses)
-            // Don't interfere when isSaving is true (button was clicked)
             if (!open && showingCopyForThis && !isSaving) {
               handleSave(categoryId, monthIndex, 'single');
             }
@@ -355,12 +380,11 @@ export function ForecastTable() {
             <PopoverTrigger asChild>
               <div 
                 className={cn(
-                  "flex-1 px-3 py-2 text-right cursor-pointer hover:bg-primary/5 transition-colors relative",
+                  "px-3 py-2 text-right cursor-pointer hover:bg-primary/5 transition-colors relative",
                   isBpSource && "bg-primary/5"
                 )}
                 onClick={() => !isEditing && !showingCopyForThis && handleCellClick(categoryId, monthIndex, forecast)}
               >
-                {/* BP Source badge */}
                 {isBpSource && forecast > 0 && !isEditing && (
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -432,7 +456,138 @@ export function ForecastTable() {
                           inputMode="decimal"
                           value={growthPercent}
                           onChange={(e) => {
-                            // Allow digits, comma, and period
+                            const value = e.target.value.replace(/[^0-9,.-]/g, '');
+                            setGrowthPercent(value);
+                          }}
+                          className="w-16 h-7 text-sm text-center"
+                          autoFocus
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleSave(categoryId, monthIndex, 'growth');
+                            }
+                          }}
+                        />
+                        <span className="text-sm text-muted-foreground">% / mois</span>
+                        <Button
+                          size="sm"
+                          className="h-7 px-2"
+                          onClick={() => handleSave(categoryId, monthIndex, 'growth')}
+                        >
+                          OK
+                        </Button>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </PopoverContent>
+          </Popover>
+        </td>
+      );
+    }
+
+    // Current: show both actual + forecast
+    return (
+      <td key={cellKey} className="p-0 border-r border-border min-w-[160px]">
+        <div className="flex">
+          {/* Actual - clickable to open detail */}
+          <div 
+            className={cn(
+              "flex-1 px-3 py-2 text-right border-r border-border/50 bg-muted/20 transition-colors",
+              hasActual && (isPositive ? "text-success" : "text-destructive"),
+              hasActual && "cursor-pointer hover:bg-muted/40"
+            )}
+            onClick={() => hasActual && openTransactionDetail(category, monthIndex)}
+          >
+            {hasActual ? formatValue(Math.abs(actual)) : '—'}
+          </div>
+          
+          {/* Forecast (editable) */}
+          <Popover open={showingCopyForThis} onOpenChange={(open) => {
+            if (!open && showingCopyForThis && !isSaving) {
+              handleSave(categoryId, monthIndex, 'single');
+            }
+          }}>
+            <PopoverTrigger asChild>
+              <div 
+                className={cn(
+                  "flex-1 px-3 py-2 text-right cursor-pointer hover:bg-primary/5 transition-colors relative",
+                  isBpSource && "bg-primary/5"
+                )}
+                onClick={() => !isEditing && !showingCopyForThis && handleCellClick(categoryId, monthIndex, forecast)}
+              >
+                {isBpSource && forecast > 0 && !isEditing && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Link2 className="w-3 h-3 text-primary absolute top-1 left-1 opacity-60" />
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="text-xs">
+                      {source === 'bp_synced' ? 'Synchronisé avec Prévisions' : 'Importé depuis Prévisions'}
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+                {isEditing ? (
+                  <input
+                    ref={inputRef}
+                    type="number"
+                    value={editValue}
+                    onChange={(e) => setEditValue(e.target.value)}
+                    onBlur={() => handleInputBlur(categoryId, monthIndex, type)}
+                    onKeyDown={(e) => handleKeyDown(e, categoryId, monthIndex, type)}
+                    className="w-full bg-background border border-primary rounded px-2 py-0.5 text-right text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                ) : (
+                  <span className={cn(
+                    "text-muted-foreground",
+                    forecast > 0 && "text-foreground"
+                  )}>
+                    {forecast > 0 ? formatValue(forecast) : '—'}
+                  </span>
+                )}
+              </div>
+            </PopoverTrigger>
+            <PopoverContent className="w-64 p-2" side="bottom" align="end">
+              <div className="flex flex-col gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="justify-start gap-2"
+                  onClick={() => handleSave(categoryId, monthIndex, 'single')}
+                >
+                  <Check className="w-4 h-4" />
+                  Ce mois uniquement
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="justify-start gap-2 text-primary"
+                  onClick={() => handleSave(categoryId, monthIndex, 'copy')}
+                >
+                  <Copy className="w-4 h-4" />
+                  Copier sur les mois suivants
+                </Button>
+                {isIncomeCategory && (
+                  <>
+                    {!showGrowthInput ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="justify-start gap-2 text-success"
+                        onClick={() => setShowGrowthInput(true)}
+                      >
+                        <TrendingUp className="w-4 h-4" />
+                        Copier + augmenter par mois
+                      </Button>
+                    ) : (
+                      <div className="flex items-center gap-2 px-2 py-1.5">
+                        <TrendingUp className="w-4 h-4 text-success flex-shrink-0" />
+                        <span className="text-sm text-muted-foreground">+</span>
+                        <Input
+                          type="text"
+                          inputMode="decimal"
+                          value={growthPercent}
+                          onChange={(e) => {
                             const value = e.target.value.replace(/[^0-9,.-]/g, '');
                             setGrowthPercent(value);
                           }}
@@ -512,12 +667,34 @@ export function ForecastTable() {
             </span>
           </div>
         </td>
-        {months.map((_, monthIndex) => {
+        {months.map((month, monthIndex) => {
           const forecastTotal = getGroupTotal(group, monthIndex, 'forecast');
           const actualTotal = getGroupTotal(group, monthIndex, 'actual');
+          const periodType = getMonthPeriodType(month);
           
+          if (periodType === 'past') {
+            return (
+              <td key={monthIndex} className="p-0 border-r border-border bg-muted/30 min-w-[90px]">
+                <div className={cn("px-3 py-2 text-right font-semibold", textClass)}>
+                  {actualTotal > 0 ? formatValue(actualTotal) : '—'}
+                </div>
+              </td>
+            );
+          }
+          
+          if (periodType === 'future') {
+            return (
+              <td key={monthIndex} className="p-0 border-r border-border bg-muted/30 min-w-[90px]">
+                <div className={cn("px-3 py-2 text-right font-semibold", textClass)}>
+                  {forecastTotal > 0 ? formatValue(forecastTotal) : '—'}
+                </div>
+              </td>
+            );
+          }
+          
+          // Current month: both
           return (
-            <td key={monthIndex} className="p-0 border-r border-border bg-muted/30">
+            <td key={monthIndex} className="p-0 border-r border-border bg-muted/30 min-w-[160px]">
               <div className="flex">
                 <div className={cn("flex-1 px-3 py-2 text-right border-r border-border/50 font-semibold", textClass)}>
                   {actualTotal > 0 ? formatValue(actualTotal) : '—'}
@@ -677,12 +854,33 @@ export function ForecastTable() {
         <td className="p-3 sticky left-0 z-10 bg-inherit border-r border-border">
           {label}
         </td>
-        {months.map((_, monthIndex) => {
+        {months.map((month, monthIndex) => {
           const forecastTotal = getMonthTotal(type, monthIndex, 'forecast');
           const actualTotal = getMonthTotal(type, monthIndex, 'actual');
+          const periodType = getMonthPeriodType(month);
+          
+          if (periodType === 'past') {
+            return (
+              <td key={monthIndex} className="p-0 border-r border-border min-w-[90px]">
+                <div className={cn("px-3 py-2 text-right", textClass)}>
+                  {actualTotal > 0 ? formatValue(actualTotal) : '—'}
+                </div>
+              </td>
+            );
+          }
+          
+          if (periodType === 'future') {
+            return (
+              <td key={monthIndex} className="p-0 border-r border-border min-w-[90px]">
+                <div className={cn("px-3 py-2 text-right", textClass)}>
+                  {forecastTotal > 0 ? formatValue(forecastTotal) : '—'}
+                </div>
+              </td>
+            );
+          }
           
           return (
-            <td key={monthIndex} className="p-0 border-r border-border">
+            <td key={monthIndex} className="p-0 border-r border-border min-w-[160px]">
               <div className="flex">
                 <div className={cn("flex-1 px-3 py-2 text-right border-r border-border/50", textClass)}>
                   {actualTotal > 0 ? formatValue(actualTotal) : '—'}
@@ -706,12 +904,33 @@ export function ForecastTable() {
         <td className="p-2 pl-6 sticky left-0 z-10 bg-muted/30 border-r border-border italic">
           {label}
         </td>
-        {months.map((_, monthIndex) => {
+        {months.map((month, monthIndex) => {
           const forecastVat = getMonthVat(type, monthIndex, 'forecast');
           const actualVat = getMonthVat(type, monthIndex, 'actual');
+          const periodType = getMonthPeriodType(month);
+          
+          if (periodType === 'past') {
+            return (
+              <td key={monthIndex} className="p-0 border-r border-border min-w-[90px]">
+                <div className={cn("px-3 py-1.5 text-right", textClass)}>
+                  {actualVat > 0 ? formatValue(actualVat) : '—'}
+                </div>
+              </td>
+            );
+          }
+          
+          if (periodType === 'future') {
+            return (
+              <td key={monthIndex} className="p-0 border-r border-border min-w-[90px]">
+                <div className={cn("px-3 py-1.5 text-right", textClass)}>
+                  {forecastVat > 0 ? formatValue(forecastVat) : '—'}
+                </div>
+              </td>
+            );
+          }
           
           return (
-            <td key={monthIndex} className="p-0 border-r border-border">
+            <td key={monthIndex} className="p-0 border-r border-border min-w-[160px]">
               <div className="flex">
                 <div className={cn("flex-1 px-3 py-1.5 text-right border-r border-border/50", textClass)}>
                   {actualVat > 0 ? formatValue(actualVat) : '—'}
@@ -735,7 +954,7 @@ export function ForecastTable() {
         <td className={cn("p-3 sticky left-0 z-10 bg-muted/60 border-r border-border", textClass)}>
           {label}
         </td>
-        {months.map((_, monthIndex) => {
+        {months.map((month, monthIndex) => {
           const forecastHt = getMonthTotal(type, monthIndex, 'forecast');
           const actualHt = getMonthTotal(type, monthIndex, 'actual');
           const forecastVat = getMonthVat(type, monthIndex, 'forecast');
@@ -743,9 +962,30 @@ export function ForecastTable() {
           
           const forecastTtc = forecastHt + forecastVat;
           const actualTtc = actualHt + actualVat;
+          const periodType = getMonthPeriodType(month);
+          
+          if (periodType === 'past') {
+            return (
+              <td key={monthIndex} className="p-0 border-r border-border min-w-[90px]">
+                <div className={cn("px-3 py-2 text-right", textClass)}>
+                  {actualTtc > 0 ? formatValue(actualTtc) : '—'}
+                </div>
+              </td>
+            );
+          }
+          
+          if (periodType === 'future') {
+            return (
+              <td key={monthIndex} className="p-0 border-r border-border min-w-[90px]">
+                <div className={cn("px-3 py-2 text-right", textClass)}>
+                  {forecastTtc > 0 ? formatValue(forecastTtc) : '—'}
+                </div>
+              </td>
+            );
+          }
           
           return (
-            <td key={monthIndex} className="p-0 border-r border-border">
+            <td key={monthIndex} className="p-0 border-r border-border min-w-[160px]">
               <div className="flex">
                 <div className={cn("flex-1 px-3 py-2 text-right border-r border-border/50", textClass)}>
                   {actualTtc > 0 ? formatValue(actualTtc) : '—'}
@@ -762,7 +1002,6 @@ export function ForecastTable() {
   };
 
   const renderUncategorizedRow = (type: 'income' | 'expense') => {
-    const textClass = type === 'income' ? 'text-success' : 'text-destructive';
     const label = type === 'income' ? '⚠️ Non catégorisés (encaissements)' : '⚠️ Non catégorisés (décaissements)';
     
     // Check if there are any uncategorized transactions for this type
@@ -778,9 +1017,34 @@ export function ForecastTable() {
         </td>
         {months.map((month, monthIndex) => {
           const amount = getUncategorized(type, month);
+          const periodType = getMonthPeriodType(month);
+          
+          // Uncategorized only shows actual (no forecast)
+          if (periodType === 'future') {
+            return (
+              <td key={monthIndex} className="p-0 border-r border-border min-w-[90px]">
+                <div className="px-3 py-2 text-right text-muted-foreground">
+                  —
+                </div>
+              </td>
+            );
+          }
+          
+          if (periodType === 'past') {
+            return (
+              <td key={monthIndex} className="p-0 border-r border-border min-w-[90px]">
+                <div className={cn(
+                  "px-3 py-2 text-right font-medium",
+                  amount > 0 ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground"
+                )}>
+                  {amount > 0 ? formatValue(amount) : '—'}
+                </div>
+              </td>
+            );
+          }
           
           return (
-            <td key={monthIndex} className="p-0 border-r border-border">
+            <td key={monthIndex} className="p-0 border-r border-border min-w-[160px]">
               <div className="flex">
                 <div className={cn(
                   "flex-1 px-3 py-2 text-right border-r border-border/50 font-medium",
@@ -805,7 +1069,7 @@ export function ForecastTable() {
         <td className="p-3 sticky left-0 z-10 bg-amber-500/10 border-r border-border text-amber-700 dark:text-amber-400">
           💰 TVA à payer
         </td>
-        {months.map((_, monthIndex) => {
+        {months.map((month, monthIndex) => {
           const incomeVatForecast = getMonthVat('income', monthIndex, 'forecast');
           const expenseVatForecast = getMonthVat('expense', monthIndex, 'forecast');
           const incomeVatActual = getMonthVat('income', monthIndex, 'actual');
@@ -816,9 +1080,36 @@ export function ForecastTable() {
           
           const hasActual = incomeVatActual > 0 || expenseVatActual > 0;
           const hasForecast = incomeVatForecast > 0 || expenseVatForecast > 0;
+          const periodType = getMonthPeriodType(month);
+          
+          if (periodType === 'past') {
+            return (
+              <td key={monthIndex} className="p-0 border-r border-border min-w-[90px]">
+                <div className={cn(
+                  "px-3 py-2 text-right",
+                  vatToPayActual >= 0 ? "text-amber-700 dark:text-amber-400" : "text-success"
+                )}>
+                  {hasActual ? formatValue(vatToPayActual) : '—'}
+                </div>
+              </td>
+            );
+          }
+          
+          if (periodType === 'future') {
+            return (
+              <td key={monthIndex} className="p-0 border-r border-border min-w-[90px]">
+                <div className={cn(
+                  "px-3 py-2 text-right",
+                  vatToPayForecast >= 0 ? "text-amber-700 dark:text-amber-400" : "text-success"
+                )}>
+                  {hasForecast ? formatValue(vatToPayForecast) : '—'}
+                </div>
+              </td>
+            );
+          }
           
           return (
-            <td key={monthIndex} className="p-0 border-r border-border">
+            <td key={monthIndex} className="p-0 border-r border-border min-w-[160px]">
               <div className="flex">
                 <div className={cn(
                   "flex-1 px-3 py-2 text-right border-r border-border/50",
@@ -853,15 +1144,38 @@ export function ForecastTable() {
         {months.map((month, monthIndex) => {
           const payableAmount = getPayableOutflow(month);
           const hasAmount = payableAmount > 0;
+          const periodType = getMonthPeriodType(month);
+          
+          // Payables only show forecast, not actual
+          if (periodType === 'past') {
+            return (
+              <td key={monthIndex} className="p-0 border-r border-border min-w-[90px]">
+                <div className="px-3 py-2 text-right text-muted-foreground">
+                  —
+                </div>
+              </td>
+            );
+          }
+          
+          if (periodType === 'future') {
+            return (
+              <td key={monthIndex} className="p-0 border-r border-border min-w-[90px]">
+                <div className={cn(
+                  "px-3 py-2 text-right",
+                  hasAmount ? "text-destructive font-medium" : "text-muted-foreground"
+                )}>
+                  {hasAmount ? formatValue(payableAmount) : '—'}
+                </div>
+              </td>
+            );
+          }
           
           return (
-            <td key={monthIndex} className="p-0 border-r border-border">
+            <td key={monthIndex} className="p-0 border-r border-border min-w-[160px]">
               <div className="flex">
-                {/* Actual column - empty for payables (forecast only) */}
                 <div className="flex-1 px-3 py-2 text-right border-r border-border/50 text-muted-foreground">
                   —
                 </div>
-                {/* Forecast column */}
                 <div className={cn(
                   "flex-1 px-3 py-2 text-right",
                   hasAmount ? "text-destructive font-medium" : "text-muted-foreground"
@@ -906,9 +1220,36 @@ export function ForecastTable() {
           
           const hasActual = incomeHt > 0 || expenseHt > 0;
           const hasForecast = incomeForecastHt > 0 || expenseForecastHt > 0 || payableAmount > 0;
+          const periodType = getMonthPeriodType(month);
+          
+          if (periodType === 'past') {
+            return (
+              <td key={monthIndex} className="p-0 border-r border-border min-w-[90px]">
+                <div className={cn(
+                  "px-3 py-2 text-right font-bold",
+                  netActual >= 0 ? "text-success" : "text-destructive"
+                )}>
+                  {hasActual ? formatValue(netActual) : '—'}
+                </div>
+              </td>
+            );
+          }
+          
+          if (periodType === 'future') {
+            return (
+              <td key={monthIndex} className="p-0 border-r border-border min-w-[90px]">
+                <div className={cn(
+                  "px-3 py-2 text-right font-bold",
+                  netForecast >= 0 ? "text-primary" : "text-destructive"
+                )}>
+                  {hasForecast ? formatValue(netForecast) : '—'}
+                </div>
+              </td>
+            );
+          }
           
           return (
-            <td key={monthIndex} className="p-0 border-r border-border">
+            <td key={monthIndex} className="p-0 border-r border-border min-w-[160px]">
               <div className="flex">
                 <div className={cn(
                   "flex-1 px-3 py-2 text-right border-r border-border/50 font-bold",
@@ -1050,21 +1391,53 @@ export function ForecastTable() {
               <th className="text-left p-3 font-semibold text-foreground sticky left-0 z-10 bg-muted/30 border-r border-border min-w-[200px]">
                 Catégorie
               </th>
-              {months.map((month, index) => (
-                <th key={index} className="p-0 border-r border-border min-w-[160px]">
-                  <div className="text-center p-2 border-b border-border/50 font-semibold text-foreground capitalize">
-                    {formatMonth(month)}
-                  </div>
-                  <div className="flex text-xs">
-                    <div className="flex-1 px-3 py-1.5 text-center border-r border-border/50 text-muted-foreground font-medium">
-                      Réel
+              {months.map((month, index) => {
+                const periodType = getMonthPeriodType(month);
+                const minWidth = periodType === 'current' ? 'min-w-[160px]' : 'min-w-[90px]';
+                
+                if (periodType === 'past') {
+                  return (
+                    <th key={index} className={cn("p-0 border-r border-border", minWidth)}>
+                      <div className="text-center p-2 border-b border-border/50 font-semibold text-foreground capitalize">
+                        {formatMonth(month)}
+                      </div>
+                      <div className="px-3 py-1.5 text-center text-xs text-muted-foreground font-medium">
+                        Réel
+                      </div>
+                    </th>
+                  );
+                }
+                
+                if (periodType === 'future') {
+                  return (
+                    <th key={index} className={cn("p-0 border-r border-border", minWidth)}>
+                      <div className="text-center p-2 border-b border-border/50 font-semibold text-foreground capitalize">
+                        {formatMonth(month)}
+                      </div>
+                      <div className="px-3 py-1.5 text-center text-xs text-muted-foreground font-medium">
+                        Prévu
+                      </div>
+                    </th>
+                  );
+                }
+                
+                // Current month: both columns
+                return (
+                  <th key={index} className={cn("p-0 border-r border-border", minWidth)}>
+                    <div className="text-center p-2 border-b border-border/50 font-semibold text-foreground capitalize bg-primary/5">
+                      {formatMonth(month)}
                     </div>
-                    <div className="flex-1 px-3 py-1.5 text-center text-muted-foreground font-medium">
-                      Prévu
+                    <div className="flex text-xs">
+                      <div className="flex-1 px-3 py-1.5 text-center border-r border-border/50 text-muted-foreground font-medium">
+                        Réel
+                      </div>
+                      <div className="flex-1 px-3 py-1.5 text-center text-muted-foreground font-medium">
+                        Prévu
+                      </div>
                     </div>
-                  </div>
-                </th>
-              ))}
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody>
