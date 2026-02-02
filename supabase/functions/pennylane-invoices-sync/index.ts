@@ -117,8 +117,35 @@ Deno.serve(async (req) => {
       result
     );
 
-    // Process customer invoices (receivables)
-    for (const inv of customerInvoices) {
+    // Filter out paid invoices - we only want pending ones
+    const pendingCustomerInvoices = customerInvoices.filter(inv => !inv.paid);
+    const pendingSupplierInvoices = supplierInvoices.filter(inv => !inv.paid);
+
+    console.log(`[pennylane-invoices-sync] Filtered: ${customerInvoices.length} -> ${pendingCustomerInvoices.length} customer invoices (excluding paid)`);
+    console.log(`[pennylane-invoices-sync] Filtered: ${supplierInvoices.length} -> ${pendingSupplierInvoices.length} supplier invoices (excluding paid)`);
+
+    // Delete any existing invoices that are now paid (cleanup)
+    const paidCustomerIds = customerInvoices.filter(inv => inv.paid).map(inv => inv.id);
+    const paidSupplierIds = supplierInvoices.filter(inv => inv.paid).map(inv => inv.id);
+    
+    if (paidCustomerIds.length > 0 || paidSupplierIds.length > 0) {
+      const allPaidIds = [...paidCustomerIds, ...paidSupplierIds];
+      const { error: deleteError } = await supabase
+        .from("invoices")
+        .delete()
+        .eq("company_id", company_id)
+        .eq("source", "pennylane")
+        .in("external_id", allPaidIds);
+      
+      if (deleteError) {
+        console.error("[pennylane-invoices-sync] Error cleaning up paid invoices:", deleteError);
+      } else {
+        console.log(`[pennylane-invoices-sync] Cleaned up ${allPaidIds.length} paid invoices`);
+      }
+    }
+
+    // Process customer invoices (receivables) - only pending
+    for (const inv of pendingCustomerInvoices) {
       await upsertInvoice(supabase, {
         user_id: user.id,
         company_id,
@@ -130,15 +157,15 @@ Deno.serve(async (req) => {
         amount_ht: inv.amount || 0,
         amount_ttc: inv.currency_amount || inv.amount || 0,
         vat_amount: (inv.currency_amount || inv.amount || 0) - (inv.amount || 0),
-        status: inv.paid ? "paid" : "pending",
-        paid_at: inv.paid ? inv.date : null,
+        status: "pending",
+        paid_at: null,
         source: "pennylane",
         external_id: inv.id,
       }, result);
     }
 
-    // Process supplier invoices (payables)
-    for (const inv of supplierInvoices) {
+    // Process supplier invoices (payables) - only pending
+    for (const inv of pendingSupplierInvoices) {
       await upsertInvoice(supabase, {
         user_id: user.id,
         company_id,
@@ -150,8 +177,8 @@ Deno.serve(async (req) => {
         amount_ht: inv.amount || 0,
         amount_ttc: inv.currency_amount || inv.amount || 0,
         vat_amount: (inv.currency_amount || inv.amount || 0) - (inv.amount || 0),
-        status: inv.paid ? "paid" : "pending",
-        paid_at: inv.paid ? inv.date : null,
+        status: "pending",
+        paid_at: null,
         source: "pennylane",
         external_id: inv.id,
       }, result);
