@@ -818,18 +818,18 @@ export function ForecastTable() {
         ? group.children 
         : group.children.filter(cat => hasAnyAmount(cat.id));
       
-      // Don't render group if no visible children
-      if (visibleChildren.length === 0 && group.group) return null;
+      // Skip ungrouped section if empty
+      if (visibleChildren.length === 0 && !group.group) return null;
       
       const elements = [];
       
-      // Render group header if it exists and has visible children
-      if (group.group && visibleChildren.length > 0) {
+      // Always render group header if it's a proper group (even if empty)
+      if (group.group) {
         elements.push(renderGroupRow({ ...group, children: visibleChildren }, type));
       }
       
       // Render children if not collapsed (or if no group header)
-      if (!isCollapsed) {
+      if (!isCollapsed && visibleChildren.length > 0) {
         elements.push(
           <AnimatePresence key={`children-${groupId}`}>
             {visibleChildren.map((category) => {
