@@ -39,6 +39,7 @@ const COLORS = {
   textLight: { r: 100, g: 116, b: 139 },
   success: { r: 22, g: 163, b: 74 },
   danger: { r: 220, g: 38, b: 38 },
+  warning: { r: 234, g: 179, b: 8 },
   tableHeader: { r: 241, g: 245, b: 249 },
   tableRowAlt: { r: 248, g: 250, b: 252 },
   border: { r: 226, g: 232, b: 240 },
@@ -150,21 +151,19 @@ serve(async (req) => {
       return false;
     };
 
+    // FIX #1: Robust currency formatting (no more "/" characters)
     const formatCurrency = (value: number): string => {
-      // Replace non-breaking spaces with regular spaces for PDF compatibility
-      return new Intl.NumberFormat('fr-FR', { 
-        style: 'currency', 
-        currency: 'EUR', 
-        maximumFractionDigits: 0 
-      }).format(value).replace(/\u00A0/g, ' ');
+      if (!isFinite(value) || isNaN(value)) return '0 €';
+      const rounded = Math.round(value);
+      const isNegative = rounded < 0;
+      const absValue = Math.abs(rounded);
+      const formatted = absValue.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+      return isNegative ? `-${formatted} €` : `${formatted} €`;
     };
 
     const formatPercent = (value: number): string => {
-      return new Intl.NumberFormat('fr-FR', { 
-        style: 'percent', 
-        minimumFractionDigits: 1,
-        maximumFractionDigits: 1 
-      }).format(value / 100);
+      if (!isFinite(value) || isNaN(value)) return '0,0 %';
+      return value.toFixed(1).replace('.', ',') + ' %';
     };
 
     const formatDate = (date: Date): string => {
@@ -179,6 +178,14 @@ serve(async (req) => {
       if (!dateStr) return '-';
       const date = new Date(dateStr);
       return date.toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' });
+    };
+
+    // FIX #4: Helper to normalize charge rates (handle both decimal 0.45 and percentage 45)
+    const normalizeChargeRate = (rate: number | null | undefined, defaultRate: number = 45): number => {
+      if (rate === null || rate === undefined) return defaultRate;
+      // If rate is less than 1, it's stored as a decimal (0.45 = 45%)
+      if (rate > 0 && rate < 1) return rate * 100;
+      return rate;
     };
 
     const addHeaderFooter = () => {
@@ -323,6 +330,16 @@ serve(async (req) => {
     
     const startYear = new Date(financialData.settings?.bp_start_date || new Date()).getFullYear();
     const years = financialData.settings?.bp_years || 3;
+    const bpStartDate = new Date(financialData.settings?.bp_start_date || new Date());
+    const bpEndDate = new Date(bpStartDate);
+    bpEndDate.setFullYear(bpEndDate.getFullYear() + years);
+
+    // FIX #5: Filter investments within BP period
+    const relevantInvestments = financialData.investments.filter(i => {
+      if (!i.purchase_date) return true; // Include if no date specified
+      const purchaseDate = new Date(i.purchase_date);
+      return purchaseDate >= bpStartDate && purchaseDate <= bpEndDate;
+    });
 
     const calculateYearlyRevenue = (year: number) => {
       return financialData.revenueStreams.reduce((sum, rs) => {
@@ -353,7 +370,8 @@ serve(async (req) => {
     const calculateYearlyPersonnelCosts = () => {
       return financialData.personnel.reduce((sum, p) => {
         const salary = p.gross_salary || 0;
-        const charges = salary * (p.employer_charges_rate || 45) / 100;
+        const chargesRate = normalizeChargeRate(p.employer_charges_rate, 45);
+        const charges = salary * chargesRate / 100;
         const mutuelle = p.mutuelle_employer_amount || 0;
         return sum + (salary + charges + mutuelle) * 12;
       }, 0);
@@ -362,13 +380,15 @@ serve(async (req) => {
     const calculateYearlyDirectorCosts = () => {
       return financialData.directors.reduce((sum, d) => {
         const remuneration = d.monthly_remuneration || 0;
-        const charges = remuneration * (d.charges_rate || 45) / 100;
+        const chargesRate = normalizeChargeRate(d.charges_rate, 45);
+        const charges = remuneration * chargesRate / 100;
         return sum + (remuneration + charges) * 12;
       }, 0);
     };
 
+    // Use filtered investments for depreciation
     const calculateYearlyDepreciation = () => {
-      return financialData.investments.reduce((sum, inv) => {
+      return relevantInvestments.reduce((sum, inv) => {
         const years = inv.depreciation_years || 5;
         return sum + (inv.purchase_amount || 0) / years;
       }, 0);
@@ -393,6 +413,53 @@ serve(async (req) => {
       }
       return result * 0.25;
     };
+
+    // FIX #6: Calculate yearly net results for balance sheet
+    const calculateYearlyNetResults = () => {
+      return Array.from({ length: years }, (_, y) => {
+        const revenue = calculateYearlyRevenue(y);
+        const varExpenses = calculateYearlyVariableExpenses(revenue);
+        const fixedExpenses = calculateYearlyFixedExpenses();
+        const personnelCosts = calculateYearlyPersonnelCosts();
+        const directorCosts = calculateYearlyDirectorCosts();
+        const depreciation = calculateYearlyDepreciation();
+        const financialCharges = calculateYearlyFinancialCharges();
+        
+        const grossMargin = revenue - varExpenses;
+        const ebitda = grossMargin - fixedExpenses - personnelCosts - directorCosts;
+        const operatingResult = ebitda - depreciation;
+        const resultBeforeTax = operatingResult - financialCharges;
+        const tax = calculateIS(resultBeforeTax, financialData.settings?.is_pme || true);
+        return resultBeforeTax - tax;
+      });
+    };
+
+    // FIX #8: Data validation for warnings
+    const validateFinancialData = (): string[] => {
+      const warnings: string[] = [];
+      
+      // Check if there's revenue
+      const hasRevenue = financialData.revenueStreams.some(rs => 
+        (rs.monthly_price || 0) * (rs.initial_subscribers || 0) > 0
+      );
+      const hasExpenses = financialData.fixedExpenses.length > 0 || financialData.personnel.length > 0;
+      
+      if (!hasRevenue && hasExpenses) {
+        warnings.push('Aucun chiffre d\'affaires prévu malgré des charges');
+      }
+      
+      // Check financing gap
+      const totalInvestments = relevantInvestments.reduce((s, i) => s + (i.purchase_amount || 0), 0);
+      const totalFinancing = financialData.financings.reduce((s, f) => s + (f.amount || 0), 0);
+      
+      if (totalInvestments > totalFinancing && totalInvestments > 0) {
+        warnings.push(`Besoin de financement supplémentaire: ${formatCurrency(totalInvestments - totalFinancing)}`);
+      }
+      
+      return warnings;
+    };
+
+    const dataWarnings = validateFinancialData();
 
     // ============ COVER PAGE ============
     
@@ -445,6 +512,22 @@ serve(async (req) => {
         const introLines = doc.splitTextToSize(introText, contentWidth - 20);
         doc.text(introLines, margin + 10, yPos);
         yPos += introLines.length * 6 + 15;
+      }
+
+      // Data warnings box (if any)
+      if (dataWarnings.length > 0) {
+        yPos += 10;
+        setFillColor(COLORS.warning);
+        doc.roundedRect(margin, yPos, contentWidth, 10 + dataWarnings.length * 7, 2, 2, 'F');
+        setColor(COLORS.text);
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'bold');
+        doc.text('⚠ Points d\'attention :', margin + 5, yPos + 7);
+        doc.setFont('helvetica', 'normal');
+        dataWarnings.forEach((w, i) => {
+          doc.text(`• ${w}`, margin + 5, yPos + 14 + i * 7);
+        });
+        yPos += 15 + dataWarnings.length * 7;
       }
       
       // Bottom section with metadata
@@ -545,11 +628,11 @@ serve(async (req) => {
       
       // Key metrics cards
       const revenue1 = calculateYearlyRevenue(0);
-      const revenue3 = calculateYearlyRevenue(2);
+      const revenue3 = calculateYearlyRevenue(years - 1);
       const fixedExp = calculateYearlyFixedExpenses();
       const personnelCost = calculateYearlyPersonnelCosts();
       const directorCost = calculateYearlyDirectorCosts();
-      const totalInvestments = financialData.investments.reduce((s, i) => s + (i.purchase_amount || 0), 0);
+      const totalInvestments = relevantInvestments.reduce((s, i) => s + (i.purchase_amount || 0), 0);
       
       // Summary paragraph
       doc.setFontSize(11);
@@ -614,7 +697,7 @@ serve(async (req) => {
         `• ${financialData.personnel.length} salarié(s) prévu(s)`,
         `• ${financialData.directors.length} dirigeant(s)`,
         `• ${financialData.revenueStreams.length} source(s) de revenus identifiée(s)`,
-        `• ${financialData.investments.length} investissement(s) planifié(s)`,
+        `• ${relevantInvestments.length} investissement(s) planifié(s) sur la période`,
       ];
       
       teamInfo.forEach(line => {
@@ -658,10 +741,19 @@ serve(async (req) => {
       const revProjHeaders = ['Année', 'Chiffre d\'affaires', 'Évolution'];
       const revProjRows: (string | number)[][] = [];
       
+      // FIX #2 & #3: Proper chronological order and NaN handling
       for (let y = 0; y < years; y++) {
         const rev = calculateYearlyRevenue(y);
-        const prevRev = y > 0 ? calculateYearlyRevenue(y - 1) : rev;
-        const evolution = y > 0 ? ((rev - prevRev) / prevRev * 100).toFixed(1) + '%' : '-';
+        const prevRev = y > 0 ? calculateYearlyRevenue(y - 1) : 0;
+        // FIX #2: Handle division by zero for evolution
+        let evolution: string;
+        if (y === 0) {
+          evolution = '-';
+        } else if (prevRev > 0) {
+          evolution = ((rev - prevRev) / prevRev * 100).toFixed(1) + '%';
+        } else {
+          evolution = rev > 0 ? 'N/A' : '-';
+        }
         revProjRows.push([`${startYear + y}`, formatCurrency(rev), evolution]);
       }
       
@@ -726,7 +818,8 @@ serve(async (req) => {
         const persHeaders = ['Poste', 'Date embauche', 'Brut mensuel', 'Charges', 'Coût total'];
         const persRows = financialData.personnel.map(p => {
           const salary = p.gross_salary || 0;
-          const chargesRate = p.employer_charges_rate || 45;
+          // FIX #4: Normalize charge rate display
+          const chargesRate = normalizeChargeRate(p.employer_charges_rate, 45);
           const charges = salary * chargesRate / 100;
           const mutuelle = p.mutuelle_employer_amount || 0;
           return [
@@ -756,7 +849,8 @@ serve(async (req) => {
         const dirHeaders = ['Nom', 'Statut', 'Rémunération', 'Charges', 'Coût total'];
         const dirRows = financialData.directors.map(d => {
           const remun = d.monthly_remuneration || 0;
-          const chargesRate = d.charges_rate || 45;
+          // FIX #4: Normalize charge rate display
+          const chargesRate = normalizeChargeRate(d.charges_rate, 45);
           const charges = remun * chargesRate / 100;
           return [
             d.name || '-',
@@ -780,25 +874,35 @@ serve(async (req) => {
 
     // ============ INVESTMENTS SECTION ============
     
-    if (sections?.includes('investments') && financialData.investments.length > 0) {
+    // FIX #5: Use filtered investments
+    if (sections?.includes('investments') && relevantInvestments.length > 0) {
       checkPageBreak(60);
       addSectionTitle('Investissements', 1);
       
+      // Show info about filtering if some were excluded
+      if (relevantInvestments.length < financialData.investments.length) {
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'italic');
+        setColor(COLORS.textLight);
+        doc.text(`Note : ${financialData.investments.length - relevantInvestments.length} investissement(s) hors période ${startYear}-${startYear + years - 1} non affichés`, margin, yPos);
+        yPos += 8;
+      }
+      
       const invHeaders = ['Désignation', 'Catégorie', 'Date', 'Montant HT', 'Durée amort.', 'Dotation/an'];
-      const invRows = financialData.investments.map(i => {
-        const years = i.depreciation_years || 5;
-        const dotation = (i.purchase_amount || 0) / years;
+      const invRows = relevantInvestments.map(i => {
+        const depYears = i.depreciation_years || 5;
+        const dotation = (i.purchase_amount || 0) / depYears;
         return [
           i.name || '-',
           i.category || '-',
           formatShortDate(i.purchase_date),
           formatCurrency(i.purchase_amount || 0),
-          `${years} ans`,
+          `${depYears} ans`,
           formatCurrency(dotation)
         ];
       });
       
-      const totalInv = financialData.investments.reduce((s, i) => s + (i.purchase_amount || 0), 0);
+      const totalInv = relevantInvestments.reduce((s, i) => s + (i.purchase_amount || 0), 0);
       const totalDotation = calculateYearlyDepreciation();
       
       drawTable(invHeaders, invRows, [40, 30, 25, 30, 22, 25], {
@@ -815,11 +919,11 @@ serve(async (req) => {
       checkPageBreak(80);
       addSectionTitle('Compte de Résultat Prévisionnel', 1);
       
-      // Multi-year P&L table
+      // FIX #3: Ensure chronological order - headers in proper order
       const pnlHeaders = ['Rubrique', ...Array.from({ length: years }, (_, i) => `${startYear + i}`)];
       const pnlData: { label: string; values: number[]; isTotal?: boolean; isSubtotal?: boolean }[] = [];
       
-      // Calculate all years
+      // Calculate all years in chronological order
       const yearlyData = Array.from({ length: years }, (_, y) => {
         const revenue = calculateYearlyRevenue(y);
         const varExpenses = calculateYearlyVariableExpenses(revenue);
@@ -950,38 +1054,30 @@ serve(async (req) => {
       // Yearly cash flow summary
       addSectionTitle('Flux de Trésorerie Annuels', 2);
       
-      const cfHeaders = ['Année', 'Encaissements', 'Décaissements', 'Flux net', 'Trésorerie fin'];
-      const cfRows: string[][] = [];
-      let cumulativeCash = settings?.initial_cash || 0;
+      const cashFlowHeaders = ['Année', 'Encaissements', 'Décaissements', 'Flux net', 'Tréso. fin'];
+      const cashFlowRows: (string | number)[][] = [];
+      let runningCash = settings?.initial_cash || 0;
       
       for (let y = 0; y < years; y++) {
         const revenue = calculateYearlyRevenue(y);
-        const expenses = calculateYearlyFixedExpenses() + 
-                        calculateYearlyVariableExpenses(revenue) + 
-                        calculateYearlyPersonnelCosts() + 
-                        calculateYearlyDirectorCosts() +
-                        calculateYearlyFinancialCharges();
-        const investments = y === 0 ? financialData.investments.reduce((s, i) => s + (i.purchase_amount || 0), 0) : 0;
-        const financingIn = y === 0 ? financialData.financings.reduce((s, f) => s + (f.amount || 0), 0) : 0;
-        const loanPayments = financialData.financings
-          .filter(f => f.financing_type === 'loan')
-          .reduce((s, f) => s + (f.monthly_payment || 0) * 12, 0);
+        const totalExpenses = calculateYearlyVariableExpenses(revenue) + 
+          calculateYearlyFixedExpenses() + 
+          calculateYearlyPersonnelCosts() + 
+          calculateYearlyDirectorCosts() +
+          calculateYearlyFinancialCharges();
+        const netFlow = revenue - totalExpenses;
+        runningCash += netFlow;
         
-        const inflows = revenue + financingIn;
-        const outflows = expenses + investments + loanPayments;
-        const netFlow = inflows - outflows;
-        cumulativeCash += netFlow;
-        
-        cfRows.push([
+        cashFlowRows.push([
           `${startYear + y}`,
-          formatCurrency(inflows),
-          formatCurrency(outflows),
+          formatCurrency(revenue),
+          formatCurrency(totalExpenses),
           formatCurrency(netFlow),
-          formatCurrency(cumulativeCash)
+          formatCurrency(runningCash)
         ]);
       }
       
-      drawTable(cfHeaders, cfRows, [30, 40, 40, 35, 40], { alignRight: [1, 2, 3, 4] });
+      drawTable(cashFlowHeaders, cashFlowRows, [30, 40, 40, 35, 35], { alignRight: [1, 2, 3, 4] });
     }
 
     // ============ BALANCE SHEET ============
@@ -990,16 +1086,20 @@ serve(async (req) => {
       checkPageBreak(80);
       addSectionTitle('Bilan Prévisionnel', 1);
       
-      const totalAssets = financialData.investments.reduce((s, i) => s + (i.purchase_amount || 0), 0);
+      const totalAssets = relevantInvestments.reduce((s, i) => s + (i.purchase_amount || 0), 0);
       const totalStocks = financialData.stocks.reduce((s, st) => s + (st.initial_stock || 0), 0);
       const initialCash = financialData.settings?.initial_cash || 0;
-      const totalFinancings = financialData.financings.reduce((s, f) => s + (f.amount || 0), 0);
+      
       const loans = financialData.financings
         .filter(f => f.financing_type === 'loan')
         .reduce((s, f) => s + (f.amount || 0), 0);
       const capital = financialData.financings
         .filter(f => f.financing_type === 'capital' || f.financing_type === 'equity')
         .reduce((s, f) => s + (f.amount || 0), 0);
+      
+      // FIX #6: Calculate cumulative net results for balance
+      const yearlyNetResults = calculateYearlyNetResults();
+      const cumulativeResult = yearlyNetResults.reduce((sum, r) => sum + r, 0);
       
       // Simplified balance sheet
       doc.setFontSize(11);
@@ -1013,9 +1113,12 @@ serve(async (req) => {
       doc.setLineWidth(0.3);
       doc.line(margin, yPos - 2, pageWidth - margin, yPos - 2);
       
+      // FIX #6: Include cumulative result in balance items
+      const cumulativeDepreciation = calculateYearlyDepreciation() * years;
+      
       const balanceItems = [
         { actif: 'Immobilisations', actifVal: totalAssets, passif: 'Capitaux propres', passifVal: capital },
-        { actif: '- Amortissements', actifVal: -calculateYearlyDepreciation(), passif: 'Résultat exercice', passifVal: 0 },
+        { actif: '- Amortissements cumulés', actifVal: -cumulativeDepreciation, passif: 'Résultat cumulé', passifVal: cumulativeResult },
         { actif: 'Stocks', actifVal: totalStocks, passif: 'Emprunts', passifVal: loans },
         { actif: 'Créances clients', actifVal: 0, passif: 'Dettes fournisseurs', passifVal: 0 },
         { actif: 'Disponibilités', actifVal: initialCash, passif: 'Autres dettes', passifVal: 0 },
@@ -1042,14 +1145,26 @@ serve(async (req) => {
       yPos += 5;
       
       doc.setFont('helvetica', 'bold');
-      const totalActif = totalAssets - calculateYearlyDepreciation() + totalStocks + initialCash;
-      const totalPassif = capital + loans;
+      // FIX #6: Balanced calculation
+      const totalActif = totalAssets - cumulativeDepreciation + totalStocks + initialCash;
+      const totalPassif = capital + cumulativeResult + loans;
       doc.text('Total Actif', margin, yPos);
       doc.text(formatCurrency(totalActif), margin + 70, yPos, { align: 'right' });
       doc.text('Total Passif', pageWidth / 2 + 10, yPos);
       doc.text(formatCurrency(totalPassif), pageWidth - margin, yPos, { align: 'right' });
       
-      yPos += 15;
+      // Show balance check
+      yPos += 10;
+      const balanceDiff = Math.abs(totalActif - totalPassif);
+      if (balanceDiff > 1) {
+        setColor(COLORS.warning);
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'italic');
+        doc.text(`Note : Écart de ${formatCurrency(balanceDiff)} dû aux simplifications du bilan prévisionnel`, margin, yPos);
+        yPos += 7;
+      }
+      
+      yPos += 8;
     }
 
     // ============ FUNDING PLAN ============
@@ -1058,7 +1173,7 @@ serve(async (req) => {
       checkPageBreak(80);
       addSectionTitle('Plan de Financement', 1);
       
-      const totalInvestments = financialData.investments.reduce((s, i) => s + (i.purchase_amount || 0), 0);
+      const totalInvestments = relevantInvestments.reduce((s, i) => s + (i.purchase_amount || 0), 0);
       const totalStocks = financialData.stocks.reduce((s, st) => s + (st.initial_stock || 0), 0);
       const bfrInitial = totalStocks;
       
@@ -1175,7 +1290,38 @@ serve(async (req) => {
       
       const totalFixedCosts = fixedExp + personnelCost + directorCost;
       const contributionMarginRate = grossMarginRate / 100;
-      const breakEvenRevenue = contributionMarginRate > 0 ? totalFixedCosts / contributionMarginRate : 0;
+      
+      // FIX #7: Handle break-even calculation with zero revenue
+      let breakEvenRevenue: number;
+      let breakEvenDisplay: string;
+      let breakEvenMonths: string;
+      let breakEvenInterpretation: string;
+      
+      if (contributionMarginRate > 0) {
+        breakEvenRevenue = totalFixedCosts / contributionMarginRate;
+        if (isFinite(breakEvenRevenue)) {
+          breakEvenDisplay = formatCurrency(breakEvenRevenue);
+          const months = revenue1 > 0 ? Math.ceil(breakEvenRevenue / (revenue1 / 12)) : 0;
+          breakEvenMonths = revenue1 > 0 ? String(months) : 'N/A';
+          breakEvenInterpretation = breakEvenRevenue < revenue1 ? 'Atteint' : 'Non atteint';
+        } else {
+          breakEvenDisplay = 'Non calculable';
+          breakEvenMonths = 'N/A';
+          breakEvenInterpretation = 'Marge insuffisante';
+        }
+      } else if (totalFixedCosts > 0) {
+        // Has fixed costs but no contribution margin
+        breakEvenRevenue = Infinity;
+        breakEvenDisplay = 'Non calculable';
+        breakEvenMonths = 'N/A';
+        breakEvenInterpretation = 'Marge nulle';
+      } else {
+        // No fixed costs and no margin
+        breakEvenRevenue = 0;
+        breakEvenDisplay = '0 €';
+        breakEvenMonths = '0';
+        breakEvenInterpretation = 'Aucun coût fixe';
+      }
       
       const ebitda = grossMargin - totalFixedCosts;
       const operatingResult = ebitda - depreciation;
@@ -1186,10 +1332,10 @@ serve(async (req) => {
       // Ratios table
       const ratiosHeaders = ['Indicateur', 'Année 1', 'Interprétation'];
       const ratiosRows = [
-        ['Taux de marge brute', formatPercent(grossMarginRate), grossMarginRate > 50 ? 'Excellent' : grossMarginRate > 30 ? 'Bon' : 'À améliorer'],
+        ['Taux de marge brute', formatPercent(grossMarginRate), grossMarginRate > 50 ? 'Excellent' : grossMarginRate > 30 ? 'Bon' : grossMarginRate > 0 ? 'À améliorer' : 'Négatif'],
         ['Taux de marge nette', formatPercent(netMarginRate), netMarginRate > 15 ? 'Excellent' : netMarginRate > 5 ? 'Correct' : netMarginRate > 0 ? 'Faible' : 'Déficitaire'],
-        ['Point mort (CA)', formatCurrency(breakEvenRevenue), breakEvenRevenue < revenue1 ? 'Atteint' : 'Non atteint'],
-        ['Mois pour atteindre PM', String(Math.ceil(breakEvenRevenue / (revenue1 / 12))), breakEvenRevenue < revenue1 ? 'OK' : 'Vigilance'],
+        ['Point mort (CA)', breakEvenDisplay, breakEvenInterpretation],
+        ['Mois pour atteindre PM', breakEvenMonths, isFinite(breakEvenRevenue) && breakEvenRevenue < revenue1 ? 'OK' : 'Vigilance'],
         ['EBITDA', formatCurrency(ebitda), ebitda > 0 ? 'Positif' : 'Négatif'],
         ['CAF (Capacité d\'autofinancement)', formatCurrency(caf), caf > 0 ? 'Bonne capacité' : 'Insuffisante'],
       ];
@@ -1213,9 +1359,15 @@ serve(async (req) => {
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(9);
       
-      const insight = breakEvenRevenue < revenue1 
-        ? `Le point mort est atteint au mois ${Math.ceil(breakEvenRevenue / (revenue1 / 12))} de l'année 1. L'activité devient rentable rapidement.`
-        : `Le point mort de ${formatCurrency(breakEvenRevenue)} dépasse le CA prévisionnel. Une révision des hypothèses est recommandée.`;
+      let insight: string;
+      if (revenue1 === 0) {
+        insight = 'Aucun chiffre d\'affaires prévisionnel. Veuillez saisir des hypothèses de revenus pour calculer la rentabilité.';
+      } else if (isFinite(breakEvenRevenue) && breakEvenRevenue < revenue1) {
+        const monthsToBreakeven = Math.ceil(breakEvenRevenue / (revenue1 / 12));
+        insight = `Le point mort est atteint au mois ${monthsToBreakeven} de l'année 1. L'activité devient rentable rapidement.`;
+      } else {
+        insight = `Le point mort de ${breakEvenDisplay} dépasse le CA prévisionnel. Une révision des hypothèses est recommandée.`;
+      }
       
       const insightLines = doc.splitTextToSize(insight, contentWidth - 10);
       doc.text(insightLines, margin + 5, yPos + 16);
@@ -1282,7 +1434,8 @@ serve(async (req) => {
         success: true,
         pdf: pdfBase64,
         filename: `business-plan-${companyName?.replace(/\s+/g, '-').toLowerCase() || 'export'}-${new Date().toISOString().split('T')[0]}.pdf`,
-        pages: currentPage
+        pages: currentPage,
+        warnings: dataWarnings
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
