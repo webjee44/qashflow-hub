@@ -1,296 +1,171 @@
 
-# Plan : Connecteurs Comptables (Odoo 17 en premier)
+# Plan de correction : Accès membre identique au propriétaire
 
-## Vision
-
-Remplacer le bouton "Sync Pennylane" par un système générique de connecteurs :
-1. CTA "Connecteur Compta" 
-2. Choix de la solution (Odoo, Pennylane, etc.)
-3. Saisie des clés API par société
-4. Synchronisation des factures
+## Objectif
+Garantir que les membres invités (ex: safaa@cloudvapor.com) aient exactement les mêmes vues BP et Trésorerie que le propriétaire de la société.
 
 ---
 
-## Architecture
+## 1. Corrections des politiques RLS en base de données
 
-```text
-┌─────────────────────────────────────────────────────────────────────────┐
-│                      PAGE /creances - Header                             │
-│                                                                          │
-│  [+ Ajouter]   [⚙️ Connecteur Compta]                                    │
-│                      ↓                                                   │
-│               ┌──────────────────────┐                                   │
-│               │  Sélectionnez votre  │                                   │
-│               │  logiciel comptable  │                                   │
-│               │                      │                                   │
-│               │  ○ Odoo 17          │ ← Prioritaire                      │
-│               │  ○ Pennylane         │ ← Existant                        │
-│               │  ○ QuickBooks        │ ← Futur                           │
-│               │                      │                                   │
-│               │  [Configurer]        │                                   │
-│               └──────────────────────┘                                   │
-└─────────────────────────────────────────────────────────────────────────┘
+### 1.1 Tables BP : Ajouter `has_company_access` pour INSERT/UPDATE/DELETE
 
-┌─────────────────────────────────────────────────────────────────────────┐
-│                   DIALOG : Configuration Odoo                            │
-│                                                                          │
-│  URL du serveur Odoo : [https://mycompany.odoo.com    ]                  │
-│  Nom de la base     : [mydb                           ]                  │
-│  Identifiant        : [admin@company.com              ]                  │
-│  Clé API / Mot de passe : [••••••••••••••••••         ]                  │
-│                                                                          │
-│             [Tester la connexion]   [Enregistrer]                        │
-└─────────────────────────────────────────────────────────────────────────┘
+**Tables concernées (17 tables) :**
+- bp_revenue_streams, bp_fixed_expenses, bp_variable_expenses
+- bp_personnel, bp_directors, bp_bonuses
+- bp_investments, bp_financings, bp_stocks
+- bp_settings, bp_notes, bp_snapshots, bp_scenarios
+- bp_scenario_overrides, bp_revenue_forecasts
 
-┌─────────────────────────────────────────────────────────────────────────┐
-│                   STATUT CONNECTEUR (Header)                             │
-│                                                                          │
-│  Si configuré :                                                          │
-│  [🔗 Odoo] [↻ Sync maintenant]   Dernière sync : il y a 2h               │
-│                                                                          │
-│  Si non configuré :                                                      │
-│  [⚙️ Connecteur Compta]                                                  │
-└─────────────────────────────────────────────────────────────────────────┘
+**Modification requise :**
+```sql
+-- Exemple pour bp_revenue_streams (à répliquer sur toutes les tables BP)
+DROP POLICY IF EXISTS "Users can update their own revenue streams" ON bp_revenue_streams;
+CREATE POLICY "Users can update accessible revenue streams" 
+ON bp_revenue_streams FOR UPDATE
+USING (has_company_access(auth.uid(), company_id))
+WITH CHECK (has_company_access(auth.uid(), company_id));
+
+DROP POLICY IF EXISTS "Users can delete their own revenue streams" ON bp_revenue_streams;
+CREATE POLICY "Users can delete accessible revenue streams"
+ON bp_revenue_streams FOR DELETE
+USING (has_company_access(auth.uid(), company_id));
+
+DROP POLICY IF EXISTS "Users can create their own revenue streams" ON bp_revenue_streams;
+CREATE POLICY "Users can create accessible revenue streams"
+ON bp_revenue_streams FOR INSERT
+WITH CHECK (has_company_access(auth.uid(), company_id));
+```
+
+### 1.2 Tables Treasury : Ajouter `has_company_access` pour SELECT + mutations
+
+**Tables concernées :**
+- `categories`
+- `category_forecasts` 
+- `forecasts`
+- `automation_rules`
+
+**Modification requise :**
+```sql
+-- categories
+DROP POLICY IF EXISTS "Users can view their own categories" ON categories;
+CREATE POLICY "Users can view accessible categories"
+ON categories FOR SELECT
+USING (
+  auth.uid() = user_id 
+  OR (company_id IS NOT NULL AND has_company_access(auth.uid(), company_id))
+);
+
+-- Idem pour UPDATE, DELETE avec has_company_access
 ```
 
 ---
 
-## Etape 1 : Stockage des credentials
+## 2. Corrections des hooks côté Frontend
 
-### Table existante : `company_secrets`
+### 2.1 Utiliser `company.user_id` au lieu de `user.id` pour les créations
 
-La table existe déjà avec les colonnes :
-- `company_id` : uuid
-- `secret_type` : text (ex: 'pennylane_api_key', 'odoo_url', 'odoo_db', etc.)
-- `encrypted_value` : text
+Les hooks doivent créer les données avec le `user_id` du **propriétaire de la société** (pas le membre connecté) pour éviter les données parasites.
 
-Pour Odoo, on stockera 4 secrets par société :
-- `odoo_url` : URL du serveur Odoo
-- `odoo_db` : Nom de la base de données
-- `odoo_username` : Identifiant utilisateur
-- `odoo_api_key` : Clé API ou mot de passe
+**Fichiers à modifier :**
+- `src/services/revenueStreamService.ts`
+- `src/services/fixedExpenseService.ts`
+- `src/services/personnelService.ts`
+- `src/services/investmentService.ts`
+- `src/services/financingService.ts`
+- `src/hooks/useCategories.ts`
+- `src/hooks/useForecasts.ts`
 
----
+**Pattern à appliquer :**
+```typescript
+// Avant (crée avec user_id du membre)
+await supabase.from('bp_revenue_streams').insert({
+  user_id: user.id,  // ❌ Membre connecté
+  company_id: companyId,
+  ...data
+});
 
-## Etape 2 : Edge Function `accounting-connector-sync`
-
-### Fonction générique
-
-Une seule edge function qui :
-1. Détecte le connecteur configuré pour la société
-2. Appelle le bon provider (Odoo, Pennylane)
-3. Synchronise les factures
-
-### API Odoo 17 - Appels JSON-RPC
-
-Odoo 17 utilise JSON-RPC pour l'API externe. Voici la logique :
-
-**1. Authentification**
-```javascript
-// POST /jsonrpc
-{
-  "jsonrpc": "2.0",
-  "method": "call",
-  "params": {
-    "service": "common",
-    "method": "authenticate",
-    "args": [db, username, password, {}]
-  }
-}
-// Retourne: uid (user id)
+// Après (crée avec user_id du propriétaire)
+await supabase.from('bp_revenue_streams').insert({
+  user_id: currentCompany.user_id,  // ✅ Propriétaire
+  company_id: companyId,
+  ...data
+});
 ```
 
-**2. Récupération des factures clients (créances)**
-```javascript
-// Modèle: account.move
-// Filtre: move_type = 'out_invoice' (facture client)
-{
-  "jsonrpc": "2.0",
-  "method": "call",
-  "params": {
-    "service": "object",
-    "method": "execute_kw",
-    "args": [
-      db, uid, password,
-      "account.move",
-      "search_read",
-      [[["move_type", "=", "out_invoice"], ["state", "=", "posted"]]],
-      {
-        "fields": ["name", "partner_id", "invoice_date", "invoice_date_due", 
-                   "amount_untaxed", "amount_total", "amount_tax", 
-                   "payment_state", "state"]
-      }
-    ]
-  }
-}
+### 2.2 Modifier `useCategories.ts` 
+
+Le hook doit :
+1. Filtrer par `company_id` via `has_company_access` (pas par `user_id`)
+2. Créer avec `company.user_id`
+
+---
+
+## 3. Synchronisation du paramètre `bpEnabled`
+
+### Option A : Hériter du propriétaire (recommandé)
+Le membre hérite automatiquement du paramètre `bp_enabled` du propriétaire de la société.
+
+**Modification dans `useOnboarding.ts` :**
+```typescript
+// Pour les membres, lire bp_enabled du propriétaire de la société
+const ownerProfile = await supabase
+  .from('profiles')
+  .select('bp_enabled')
+  .eq('id', currentCompany.user_id)
+  .single();
+
+setBpEnabled(ownerProfile.data?.bp_enabled ?? true);
 ```
 
-**3. Récupération des factures fournisseurs (dettes)**
-```javascript
-// Filtre: move_type = 'in_invoice' (facture fournisseur)
-[[["move_type", "=", "in_invoice"], ["state", "=", "posted"]]]
-```
-
-### Mapping Odoo -> Table invoices
-
-| Champ Odoo | Champ invoices | Notes |
-|------------|----------------|-------|
-| `name` | `invoice_number` | Ex: "INV/2025/0001" |
-| `partner_id[1]` | `partner_name` | Nom du partenaire |
-| `invoice_date` | `invoice_date` | Date d'émission |
-| `invoice_date_due` | `due_date` | Date d'échéance |
-| `amount_untaxed` | `amount_ht` | Montant HT |
-| `amount_total` | `amount_ttc` | Montant TTC |
-| `amount_tax` | `vat_amount` | TVA |
-| `payment_state` | `status` | 'paid' / 'not_paid' / 'partial' |
-| `move_type` | `type` | 'out_invoice' -> 'receivable', 'in_invoice' -> 'payable' |
-| `id` | `external_id` | ID Odoo pour éviter doublons |
+### Option B : Forcer l'accès complet pour les membres
+Ne pas restreindre les membres - ils voient toujours BP + Treasury si disponible.
 
 ---
 
-## Etape 3 : Interface - Composants
+## 4. Permissions Settings pour les membres
 
-### Fichiers à créer
+Les membres ne doivent pas pouvoir modifier :
+- Paramètres BP (`useBPSettings` - déjà protégé via `isCompanyOwner`)
+- Connexion bancaire (Bridge)
+- Suppression de société
 
-| Fichier | Description |
-|---------|-------------|
-| `src/components/invoices/ConnectorDialog.tsx` | Dialog principal de configuration |
-| `src/components/invoices/OdooConfigForm.tsx` | Formulaire spécifique Odoo |
-| `src/components/invoices/ConnectorStatus.tsx` | Badge statut + bouton sync |
-| `src/hooks/useAccountingConnector.ts` | Hook pour gérer les connecteurs |
-| `supabase/functions/accounting-connector-sync/index.ts` | Edge function de sync |
+**Vérifications à ajouter dans les composants Settings :**
+```typescript
+const isOwner = currentCompany?.user_id === user?.id;
 
-### ConnectorDialog.tsx
-
-Dialog en deux étapes :
-1. **Sélection du provider** : liste des connecteurs disponibles
-2. **Configuration** : formulaire spécifique au provider sélectionné
-
-### OdooConfigForm.tsx
-
-Champs du formulaire :
-- URL Odoo (ex: https://mycompany.odoo.com)
-- Base de données
-- Identifiant (email)
-- Clé API (ou mot de passe)
-- Bouton "Tester la connexion"
-
-### ConnectorStatus.tsx
-
-Affiche le statut :
-- Si configuré : badge avec nom du provider + bouton sync
-- Si non configuré : CTA "Connecteur Compta"
-
----
-
-## Etape 4 : Flow utilisateur
-
-1. L'utilisateur clique sur "Connecteur Compta"
-2. Il choisit Odoo dans la liste
-3. Il saisit ses credentials Odoo
-4. Clic sur "Tester" -> appel API pour vérifier les credentials
-5. Clic sur "Enregistrer" -> stockage dans `company_secrets`
-6. Le bouton devient "🔗 Odoo" + "↻ Sync"
-7. Clic sur Sync -> appel edge function
-8. Les factures apparaissent dans le tableau
-
----
-
-## Etape 5 : Sécurité des credentials
-
-### Stockage
-
-Les credentials sont stockés dans `company_secrets` avec chiffrement :
-- Chaque secret est une ligne séparée
-- Le type identifie le secret (odoo_url, odoo_api_key, etc.)
-
-### Accès
-
-Seuls les utilisateurs avec accès à la société peuvent :
-- Voir que le connecteur est configuré (pas les credentials)
-- Déclencher une synchronisation
-
----
-
-## Récapitulatif des fichiers
-
-### À créer
-
-| Fichier | Description |
-|---------|-------------|
-| `src/components/invoices/ConnectorDialog.tsx` | Dialog de configuration |
-| `src/components/invoices/OdooConfigForm.tsx` | Formulaire Odoo |
-| `src/components/invoices/PennylaneConfigForm.tsx` | Formulaire Pennylane (refactor) |
-| `src/components/invoices/ConnectorStatus.tsx` | Badge statut |
-| `src/hooks/useAccountingConnector.ts` | Hook gestion connecteurs |
-| `supabase/functions/accounting-connector-sync/index.ts` | Edge function générique |
-
-### À modifier
-
-| Fichier | Description |
-|---------|-------------|
-| `src/pages/Invoices.tsx` | Remplacer bouton Pennylane par ConnectorStatus |
-| `supabase/config.toml` | Ajouter accounting-connector-sync |
-
-### À supprimer (optionnel)
-
-| Fichier | Description |
-|---------|-------------|
-| `supabase/functions/pennylane-invoices-sync/` | Fusionné dans accounting-connector-sync |
-
----
-
-## Providers supportés
-
-| Provider | Statut | API |
-|----------|--------|-----|
-| **Odoo 17** | Prioritaire | JSON-RPC |
-| Pennylane | Existant | REST API |
-| QuickBooks | Futur | OAuth2 |
-| Sage | Futur | REST API |
-
----
-
-## Points techniques Odoo 17
-
-### Authentification JSON-RPC
-
-Odoo 17 supporte deux méthodes :
-1. **Mot de passe** : login/password classique
-2. **Clé API** : générée dans Préférences Utilisateur > Sécurité
-
-La clé API est préférable car :
-- Plus sécurisée (ne donne pas accès au mot de passe)
-- Peut être révoquée sans changer le mot de passe
-
-### Champs account.move (Odoo 17)
-
-| Champ | Type | Description |
-|-------|------|-------------|
-| `move_type` | Selection | 'out_invoice', 'in_invoice', 'out_refund', 'in_refund' |
-| `state` | Selection | 'draft', 'posted', 'cancel' |
-| `payment_state` | Selection | 'not_paid', 'partial', 'paid', 'reversed' |
-| `invoice_date` | Date | Date de facturation |
-| `invoice_date_due` | Date | Date d'échéance |
-| `amount_untaxed` | Monetary | Total HT |
-| `amount_tax` | Monetary | Total TVA |
-| `amount_total` | Monetary | Total TTC |
-| `partner_id` | Many2one | [id, name] du partenaire |
-
-### Endpoint JSON-RPC
-
-```
-POST {odoo_url}/jsonrpc
-Content-Type: application/json
+// Désactiver les actions sensibles pour les non-propriétaires
+<Button disabled={!isOwner}>Supprimer la société</Button>
 ```
 
 ---
 
-## Planning
+## Résumé des modifications
 
-| Phase | Contenu |
-|-------|---------|
-| **Phase 1** | Hook + Dialog + OdooConfigForm + stockage credentials |
-| **Phase 2** | Edge function Odoo sync + ConnectorStatus |
-| **Phase 3** | Refactor Pennylane dans le même système |
-| **Phase 4** | Ajout futurs providers (QuickBooks, Sage) |
+| Couche | Élément | Action |
+|--------|---------|--------|
+| **DB RLS** | 17 tables BP | Ajouter `has_company_access` pour INSERT/UPDATE/DELETE |
+| **DB RLS** | 4 tables Treasury | Ajouter `has_company_access` pour toutes opérations |
+| **Frontend** | 7 services/hooks | Utiliser `company.user_id` pour les insertions |
+| **Frontend** | useOnboarding | Hériter `bpEnabled` du propriétaire |
+| **Frontend** | Settings | Restreindre actions admin aux propriétaires |
+
+---
+
+## Détails techniques
+
+### Migration SQL (une seule migration pour toutes les tables)
+
+La migration va :
+1. Supprimer les anciennes politiques restrictives
+2. Créer de nouvelles politiques utilisant `has_company_access`
+3. S'applique aux 21 tables concernées
+
+### Hooks à modifier
+
+1. **revenueStreamService.ts** : Paramètre `ownerId` au lieu de `userId`
+2. **useBPRevenueStreams.ts** : Passer `currentCompany.user_id` au service
+3. **useCategories.ts** : Query par `company_id` + créer avec `company.user_id`
+4. **useForecasts.ts** : Créer forecasts avec `company.user_id`
+
+Après ces modifications, safaa@cloudvapor.com aura exactement les mêmes vues que le propriétaire pour Cloud Vapor.
