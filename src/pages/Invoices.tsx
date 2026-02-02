@@ -13,7 +13,7 @@ import { useAccountingConnector } from '@/hooks/useAccountingConnector';
 import { Skeleton } from '@/components/ui/skeleton';
 
 type TabFilter = 'all' | 'receivable' | 'payable';
-type StatusFilter = 'all' | 'pending' | 'overdue' | 'paid';
+type StatusFilter = 'all' | 'pending' | 'overdue';
 
 export default function Invoices() {
   const { 
@@ -127,7 +127,6 @@ export default function Invoices() {
               <SelectItem value="all">Tous statuts</SelectItem>
               <SelectItem value="pending">En attente</SelectItem>
               <SelectItem value="overdue">Échues</SelectItem>
-              <SelectItem value="paid">Payées</SelectItem>
             </SelectContent>
           </Select>
         </div>
