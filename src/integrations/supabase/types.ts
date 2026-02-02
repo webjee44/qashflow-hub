@@ -2158,6 +2158,17 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_superadmin_all_members: {
+        Args: never
+        Returns: {
+          companies: Json
+          created_at: string
+          email: string
+          full_name: string
+          organizations: Json
+          user_id: string
+        }[]
+      }
       get_superadmin_global_stats: {
         Args: never
         Returns: {

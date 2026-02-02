@@ -65,6 +65,7 @@ const Team = lazy(() => import("./pages/BusinessPlan/Team"));
 // Super Admin pages (lazy loading - restricted users)
 // ============================================
 const SuperAdminDashboard = lazy(() => import("./pages/SuperAdmin/Dashboard"));
+const SuperAdminMembers = lazy(() => import("./pages/SuperAdmin/Members"));
 const SuperAdminOrganizations = lazy(() => import("./pages/SuperAdmin/Organizations"));
 const SuperAdminOrganizationDetail = lazy(() => import("./pages/SuperAdmin/OrganizationDetail"));
 const SuperAdminSubscriptions = lazy(() => import("./pages/SuperAdmin/Subscriptions"));
@@ -150,6 +151,11 @@ const App = () => (
                 <Route path="/superadmin" element={
                   <SuperAdminRoute>
                     <Suspense fallback={<PageLoader />}><SuperAdminDashboard /></Suspense>
+                  </SuperAdminRoute>
+                } />
+                <Route path="/superadmin/members" element={
+                  <SuperAdminRoute>
+                    <Suspense fallback={<PageLoader />}><SuperAdminMembers /></Suspense>
                   </SuperAdminRoute>
                 } />
                 <Route path="/superadmin/organizations" element={
