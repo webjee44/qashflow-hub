@@ -40,7 +40,8 @@ export default function TreasurySettings() {
     createGroup,
     updateGroup,
     deleteGroup,
-    bulkAssignToGroup
+    bulkAssignToGroup,
+    reorderCategories
   } = useCategories();
   
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
@@ -241,6 +242,7 @@ export default function TreasurySettings() {
                       onEditCategory={handleEditCategory}
                       onDeleteCategory={deleteCategory}
                       onMoveToGroup={handleMoveToGroup}
+                      onReorder={reorderCategories}
                     />
                   </div>
 
@@ -271,6 +273,7 @@ export default function TreasurySettings() {
                       onEditCategory={handleEditCategory}
                       onDeleteCategory={deleteCategory}
                       onMoveToGroup={handleMoveToGroup}
+                      onReorder={reorderCategories}
                     />
                   </div>
 
