@@ -5,7 +5,7 @@ import { useCategories, CategoryGroup, Category } from '@/hooks/useCategories';
 import { useForecasts } from '@/hooks/useForecasts';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { Loader2, Copy, Check, TrendingUp, ChevronRight, ChevronDown, Link2, ChevronsUpDown, ChevronsDownUp, MoreHorizontal, Edit3, Trash2, Eye, EyeOff } from 'lucide-react';
+import { Loader2, Copy, Check, TrendingUp, ChevronRight, ChevronDown, Link2, ChevronsUpDown, ChevronsDownUp, MoreHorizontal, Edit3, Trash2, Eye, EyeOff, ArrowUpRight } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -49,6 +49,7 @@ export function ForecastTable() {
     getVatForecast, 
     getVatActual,
     getUncategorized,
+    getPayableOutflow,
     upsertForecast, 
     isLoading: forecastsLoading,
     extendBefore,
@@ -839,13 +840,49 @@ export function ForecastTable() {
     );
   };
 
+  // Render payables row (supplier debts)
+  const renderPayablesRow = () => {
+    return (
+      <tr className="font-semibold bg-destructive/10">
+        <td className="p-3 sticky left-0 z-10 bg-destructive/10 border-r border-border text-destructive">
+          <div className="flex items-center gap-2">
+            <ArrowUpRight className="w-4 h-4" />
+            Dettes à payer
+          </div>
+        </td>
+        {months.map((month, monthIndex) => {
+          const payableAmount = getPayableOutflow(month);
+          const hasAmount = payableAmount > 0;
+          
+          return (
+            <td key={monthIndex} className="p-0 border-r border-border">
+              <div className="flex">
+                {/* Actual column - empty for payables (forecast only) */}
+                <div className="flex-1 px-3 py-2 text-right border-r border-border/50 text-muted-foreground">
+                  —
+                </div>
+                {/* Forecast column */}
+                <div className={cn(
+                  "flex-1 px-3 py-2 text-right",
+                  hasAmount ? "text-destructive font-medium" : "text-muted-foreground"
+                )}>
+                  {hasAmount ? formatValue(payableAmount) : '—'}
+                </div>
+              </div>
+            </td>
+          );
+        })}
+      </tr>
+    );
+  };
+
   const renderNetRow = () => {
     return (
       <tr className="font-bold bg-card border-t-2 border-primary">
         <td className="p-3 sticky left-0 z-10 bg-card border-r border-border text-primary">
           Solde Net TTC
         </td>
-        {months.map((_, monthIndex) => {
+        {months.map((month, monthIndex) => {
           const incomeHt = getMonthTotal('income', monthIndex, 'actual');
           const expenseHt = getMonthTotal('expense', monthIndex, 'actual');
           const incomeVat = getMonthVat('income', monthIndex, 'actual');
@@ -856,16 +893,19 @@ export function ForecastTable() {
           const incomeForecastVat = getMonthVat('income', monthIndex, 'forecast');
           const expenseForecastVat = getMonthVat('expense', monthIndex, 'forecast');
           
+          // Add payables to forecast expenses
+          const payableAmount = getPayableOutflow(month);
+          
           const incomeTtc = incomeHt + incomeVat;
           const expenseTtc = expenseHt + expenseVat;
           const incomeForecastTtc = incomeForecastHt + incomeForecastVat;
-          const expenseForecastTtc = expenseForecastHt + expenseForecastVat;
+          const expenseForecastTtc = expenseForecastHt + expenseForecastVat + payableAmount;
           
           const netActual = incomeTtc - expenseTtc;
           const netForecast = incomeForecastTtc - expenseForecastTtc;
           
           const hasActual = incomeHt > 0 || expenseHt > 0;
-          const hasForecast = incomeForecastHt > 0 || expenseForecastHt > 0;
+          const hasForecast = incomeForecastHt > 0 || expenseForecastHt > 0 || payableAmount > 0;
           
           return (
             <td key={monthIndex} className="p-0 border-r border-border">
@@ -916,6 +956,7 @@ export function ForecastTable() {
         months={months}
         getMonthTotal={getMonthTotal}
         getMonthVat={getMonthVat}
+        getPayableOutflow={getPayableOutflow}
       />
       
       {/* Table */}
@@ -1046,6 +1087,9 @@ export function ForecastTable() {
             {renderGroupedSection(expenseGroups, 'expense', incomeCategories.length)}
             {renderUncategorizedRow('expense')}
             {renderTtcRow('Total Décaissements', 'expense')}
+
+            {/* Payables Row (supplier debts) */}
+            {renderPayablesRow()}
 
             {/* VAT to Pay Row */}
             {renderVatToPayRow()}
