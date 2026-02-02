@@ -6,10 +6,12 @@ import {
   CreditCard,
   ArrowLeft,
   Shield,
+  Users,
 } from 'lucide-react';
 
 const navItems = [
   { to: '/superadmin', icon: LayoutDashboard, label: 'Dashboard', exact: true },
+  { to: '/superadmin/members', icon: Users, label: 'Membres' },
   { to: '/superadmin/organizations', icon: Building2, label: 'Organisations' },
   { to: '/superadmin/subscriptions', icon: CreditCard, label: 'Abonnements' },
 ];

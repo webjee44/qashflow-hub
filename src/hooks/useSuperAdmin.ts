@@ -115,3 +115,39 @@ export function useDeleteOrganization() {
     },
   });
 }
+
+export interface MemberStats {
+  user_id: string;
+  email: string;
+  full_name: string | null;
+  created_at: string;
+  organizations: {
+    org_id: string;
+    org_name: string;
+    role: string;
+  }[];
+  companies: {
+    company_id: string;
+    company_name: string;
+    access_type: string;
+  }[];
+}
+
+export function useSuperAdminAllMembers() {
+  const { data: isSuperAdmin } = useSuperAdminRole();
+
+  return useQuery({
+    queryKey: ['superadmin-all-members'],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('get_superadmin_all_members');
+      
+      if (error) {
+        logError('Error fetching all members:', error);
+        throw error;
+      }
+
+      return (data as MemberStats[]) || [];
+    },
+    enabled: !!isSuperAdmin,
+  });
+}
