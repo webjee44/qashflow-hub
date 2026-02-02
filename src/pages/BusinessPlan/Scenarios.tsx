@@ -6,15 +6,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useScenarios, Scenario } from '@/hooks/useScenarios';
 import { useBPSnapshots, BPSnapshot } from '@/hooks/useBPSnapshots';
 import { useProfitLoss } from '@/hooks/useProfitLoss';
-import { ScenarioCard } from '@/components/businessplan/ScenarioCard';
-import { ScenarioDialog } from '@/components/businessplan/ScenarioDialog';
-import { ScenarioOverridesDialog } from '@/components/businessplan/ScenarioOverridesDialog';
-import { ScenarioComparisonChart } from '@/components/businessplan/ScenarioComparisonChart';
-import { SnapshotCard } from '@/components/businessplan/SnapshotCard';
-import { SnapshotDialog } from '@/components/businessplan/SnapshotDialog';
-import { SnapshotCompareDialog } from '@/components/businessplan/SnapshotCompareDialog';
-import { BPExportDialog } from '@/components/businessplan/BPExportDialog';
-import { SectionNotes } from '@/components/businessplan/SectionNotes';
+import { ScenarioCard, SnapshotCard, SectionNotes } from '@/features/business-plan/components';
+import { ScenarioComparisonChart } from '@/features/business-plan/charts';
+import { ScenarioDialog, ScenarioOverridesDialog, SnapshotDialog, SnapshotCompareDialog, BPExportDialog } from '@/features/business-plan/dialogs';
 import { PageHeader } from '@/components/layout/PageHeader';
 
 export default function Scenarios() {

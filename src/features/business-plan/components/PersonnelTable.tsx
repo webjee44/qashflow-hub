@@ -1,20 +1,21 @@
-import { Edit, Trash2, User, GraduationCap, Gift, DoorOpen } from 'lucide-react';
+import { Edit, Trash2, User, GraduationCap, Gift, Pencil } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { useBPPersonnel, BPPersonnel, CONTRACT_TYPES, DEPARTURE_TYPES } from '@/hooks/useBPPersonnel';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { useBPPersonnel, BPPersonnel, CONTRACT_TYPES } from '@/hooks/useBPPersonnel';
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { BPBonus, BONUS_TYPES } from '@/services/bonusService';
-import { calculateSeveranceEmployerCost } from '@/lib/french-rates';
 
 interface PersonnelTableProps {
   onEdit: (personnel: BPPersonnel) => void;
   bonuses?: BPBonus[];
+  onEditBonus?: (bonus: BPBonus) => void;
+  onDeleteBonus?: (bonusId: string) => void;
 }
 
-export function PersonnelTable({ onEdit, bonuses = [] }: PersonnelTableProps) {
+export function PersonnelTable({ onEdit, bonuses = [], onEditBonus, onDeleteBonus }: PersonnelTableProps) {
   const { employees, deletePersonnel, getEmployeeMonthlyCost, totalEmployeeCost, isLoading } = useBPPersonnel();
 
   const formatCurrency = (value: number) => {
@@ -27,6 +28,14 @@ export function PersonnelTable({ onEdit, bonuses = [] }: PersonnelTableProps) {
 
   const formatDate = (dateStr: string) => {
     return format(parseISO(dateStr), 'MMM yyyy', { locale: fr });
+  };
+
+  const formatMonthYear = (dateStr: string) => {
+    try {
+      return format(parseISO(dateStr), 'MMM yyyy', { locale: fr });
+    } catch {
+      return dateStr;
+    }
   };
 
   // Calculer le total des primes par salarié
@@ -130,28 +139,89 @@ export function PersonnelTable({ onEdit, bonuses = [] }: PersonnelTableProps) {
                 </TableCell>
                 <TableCell className="text-right">
                   {personBonuses.length > 0 ? (
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <div className="inline-flex items-center gap-1 cursor-help">
-                            <Gift className="h-3 w-3 text-emerald-500" />
-                            <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20">
-                              {formatCurrency(totalBonusForPerson)}
-                            </Badge>
-                          </div>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <div className="space-y-1">
-                            {personBonuses.map((bonus) => (
-                              <div key={bonus.id} className="flex justify-between gap-4 text-sm">
-                                <span>{BONUS_TYPES[bonus.bonus_type as keyof typeof BONUS_TYPES]?.label || bonus.bonus_type}</span>
-                                <span className="font-medium">{formatCurrency(bonus.amount)}</span>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button className="inline-flex items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity">
+                          <Gift className="h-3 w-3 text-emerald-500" />
+                          <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20">
+                            {formatCurrency(totalBonusForPerson)}
+                          </Badge>
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-80 p-0" align="end">
+                        <div className="p-3 border-b bg-muted/50">
+                          <p className="font-medium text-sm">Primes de {person.position}</p>
+                          <p className="text-xs text-muted-foreground">Cliquez sur une prime pour la modifier</p>
+                        </div>
+                        <div className="divide-y max-h-64 overflow-y-auto">
+                          {personBonuses.map((bonus) => (
+                            <div
+                              key={bonus.id}
+                              className="p-3 hover:bg-muted/50 transition-colors"
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-medium text-sm truncate">
+                                      {BONUS_TYPES[bonus.bonus_type as keyof typeof BONUS_TYPES]?.label || bonus.bonus_type}
+                                    </span>
+                                    {bonus.is_exempt && (
+                                      <Badge variant="secondary" className="text-xs bg-emerald-500/10 text-emerald-600">
+                                        Exo
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <p className="text-xs text-muted-foreground">
+                                    Versement : {formatMonthYear(bonus.payment_month)}
+                                  </p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-semibold text-sm">
+                                    {formatCurrency(bonus.amount)}
+                                  </span>
+                                  <div className="flex gap-1">
+                                    {onEditBonus && (
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-7 w-7"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          onEditBonus(bonus);
+                                        }}
+                                      >
+                                        <Pencil className="h-3 w-3" />
+                                      </Button>
+                                    )}
+                                    {onDeleteBonus && (
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-7 w-7 text-destructive hover:text-destructive"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          onDeleteBonus(bonus.id);
+                                        }}
+                                      >
+                                        <Trash2 className="h-3 w-3" />
+                                      </Button>
+                                    )}
+                                  </div>
+                                </div>
                               </div>
-                            ))}
+                            </div>
+                          ))}
+                        </div>
+                        <div className="p-3 border-t bg-muted/30">
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-muted-foreground">Total</span>
+                            <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                              {formatCurrency(totalBonusForPerson)}
+                            </span>
                           </div>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
                   ) : (
                     <span className="text-muted-foreground">–</span>
                   )}
@@ -162,49 +232,8 @@ export function PersonnelTable({ onEdit, bonuses = [] }: PersonnelTableProps) {
                 <TableCell className="text-muted-foreground">
                   {formatDate(person.start_date)}
                 </TableCell>
-                <TableCell>
-                  <div className="flex flex-col gap-1">
-                    <span className="text-muted-foreground">
-                      {person.end_date ? formatDate(person.end_date) : '–'}
-                    </span>
-                    {person.departure_type && person.end_date && (
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <div className="flex items-center gap-1">
-                              <Badge 
-                                variant="outline" 
-                                className="text-[10px] px-1.5 py-0 bg-amber-500/10 text-amber-700 border-amber-200"
-                              >
-                                <DoorOpen className="h-3 w-3 mr-1" />
-                                {DEPARTURE_TYPES[person.departure_type]?.label.split(' ')[0] || 'Départ'}
-                              </Badge>
-                            </div>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <div className="space-y-1 text-sm">
-                              <p className="font-medium">{DEPARTURE_TYPES[person.departure_type]?.label}</p>
-                              {person.severance_amount && (
-                                <>
-                                  <p className="text-muted-foreground">
-                                    Indemnité: {formatCurrency(Number(person.severance_amount))}
-                                  </p>
-                                  <p className="text-muted-foreground">
-                                    Coût total: {formatCurrency(
-                                      calculateSeveranceEmployerCost(
-                                        Number(person.severance_amount),
-                                        DEPARTURE_TYPES[person.departure_type]?.employerContributionRate
-                                      ).totalCost
-                                    )}
-                                  </p>
-                                </>
-                              )}
-                            </div>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    )}
-                  </div>
+                <TableCell className="text-muted-foreground">
+                  {person.end_date ? formatDate(person.end_date) : '–'}
                 </TableCell>
                 <TableCell>
                   <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">

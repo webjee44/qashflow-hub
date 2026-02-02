@@ -5,11 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useRevenueStreams, RevenueStream } from '@/hooks/useRevenueStreams';
 import { useCurrentBusinessPlan } from '@/hooks/useCurrentBusinessPlan';
-import { RevenueStreamDialog } from '@/components/businessplan/RevenueStreamDialog';
-import { RevenueTable } from '@/components/businessplan/RevenueTable';
-import { RevenueSummaryCard } from '@/components/businessplan/RevenueSummaryCard';
-import { SectionNotes } from '@/components/businessplan/SectionNotes';
-import { BPExportDialog } from '@/components/businessplan/BPExportDialog';
+import { RevenueTable, RevenueSummaryCard, SectionNotes } from '@/features/business-plan/components';
+import { RevenueStreamDialog, BPExportDialog } from '@/features/business-plan/dialogs';
 import { PageHeader } from '@/components/layout/PageHeader';
 
 export default function RevenueAssumptions() {

@@ -7,11 +7,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { BPCashFlowChart } from '@/components/businessplan/BPCashFlowChart';
-import { BPCashFlowTable } from '@/components/businessplan/BPCashFlowTable';
-import { BPSettingsDialog } from '@/components/businessplan/BPSettingsDialog';
-import { SectionNotes } from '@/components/businessplan/SectionNotes';
-import { BPExportDialog } from '@/components/businessplan/BPExportDialog';
+import { BPCashFlowChart } from '@/features/business-plan/charts';
+import { BPCashFlowTable, SectionNotes } from '@/features/business-plan/components';
+import { BPSettingsDialog, BPExportDialog } from '@/features/business-plan/dialogs';
 import { useBPCashFlow } from '@/hooks/useBPCashFlow';
 import { useBPSettings } from '@/hooks/useBPSettings';
 import { PageHeader } from '@/components/layout/PageHeader';
