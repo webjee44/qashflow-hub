@@ -813,10 +813,12 @@ export function ForecastTable() {
       const groupId = group.group?.id || 'ungrouped';
       const isCollapsed = group.group ? collapsedGroups.has(groupId) : false;
       
+      const totalChildren = group.children;
+
       // Filter categories without any amounts (unless showAllCategories is enabled)
       const visibleChildren = showAllCategories 
-        ? group.children 
-        : group.children.filter(cat => hasAnyAmount(cat.id));
+        ? totalChildren 
+        : totalChildren.filter(cat => hasAnyAmount(cat.id));
       
       // Skip ungrouped section if empty
       if (visibleChildren.length === 0 && !group.group) return null;
@@ -825,7 +827,8 @@ export function ForecastTable() {
       
       // Always render group header if it's a proper group (even if empty)
       if (group.group) {
-        elements.push(renderGroupRow({ ...group, children: visibleChildren }, type));
+        // Pass total children to keep badge accurate even when filtering “actives only”
+        elements.push(renderGroupRow({ ...group, children: totalChildren }, type));
       }
       
       // Render children if not collapsed (or if no group header)
