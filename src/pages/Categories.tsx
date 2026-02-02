@@ -2,10 +2,9 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useCategories, Category } from '@/hooks/useCategories';
-import { CategoryTable } from '@/components/categories/CategoryTable';
+import { UnifiedCategoryList } from '@/components/categories/UnifiedCategoryList';
 import { CategoryDialog } from '@/components/categories/CategoryDialog';
 import { GroupDialog } from '@/components/categories/GroupDialog';
-import { GroupsManager } from '@/components/categories/GroupsManager';
 import { Button } from '@/components/ui/button';
 import { 
   Plus, 
@@ -21,6 +20,7 @@ interface GroupDialogState {
   open: boolean;
   mode: 'create' | 'edit';
   editGroup: Category | null;
+  defaultType: 'income' | 'expense';
 }
 
 export default function Categories() {
@@ -37,22 +37,21 @@ export default function Categories() {
     createGroup,
     updateGroup,
     deleteGroup,
-    isGroup,
-    bulkAssignToGroup,
-    bulkRemoveFromGroup
+    bulkAssignToGroup
   } = useCategories();
   
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   
-  // Unified group dialog state - avoids complex controlled/uncontrolled patterns
+  // Unified group dialog state
   const [groupDialog, setGroupDialog] = useState<GroupDialogState>({
     open: false,
     mode: 'create',
     editGroup: null,
+    defaultType: 'expense',
   });
 
-  const handleEdit = (category: Category) => {
+  const handleEditCategory = (category: Category) => {
     setEditingCategory(category);
     setEditDialogOpen(true);
   };
@@ -62,14 +61,16 @@ export default function Categories() {
       open: true,
       mode: 'edit',
       editGroup: group,
+      defaultType: group.type,
     });
   };
 
-  const openCreateGroupDialog = () => {
+  const handleCreateGroup = (type: 'income' | 'expense') => {
     setGroupDialog({
       open: true,
       mode: 'create',
       editGroup: null,
+      defaultType: type,
     });
   };
 
@@ -78,6 +79,7 @@ export default function Categories() {
       open: false,
       mode: 'create',
       editGroup: null,
+      defaultType: 'expense',
     });
   };
 
@@ -113,6 +115,16 @@ export default function Categories() {
 
   const handleDeleteGroup = async (groupId: string, deleteChildren: boolean) => {
     await deleteGroup(groupId, deleteChildren);
+  };
+
+  // Handler for drag & drop - move category to a group
+  const handleMoveToGroup = async (categoryId: string, groupId: string | null) => {
+    if (groupId) {
+      await bulkAssignToGroup([categoryId], groupId);
+    } else {
+      // Remove from group by setting parent_id to null
+      await updateCategory(categoryId, { parent_id: null });
+    }
   };
 
   const incomeGroups = getGroupedCategories('income');
@@ -236,43 +248,48 @@ export default function Categories() {
         </motion.div>
       )}
 
-      {/* Groups Manager Section */}
-      <GroupsManager
-        incomeGroups={incomeGroups}
-        expenseGroups={expenseGroups}
-        onCreateGroup={openCreateGroupDialog}
-        onEditGroup={handleEditGroup}
-        onDeleteGroup={handleDeleteGroup}
-      />
+      {/* Categories Lists */}
+      {totalCategories > 0 && (
+        <div className="space-y-6">
+          {/* Revenus */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-success" />
+              <h3 className="font-semibold text-foreground">Revenus</h3>
+            </div>
+            <UnifiedCategoryList
+              type="income"
+              groups={incomeGroups}
+              allCategories={categories}
+              onCreateGroup={handleCreateGroup}
+              onEditGroup={handleEditGroup}
+              onDeleteGroup={handleDeleteGroup}
+              onEditCategory={handleEditCategory}
+              onDeleteCategory={deleteCategory}
+              onMoveToGroup={handleMoveToGroup}
+            />
+          </div>
 
-      {/* Categories Tables */}
-      <div className="space-y-4">
-        <CategoryTable 
-          groups={incomeGroups}
-          type="income"
-          allCategories={categories}
-          onEdit={handleEdit}
-          onEditGroup={handleEditGroup}
-          onDelete={deleteCategory}
-          onDeleteGroup={handleDeleteGroup}
-          availableGroups={incomeGroups.filter(g => g.group).map(g => g.group!)}
-          onBulkAssign={bulkAssignToGroup}
-          onBulkUnassign={bulkRemoveFromGroup}
-        />
-        <CategoryTable 
-          groups={expenseGroups}
-          type="expense"
-          allCategories={categories}
-          onEdit={handleEdit}
-          onEditGroup={handleEditGroup}
-          onDelete={deleteCategory}
-          onDeleteGroup={handleDeleteGroup}
-          availableGroups={expenseGroups.filter(g => g.group).map(g => g.group!)}
-          onBulkAssign={bulkAssignToGroup}
-          onBulkUnassign={bulkRemoveFromGroup}
-        />
-      </div>
-
+          {/* Dépenses */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <TrendingDown className="w-5 h-5 text-destructive" />
+              <h3 className="font-semibold text-foreground">Dépenses</h3>
+            </div>
+            <UnifiedCategoryList
+              type="expense"
+              groups={expenseGroups}
+              allCategories={categories}
+              onCreateGroup={handleCreateGroup}
+              onEditGroup={handleEditGroup}
+              onDeleteGroup={handleDeleteGroup}
+              onEditCategory={handleEditCategory}
+              onDeleteCategory={deleteCategory}
+              onMoveToGroup={handleMoveToGroup}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Edit Category Dialog */}
       <CategoryDialog
@@ -291,6 +308,8 @@ export default function Categories() {
           editGroup={groupDialog.editGroup}
           mode={groupDialog.mode}
           open={groupDialog.open}
+          defaultType={groupDialog.defaultType}
+          lockType={true}
           onOpenChange={(open) => {
             if (!open) closeGroupDialog();
           }}

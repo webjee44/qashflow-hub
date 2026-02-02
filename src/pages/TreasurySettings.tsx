@@ -1,13 +1,12 @@
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Tags, Zap, Folder } from 'lucide-react';
+import { Tags, Zap, Folder, TrendingUp, TrendingDown } from 'lucide-react';
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useCategories, Category } from '@/hooks/useCategories';
-import { CategoryTable } from '@/components/categories/CategoryTable';
+import { UnifiedCategoryList } from '@/components/categories/UnifiedCategoryList';
 import { CategoryDialog } from '@/components/categories/CategoryDialog';
 import { GroupDialog } from '@/components/categories/GroupDialog';
-import { GroupsManager } from '@/components/categories/GroupsManager';
 import { AutomationRules } from '@/components/automations/AutomationRules';
 import { ZenfirstImportDialog } from '@/components/settings/ZenfirstImportDialog';
 import { Button } from '@/components/ui/button';
@@ -15,9 +14,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { 
   Plus, 
-  Loader2, 
-  TrendingUp, 
-  TrendingDown,
+  Loader2,
   Wand2,
   Upload
 } from 'lucide-react';
@@ -26,6 +23,7 @@ interface GroupDialogState {
   open: boolean;
   mode: 'create' | 'edit';
   editGroup: Category | null;
+  defaultType: 'income' | 'expense';
 }
 
 export default function TreasurySettings() {
@@ -42,8 +40,7 @@ export default function TreasurySettings() {
     createGroup,
     updateGroup,
     deleteGroup,
-    bulkAssignToGroup,
-    bulkRemoveFromGroup
+    bulkAssignToGroup
   } = useCategories();
   
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
@@ -52,10 +49,11 @@ export default function TreasurySettings() {
     open: false,
     mode: 'create',
     editGroup: null,
+    defaultType: 'expense',
   });
   const [importDialogOpen, setImportDialogOpen] = useState(false);
 
-  const handleEdit = (category: Category) => {
+  const handleEditCategory = (category: Category) => {
     setEditingCategory(category);
     setEditDialogOpen(true);
   };
@@ -65,14 +63,16 @@ export default function TreasurySettings() {
       open: true,
       mode: 'edit',
       editGroup: group,
+      defaultType: group.type,
     });
   };
 
-  const openCreateGroupDialog = () => {
+  const handleCreateGroup = (type: 'income' | 'expense') => {
     setGroupDialog({
       open: true,
       mode: 'create',
       editGroup: null,
+      defaultType: type,
     });
   };
 
@@ -81,6 +81,7 @@ export default function TreasurySettings() {
       open: false,
       mode: 'create',
       editGroup: null,
+      defaultType: 'expense',
     });
   };
 
@@ -116,6 +117,16 @@ export default function TreasurySettings() {
 
   const handleDeleteGroup = async (groupId: string, deleteChildren: boolean) => {
     await deleteGroup(groupId, deleteChildren);
+  };
+
+  // Handler for drag & drop - move category to a group
+  const handleMoveToGroup = async (categoryId: string, groupId: string | null) => {
+    if (groupId) {
+      await bulkAssignToGroup([categoryId], groupId);
+    } else {
+      // Remove from group by setting parent_id to null
+      await updateCategory(categoryId, { parent_id: null });
+    }
   };
 
   const incomeGroups = getGroupedCategories('income');
@@ -203,16 +214,7 @@ export default function TreasurySettings() {
                 </motion.div>
               ) : (
                 <>
-                  {/* Groups Manager Section */}
-                  <GroupsManager
-                    incomeGroups={incomeGroups}
-                    expenseGroups={expenseGroups}
-                    onCreateGroup={openCreateGroupDialog}
-                    onEditGroup={handleEditGroup}
-                    onDeleteGroup={handleDeleteGroup}
-                  />
-
-                  {/* Categories Tables with actions */}
+                  {/* Revenus Section */}
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
@@ -224,25 +226,25 @@ export default function TreasurySettings() {
                         trigger={
                           <Button variant="outline" size="sm">
                             <Plus className="w-4 h-4 mr-2" />
-                            Ajouter
+                            Ajouter une catégorie
                           </Button>
                         }
                       />
                     </div>
-                    <CategoryTable 
-                      groups={incomeGroups}
+                    <UnifiedCategoryList
                       type="income"
+                      groups={incomeGroups}
                       allCategories={categories}
-                      onEdit={handleEdit}
+                      onCreateGroup={handleCreateGroup}
                       onEditGroup={handleEditGroup}
-                      onDelete={deleteCategory}
                       onDeleteGroup={handleDeleteGroup}
-                      availableGroups={incomeGroups.filter(g => g.group).map(g => g.group!)}
-                      onBulkAssign={bulkAssignToGroup}
-                      onBulkUnassign={bulkRemoveFromGroup}
+                      onEditCategory={handleEditCategory}
+                      onDeleteCategory={deleteCategory}
+                      onMoveToGroup={handleMoveToGroup}
                     />
                   </div>
 
+                  {/* Dépenses Section */}
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
@@ -254,22 +256,21 @@ export default function TreasurySettings() {
                         trigger={
                           <Button variant="outline" size="sm">
                             <Plus className="w-4 h-4 mr-2" />
-                            Ajouter
+                            Ajouter une catégorie
                           </Button>
                         }
                       />
                     </div>
-                    <CategoryTable 
-                      groups={expenseGroups}
+                    <UnifiedCategoryList
                       type="expense"
+                      groups={expenseGroups}
                       allCategories={categories}
-                      onEdit={handleEdit}
+                      onCreateGroup={handleCreateGroup}
                       onEditGroup={handleEditGroup}
-                      onDelete={deleteCategory}
                       onDeleteGroup={handleDeleteGroup}
-                      availableGroups={expenseGroups.filter(g => g.group).map(g => g.group!)}
-                      onBulkAssign={bulkAssignToGroup}
-                      onBulkUnassign={bulkRemoveFromGroup}
+                      onEditCategory={handleEditCategory}
+                      onDeleteCategory={deleteCategory}
+                      onMoveToGroup={handleMoveToGroup}
                     />
                   </div>
 
@@ -313,6 +314,8 @@ export default function TreasurySettings() {
                   editGroup={groupDialog.editGroup}
                   mode={groupDialog.mode}
                   open={groupDialog.open}
+                  defaultType={groupDialog.defaultType}
+                  lockType={true}
                   onOpenChange={(open) => {
                     if (!open) closeGroupDialog();
                   }}

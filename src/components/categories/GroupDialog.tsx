@@ -51,6 +51,8 @@ interface GroupDialogProps {
   editGroup?: Category | null;
   categories: Category[];
   defaultType?: 'income' | 'expense';
+  /** When true, type cannot be changed (used when creating from a specific section) */
+  lockType?: boolean;
   onSave: (data: {
     name: string;
     color: string;
@@ -66,6 +68,7 @@ export function GroupDialog({
   editGroup,
   categories,
   defaultType = 'expense',
+  lockType = false,
   onSave,
 }: GroupDialogProps) {
   // Initialize state based on mode - this runs once per mount (keyed remount strategy)
@@ -153,19 +156,21 @@ export function GroupDialog({
             />
           </div>
 
-          {/* Type Selection */}
-          <div className="space-y-2">
-            <Label>Type</Label>
-            <Select value={type} onValueChange={handleTypeChange}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="expense">Dépense</SelectItem>
-                <SelectItem value="income">Revenu</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          {/* Type Selection - hidden if locked */}
+          {!lockType && (
+            <div className="space-y-2">
+              <Label>Type</Label>
+              <Select value={type} onValueChange={handleTypeChange}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="expense">Dépense</SelectItem>
+                  <SelectItem value="income">Revenu</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           {/* Color Selection */}
           <div className="space-y-2">
@@ -203,48 +208,57 @@ export function GroupDialog({
             </Popover>
           </div>
 
-          {/* Category Selection */}
-          <div className="space-y-2">
-            <Label>
-              Catégories à inclure ({selectedIds.length} sélectionnée{selectedIds.length > 1 ? 's' : ''})
-            </Label>
-            <ScrollArea className="h-[200px] rounded-md border p-2">
-              {availableCategories.length === 0 ? (
-                <p className="text-sm text-muted-foreground p-2">
-                  Aucune catégorie {type === 'income' ? 'de revenu' : 'de dépense'} disponible.
-                </p>
-              ) : (
-                <div className="space-y-1">
-                  {availableCategories.map((cat) => {
-                    const isSelected = selectedIds.includes(cat.id);
-                    return (
-                      <div
-                        key={cat.id}
-                        className={`flex items-center gap-3 p-2 rounded-md cursor-pointer transition-colors ${
-                          isSelected ? 'bg-accent' : 'hover:bg-accent/50'
-                        }`}
-                        onClick={() => toggleCategory(cat.id)}
-                      >
-                        <Checkbox
-                          checked={isSelected}
-                          onCheckedChange={() => toggleCategory(cat.id)}
-                          onClick={(e) => e.stopPropagation()}
-                        />
+          {/* Category Selection - only in edit mode */}
+          {mode === 'edit' && (
+            <div className="space-y-2">
+              <Label>
+                Catégories incluses ({selectedIds.length} sélectionnée{selectedIds.length > 1 ? 's' : ''})
+              </Label>
+              <ScrollArea className="h-[200px] rounded-md border p-2">
+                {availableCategories.length === 0 ? (
+                  <p className="text-sm text-muted-foreground p-2">
+                    Aucune catégorie {type === 'income' ? 'de revenu' : 'de dépense'} disponible.
+                  </p>
+                ) : (
+                  <div className="space-y-1">
+                    {availableCategories.map((cat) => {
+                      const isSelected = selectedIds.includes(cat.id);
+                      return (
                         <div
-                          className="h-3 w-3 rounded-full"
-                          style={{ backgroundColor: cat.color }}
-                        />
-                        <span className="text-sm">{cat.name}</span>
-                        {isSelected && (
-                          <Check className="h-4 w-4 ml-auto text-primary" />
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </ScrollArea>
-          </div>
+                          key={cat.id}
+                          className={`flex items-center gap-3 p-2 rounded-md cursor-pointer transition-colors ${
+                            isSelected ? 'bg-accent' : 'hover:bg-accent/50'
+                          }`}
+                          onClick={() => toggleCategory(cat.id)}
+                        >
+                          <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={() => toggleCategory(cat.id)}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                          <div
+                            className="h-3 w-3 rounded-full"
+                            style={{ backgroundColor: cat.color }}
+                          />
+                          <span className="text-sm">{cat.name}</span>
+                          {isSelected && (
+                            <Check className="h-4 w-4 ml-auto text-primary" />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </ScrollArea>
+            </div>
+          )}
+
+          {/* Hint for creation mode */}
+          {mode === 'create' && (
+            <p className="text-sm text-muted-foreground">
+              Après la création, glissez-déposez des catégories dans ce groupe.
+            </p>
+          )}
         </div>
 
         <DialogFooter>
