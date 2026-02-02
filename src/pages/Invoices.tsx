@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
-import { Plus, Filter } from 'lucide-react';
+import { Plus, Filter, Search } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -45,15 +46,22 @@ export default function Invoices() {
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
   const [tabFilter, setTabFilter] = useState<TabFilter>('all');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('pending');
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Filter invoices
   const filteredInvoices = useMemo(() => {
     return invoices.filter(invoice => {
       if (tabFilter !== 'all' && invoice.type !== tabFilter) return false;
       if (statusFilter !== 'all' && invoice.status !== statusFilter) return false;
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        const matchesPartner = invoice.partner_name.toLowerCase().includes(query);
+        const matchesNumber = invoice.invoice_number?.toLowerCase().includes(query);
+        if (!matchesPartner && !matchesNumber) return false;
+      }
       return true;
     });
-  }, [invoices, tabFilter, statusFilter]);
+  }, [invoices, tabFilter, statusFilter, searchQuery]);
 
   const handleOpenDialog = (invoice?: Invoice) => {
     setEditingInvoice(invoice || null);
@@ -117,7 +125,16 @@ export default function Invoices() {
           </TabsList>
         </Tabs>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Rechercher..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 w-[200px]"
+            />
+          </div>
           <Filter className="h-4 w-4 text-muted-foreground" />
           <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
             <SelectTrigger className="w-[150px]">
