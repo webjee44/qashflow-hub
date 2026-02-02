@@ -1,11 +1,14 @@
 // Re-export all BP dialogs
+export { BonusDialog } from './BonusDialog';
 export { BPExportDialog } from './BPExportDialog';
-export { EmployeeDialog } from './EmployeeDialog';
-export { FreelanceDialog } from './FreelanceDialog';
 export { BPSettingsDialog } from './BPSettingsDialog';
 export { BPWizardDialog } from './BPWizardDialog';
+export { BulkEditExpenseDialog } from './BulkEditExpenseDialog';
+export { EditBonusDialog } from './EditBonusDialog';
+export { EmployeeDialog } from './EmployeeDialog';
 export { FinancingDialog } from './FinancingDialog';
 export { FixedExpenseDialog } from './FixedExpenseDialog';
+export { FreelanceDialog } from './FreelanceDialog';
 export { InvestmentDialog } from './InvestmentDialog';
 export { PersonnelDialog } from './PersonnelDialog';
 export { RevenueStreamDialog } from './RevenueStreamDialog';

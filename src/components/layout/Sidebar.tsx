@@ -30,7 +30,7 @@ import { useBPSettings } from '@/hooks/useBPSettings';
 import { useOnboarding } from '@/hooks/useOnboarding';
 import { useBPOnboarding } from '@/hooks/useBPOnboarding';
 import { useCompany } from '@/hooks/useCompany';
-import { BPSettingsDialog } from '@/components/businessplan/BPSettingsDialog';
+import { BPSettingsDialog } from '@/features/business-plan/dialogs';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Separator } from '@/components/ui/separator';
 import { supabase } from '@/integrations/supabase/client';

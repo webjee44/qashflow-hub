@@ -4,7 +4,11 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { useBPCashFlow } from '@/hooks/useBPCashFlow';
 import { Loader2 } from 'lucide-react';
 
-export function BPCashFlowChart() {
+interface BPCashFlowChartProps {
+  height?: number;
+}
+
+export function BPCashFlowChart({ height = 400 }: BPCashFlowChartProps) {
   const { data, isLoading, isHealthy } = useBPCashFlow();
 
   if (isLoading) {
@@ -32,7 +36,7 @@ export function BPCashFlowChart() {
   };
 
   return (
-    <ResponsiveContainer width="100%" height={400}>
+    <ResponsiveContainer width="100%" height={height}>
       <AreaChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
         <defs>
           <linearGradient id="colorBalance" x1="0" y1="0" x2="0" y2="1">

@@ -1,7 +1,6 @@
 import { motion } from 'framer-motion';
-import { FundingPlanTable } from '@/components/businessplan/FundingPlanTable';
-import { SectionNotes } from '@/components/businessplan/SectionNotes';
-import { BPExportDialog } from '@/components/businessplan/BPExportDialog';
+import { FundingPlanTable, SectionNotes } from '@/features/business-plan/components';
+import { BPExportDialog } from '@/features/business-plan/dialogs';
 import { PageHeader } from '@/components/layout/PageHeader';
 
 export default function FundingPlan() {
