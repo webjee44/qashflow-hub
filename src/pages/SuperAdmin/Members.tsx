@@ -277,7 +277,7 @@ export default function SuperAdminMembers() {
                               )}
                             </Button>
                           </TooltipTrigger>
-                          <TooltipContent>Usurper l'identité</TooltipContent>
+                          <TooltipContent>Se connecter à la place</TooltipContent>
                         </Tooltip>
                       </TableCell>
                     </TableRow>
