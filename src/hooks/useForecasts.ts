@@ -216,18 +216,20 @@ export function useForecasts() {
       month: Date; 
       expectedAmount: number;
     }) => {
-      if (!user?.id) throw new Error('Non authentifié');
+      if (!user?.id || !currentCompany) throw new Error('Non authentifié ou pas de société');
       
+      // Use owner's user_id for data consistency across members
+      const dataOwnerId = currentCompany.user_id;
       const monthStr = format(month, 'yyyy-MM-01');
       
       const { data, error } = await supabase
         .from('category_forecasts')
         .upsert({
-          user_id: user.id,
+          user_id: dataOwnerId,
           category_id: categoryId,
           month: monthStr,
           expected_amount: expectedAmount,
-          company_id: currentCompany?.id || null,
+          company_id: currentCompany.id,
         }, {
           onConflict: 'user_id,category_id,month',
         })

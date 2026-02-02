@@ -35,17 +35,25 @@ const defaultCategories = [
   { name: 'Logiciels', color: 'hsl(221, 83%, 53%)', icon: 'Laptop', type: 'expense' as const, vat_rate: 0.20 },
 ];
 
-// Fetch function for categories
-async function fetchCategories(userId: string, companyId?: string | null): Promise<Category[]> {
+// Fetch function for categories - uses company_id based access (RLS handles permissions)
+async function fetchCategories(companyId?: string | null, ownerId?: string | null): Promise<Category[]> {
+  if (!companyId) return [];
+  
   let query = supabase
     .from('categories')
     .select('*')
-    .eq('user_id', userId)
+    .or(`company_id.eq.${companyId},company_id.is.null`)
     .order('type', { ascending: true })
     .order('name', { ascending: true });
 
-  if (companyId) {
-    query = query.or(`company_id.eq.${companyId},company_id.is.null`);
+  // If we have an owner ID, also filter by it for legacy data without company_id
+  if (ownerId) {
+    query = supabase
+      .from('categories')
+      .select('*')
+      .or(`company_id.eq.${companyId},and(company_id.is.null,user_id.eq.${ownerId})`)
+      .order('type', { ascending: true })
+      .order('name', { ascending: true });
   }
 
   const { data, error } = await query;
@@ -58,32 +66,37 @@ export function useCategories() {
   const { currentCompany } = useCompany();
   const queryClient = useQueryClient();
 
-  const queryKey = ['categories', user?.id, currentCompany?.id];
+  const companyId = currentCompany?.id;
+  const ownerId = currentCompany?.user_id;
+  const queryKey = ['categories', companyId];
 
-  // Main query with React Query caching
+  // Main query with React Query caching - filter by company, not user
   const { data: categories = [], isLoading: loading, refetch } = useQuery({
     queryKey,
-    queryFn: () => fetchCategories(user!.id, currentCompany?.id),
-    enabled: !!user,
+    queryFn: () => fetchCategories(companyId, ownerId),
+    enabled: !!user && !!companyId,
     staleTime: 1000 * 60 * 10, // 10 minutes cache for categories
   });
 
   const initializeDefaultCategories = async () => {
-    if (!user) return;
+    if (!user || !currentCompany) return;
+    
+    // Use owner's user_id for data consistency
+    const dataOwnerId = currentCompany.user_id;
     
     try {
       const { data: existing } = await supabase
         .from('categories')
         .select('id')
-        .eq('user_id', user.id)
+        .eq('company_id', currentCompany.id)
         .limit(1);
 
       if (existing && existing.length > 0) return;
 
       const categoriesToInsert = defaultCategories.map(cat => ({
         ...cat,
-        user_id: user.id,
-        company_id: currentCompany?.id || null
+        user_id: dataOwnerId,
+        company_id: currentCompany.id
       }));
 
       const { error } = await supabase
@@ -108,15 +121,18 @@ export function useCategories() {
       type: 'income' | 'expense';
       vat_rate?: number;
     }) => {
-      if (!user) throw new Error('User not authenticated');
+      if (!user || !currentCompany) throw new Error('User not authenticated or no company');
+      
+      // Use owner's user_id for data consistency across members
+      const dataOwnerId = currentCompany.user_id;
       
       const { data, error } = await supabase
         .from('categories')
         .insert({
           ...category,
           vat_rate: category.vat_rate ?? 0,
-          user_id: user.id,
-          company_id: currentCompany?.id || null
+          user_id: dataOwnerId,
+          company_id: currentCompany.id
         })
         .select()
         .single();
@@ -281,7 +297,10 @@ export function useCategories() {
       type: 'income' | 'expense';
       categoryIds: string[];
     }) => {
-      if (!user) throw new Error('User not authenticated');
+      if (!user || !currentCompany) throw new Error('User not authenticated or no company');
+
+      // Use owner's user_id for data consistency across members
+      const dataOwnerId = currentCompany.user_id;
 
       const { data: groupData, error: groupError } = await supabase
         .from('categories')
@@ -291,8 +310,8 @@ export function useCategories() {
           icon: 'Folder',
           type: data.type,
           vat_rate: 0,
-          user_id: user.id,
-          company_id: currentCompany?.id || null,
+          user_id: dataOwnerId,
+          company_id: currentCompany.id,
           parent_id: null
         })
         .select()

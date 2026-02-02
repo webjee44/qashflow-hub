@@ -57,12 +57,15 @@ export function useBPRevenueStreams() {
 
   const createStream = useMutation({
     mutationFn: async (data: Partial<BPRevenueStream>) => {
-      if (!user || !companyId) throw new Error('Not authenticated or no company');
+      if (!user || !companyId || !currentCompany) throw new Error('Not authenticated or no company');
+
+      // Use owner's user_id for data consistency across members
+      const ownerId = currentCompany.user_id;
 
       const { data: newStream, error } = await supabase
         .from('bp_revenue_streams')
         .insert({
-          user_id: user.id,
+          user_id: ownerId,
           company_id: companyId,
           name: data.name || 'Nouveau flux',
           description: data.description || null,

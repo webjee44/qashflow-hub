@@ -42,7 +42,7 @@ export const financingService = {
     return (data || []) as BPFinancing[];
   },
 
-  async create(userId: string, companyId: string, data: BPFinancingInsert): Promise<BPFinancing> {
+  async create(ownerId: string, companyId: string, data: BPFinancingInsert): Promise<BPFinancing> {
     // Calculate monthly payment for loans
     let monthlyPayment = 0;
     if (data.financing_type === 'loan' && data.amount && data.interest_rate && data.duration_months) {
@@ -53,7 +53,7 @@ export const financingService = {
     const { data: newFinancing, error } = await supabase
       .from('bp_financings')
       .insert({
-        user_id: userId,
+        user_id: ownerId,
         company_id: companyId,
         name: data.name || 'Nouveau financement',
         financing_type: data.financing_type || 'loan',

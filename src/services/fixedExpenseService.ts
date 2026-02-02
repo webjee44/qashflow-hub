@@ -52,14 +52,14 @@ export const fixedExpenseService = {
     return (data || []) as BPFixedExpense[];
   },
 
-  async create(userId: string, companyId: string, data: BPFixedExpenseInsert): Promise<BPFixedExpense> {
+  async create(ownerId: string, companyId: string, data: BPFixedExpenseInsert): Promise<BPFixedExpense> {
     const frequency = data.payment_frequency || 'monthly';
     const paymentMonths = data.payment_months || DEFAULT_PAYMENT_MONTHS[frequency];
 
     const { data: newExpense, error } = await supabase
       .from('bp_fixed_expenses')
       .insert({
-        user_id: userId,
+        user_id: ownerId,
         company_id: companyId,
         name: data.name || 'Nouvelle charge',
         category: data.category || 'other',

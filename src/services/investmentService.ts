@@ -47,11 +47,11 @@ export const investmentService = {
     return (data || []) as BPInvestment[];
   },
 
-  async create(userId: string, companyId: string, data: BPInvestmentInsert): Promise<BPInvestment> {
+  async create(ownerId: string, companyId: string, data: BPInvestmentInsert): Promise<BPInvestment> {
     const { data: newInvestment, error } = await supabase
       .from('bp_investments')
       .insert({
-        user_id: userId,
+        user_id: ownerId,
         company_id: companyId,
         name: data.name || 'Nouvel investissement',
         category: data.category || 'equipment',
