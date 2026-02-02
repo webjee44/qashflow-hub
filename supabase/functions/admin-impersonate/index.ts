@@ -87,22 +87,31 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Generate a magic link for the target user
+    // Generate a magic link for the target user with proper hashed token
+    const origin = req.headers.get("origin") || "https://pennylane-cash-flow-buddy.lovable.app";
+    
     const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
       type: "magiclink",
       email: targetUser.user.email!,
       options: {
-        redirectTo: `${req.headers.get("origin") || "https://pennylane-cash-flow-buddy.lovable.app"}/dashboard`,
+        redirectTo: `${origin}/dashboard`,
       },
     });
 
-    if (linkError || !linkData?.properties?.action_link) {
+    if (linkError || !linkData?.properties) {
       console.error("Error generating magic link:", linkError);
       return new Response(
         JSON.stringify({ error: "Erreur lors de la génération du lien d'impersonation" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    // The hashed_token can be used to verify the OTP
+    const { hashed_token, verification_type } = linkData.properties;
+    
+    // Build the verification URL that Supabase Auth will process
+    // Format: /auth/v1/verify?token=HASHED_TOKEN&type=TYPE&redirect_to=URL
+    const verifyUrl = `${supabaseUrl}/auth/v1/verify?token=${hashed_token}&type=${verification_type}&redirect_to=${encodeURIComponent(`${origin}/dashboard`)}`;
 
     // Log this impersonation action
     await supabaseAdmin.from("audit_logs").insert({
@@ -121,7 +130,7 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
-        impersonationUrl: linkData.properties.action_link,
+        impersonationUrl: verifyUrl,
         targetEmail: targetUser.user.email,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
