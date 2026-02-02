@@ -152,8 +152,35 @@ async function syncOdooInvoices(
       ["name", "partner_id", "invoice_date", "invoice_date_due", "amount_untaxed", "amount_total", "amount_tax", "payment_state"]
     );
 
-    // Process customer invoices
-    for (const inv of customerInvoices) {
+    // Filter out paid invoices - we only want pending ones
+    const pendingCustomerInvoices = customerInvoices.filter(inv => inv.payment_state !== "paid" && inv.payment_state !== "in_payment");
+    const pendingSupplierInvoices = supplierInvoices.filter(inv => inv.payment_state !== "paid" && inv.payment_state !== "in_payment");
+
+    console.log(`[accounting-connector-sync] Odoo filtered: ${customerInvoices.length} -> ${pendingCustomerInvoices.length} customer invoices (excluding paid)`);
+    console.log(`[accounting-connector-sync] Odoo filtered: ${supplierInvoices.length} -> ${pendingSupplierInvoices.length} supplier invoices (excluding paid)`);
+
+    // Delete any existing invoices that are now paid (cleanup)
+    const paidCustomerIds = customerInvoices.filter(inv => inv.payment_state === "paid" || inv.payment_state === "in_payment").map(inv => `odoo_${inv.id}`);
+    const paidSupplierIds = supplierInvoices.filter(inv => inv.payment_state === "paid" || inv.payment_state === "in_payment").map(inv => `odoo_${inv.id}`);
+    
+    if (paidCustomerIds.length > 0 || paidSupplierIds.length > 0) {
+      const allPaidIds = [...paidCustomerIds, ...paidSupplierIds];
+      const { error: deleteError } = await supabase
+        .from("invoices")
+        .delete()
+        .eq("company_id", companyId)
+        .eq("source", "odoo")
+        .in("external_id", allPaidIds);
+      
+      if (deleteError) {
+        console.error("[accounting-connector-sync] Error cleaning up paid invoices:", deleteError);
+      } else {
+        console.log(`[accounting-connector-sync] Cleaned up ${allPaidIds.length} paid invoices`);
+      }
+    }
+
+    // Process customer invoices - only pending
+    for (const inv of pendingCustomerInvoices) {
       await upsertInvoice(supabase, {
         user_id: userId,
         company_id: companyId,
@@ -165,15 +192,15 @@ async function syncOdooInvoices(
         amount_ht: inv.amount_untaxed || 0,
         amount_ttc: inv.amount_total || 0,
         vat_amount: inv.amount_tax || 0,
-        status: mapOdooPaymentState(inv.payment_state),
-        paid_at: inv.payment_state === "paid" ? inv.invoice_date : null,
+        status: "pending",
+        paid_at: null,
         source: "odoo",
         external_id: `odoo_${inv.id}`,
       }, result);
     }
 
-    // Process supplier invoices
-    for (const inv of supplierInvoices) {
+    // Process supplier invoices - only pending
+    for (const inv of pendingSupplierInvoices) {
       await upsertInvoice(supabase, {
         user_id: userId,
         company_id: companyId,
@@ -185,8 +212,8 @@ async function syncOdooInvoices(
         amount_ht: inv.amount_untaxed || 0,
         amount_ttc: inv.amount_total || 0,
         vat_amount: inv.amount_tax || 0,
-        status: mapOdooPaymentState(inv.payment_state),
-        paid_at: inv.payment_state === "paid" ? inv.invoice_date : null,
+        status: "pending",
+        paid_at: null,
         source: "odoo",
         external_id: `odoo_${inv.id}`,
       }, result);
@@ -271,8 +298,35 @@ async function syncPennylaneInvoices(
     const customerInvoices = await fetchPennylaneInvoices(apiKey, "customer_invoices");
     const supplierInvoices = await fetchPennylaneInvoices(apiKey, "supplier_invoices");
 
-    // Process customer invoices
-    for (const inv of customerInvoices) {
+    // Filter out paid invoices - we only want pending ones
+    const pendingCustomerInvoices = customerInvoices.filter((inv: any) => !inv.paid);
+    const pendingSupplierInvoices = supplierInvoices.filter((inv: any) => !inv.paid);
+
+    console.log(`[accounting-connector-sync] Pennylane filtered: ${customerInvoices.length} -> ${pendingCustomerInvoices.length} customer invoices (excluding paid)`);
+    console.log(`[accounting-connector-sync] Pennylane filtered: ${supplierInvoices.length} -> ${pendingSupplierInvoices.length} supplier invoices (excluding paid)`);
+
+    // Delete any existing invoices that are now paid (cleanup)
+    const paidCustomerIds = customerInvoices.filter((inv: any) => inv.paid).map((inv: any) => `pennylane_${inv.id}`);
+    const paidSupplierIds = supplierInvoices.filter((inv: any) => inv.paid).map((inv: any) => `pennylane_${inv.id}`);
+    
+    if (paidCustomerIds.length > 0 || paidSupplierIds.length > 0) {
+      const allPaidIds = [...paidCustomerIds, ...paidSupplierIds];
+      const { error: deleteError } = await supabase
+        .from("invoices")
+        .delete()
+        .eq("company_id", companyId)
+        .eq("source", "pennylane")
+        .in("external_id", allPaidIds);
+      
+      if (deleteError) {
+        console.error("[accounting-connector-sync] Error cleaning up paid invoices:", deleteError);
+      } else {
+        console.log(`[accounting-connector-sync] Cleaned up ${allPaidIds.length} paid invoices`);
+      }
+    }
+
+    // Process customer invoices - only pending
+    for (const inv of pendingCustomerInvoices) {
       await upsertInvoice(supabase, {
         user_id: userId,
         company_id: companyId,
@@ -284,15 +338,15 @@ async function syncPennylaneInvoices(
         amount_ht: inv.amount || 0,
         amount_ttc: inv.currency_amount || inv.amount || 0,
         vat_amount: (inv.currency_amount || inv.amount || 0) - (inv.amount || 0),
-        status: inv.paid ? "paid" : "pending",
-        paid_at: inv.paid ? inv.date : null,
+        status: "pending",
+        paid_at: null,
         source: "pennylane",
         external_id: `pennylane_${inv.id}`,
       }, result);
     }
 
-    // Process supplier invoices
-    for (const inv of supplierInvoices) {
+    // Process supplier invoices - only pending
+    for (const inv of pendingSupplierInvoices) {
       await upsertInvoice(supabase, {
         user_id: userId,
         company_id: companyId,
@@ -304,8 +358,8 @@ async function syncPennylaneInvoices(
         amount_ht: inv.amount || 0,
         amount_ttc: inv.currency_amount || inv.amount || 0,
         vat_amount: (inv.currency_amount || inv.amount || 0) - (inv.amount || 0),
-        status: inv.paid ? "paid" : "pending",
-        paid_at: inv.paid ? inv.date : null,
+        status: "pending",
+        paid_at: null,
         source: "pennylane",
         external_id: `pennylane_${inv.id}`,
       }, result);
