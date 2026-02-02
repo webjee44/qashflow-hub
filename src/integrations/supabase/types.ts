@@ -1306,6 +1306,7 @@ export type Database = {
           id: string
           name: string
           parent_id: string | null
+          sort_order: number | null
           type: Database["public"]["Enums"]["transaction_type"]
           updated_at: string
           user_id: string
@@ -1319,6 +1320,7 @@ export type Database = {
           id?: string
           name: string
           parent_id?: string | null
+          sort_order?: number | null
           type: Database["public"]["Enums"]["transaction_type"]
           updated_at?: string
           user_id: string
@@ -1332,6 +1334,7 @@ export type Database = {
           id?: string
           name?: string
           parent_id?: string | null
+          sort_order?: number | null
           type?: Database["public"]["Enums"]["transaction_type"]
           updated_at?: string
           user_id?: string

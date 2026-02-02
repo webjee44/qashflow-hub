@@ -37,7 +37,8 @@ export default function Categories() {
     createGroup,
     updateGroup,
     deleteGroup,
-    bulkAssignToGroup
+    bulkAssignToGroup,
+    reorderCategories
   } = useCategories();
   
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
@@ -267,6 +268,7 @@ export default function Categories() {
               onEditCategory={handleEditCategory}
               onDeleteCategory={deleteCategory}
               onMoveToGroup={handleMoveToGroup}
+              onReorder={reorderCategories}
             />
           </div>
 
@@ -286,6 +288,7 @@ export default function Categories() {
               onEditCategory={handleEditCategory}
               onDeleteCategory={deleteCategory}
               onMoveToGroup={handleMoveToGroup}
+              onReorder={reorderCategories}
             />
           </div>
         </div>

@@ -17,6 +17,7 @@ export interface Category {
   user_id: string;
   company_id?: string | null;
   parent_id?: string | null;
+  sort_order?: number;
 }
 
 export interface CategoryGroup {
@@ -44,6 +45,7 @@ async function fetchCategories(companyId?: string | null, ownerId?: string | nul
     .select('*')
     .or(`company_id.eq.${companyId},company_id.is.null`)
     .order('type', { ascending: true })
+    .order('sort_order', { ascending: true })
     .order('name', { ascending: true });
 
   // If we have an owner ID, also filter by it for legacy data without company_id
@@ -53,6 +55,7 @@ async function fetchCategories(companyId?: string | null, ownerId?: string | nul
       .select('*')
       .or(`company_id.eq.${companyId},and(company_id.is.null,user_id.eq.${ownerId})`)
       .order('type', { ascending: true })
+      .order('sort_order', { ascending: true })
       .order('name', { ascending: true });
   }
 
@@ -274,9 +277,17 @@ export function useCategories() {
         
         if (hasChildren || isGroupByIcon) {
           // This is a group (with or without children)
+          // Sort children by sort_order then name
+          const children = childrenByParent.get(cat.id) || [];
+          children.sort((a, b) => {
+            const orderA = a.sort_order ?? 0;
+            const orderB = b.sort_order ?? 0;
+            if (orderA !== orderB) return orderA - orderB;
+            return a.name.localeCompare(b.name);
+          });
           groups.push({
             group: cat,
-            children: childrenByParent.get(cat.id)?.sort((a, b) => a.name.localeCompare(b.name)) || []
+            children
           });
         } else {
           // Regular ungrouped category
@@ -285,16 +296,28 @@ export function useCategories() {
       }
     });
 
+    // Sort ungrouped by sort_order then name
+    topLevelCats.sort((a, b) => {
+      const orderA = a.sort_order ?? 0;
+      const orderB = b.sort_order ?? 0;
+      if (orderA !== orderB) return orderA - orderB;
+      return a.name.localeCompare(b.name);
+    });
+
     if (topLevelCats.length > 0) {
       groups.unshift({
         group: null,
-        children: topLevelCats.sort((a, b) => a.name.localeCompare(b.name))
+        children: topLevelCats
       });
     }
 
+    // Sort groups by sort_order then name
     return groups.sort((a, b) => {
       if (!a.group) return -1;
       if (!b.group) return 1;
+      const orderA = a.group.sort_order ?? 0;
+      const orderB = b.group.sort_order ?? 0;
+      if (orderA !== orderB) return orderA - orderB;
       return a.group.name.localeCompare(b.group.name);
     });
   };
@@ -535,6 +558,79 @@ export function useCategories() {
     }
   };
 
+  // Reorder categories mutation
+  const reorderMutation = useMutation({
+    mutationFn: async (updates: { id: string; sort_order: number; parent_id?: string | null }[]) => {
+      // Batch update all sort_orders
+      const promises = updates.map(({ id, sort_order, parent_id }) => {
+        const updateData: { sort_order: number; parent_id?: string | null } = { sort_order };
+        if (parent_id !== undefined) {
+          updateData.parent_id = parent_id;
+        }
+        return supabase
+          .from('categories')
+          .update(updateData)
+          .eq('id', id);
+      });
+
+      const results = await Promise.all(promises);
+      const error = results.find(r => r.error)?.error;
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey });
+    },
+    onError: (error) => {
+      logError('Error reordering categories:', error);
+      toast.error('Erreur lors du réordonnancement');
+    },
+  });
+
+  const reorderCategories = async (
+    itemId: string,
+    targetId: string,
+    position: 'before' | 'after',
+    targetParentId: string | null
+  ) => {
+    // Get the item being moved
+    const item = categories.find(c => c.id === itemId);
+    if (!item) return;
+
+    // Get the target item
+    const target = categories.find(c => c.id === targetId);
+    if (!target) return;
+
+    // Get all siblings at the target level (same parent_id)
+    const siblings = categories.filter(c => 
+      c.type === item.type && 
+      c.parent_id === targetParentId &&
+      c.id !== itemId
+    );
+
+    // Sort by current sort_order
+    siblings.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+
+    // Find target index
+    const targetIndex = siblings.findIndex(c => c.id === targetId);
+    
+    // Insert at correct position
+    const insertIndex = position === 'before' ? targetIndex : targetIndex + 1;
+    siblings.splice(insertIndex, 0, item);
+
+    // Build updates with new sort_order values
+    const updates = siblings.map((cat, index) => ({
+      id: cat.id,
+      sort_order: index,
+      parent_id: cat.id === itemId ? targetParentId : undefined
+    }));
+
+    try {
+      await reorderMutation.mutateAsync(updates);
+    } catch {
+      // Error handled in mutation
+    }
+  };
+
   return {
     categories,
     incomeCategories,
@@ -552,6 +648,7 @@ export function useCategories() {
     deleteGroup,
     isGroup,
     bulkAssignToGroup,
-    bulkRemoveFromGroup
+    bulkRemoveFromGroup,
+    reorderCategories
   };
 }
