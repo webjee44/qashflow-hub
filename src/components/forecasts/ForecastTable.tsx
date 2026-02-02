@@ -1388,7 +1388,7 @@ export function ForecastTable() {
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[900px]">
+        <table className="w-full min-w-[900px] text-xs">
           <thead>
             <tr className="border-b border-border bg-muted/30">
               <th className="text-left p-3 font-semibold text-foreground sticky left-0 z-10 bg-muted/30 border-r border-border min-w-[200px]">
