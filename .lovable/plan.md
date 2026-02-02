@@ -1,89 +1,137 @@
 
-# Plan : Ajouter une barre de recherche sur la page Créances & Dettes
+# Plan : Refonte UX du Tableau de Prévisions - Colonnes Dynamiques
 
 ## Objectif
 
-Ajouter une barre de recherche permettant de filtrer les factures par nom de partenaire ou numéro de facture, afin de faciliter la navigation dans la liste des créances et dettes.
+Simplifier l'affichage du tableau de prévisions en affichant uniquement les colonnes pertinentes selon la période temporelle :
+
+| Période | Colonnes affichées |
+|---------|-------------------|
+| Mois passés | Réel uniquement |
+| Mois en cours | Réel + Prévu |
+| Mois futurs | Prévu uniquement |
 
 ---
 
-## Modification du fichier `src/pages/Invoices.tsx`
-
-### 1. Ajouts
-
-- Importer l'icône `Search` depuis `lucide-react`
-- Importer le composant `Input` depuis `@/components/ui/input`
-- Ajouter un state `searchQuery` pour stocker la valeur de recherche
-- Intégrer la barre de recherche dans la zone des filtres
-
-### 2. Logique de filtrage
-
-La recherche s'appliquera sur :
-- `partner_name` : nom du partenaire (client ou fournisseur)
-- `invoice_number` : numéro de facture
-
-Recherche insensible à la casse (lowercase comparison).
-
-### 3. Position dans l'interface
+## Logique Temporelle
 
 ```text
-[Tabs: Toutes | Créances | Dettes]     [🔍 Rechercher...] [Filtre statut ▼]
-```
+Aujourd'hui : Février 2026
 
-La barre de recherche sera placée entre les tabs et le filtre de statut, alignée à droite avec le filtre.
-
-### 4. Code à ajouter
-
-**Nouveau state :**
-```typescript
-const [searchQuery, setSearchQuery] = useState('');
-```
-
-**Mise à jour du filtrage :**
-```typescript
-const filteredInvoices = useMemo(() => {
-  return invoices.filter(invoice => {
-    // Filtre par type
-    if (tabFilter !== 'all' && invoice.type !== tabFilter) return false;
-    // Filtre par statut
-    if (statusFilter !== 'all' && invoice.status !== statusFilter) return false;
-    // Filtre par recherche
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      const matchesPartner = invoice.partner_name.toLowerCase().includes(query);
-      const matchesNumber = invoice.invoice_number?.toLowerCase().includes(query);
-      if (!matchesPartner && !matchesNumber) return false;
-    }
-    return true;
-  });
-}, [invoices, tabFilter, statusFilter, searchQuery]);
-```
-
-**UI - Barre de recherche :**
-```tsx
-<div className="relative">
-  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-  <Input
-    placeholder="Rechercher..."
-    value={searchQuery}
-    onChange={(e) => setSearchQuery(e.target.value)}
-    className="pl-9 w-[200px]"
-  />
-</div>
+Déc 2025    Jan 2026    Fév 2026    Mar 2026    Avr 2026
+   │           │           │           │           │
+   ▼           ▼           ▼           ▼           ▼
+ [Réel]     [Réel]    [Réel|Prévu]  [Prévu]    [Prévu]
+  passé      passé       actuel      futur      futur
 ```
 
 ---
 
-## Fichier à modifier
+## Modifications Techniques
+
+### 1. Nouveau Helper de Détection Temporelle
+
+Créer une fonction pour déterminer le type de période de chaque mois :
+
+```typescript
+type MonthPeriodType = 'past' | 'current' | 'future';
+
+const getMonthPeriodType = (month: Date): MonthPeriodType => {
+  const today = new Date();
+  const currentMonthStart = startOfMonth(today);
+  const monthStart = startOfMonth(month);
+  
+  if (isBefore(monthStart, currentMonthStart)) return 'past';
+  if (isSameMonth(month, today)) return 'current';
+  return 'future';
+};
+```
+
+### 2. Refonte des En-têtes de Colonnes (thead)
+
+Les sous-colonnes "Réel" / "Prévu" seront conditionnelles :
+
+- **Passé** : Une seule sous-colonne "Réel"
+- **Actuel** : Deux sous-colonnes "Réel" + "Prévu"
+- **Futur** : Une seule sous-colonne "Prévu"
+
+```text
+Avant :
+┌─────────┬─────────┬─────────┬─────────┐
+│ Jan 26  │ Fév 26  │ Mar 26  │ Avr 26  │
+├────┬────┼────┬────┼────┬────┼────┬────┤
+│Réel│Prévu│Réel│Prévu│Réel│Prévu│Réel│Prévu│
+└────┴────┴────┴────┴────┴────┴────┴────┘
+
+Après :
+┌─────────┬─────────────┬─────────┬─────────┐
+│ Jan 26  │   Fév 26    │ Mar 26  │ Avr 26  │
+├─────────┼──────┬──────┼─────────┼─────────┤
+│  Réel   │ Réel │ Prévu│  Prévu  │  Prévu  │
+└─────────┴──────┴──────┴─────────┴─────────┘
+```
+
+### 3. Refonte des Cellules de Données
+
+Chaque fonction de rendu (`renderCell`, `renderGroupRow`, `renderTotalRow`, etc.) sera mise à jour pour :
+
+- **Passé** : Afficher uniquement la valeur "Réel" (cellule simple, lecture seule)
+- **Actuel** : Afficher les deux valeurs (Réel cliquable + Prévu éditable)
+- **Futur** : Afficher uniquement la valeur "Prévu" (cellule simple, éditable)
+
+### 4. Largeur Dynamique des Colonnes
+
+- Colonnes simples (passé/futur) : `min-w-[90px]`
+- Colonne double (actuel) : `min-w-[160px]`
+
+---
+
+## Fonctions à Modifier
+
+| Fonction | Modification |
+|----------|-------------|
+| `renderCell` | Afficher 1 ou 2 sous-cellules selon la période |
+| `renderGroupRow` | Idem |
+| `renderTotalRow` | Idem |
+| `renderVatRow` | Idem |
+| `renderTtcRow` | Idem |
+| `renderUncategorizedRow` | Idem |
+| `renderVatToPayRow` | Idem |
+| `renderPayablesRow` | Idem |
+| `renderNetRow` | Idem |
+| En-têtes `<thead>` | Sous-colonnes conditionnelles |
+
+---
+
+## Avantages UX
+
+1. **Clarté** : Pas de colonnes "Prévu" vides sur les mois passés (inutiles)
+2. **Focus** : L'attention est portée sur les données pertinentes
+3. **Compacité** : Le tableau est moins large, plus lisible
+4. **Logique métier** : Correspond au raisonnement comptable (le prévu passé n'a plus de sens)
+
+---
+
+## Fichiers à Modifier
 
 | Fichier | Action |
 |---------|--------|
-| `src/pages/Invoices.tsx` | Ajouter state, input, et logique de filtrage |
+| `src/components/forecasts/ForecastTable.tsx` | Refonte complète des rendus de cellules et en-têtes |
+| `src/components/forecasts/ForecastChart.tsx` | Adapter si nécessaire (déjà gère isPast) |
 
 ---
 
-## Résultat attendu
+## Points d'Attention
 
-- Une barre de recherche avec icône loupe
-- Filtrage instantané sur le nom du partenaire et le numéro de facture
-- Combinable avec les filtres de type et de statut existants
+- **Cellules éditables** : Seules les colonnes "Prévu" du mois en cours et futur restent éditables
+- **Clic sur Réel** : Toujours possible pour ouvrir le détail des transactions (mois passés et actuel)
+- **Mois en cours** : La comparaison Réel vs Prévu reste visible pour le suivi
+
+---
+
+## Résultat Attendu
+
+Un tableau plus épuré où :
+- Les mois passés montrent uniquement ce qui s'est passé (Réel)
+- Le mois en cours permet de comparer Réel vs Prévu
+- Les mois futurs ne montrent que les projections (Prévu éditable)
