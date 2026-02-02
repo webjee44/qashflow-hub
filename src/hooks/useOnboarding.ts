@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
+import { useCompany } from './useCompany';
 
 interface OnboardingStep {
   id: string;
@@ -118,6 +119,7 @@ interface UseOnboardingReturn {
 
 export function useOnboarding(): UseOnboardingReturn {
   const { user } = useAuth();
+  const { currentCompany } = useCompany();
   const [isActive, setIsActive] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [isCompleted, setIsCompleted] = useState(true);
@@ -151,15 +153,21 @@ export function useOnboarding(): UseOnboardingReturn {
     };
   }, []);
 
-  // Load onboarding state from profile
+  // Load onboarding state from profile - for members, inherit from owner
   useEffect(() => {
     async function loadOnboardingState() {
-      if (!user) return;
+      if (!user || !currentCompany) return;
+
+      // Determine whose profile to read bp_enabled from
+      // If user is the owner, read from their profile
+      // If user is a member, read from the owner's profile
+      const isOwner = currentCompany.user_id === user.id;
+      const profileId = isOwner ? user.id : currentCompany.user_id;
 
       const { data, error } = await supabase
         .from('profiles')
         .select('onboarding_completed, onboarding_step, bp_enabled')
-        .eq('id', user.id)
+        .eq('id', profileId)
         .single();
 
       if (error) {
@@ -168,13 +176,17 @@ export function useOnboarding(): UseOnboardingReturn {
       }
 
       if (data) {
-        setIsCompleted(data.onboarding_completed ?? false);
-        setCurrentStep(data.onboarding_step ?? 0);
+        // Only update onboarding state from user's own profile
+        if (isOwner) {
+          setIsCompleted(data.onboarding_completed ?? false);
+          setCurrentStep(data.onboarding_step ?? 0);
+        }
+        // Always inherit bp_enabled from owner
         writeStoredBpEnabled(data.bp_enabled ?? true);
         setBpEnabled(data.bp_enabled ?? true);
 
         const shouldShowTour = localStorage.getItem('show-onboarding-tour') === 'true';
-        if (shouldShowTour) {
+        if (shouldShowTour && isOwner) {
           localStorage.removeItem('show-onboarding-tour');
           setIsActive(true);
           setCurrentStep(0);
@@ -183,7 +195,7 @@ export function useOnboarding(): UseOnboardingReturn {
     }
 
     loadOnboardingState();
-  }, [user]);
+  }, [user, currentCompany]);
 
   const saveProgress = useCallback(async (step: number, completed: boolean = false) => {
     if (!user) return;

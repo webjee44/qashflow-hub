@@ -68,7 +68,7 @@ export const personnelService = {
     return (data || []) as BPPersonnel[];
   },
 
-  async create(userId: string, companyId: string, data: BPPersonnelInsert): Promise<BPPersonnel> {
+  async create(ownerId: string, companyId: string, data: BPPersonnelInsert): Promise<BPPersonnel> {
     const workerType = data.worker_type || 'employee';
     const isFreelance = workerType === 'freelance';
     
@@ -85,7 +85,7 @@ export const personnelService = {
     const { data: newPerson, error } = await supabase
       .from('bp_personnel')
       .insert({
-        user_id: userId,
+        user_id: ownerId,
         company_id: companyId,
         name: data.name || null,
         position: data.position || 'Nouveau poste',

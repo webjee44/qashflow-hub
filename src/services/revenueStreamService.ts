@@ -48,11 +48,11 @@ export const revenueStreamService = {
     return (data || []) as BPRevenueStream[];
   },
 
-  async create(userId: string, companyId: string, data: BPRevenueStreamInsert): Promise<BPRevenueStream> {
+  async create(ownerId: string, companyId: string, data: BPRevenueStreamInsert): Promise<BPRevenueStream> {
     const { data: newStream, error } = await supabase
       .from('bp_revenue_streams')
       .insert({
-        user_id: userId,
+        user_id: ownerId,
         company_id: companyId,
         name: data.name || 'Nouveau flux',
         description: data.description || null,

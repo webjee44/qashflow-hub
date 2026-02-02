@@ -57,22 +57,18 @@ export function useAutomationRules() {
   });
 
   const fetchRules = async () => {
-    if (!user) return;
+    if (!user || !currentCompany) return;
     
     try {
+      // Use company-based filtering (RLS handles permissions)
       let query = supabase
         .from('automation_rules')
         .select(`
           *,
           category:categories(id, name, color)
         `)
-        .eq('user_id', user.id)
+        .or(`company_id.eq.${currentCompany.id},company_id.is.null`)
         .order('created_at', { ascending: false });
-
-      // Filter by company if one is selected
-      if (currentCompany) {
-        query = query.or(`company_id.eq.${currentCompany.id},company_id.is.null`);
-      }
 
       const { data, error } = await query;
 
@@ -119,18 +115,14 @@ export function useAutomationRules() {
   };
 
   const fetchCategories = async () => {
-    if (!user) return;
+    if (!user || !currentCompany) return;
     
     try {
+      // Use company-based filtering (RLS handles permissions)
       let query = supabase
         .from('categories')
         .select('*')
-        .eq('user_id', user.id);
-
-      // Filter by company if one is selected
-      if (currentCompany) {
-        query = query.or(`company_id.eq.${currentCompany.id},company_id.is.null`);
-      }
+        .or(`company_id.eq.${currentCompany.id},company_id.is.null`);
 
       const { data, error } = await query;
 
@@ -180,7 +172,10 @@ export function useAutomationRules() {
     target_category_id: string | null;
     conditions?: RuleCondition[];
   }) => {
-    if (!user) return null;
+    if (!user || !currentCompany) return null;
+
+    // Use owner's user_id for data consistency across members
+    const dataOwnerId = currentCompany.user_id;
 
     try {
       // Create the rule first
@@ -193,8 +188,8 @@ export function useAutomationRules() {
           condition_value: rule.condition_value,
           action_type: rule.action_type,
           target_category_id: rule.target_category_id,
-          user_id: user.id,
-          company_id: currentCompany?.id || null,
+          user_id: dataOwnerId,
+          company_id: currentCompany.id,
           is_active: true,
           match_count: 0
         })
@@ -264,15 +259,18 @@ export function useAutomationRules() {
     icon: string;
     type: 'income' | 'expense';
   }) => {
-    if (!user) return null;
+    if (!user || !currentCompany) return null;
+
+    // Use owner's user_id for data consistency across members
+    const dataOwnerId = currentCompany.user_id;
 
     try {
       const { data: newCategory, error } = await supabase
         .from('categories')
         .insert({
           ...data,
-          user_id: user.id,
-          company_id: currentCompany?.id || null,
+          user_id: dataOwnerId,
+          company_id: currentCompany.id,
         })
         .select()
         .single();
