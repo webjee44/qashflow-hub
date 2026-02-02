@@ -43,6 +43,7 @@ interface UnifiedCategoryListProps {
   onEditCategory: (category: Category) => void;
   onDeleteCategory: (id: string, reassignToId: string | null) => void;
   onMoveToGroup: (categoryId: string, groupId: string | null) => void;
+  onReorder?: (itemId: string, targetId: string, position: 'before' | 'after', targetParentId: string | null) => void;
 }
 
 export function UnifiedCategoryList({
@@ -55,6 +56,7 @@ export function UnifiedCategoryList({
   onEditCategory,
   onDeleteCategory,
   onMoveToGroup,
+  onReorder,
 }: UnifiedCategoryListProps) {
   // Get all group IDs for this type (only groups with children for default collapse)
   const allGroupIds = useMemo(() => 
@@ -84,6 +86,13 @@ export function UnifiedCategoryList({
   const [draggedCategoryId, setDraggedCategoryId] = useState<string | null>(null);
   const [dragOverGroupId, setDragOverGroupId] = useState<string | null>(null);
   const [dragOverUngrouped, setDragOverUngrouped] = useState(false);
+  
+  // Reorder drop indicator state
+  const [dropIndicator, setDropIndicator] = useState<{
+    targetId: string;
+    position: 'before' | 'after';
+    parentId: string | null;
+  } | null>(null);
 
   // Delete group dialog
   const [deleteGroupDialog, setDeleteGroupDialog] = useState<{
@@ -169,6 +178,7 @@ export function UnifiedCategoryList({
     setDraggedCategoryId(null);
     setDragOverGroupId(null);
     setDragOverUngrouped(false);
+    setDropIndicator(null);
   };
 
   const handleDragOverGroup = (e: React.DragEvent, groupId: string) => {
@@ -176,6 +186,7 @@ export function UnifiedCategoryList({
     e.dataTransfer.dropEffect = 'move';
     setDragOverGroupId(groupId);
     setDragOverUngrouped(false);
+    setDropIndicator(null);
   };
 
   const handleDragOverUngrouped = (e: React.DragEvent) => {
@@ -183,6 +194,7 @@ export function UnifiedCategoryList({
     e.dataTransfer.dropEffect = 'move';
     setDragOverGroupId(null);
     setDragOverUngrouped(true);
+    setDropIndicator(null);
   };
 
   const handleDragLeave = () => {
@@ -204,6 +216,36 @@ export function UnifiedCategoryList({
     const categoryId = e.dataTransfer.getData('text/plain');
     if (categoryId) {
       onMoveToGroup(categoryId, null);
+    }
+    handleDragEnd();
+  };
+
+  // Reorder handlers for category rows
+  const handleDragOverCategory = (e: React.DragEvent, targetId: string, parentId: string | null) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!draggedCategoryId || draggedCategoryId === targetId) return;
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const y = e.clientY - rect.top;
+    const position: 'before' | 'after' = y < rect.height / 2 ? 'before' : 'after';
+
+    setDropIndicator({ targetId, position, parentId });
+    setDragOverGroupId(null);
+    setDragOverUngrouped(false);
+  };
+
+  const handleDropOnCategory = (e: React.DragEvent, targetId: string, parentId: string | null) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (!draggedCategoryId || draggedCategoryId === targetId || !dropIndicator) {
+      handleDragEnd();
+      return;
+    }
+
+    if (onReorder) {
+      onReorder(draggedCategoryId, targetId, dropIndicator.position, parentId);
     }
     handleDragEnd();
   };
@@ -391,9 +433,12 @@ export function UnifiedCategoryList({
                             isDragging={draggedCategoryId === category.id}
                             onDragStart={handleDragStart}
                             onDragEnd={handleDragEnd}
+                            onDragOver={(e) => handleDragOverCategory(e, category.id, group!.id)}
+                            onDrop={(e) => handleDropOnCategory(e, category.id, group!.id)}
                             showOrphanBadge={countsLoaded}
                             isOrphan={countsLoaded && isOrphan(category.id)}
                             transactionCount={getCount(category.id)}
+                            showDropIndicator={dropIndicator?.targetId === category.id ? dropIndicator.position : null}
                           />
                         ))
                       )}
@@ -432,9 +477,12 @@ export function UnifiedCategoryList({
                   isDragging={draggedCategoryId === category.id}
                   onDragStart={handleDragStart}
                   onDragEnd={handleDragEnd}
+                  onDragOver={(e) => handleDragOverCategory(e, category.id, null)}
+                  onDrop={(e) => handleDropOnCategory(e, category.id, null)}
                   showOrphanBadge={countsLoaded}
                   isOrphan={countsLoaded && isOrphan(category.id)}
                   transactionCount={getCount(category.id)}
+                  showDropIndicator={dropIndicator?.targetId === category.id ? dropIndicator.position : null}
                 />
               ))}
             </div>
@@ -501,9 +549,12 @@ interface CategoryRowProps {
   isDragging?: boolean;
   onDragStart: (e: React.DragEvent, categoryId: string) => void;
   onDragEnd: () => void;
+  onDragOver?: (e: React.DragEvent) => void;
+  onDrop?: (e: React.DragEvent) => void;
   showOrphanBadge?: boolean;
   isOrphan?: boolean;
   transactionCount?: number;
+  showDropIndicator?: 'before' | 'after' | null;
 }
 
 function CategoryRow({
@@ -514,8 +565,11 @@ function CategoryRow({
   isDragging,
   onDragStart,
   onDragEnd,
+  onDragOver,
+  onDrop,
   showOrphanBadge,
   isOrphan,
+  showDropIndicator,
 }: CategoryRowProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
@@ -526,29 +580,37 @@ function CategoryRow({
 
   return (
     <>
-      <div
-        draggable
-        onDragStart={(e) => onDragStart(e, category.id)}
-        onDragEnd={onDragEnd}
-        className={cn(
-          "group flex items-center justify-between px-4 py-2 hover:bg-muted/30 transition-colors cursor-grab active:cursor-grabbing",
-          isDragging && "opacity-50 bg-muted/50"
+      <div className="relative">
+        {/* Drop indicator - before */}
+        {showDropIndicator === 'before' && (
+          <div className="absolute top-0 left-4 right-4 h-0.5 bg-primary z-10 rounded-full" />
         )}
-      >
-        <div className="flex items-center gap-3 pl-8">
-          <GripVertical className="w-3.5 h-3.5 text-muted-foreground/50 opacity-0 group-hover:opacity-100 transition-opacity" />
-          <div
-            className="w-4 h-4 rounded-md flex-shrink-0"
-            style={{ backgroundColor: category.color }}
-          />
-          <span className="text-sm text-foreground">{category.name}</span>
-          {showOrphanBadge && isOrphan && (
-            <Badge variant="outline" className="text-xs px-1.5 py-0 h-5 text-muted-foreground border-dashed">
-              0 tx
-            </Badge>
-          )}
-        </div>
         
+        <div
+          draggable
+          onDragStart={(e) => onDragStart(e, category.id)}
+          onDragEnd={onDragEnd}
+          onDragOver={onDragOver}
+          onDrop={onDrop}
+          className={cn(
+            "group flex items-center justify-between px-4 py-2 hover:bg-muted/30 transition-colors cursor-grab active:cursor-grabbing",
+            isDragging && "opacity-50 bg-muted/50"
+          )}
+        >
+          <div className="flex items-center gap-3 pl-8">
+            <GripVertical className="w-3.5 h-3.5 text-muted-foreground/50 opacity-0 group-hover:opacity-100 transition-opacity" />
+            <div
+              className="w-4 h-4 rounded-md flex-shrink-0"
+              style={{ backgroundColor: category.color }}
+            />
+            <span className="text-sm text-foreground">{category.name}</span>
+            {showOrphanBadge && isOrphan && (
+              <Badge variant="outline" className="text-xs px-1.5 py-0 h-5 text-muted-foreground border-dashed">
+                0 tx
+              </Badge>
+            )}
+          </div>
+          
         <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
           <span className="text-xs text-muted-foreground">
             TVA {(category.vat_rate * 100).toFixed(0)}%
@@ -570,6 +632,12 @@ function CategoryRow({
             <Trash2 className="w-3.5 h-3.5" />
           </Button>
         </div>
+        </div>
+        
+        {/* Drop indicator - after */}
+        {showDropIndicator === 'after' && (
+          <div className="absolute bottom-0 left-4 right-4 h-0.5 bg-primary z-10 rounded-full" />
+        )}
       </div>
 
       <DeleteCategoryDialog
