@@ -4,8 +4,16 @@ import { useAuth } from './useAuth';
 import { useCompany } from './useCompany';
 import { useCategories, Category } from './useCategories';
 import { toast } from 'sonner';
-import { addMonths, startOfMonth, format, differenceInMonths } from 'date-fns';
+import { addMonths, startOfMonth, endOfMonth, format, differenceInMonths, isBefore } from 'date-fns';
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+
+export interface PayableInvoice {
+  id: string;
+  due_date: string;
+  amount_ttc: number;
+  partner_name: string;
+  status: string;
+}
 
 export interface CategoryForecast {
   id: string;
@@ -297,13 +305,64 @@ export function useForecasts() {
     return uncategorized[monthStr]?.[type] ?? 0;
   };
 
+  // Fetch payable invoices (supplier debts)
+  const { data: payableInvoices = [], isLoading: payablesLoading } = useQuery({
+    queryKey: ['payable-invoices', user?.id, currentCompany?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      
+      let query = supabase
+        .from('invoices')
+        .select('id, due_date, amount_ttc, partner_name, status')
+        .eq('type', 'payable')
+        .eq('status', 'pending')
+        .order('due_date');
+
+      // Filter by company if one is selected
+      if (currentCompany) {
+        query = query.or(`company_id.eq.${currentCompany.id},company_id.is.null`);
+      }
+      
+      const { data, error } = await query;
+      
+      if (error) throw error;
+      return data as PayableInvoice[];
+    },
+    enabled: !!user?.id,
+  });
+
+  // Helper to get payable outflow for a specific month
+  // Rule: overdue invoices (due_date < today) -> placed at end of current month
+  //       pending invoices -> placed at their due_date month
+  const getPayableOutflow = useCallback((month: Date): number => {
+    const today = startOfMonth(new Date());
+    const currentMonthEnd = endOfMonth(today);
+    const targetStart = startOfMonth(month);
+    const targetEnd = endOfMonth(month);
+    
+    return payableInvoices
+      .filter(inv => {
+        const dueDate = new Date(inv.due_date);
+        
+        // Overdue invoice -> place at end of current month
+        if (isBefore(dueDate, today)) {
+          // Target is the current month
+          return !isBefore(targetEnd, today) && !isBefore(currentMonthEnd, targetStart);
+        }
+        
+        // Normal invoice -> place at its due_date month
+        return dueDate >= targetStart && dueDate <= targetEnd;
+      })
+      .reduce((sum, inv) => sum + Number(inv.amount_ttc), 0);
+  }, [payableInvoices]);
+
   return {
     months,
     forecasts,
     actuals,
     uncategorized,
     categories,
-    isLoading: forecastsLoading || actualsLoading || uncategorizedLoading,
+    isLoading: forecastsLoading || actualsLoading || uncategorizedLoading || payablesLoading,
     upsertForecast,
     getForecast,
     getForecastSource,
@@ -311,6 +370,10 @@ export function useForecasts() {
     getVatForecast,
     getVatActual,
     getUncategorized,
+    // Payables
+    payableInvoices,
+    getPayableOutflow,
+    payablesLoading,
     // Period controls
     extendBefore,
     extendAfter,

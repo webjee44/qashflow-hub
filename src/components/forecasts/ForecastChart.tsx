@@ -14,15 +14,15 @@ import {
   Cell,
 } from 'recharts';
 import { Card, CardContent } from '@/components/ui/card';
-import { useCategories } from '@/hooks/useCategories';
 
 interface ForecastChartProps {
   months: Date[];
   getMonthTotal: (type: 'income' | 'expense', monthIndex: number, valueType: 'forecast' | 'actual') => number;
   getMonthVat: (type: 'income' | 'expense', monthIndex: number, valueType: 'forecast' | 'actual') => number;
+  getPayableOutflow?: (month: Date) => number;
 }
 
-export function ForecastChart({ months, getMonthTotal, getMonthVat }: ForecastChartProps) {
+export function ForecastChart({ months, getMonthTotal, getMonthVat, getPayableOutflow }: ForecastChartProps) {
   const today = startOfMonth(new Date());
 
   const data = useMemo(() => {
@@ -38,7 +38,13 @@ export function ForecastChart({ months, getMonthTotal, getMonthVat }: ForecastCh
       const expenseVat = getMonthVat('expense', index, isPast ? 'actual' : 'forecast');
       
       const incomeTtc = incomeHt + incomeVat;
-      const expenseTtc = expenseHt + expenseVat;
+      let expenseTtc = expenseHt + expenseVat;
+      
+      // Add payables to expenses for forecast months
+      if (!isPast && getPayableOutflow) {
+        expenseTtc += getPayableOutflow(month);
+      }
+      
       const netFlow = incomeTtc - expenseTtc;
       
       cumulativeBalance += netFlow;
@@ -52,7 +58,7 @@ export function ForecastChart({ months, getMonthTotal, getMonthVat }: ForecastCh
         isPast,
       };
     });
-  }, [months, getMonthTotal, getMonthVat, today]);
+  }, [months, getMonthTotal, getMonthVat, getPayableOutflow, today]);
 
   const formatValue = (value: number) => {
     if (Math.abs(value) >= 1000) {
