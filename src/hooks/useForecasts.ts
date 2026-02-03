@@ -258,13 +258,13 @@ export function useForecasts() {
   });
 
   // Helper to get forecast for a specific category and month
-  const getForecast = (categoryId: string, month: Date): number => {
+  const getForecast = useCallback((categoryId: string, month: Date): number => {
     const monthStr = format(month, 'yyyy-MM-01');
     const forecast = forecasts.find(
       f => f.category_id === categoryId && f.month === monthStr
     );
     return forecast?.expected_amount ?? 0;
-  };
+  }, [forecasts]);
 
   // Helper to get forecast source for a specific category and month
   const getForecastSource = (categoryId: string, month: Date): 'manual' | 'bp_import' | 'bp_synced' | null => {
