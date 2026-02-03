@@ -35,6 +35,7 @@ import Start from "./pages/Start";
 import StartVerify from "./pages/StartVerify";
 import StartWelcome from "./pages/StartWelcome";
 import JoinInvitation from "./pages/JoinInvitation";
+import ImpersonateLanding from "./pages/ImpersonateLanding";
 
 // ============================================
 // Protected pages (lazy loading)
@@ -123,6 +124,9 @@ const App = () => (
                 <Route path="/start" element={<Start />} />
                 <Route path="/start/verify" element={<StartVerify />} />
                 <Route path="/start/welcome" element={<StartWelcome />} />
+                
+                {/* Impersonation landing (for superadmin) */}
+                <Route path="/impersonate-landing" element={<ImpersonateLanding />} />
                 
                 {/* Protected routes with lazy loading */}
                 <Route 
