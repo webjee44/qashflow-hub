@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Landmark, Loader2, Check, X, Building2, Plus, RefreshCw, ChevronDown, ChevronRight, Pencil } from 'lucide-react';
+import { Landmark, Loader2, Check, X, Building2, Plus, RefreshCw, ChevronDown, ChevronRight, Pencil, AlertTriangle, RotateCcw } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Button } from '@/components/ui/button';
@@ -14,10 +14,13 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { supabase } from '@/integrations/supabase/client';
 import { useCompany } from '@/hooks/useCompany';
 import { useOrganization } from '@/hooks/useOrganization';
 import { toast } from 'sonner';
+
+type ItemStatus = 'ok' | 'needs_action' | 'error' | 'deleted';
 
 interface BridgeAccount {
   id: string;
@@ -30,12 +33,35 @@ interface BridgeAccount {
   bank_name: string | null;
   bridge_user_uuid: string;
   company_id: string;
+  item_status: ItemStatus | null;
+  item_status_message: string | null;
 }
 
 interface BankGroup {
   bankName: string;
   accounts: BridgeAccount[];
   totalBalance: number;
+  itemStatus: ItemStatus | null;
+  itemStatusMessage: string | null;
+  bridgeItemId: number;
+  bridgeUserUuid: string;
+}
+
+interface BankGroup {
+  bankName: string;
+  accounts: BridgeAccount[];
+  totalBalance: number;
+  itemStatus: ItemStatus | null;
+  itemStatusMessage: string | null;
+  bridgeItemId: number;
+  bridgeUserUuid: string;
+}
+
+// Helper to get worst status
+function getWorstStatus(a: ItemStatus | null, b: ItemStatus | null): ItemStatus | null {
+  if (a === 'error' || a === 'deleted' || b === 'error' || b === 'deleted') return 'error';
+  if (a === 'needs_action' || b === 'needs_action') return 'needs_action';
+  return a || b;
 }
 
 // Group accounts by bank (using bank_name from DB, fallback to bridge_item_id grouping)
@@ -50,11 +76,23 @@ const groupAccountsByBank = (accounts: BridgeAccount[]): BankGroup[] => {
         bankName: account.bank_name || 'Banque',
         accounts: [],
         totalBalance: 0,
+        itemStatus: account.item_status,
+        itemStatusMessage: account.item_status_message,
+        bridgeItemId: itemId,
+        bridgeUserUuid: account.bridge_user_uuid,
       });
     }
     const group = groups.get(itemId)!;
     group.accounts.push(account);
     group.totalBalance += account.balance || 0;
+    // Use worst status in group
+    const newStatus = getWorstStatus(group.itemStatus, account.item_status);
+    if (newStatus !== group.itemStatus) {
+      group.itemStatus = newStatus;
+      if (account.item_status === 'needs_action' || account.item_status === 'error' || account.item_status === 'deleted') {
+        group.itemStatusMessage = account.item_status_message;
+      }
+    }
   });
   
   // Sort groups by bank name and accounts within each group
@@ -65,6 +103,37 @@ const groupAccountsByBank = (accounts: BridgeAccount[]): BankGroup[] => {
       accounts: group.accounts.sort((a, b) => (a.name || '').localeCompare(b.name || '')),
     }));
 };
+
+// Status badge component
+function StatusBadge({ status, message }: { status: ItemStatus | null; message?: string | null }) {
+  if (!status || status === 'ok') {
+    return (
+      <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-xs">
+        Connecté
+      </Badge>
+    );
+  }
+  
+  if (status === 'needs_action') {
+    return (
+      <Badge variant="outline" className="bg-warning/10 text-warning border-warning/20 text-xs" title={message || undefined}>
+        <AlertTriangle className="w-3 h-3 mr-1" />
+        Action requise
+      </Badge>
+    );
+  }
+  
+  if (status === 'error' || status === 'deleted') {
+    return (
+      <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/20 text-xs" title={message || undefined}>
+        <X className="w-3 h-3 mr-1" />
+        Erreur
+      </Badge>
+    );
+  }
+  
+  return null;
+}
 interface AccountAssignment {
   bridge_account_id: number;
   company_id: string | null;
@@ -132,7 +201,7 @@ export function BankAccountsCard() {
         // Fetch all Bridge accounts for the relevant bridge_user_uuids
         const { data: bridgeAccounts, error: accountsError } = await supabase
           .from('bridge_accounts')
-          .select('id, bridge_account_id, bridge_item_id, name, iban, balance, account_type, bank_name, bridge_user_uuid, company_id')
+          .select('id, bridge_account_id, bridge_item_id, name, iban, balance, account_type, bank_name, bridge_user_uuid, company_id, item_status, item_status_message')
           .in('bridge_user_uuid', bridgeUserUuids);
 
         if (accountsError) throw accountsError;
@@ -151,7 +220,7 @@ export function BankAccountsCard() {
 
         if (assignmentsError) throw assignmentsError;
 
-        setAccounts(bridgeAccounts || []);
+        setAccounts((bridgeAccounts || []) as BridgeAccount[]);
 
         // Build assignments map
         const assignmentMap = new Map<number, AccountAssignment>();
@@ -457,6 +526,64 @@ export function BankAccountsCard() {
     } catch (error) {
       console.error('Bridge connect error:', error);
       toast.error('Erreur lors de la connexion Bridge');
+    } finally {
+      setIsConnecting(false);
+    }
+  };
+
+  const handleReconnectBank = async (bridgeUserUuid: string, bridgeItemId: number) => {
+    setIsConnecting(true);
+    
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error('Vous devez être connecté');
+        return;
+      }
+
+      // Build redirect URL
+      const currentOrigin = window.location.origin;
+      const isLovablePreview = currentOrigin.includes('lovableproject.com') || currentOrigin.includes('id-preview--');
+      const baseUrl = isLovablePreview 
+        ? (import.meta.env.VITE_PUBLISHED_URL || 'https://pennylane-cash-flow-buddy.lovable.app')
+        : currentOrigin;
+      
+      const redirectUrl = `${baseUrl}/parametres?tab=accounts&bridge_callback=success`;
+
+      // Create manage session (for reconnection)
+      const { data: connectData, error: connectError } = await supabase.functions.invoke('bridge-connect', {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+        body: { 
+          bridge_user_uuid: bridgeUserUuid,
+          redirect_url: redirectUrl,
+          item_id: bridgeItemId,
+        },
+      });
+
+      if (connectError || !connectData?.success) {
+        toast.error(connectData?.error || 'Erreur lors de la reconnexion');
+        return;
+      }
+
+      localStorage.setItem('bridgePendingSync', 'true');
+      toast.success('Redirection vers Bridge…');
+
+      const inIframe = (() => {
+        try {
+          return window.self !== window.top;
+        } catch {
+          return true;
+        }
+      })();
+
+      if (inIframe) {
+        window.open(connectData.connect_url, '_blank', 'noopener,noreferrer');
+      } else {
+        window.location.assign(connectData.connect_url);
+      }
+    } catch (error) {
+      console.error('Reconnect error:', error);
+      toast.error('Erreur lors de la reconnexion');
     } finally {
       setIsConnecting(false);
     }
@@ -875,6 +1002,7 @@ function BankAccountsList({
   formatBalance: (balance: number | null) => string;
   formatIban: (iban: string | null) => string;
   onBankNameUpdate: (bridgeItemId: number, newName: string) => Promise<void>;
+  onReconnect: (bridgeUserUuid: string, bridgeItemId: number) => void;
   isOrgAdmin: boolean;
 }) {
   const bankGroups = useMemo(() => groupAccountsByBank(accounts), [accounts]);
@@ -990,6 +1118,23 @@ function BankAccountsList({
                 <Badge variant="secondary" className="text-xs ml-2">
                   {group.accounts.length} compte{group.accounts.length > 1 ? 's' : ''}
                 </Badge>
+                
+                <StatusBadge status={group.itemStatus} message={group.itemStatusMessage} />
+                
+                {(group.itemStatus === 'needs_action' || group.itemStatus === 'error') && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onReconnect(group.bridgeUserUuid, group.bridgeItemId);
+                    }}
+                    className="gap-1 h-7 text-xs"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    Reconnecter
+                  </Button>
+                )}
               </div>
               <span className="font-semibold text-foreground">
                 {formatBalance(group.totalBalance)}

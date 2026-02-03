@@ -1138,6 +1138,9 @@ export type Database = {
           created_at: string | null
           iban: string | null
           id: string
+          item_status: string | null
+          item_status_message: string | null
+          item_status_updated_at: string | null
           last_sync_at: string | null
           name: string | null
           status: string | null
@@ -1155,6 +1158,9 @@ export type Database = {
           created_at?: string | null
           iban?: string | null
           id?: string
+          item_status?: string | null
+          item_status_message?: string | null
+          item_status_updated_at?: string | null
           last_sync_at?: string | null
           name?: string | null
           status?: string | null
@@ -1172,6 +1178,9 @@ export type Database = {
           created_at?: string | null
           iban?: string | null
           id?: string
+          item_status?: string | null
+          item_status_message?: string | null
+          item_status_updated_at?: string | null
           last_sync_at?: string | null
           name?: string | null
           status?: string | null
