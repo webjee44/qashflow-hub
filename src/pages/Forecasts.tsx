@@ -31,7 +31,7 @@ export default function Forecasts() {
         <ForecastTable />
       </div>
       
-      <BPImportDialog open={importOpen} onOpenChange={setImportOpen} />
+      {importOpen && <BPImportDialog open={importOpen} onOpenChange={setImportOpen} />}
     </>
   );
 }
