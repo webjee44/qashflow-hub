@@ -546,19 +546,6 @@ export function TransactionsView() {
         </div>
 
         <SortDropdown value={sortOption} onChange={setSortOption} />
-
-        <Button
-          variant={selectedTransactionIds.size > 0 ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => selectedTransactionIds.size > 0 ? clearSelection() : selectAllVisible()}
-          className="gap-2"
-        >
-          {selectedTransactionIds.size > 0 ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
-          {selectedTransactionIds.size > 0 
-            ? `${selectedTransactionIds.size} sélectionné${selectedTransactionIds.size > 1 ? 's' : ''}`
-            : 'Sélection multiple'
-          }
-        </Button>
       </motion.div>
 
       {/* Bulk Action Bar */}
