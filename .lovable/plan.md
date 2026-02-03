@@ -1,202 +1,121 @@
 
-# Plan de Correction des Incohérences du PDF Business Plan
 
-## Synthèse des Problèmes Identifiés
+# Plan de Correction : Revenus absents du PDF Business Plan
 
-### Problèmes de FOND (Bugs de calcul)
+## Diagnostic Final
 
-| Problème | Cause identifiée | Fichier |
-|----------|-----------------|---------|
-| Bilan déséquilibré (Actif ≠ Passif) | Le PDF calcule le bilan de manière simplifiée et incomplète - il ne prend pas en compte le résultat de l'exercice | `generate-bp-pdf/index.ts` L.1000-1053 |
-| Charges sociales affichées à 0.4% au lieu de 45% | Le taux est stocké comme 0.45 (décimal) mais affiché sans multiplication par 100 | `generate-bp-pdf/index.ts` L.729 |
-| Point mort à 0€ quand CA = 0 | Division par zéro non gérée dans le calcul du break-even | `generate-bp-pdf/index.ts` L.1178 |
-| Investissements avec dates anciennes | Pas de filtrage des investissements selon la période du BP | `generate-bp-pdf/index.ts` L.788-809 |
+Le PDF Business Plan affiche **0 € de revenus** alors que l'utilisateur a saisi des prévisions mensuelles dans `/bp/revenus`. Ceci est dû à un bug critique dans l'Edge Function `generate-bp-pdf` :
 
-### Problèmes de FORME (Bugs d'affichage)
-
-| Problème | Cause identifiée | Fichier |
-|----------|-----------------|---------|
-| "/" comme séparateur de milliers | Le caractère espace insécable (`\u00A0`) est mal rendu par jsPDF | `generate-bp-pdf/index.ts` L.153-159 |
-| "NaN%" dans évolutions | Division par zéro quand le CA précédent est 0 | `generate-bp-pdf/index.ts` L.664 |
-| Ordre des colonnes inversé (2027, 2028, 2026) | Les années ne sont pas triées chronologiquement | `generate-bp-pdf/index.ts` L.819-884 |
+**La table `bp_revenue_forecasts` n'est jamais requêtée.** Le PDF utilise uniquement les paramètres du flux (bp_revenue_streams) pour calculer les revenus, mais si l'utilisateur utilise le modèle "variable" et saisit les montants mois par mois, ces données sont totalement ignorées.
 
 ---
 
 ## Corrections à Apporter
 
-### 1. Correction du Formatage des Nombres
+### 1. Récupérer les prévisions de revenus
 
-**Fichier**: `supabase/functions/generate-bp-pdf/index.ts`
-**Lignes**: 153-159
+**Fichier :** `supabase/functions/generate-bp-pdf/index.ts`
+**Lignes :** ~70-94 (bloc Promise.all)
 
-Le problème vient de l'espace insécable (`\u00A0`) utilisé par `Intl.NumberFormat` qui n'est pas correctement rendu par jsPDF.
+Ajouter la requête pour `bp_revenue_forecasts` dans le fetch initial :
 
 ```typescript
-// AVANT
-const formatCurrency = (value: number): string => {
-  return new Intl.NumberFormat('fr-FR', { 
-    style: 'currency', 
-    currency: 'EUR', 
-    maximumFractionDigits: 0 
-  }).format(value).replace(/\u00A0/g, ' ');
-};
-
-// APRÈS - Formatage manuel plus robuste
-const formatCurrency = (value: number): string => {
-  if (!isFinite(value) || isNaN(value)) return '0 €';
-  const rounded = Math.round(value);
-  const formatted = rounded.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
-  return `${formatted} €`;
-};
+const [
+  // ... existing queries
+  { data: revenueForecasts }
+] = await Promise.all([
+  // ... existing queries
+  supabase.from('bp_revenue_forecasts').select('*').eq('company_id', companyId)
+]);
 ```
 
-### 2. Correction du "NaN%" dans les Évolutions
+### 2. Mettre à jour l'interface FinancialData
 
-**Fichier**: `supabase/functions/generate-bp-pdf/index.ts`
-**Lignes**: 662-665
+**Fichier :** `supabase/functions/generate-bp-pdf/index.ts`
+**Lignes :** ~19-31
 
 ```typescript
-// AVANT
-const evolution = y > 0 ? ((rev - prevRev) / prevRev * 100).toFixed(1) + '%' : '-';
-
-// APRÈS - Gestion de la division par zéro
-const evolution = y > 0 && prevRev > 0 
-  ? ((rev - prevRev) / prevRev * 100).toFixed(1) + '%' 
-  : y > 0 ? 'N/A' : '-';
+interface FinancialData {
+  // ... existing properties
+  revenueForecasts: any[]; // Ajouter cette ligne
+}
 ```
 
-### 3. Correction de l'Ordre des Colonnes dans le P&L
+### 3. Refactorer `calculateYearlyRevenue`
 
-**Fichier**: `supabase/functions/generate-bp-pdf/index.ts`
-**Lignes**: 819-855
+**Fichier :** `supabase/functions/generate-bp-pdf/index.ts`
 
-L'ordre chronologique doit être explicitement forcé :
+La fonction actuelle utilise uniquement `monthly_price × initial_subscribers × growth`. 
 
-```typescript
-// S'assurer que les années sont dans l'ordre croissant
-const yearlyData = Array.from({ length: years }, (_, y) => {
-  const yearNumber = startYear + y; // Garantit l'ordre: 2026, 2027, 2028
-  // ... calculs
-});
-```
-
-### 4. Correction de l'Affichage du Taux de Charges
-
-**Fichier**: `supabase/functions/generate-bp-pdf/index.ts`
-**Lignes**: 726-738
+La nouvelle logique doit :
+1. Pour chaque flux, itérer sur les mois de l'année
+2. Chercher une prévision explicite (`amount > 0`) dans `revenueForecasts`
+3. Si trouvée → utiliser cette valeur
+4. Si `amount === 0` → considérer comme "non saisi", utiliser le fallback (calcul auto pour SaaS, ou 0 pour variable)
+5. Pour les années 2+, projeter depuis l'année 1 avec les taux de croissance annuels
 
 ```typescript
-// AVANT - Le taux est déjà en pourcentage (45) mais affiché incorrectement
-const chargesRate = p.employer_charges_rate || 45;
-`${chargesRate.toFixed(1)}%`
-
-// APRÈS - Vérifier si le taux est en décimal ou en pourcentage
-const rawRate = p.employer_charges_rate || 45;
-const chargesRate = rawRate < 1 ? rawRate * 100 : rawRate; // Convertir si décimal
-`${chargesRate.toFixed(1)}%`
-```
-
-### 5. Filtrage des Investissements par Date
-
-**Fichier**: `supabase/functions/generate-bp-pdf/index.ts`
-**Lignes**: 786-809
-
-```typescript
-// AVANT - Tous les investissements sont inclus
-const invRows = financialData.investments.map(i => {...});
-
-// APRÈS - Filtrer les investissements dans la période du BP
-const bpStartDate = new Date(financialData.settings?.bp_start_date || new Date());
-const bpEndDate = new Date(bpStartDate);
-bpEndDate.setFullYear(bpEndDate.getFullYear() + years);
-
-const relevantInvestments = financialData.investments.filter(i => {
-  const purchaseDate = new Date(i.purchase_date);
-  return purchaseDate >= bpStartDate && purchaseDate <= bpEndDate;
-});
-
-const invRows = relevantInvestments.map(i => {...});
-```
-
-### 6. Correction du Bilan Équilibré
-
-**Fichier**: `supabase/functions/generate-bp-pdf/index.ts`
-**Lignes**: 1000-1053
-
-Le bilan simplifié actuel ne prend pas en compte les résultats cumulés. Il faut :
-1. Calculer les résultats nets par année
-2. Les ajouter aux capitaux propres
-
-```typescript
-// Calculer le résultat net pour l'équilibre du bilan
-const yearlyResults = Array.from({ length: years }, (_, y) => {
-  const revenue = calculateYearlyRevenue(y);
-  const varExpenses = calculateYearlyVariableExpenses(revenue);
-  const fixedExpenses = calculateYearlyFixedExpenses();
-  const personnelCosts = calculateYearlyPersonnelCosts();
-  const directorCosts = calculateYearlyDirectorCosts();
-  const depreciation = calculateYearlyDepreciation();
-  const financialCharges = calculateYearlyFinancialCharges();
+const getMonthlyRevenue = (streamId: string, month: Date): number => {
+  const stream = financialData.revenueStreams.find(s => s.id === streamId);
+  if (!stream) return 0;
   
-  const grossMargin = revenue - varExpenses;
-  const ebitda = grossMargin - fixedExpenses - personnelCosts - directorCosts;
-  const operatingResult = ebitda - depreciation;
-  const resultBeforeTax = operatingResult - financialCharges;
-  const tax = calculateIS(resultBeforeTax, financialData.settings?.is_pme || true);
-  return resultBeforeTax - tax;
-});
-
-const cumulativeResult = yearlyResults.reduce((sum, r) => sum + r, 0);
-
-// Dans le bilan
-{ actif: 'Résultat exercice', actifVal: 0, passif: 'Résultat cumulé', passifVal: cumulativeResult },
-```
-
-### 7. Correction du Point Mort (Break-even)
-
-**Fichier**: `supabase/functions/generate-bp-pdf/index.ts`
-**Lignes**: 1176-1178
-
-```typescript
-// AVANT
-const breakEvenRevenue = contributionMarginRate > 0 ? totalFixedCosts / contributionMarginRate : 0;
-
-// APRÈS - Gestion du cas CA = 0
-const breakEvenRevenue = contributionMarginRate > 0 
-  ? totalFixedCosts / contributionMarginRate 
-  : (totalFixedCosts > 0 ? Infinity : 0); // Infinity si charges > 0 et marge = 0
-
-// Dans l'affichage
-['Point mort (CA)', isFinite(breakEvenRevenue) ? formatCurrency(breakEvenRevenue) : 'Non calculable', ...],
-```
-
-### 8. Validation des Données d'Entrée
-
-Ajouter une fonction de validation au début de la génération pour détecter les incohérences avant le rendu :
-
-```typescript
-const validateFinancialData = (data: FinancialData): string[] => {
-  const warnings: string[] = [];
-  
-  // CA = 0 avec charges > 0
-  const hasRevenue = data.revenueStreams.some(rs => 
-    (rs.monthly_price || 0) * (rs.initial_subscribers || 0) > 0
+  const monthStr = formatDateYYYYMMDD(month);
+  const forecast = financialData.revenueForecasts.find(
+    f => f.stream_id === streamId && f.month === monthStr
   );
-  const hasExpenses = data.fixedExpenses.length > 0 || data.personnel.length > 0;
   
-  if (!hasRevenue && hasExpenses) {
-    warnings.push('Aucun chiffre d\'affaires prévu malgré des charges');
+  // Prévision explicite avec montant > 0
+  if (forecast?.amount && forecast.amount > 0) {
+    return forecast.amount;
   }
   
-  // Financement insuffisant
-  const totalInvestments = data.investments.reduce((s, i) => s + (i.purchase_amount || 0), 0);
-  const totalFinancing = data.financings.reduce((s, f) => s + (f.amount || 0), 0);
-  
-  if (totalInvestments > totalFinancing) {
-    warnings.push(`Besoin de financement: ${formatCurrency(totalInvestments - totalFinancing)}`);
+  // Fallback pour modèle subscription
+  if (stream.model === 'subscription') {
+    // Calcul MRR auto
   }
   
-  return warnings;
+  // Modèle variable sans saisie = 0
+  return 0;
+};
+
+const calculateYearlyRevenue = (year: number): number => {
+  // Year 0: somme des revenus mensuels (de bpStartDate à +12 mois)
+  // Year 1+: projeter depuis Year 0 avec growth_rate_year2/3/4
+};
+```
+
+### 4. Corriger la rémunération des dirigeants
+
+**Règle choisie :** Dirigeants = bp_directors + charges fixes typées "présidence" ou "dirigeant"
+
+Ajouter une fonction pour détecter les charges fixes de rémunération de direction :
+
+```typescript
+const getDirectorRemuneration = (): number => {
+  // Somme des bp_directors
+  const directorsTotal = financialData.directors.reduce((sum, d) => {
+    const rem = d.monthly_remuneration || 0;
+    const charges = rem * (d.charges_rate || 0);
+    return sum + (rem + charges) * 12;
+  }, 0);
+  
+  // Somme des charges fixes typées "présidence" / "dirigeant" / "refacturation"
+  const fixedDirectorExpenses = financialData.fixedExpenses
+    .filter(e => /prési|dirig|refact/i.test(e.name || ''))
+    .reduce((sum, e) => sum + (e.monthly_amount || 0) * 12, 0);
+  
+  return directorsTotal + fixedDirectorExpenses;
+};
+```
+
+### 5. Vérifier le tri chronologique des colonnes
+
+S'assurer que le P&L affiche toujours N, N+1, N+2 dans le bon ordre :
+
+```typescript
+const getYearlyColumns = (): number[] => {
+  const startYear = new Date(bpStartDate).getFullYear();
+  return Array.from({ length: years }, (_, i) => startYear + i);
 };
 ```
 
@@ -204,27 +123,26 @@ const validateFinancialData = (data: FinancialData): string[] => {
 
 ## Fichiers Impactés
 
-| Fichier | Modifications |
-|---------|---------------|
-| `supabase/functions/generate-bp-pdf/index.ts` | Formatage, calculs bilan, filtrage dates, gestion NaN |
-
----
-
-## Ordre d'Implémentation
-
-1. **Formatage des nombres** - Impact visuel immédiat
-2. **Gestion NaN/Infinity** - Évite les erreurs d'affichage
-3. **Tri chronologique** - Ordre logique des colonnes
-4. **Filtrage investissements** - Données pertinentes
-5. **Équilibre du bilan** - Cohérence comptable
-6. **Validation des données** - Alertes préventives
+| Fichier | Type de modification |
+|---------|---------------------|
+| `supabase/functions/generate-bp-pdf/index.ts` | Majeure (récupération données + calcul revenus) |
 
 ---
 
 ## Tests Recommandés
 
-Après implémentation, tester avec :
-1. Un BP sans revenus (CA = 0)
-2. Un BP avec investissements anciens (dates < bp_start_date)
-3. Un BP avec financement insuffisant
-4. Un BP complet pour vérifier l'équilibre Actif/Passif
+Après implémentation :
+1. Créer un flux "variable" avec des montants mensuels saisis
+2. Exporter le PDF et vérifier que le CA correspond aux montants saisis
+3. Créer un flux "subscription" (SaaS) et vérifier le calcul auto
+4. Tester un BP sans aucune prévision (doit afficher 0 € avec warning)
+5. Vérifier l'ordre des colonnes (2026, 2027, 2028)
+
+---
+
+## Bénéfices
+
+- Les revenus saisis dans `/bp/revenus` seront enfin pris en compte dans le PDF
+- Le document sera cohérent avec ce que l'utilisateur voit dans l'interface web
+- Les ratios financiers (point mort, EBITDA) seront calculés correctement
+
