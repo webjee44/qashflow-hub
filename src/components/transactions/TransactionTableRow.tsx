@@ -26,7 +26,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { TableCell, TableRow } from '@/components/ui/table';
 import { Tables } from '@/integrations/supabase/types';
 import { Category } from '@/hooks/useCategories';
 
@@ -75,22 +74,27 @@ export const TransactionTableRow = memo(function TransactionTableRow({
   };
 
   return (
-    <TableRow className={cn(isSelected && "bg-primary/5")}>
+    <div 
+      className={cn(
+        "grid grid-cols-[48px_120px_1fr_220px_140px_48px] gap-2 px-4 py-3 border-b border-border items-center hover:bg-muted/30 transition-colors",
+        isSelected && "bg-primary/5"
+      )}
+    >
       {/* Checkbox */}
-      <TableCell className="w-12">
+      <div className="flex items-center justify-center">
         <Checkbox
           checked={isSelected}
           onCheckedChange={() => onToggleSelection(transaction.id)}
         />
-      </TableCell>
+      </div>
 
       {/* Date */}
-      <TableCell className="w-32 text-sm text-muted-foreground whitespace-nowrap">
+      <div className="text-sm text-muted-foreground whitespace-nowrap">
         {formatDate(transaction.date)}
-      </TableCell>
+      </div>
 
       {/* Description */}
-      <TableCell className="max-w-md">
+      <div className="min-w-0">
         <div className="flex items-center gap-2">
           <span className="font-medium text-foreground truncate">
             {transaction.description}
@@ -104,10 +108,10 @@ export const TransactionTableRow = memo(function TransactionTableRow({
             </div>
           )}
         </div>
-      </TableCell>
+      </div>
 
       {/* Category Select */}
-      <TableCell className="w-56">
+      <div>
         <Select
           value={transaction.category_id || 'uncategorized'}
           onValueChange={handleCategoryChange}
@@ -193,20 +197,20 @@ export const TransactionTableRow = memo(function TransactionTableRow({
             )}
           </SelectContent>
         </Select>
-      </TableCell>
+      </div>
 
       {/* Amount */}
-      <TableCell className="w-36 text-right">
+      <div className="text-right">
         <span className={cn(
           "font-semibold tabular-nums",
           transaction.type === 'income' ? 'text-success' : 'text-foreground'
         )}>
           {transaction.type === 'income' ? '+' : '-'}{formatAmount(Number(transaction.amount))}
         </span>
-      </TableCell>
+      </div>
 
       {/* Actions */}
-      <TableCell className="w-12">
+      <div className="flex items-center justify-center">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -235,7 +239,7 @@ export const TransactionTableRow = memo(function TransactionTableRow({
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-      </TableCell>
-    </TableRow>
+      </div>
+    </div>
   );
 });
