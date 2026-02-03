@@ -2,6 +2,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useCategories, CategoryGroup, Category } from '@/hooks/useCategories';
+import { useCompany } from '@/hooks/useCompany';
 import { useForecasts } from '@/hooks/useForecasts';
 import { format, startOfMonth, isBefore, isSameMonth } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -53,6 +54,7 @@ const getMonthPeriodType = (month: Date): MonthPeriodType => {
 };
 
 export function ForecastTable() {
+  const { currentCompany, isLoading: companyLoading } = useCompany();
   const { categories, loading: categoriesLoading, getGroupedCategories, updateCategory, deleteCategory } = useCategories();
   const { 
     months, 
@@ -128,7 +130,8 @@ export function ForecastTable() {
   };
 
   // Show loading only on initial load, not on subsequent data fetches
-  const isInitialLoading = categoriesLoading && categories.length === 0;
+  // Also show loading while company is loading or not yet available
+  const isInitialLoading = companyLoading || !currentCompany || (categoriesLoading && categories.length === 0);
 
   // Get grouped categories
   const incomeGroups = useMemo(() => getGroupedCategories('income'), [categories]);
