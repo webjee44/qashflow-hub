@@ -598,7 +598,7 @@ export function TransactionsView() {
         ) : (
           <>
             {/* Table Header */}
-            <div className="grid grid-cols-[48px_120px_1fr_220px_140px_48px] gap-2 px-4 py-3 border-b border-border bg-muted/50 text-sm font-medium text-muted-foreground sticky top-0 z-10">
+            <div className="grid grid-cols-[48px_120px_1fr_140px_220px_140px_48px] gap-2 px-4 py-3 border-b border-border bg-muted/50 text-sm font-medium text-muted-foreground sticky top-0 z-10">
               <div className="flex items-center justify-center">
                 <Checkbox
                   checked={selectedTransactionIds.size === filteredTransactions.length && filteredTransactions.length > 0}
@@ -610,6 +610,7 @@ export function TransactionsView() {
               </div>
               <div>Date</div>
               <div>Libellé</div>
+              <div>Banque</div>
               <div>Catégorie</div>
               <div className="text-right">Montant TTC</div>
               <div></div>
@@ -643,6 +644,7 @@ export function TransactionsView() {
                         onSplitTransaction={handleOpenSplitDialog}
                         getCategoryName={getCategoryName}
                         getCategoryColor={getCategoryColor}
+                        getBankAccountDisplay={getBankAccountDisplay}
                         incomeCategories={incomeCategories}
                         expenseCategories={expenseCategories}
                         formatAmount={formatAmount}
