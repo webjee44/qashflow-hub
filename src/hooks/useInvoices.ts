@@ -248,10 +248,17 @@ export function useInvoices() {
     },
   });
 
-  // Update category
+  // Update category with partner mapping
   const updateCategoryMutation = useMutation({
     mutationFn: async ({ id, categoryId }: { id: string; categoryId: string | null }) => {
-      const { data: invoice, error } = await supabase
+      if (!currentCompany) throw new Error('No company selected');
+      
+      // 1. Get the invoice to find the partner_name
+      const invoice = processedInvoices.find(i => i.id === id);
+      if (!invoice) throw new Error('Invoice not found');
+
+      // 2. Update the invoice
+      const { data: updatedInvoice, error } = await supabase
         .from('invoices')
         .update({
           category_id: categoryId,
@@ -262,7 +269,52 @@ export function useInvoices() {
         .single();
 
       if (error) throw error;
-      return invoice;
+
+      // 3. Upsert or delete the partner → category mapping
+      if (categoryId) {
+        // Create/update the mapping
+        const { error: mappingError } = await supabase
+          .from('partner_category_mappings')
+          .upsert({
+            company_id: currentCompany.id,
+            user_id: currentCompany.user_id,
+            partner_name: invoice.partner_name,
+            category_id: categoryId,
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'company_id,partner_name' });
+
+        if (mappingError) {
+          console.error('Mapping upsert error:', mappingError);
+        }
+
+        // 4. Apply category to other uncategorized invoices with the same partner
+        const { error: bulkError } = await supabase
+          .from('invoices')
+          .update({ 
+            category_id: categoryId,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('company_id', currentCompany.id)
+          .eq('partner_name', invoice.partner_name)
+          .is('category_id', null);
+
+        if (bulkError) {
+          console.error('Bulk category update error:', bulkError);
+        }
+      } else {
+        // Delete the mapping if category is removed
+        const { error: deleteError } = await supabase
+          .from('partner_category_mappings')
+          .delete()
+          .eq('company_id', currentCompany.id)
+          .eq('partner_name', invoice.partner_name);
+
+        if (deleteError) {
+          console.error('Mapping delete error:', deleteError);
+        }
+      }
+
+      return updatedInvoice;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey });
