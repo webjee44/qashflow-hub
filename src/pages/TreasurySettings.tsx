@@ -173,7 +173,7 @@ export default function TreasurySettings() {
             className="flex-1 h-9 px-4 gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
           >
             <Zap className="h-4 w-4" />
-            Automatisations
+            Règles Automatisation
           </TabsTrigger>
         </TabsList>
 
