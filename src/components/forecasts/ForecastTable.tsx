@@ -127,7 +127,8 @@ export function ForecastTable() {
     setTransactionDetailOpen(true);
   };
 
-  const isLoading = categoriesLoading || forecastsLoading;
+  // Show loading only on initial load, not on subsequent data fetches
+  const isInitialLoading = categoriesLoading && categories.length === 0;
 
   // Get grouped categories
   const incomeGroups = useMemo(() => getGroupedCategories('income'), [categories]);
@@ -1367,7 +1368,7 @@ export function ForecastTable() {
     );
   };
 
-  if (isLoading) {
+  if (isInitialLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
