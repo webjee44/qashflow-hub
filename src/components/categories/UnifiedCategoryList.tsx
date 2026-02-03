@@ -44,6 +44,7 @@ interface UnifiedCategoryListProps {
   onDeleteCategory: (id: string, reassignToId: string | null) => void;
   onMoveToGroup: (categoryId: string, groupId: string | null) => void;
   onReorder?: (itemId: string, targetId: string, position: 'before' | 'after', targetParentId: string | null) => void;
+  hideCreateGroupButton?: boolean;
 }
 
 export function UnifiedCategoryList({
@@ -57,6 +58,7 @@ export function UnifiedCategoryList({
   onDeleteCategory,
   onMoveToGroup,
   onReorder,
+  hideCreateGroupButton = false,
 }: UnifiedCategoryListProps) {
   // Get all group IDs for this type (only groups with children for default collapse)
   const allGroupIds = useMemo(() => 
@@ -262,15 +264,17 @@ export function UnifiedCategoryList({
         {/* Header with CTA */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/30">
           <div className="flex items-center gap-3">
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-2"
-              onClick={() => onCreateGroup(type)}
-            >
-              <FolderPlus className="w-4 h-4" />
-              Ajouter un groupe
-            </Button>
+            {!hideCreateGroupButton && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                onClick={() => onCreateGroup(type)}
+              >
+                <FolderPlus className="w-4 h-4" />
+                Ajouter un groupe
+              </Button>
+            )}
             <span className="text-xs text-muted-foreground">
               {totalCount} catégorie{totalCount > 1 ? 's' : ''}
             </span>

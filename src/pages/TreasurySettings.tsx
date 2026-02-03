@@ -226,16 +226,22 @@ export default function TreasurySettings() {
                         <TrendingUp className="w-5 h-5 text-success" />
                         <h3 className="font-semibold text-foreground">Revenus ({incomeCategories.length})</h3>
                       </div>
-                      <CategoryDialog
-                        onSave={createCategory}
-                        availableGroups={availableGroups}
-                        trigger={
-                          <Button variant="outline" size="sm">
-                            <Plus className="w-4 h-4 mr-2" />
-                            Ajouter une catégorie
-                          </Button>
-                        }
-                      />
+                      <div className="flex items-center gap-2">
+                        <Button variant="ghost" size="sm" onClick={() => handleCreateGroup('income')}>
+                          <Folder className="w-4 h-4 mr-2" />
+                          Ajouter un groupe
+                        </Button>
+                        <CategoryDialog
+                          onSave={createCategory}
+                          availableGroups={availableGroups}
+                          trigger={
+                            <Button variant="outline" size="sm">
+                              <Plus className="w-4 h-4 mr-2" />
+                              Ajouter une catégorie
+                            </Button>
+                          }
+                        />
+                      </div>
                     </div>
                     <UnifiedCategoryList
                       type="income"
@@ -248,6 +254,7 @@ export default function TreasurySettings() {
                       onDeleteCategory={deleteCategory}
                       onMoveToGroup={handleMoveToGroup}
                       onReorder={reorderCategories}
+                      hideCreateGroupButton
                     />
                   </div>
 
@@ -258,16 +265,22 @@ export default function TreasurySettings() {
                         <TrendingDown className="w-5 h-5 text-destructive" />
                         <h3 className="font-semibold text-foreground">Dépenses ({expenseCategories.length})</h3>
                       </div>
-                      <CategoryDialog
-                        onSave={createCategory}
-                        availableGroups={availableGroups}
-                        trigger={
-                          <Button variant="outline" size="sm">
-                            <Plus className="w-4 h-4 mr-2" />
-                            Ajouter une catégorie
-                          </Button>
-                        }
-                      />
+                      <div className="flex items-center gap-2">
+                        <Button variant="ghost" size="sm" onClick={() => handleCreateGroup('expense')}>
+                          <Folder className="w-4 h-4 mr-2" />
+                          Ajouter un groupe
+                        </Button>
+                        <CategoryDialog
+                          onSave={createCategory}
+                          availableGroups={availableGroups}
+                          trigger={
+                            <Button variant="outline" size="sm">
+                              <Plus className="w-4 h-4 mr-2" />
+                              Ajouter une catégorie
+                            </Button>
+                          }
+                        />
+                      </div>
                     </div>
                     <UnifiedCategoryList
                       type="expense"
@@ -280,6 +293,7 @@ export default function TreasurySettings() {
                       onDeleteCategory={deleteCategory}
                       onMoveToGroup={handleMoveToGroup}
                       onReorder={reorderCategories}
+                      hideCreateGroupButton
                     />
                   </div>
 
