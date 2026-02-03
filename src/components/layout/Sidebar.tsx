@@ -49,7 +49,7 @@ interface NavItem {
 const treasuryNavItems: NavItem[] = [
   { icon: LayoutDashboard, label: 'Tableau de bord', href: '/dashboard', prefetchKeys: ['dashboard-stats'] },
   { icon: TrendingUp, label: 'Prévisions', href: '/previsions', prefetchKeys: ['forecasts'] },
-  { icon: Receipt, label: 'Créances & Dettes', href: '/creances', prefetchKeys: ['invoices'] },
+  { icon: Receipt, label: 'Engagements', href: '/creances', prefetchKeys: ['invoices'] },
   { icon: ArrowLeftRight, label: 'Transactions', href: '/transactions', prefetchKeys: ['transactions'] },
   { icon: Settings, label: 'Réglages', href: '/reglages-tresorerie' },
 ];
