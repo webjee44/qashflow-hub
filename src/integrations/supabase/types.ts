@@ -1872,6 +1872,51 @@ export type Database = {
         }
         Relationships: []
       }
+      partner_category_mappings: {
+        Row: {
+          category_id: string | null
+          company_id: string
+          created_at: string | null
+          id: string
+          partner_name: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          category_id?: string | null
+          company_id: string
+          created_at?: string | null
+          id?: string
+          partner_name: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          category_id?: string | null
+          company_id?: string
+          created_at?: string | null
+          id?: string
+          partner_name?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partner_category_mappings_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "partner_category_mappings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null

@@ -409,6 +409,20 @@ async function upsertInvoice(
       if (error) throw error;
       result.updated++;
     } else {
+      // Look up partner → category mapping for new invoices
+      let categoryId: string | null = null;
+      const { data: mapping } = await supabase
+        .from("partner_category_mappings")
+        .select("category_id")
+        .eq("company_id", invoice.company_id)
+        .eq("partner_name", invoice.partner_name)
+        .maybeSingle();
+
+      if (mapping?.category_id) {
+        categoryId = mapping.category_id;
+        console.log(`[accounting-connector-sync] Auto-assigning category for partner "${invoice.partner_name}"`);
+      }
+
       const { error } = await supabase.from("invoices").insert({
         user_id: invoice.user_id,
         company_id: invoice.company_id,
@@ -424,6 +438,7 @@ async function upsertInvoice(
         paid_at: invoice.paid_at,
         source: invoice.source,
         external_id: invoice.external_id,
+        category_id: categoryId,
       });
       if (error) throw error;
       result.created++;
