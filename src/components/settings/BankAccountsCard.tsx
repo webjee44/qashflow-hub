@@ -16,6 +16,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useCompany } from '@/hooks/useCompany';
+import { useOrganization } from '@/hooks/useOrganization';
 import { toast } from 'sonner';
 
 interface BridgeAccount {
@@ -71,7 +72,10 @@ interface AccountAssignment {
 }
 
 export function BankAccountsCard() {
-  const { companies, refetch: refetchCompanies } = useCompany();
+  const { companies, currentCompany, refetch: refetchCompanies } = useCompany();
+  const { isOwner, isAdmin } = useOrganization();
+  const isOrgAdmin = isOwner || isAdmin;
+  
   const [accounts, setAccounts] = useState<BridgeAccount[]>([]);
   const [assignments, setAssignments] = useState<Map<number, AccountAssignment>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
@@ -80,12 +84,40 @@ export function BankAccountsCard() {
   const [isConnecting, setIsConnecting] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // Get unique bridge_user_uuids from companies
-  const bridgeUserUuids = [...new Set(
-    companies
-      .filter(c => c.bridge_user_uuid)
-      .map(c => c.bridge_user_uuid as string)
-  )];
+  // Get bridge_user_uuids based on role
+  // Admin: all companies with bridge connection
+  // Member: only currentCompany's bridge_user_uuid
+  const bridgeUserUuids = useMemo(() => {
+    if (isOrgAdmin) {
+      return [...new Set(
+        companies
+          .filter(c => c.bridge_user_uuid)
+          .map(c => c.bridge_user_uuid as string)
+      )];
+    } else {
+      // Member: only load from their current company
+      return currentCompany?.bridge_user_uuid 
+        ? [currentCompany.bridge_user_uuid] 
+        : [];
+    }
+  }, [isOrgAdmin, companies, currentCompany?.bridge_user_uuid]);
+
+  // Filter displayed accounts based on role
+  const displayedAccounts = useMemo(() => {
+    if (isOrgAdmin) {
+      return accounts;
+    }
+    // For members: only show accounts assigned to their current company
+    return accounts.filter(account => {
+      const assignment = assignments.get(account.bridge_account_id);
+      return assignment?.is_enabled && assignment?.company_id === currentCompany?.id;
+    });
+  }, [isOrgAdmin, accounts, assignments, currentCompany?.id]);
+
+  // Calculate total balance for displayed accounts
+  const totalDisplayedBalance = useMemo(() => {
+    return displayedAccounts.reduce((sum, account) => sum + (account.balance || 0), 0);
+  }, [displayedAccounts]);
 
   // Load all Bridge accounts
   useEffect(() => {
@@ -97,7 +129,7 @@ export function BankAccountsCard() {
     const loadData = async () => {
       setIsLoading(true);
       try {
-        // Fetch all Bridge accounts for all bridge_user_uuids
+        // Fetch all Bridge accounts for the relevant bridge_user_uuids
         const { data: bridgeAccounts, error: accountsError } = await supabase
           .from('bridge_accounts')
           .select('id, bridge_account_id, bridge_item_id, name, iban, balance, account_type, bank_name, bridge_user_uuid, company_id')
@@ -105,10 +137,17 @@ export function BankAccountsCard() {
 
         if (accountsError) throw accountsError;
 
-        // Fetch current assignments
-        const { data: currentAssignments, error: assignmentsError } = await supabase
+        // Fetch current assignments - filter by company for members
+        let assignmentsQuery = supabase
           .from('company_bridge_accounts')
           .select('bridge_account_id, company_id');
+        
+        // For members, only fetch assignments for their company
+        if (!isOrgAdmin && currentCompany) {
+          assignmentsQuery = assignmentsQuery.eq('company_id', currentCompany.id);
+        }
+        
+        const { data: currentAssignments, error: assignmentsError } = await assignmentsQuery;
 
         if (assignmentsError) throw assignmentsError;
 
@@ -134,7 +173,7 @@ export function BankAccountsCard() {
     };
 
     loadData();
-  }, [bridgeUserUuids.join(',')]);
+  }, [bridgeUserUuids.join(','), isOrgAdmin, currentCompany?.id]);
 
   // Auto-sync after Bridge connection (check localStorage flag)
   useEffect(() => {
@@ -274,11 +313,13 @@ export function BankAccountsCard() {
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      // Delete all current assignments
+      // Only delete assignments for accounts we're managing (to prevent affecting other companies' data)
+      const accountIds = accounts.map(a => a.bridge_account_id);
+      
       const { error: deleteError } = await supabase
         .from('company_bridge_accounts')
         .delete()
-        .in('bridge_account_id', accounts.map(a => a.bridge_account_id));
+        .in('bridge_account_id', accountIds);
 
       if (deleteError) throw deleteError;
 
@@ -500,7 +541,37 @@ export function BankAccountsCard() {
   // Check if any company has a bridge connection (for showing sync button)
   const hasAnyBridgeConnection = companies.some(c => c.bridge_user_uuid);
 
-  if (accounts.length === 0) {
+  // For members: show a simpler empty state if no accounts assigned to their company
+  if (displayedAccounts.length === 0) {
+    // Member with no accounts assigned to their company
+    if (!isOrgAdmin && currentCompany) {
+      return (
+        <Card className="bg-card border-border">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Landmark className="w-5 h-5 text-primary" />
+              Comptes bancaires de {currentCompany.name}
+            </CardTitle>
+            <CardDescription>
+              Comptes bancaires associés à votre société
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="text-center py-8">
+              <Landmark className="w-12 h-12 mx-auto mb-3 text-muted-foreground opacity-50" />
+              <p className="text-muted-foreground">
+                Aucun compte bancaire n'est assigné à cette société.
+              </p>
+              <p className="text-sm text-muted-foreground mt-2">
+                Contactez l'administrateur de votre organisation pour configurer les comptes.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      );
+    }
+    
+    // Admin with no accounts at all
     return (
       <Card className="bg-card border-border">
         <CardHeader className="flex flex-row items-start justify-between gap-4">
@@ -555,6 +626,35 @@ export function BankAccountsCard() {
     );
   }
 
+  // Member view: read-only display
+  if (!isOrgAdmin && currentCompany) {
+    return (
+      <Card className="bg-card border-border">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Landmark className="w-5 h-5 text-primary" />
+            Comptes bancaires de {currentCompany.name}
+          </CardTitle>
+          <CardDescription className="flex items-center gap-2">
+            Solde total : 
+            <span className="font-semibold text-foreground">
+              {formatBalance(totalDisplayedBalance)}
+            </span>
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <BankAccountsListReadOnly
+            accounts={displayedAccounts}
+            currentCompanyName={currentCompany.name}
+            formatBalance={formatBalance}
+            formatIban={formatIban}
+          />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Admin view: full control
   return (
     <Card className="bg-card border-border">
       <CardHeader className="flex flex-row items-start justify-between gap-4">
@@ -612,7 +712,7 @@ export function BankAccountsCard() {
       </CardHeader>
       <CardContent>
         <BankAccountsList 
-          accounts={accounts}
+          accounts={displayedAccounts}
           assignments={assignments}
           companies={companies}
           companiesWithBridge={companiesWithBridge}
@@ -621,6 +721,7 @@ export function BankAccountsCard() {
           formatBalance={formatBalance}
           formatIban={formatIban}
           onBankNameUpdate={handleBankNameUpdate}
+          isOrgAdmin={isOrgAdmin}
         />
 
         {hasChanges && (
@@ -633,7 +734,126 @@ export function BankAccountsCard() {
   );
 }
 
-// Separate component for the accounts list grouped by bank
+// Read-only list for members
+function BankAccountsListReadOnly({
+  accounts,
+  currentCompanyName,
+  formatBalance,
+  formatIban,
+}: {
+  accounts: BridgeAccount[];
+  currentCompanyName: string;
+  formatBalance: (balance: number | null) => string;
+  formatIban: (iban: string | null) => string;
+}) {
+  const bankGroups = useMemo(() => groupAccountsByBank(accounts), [accounts]);
+  const [expandedBanks, setExpandedBanks] = useState<Set<string>>(() => 
+    new Set(bankGroups.map(g => g.bankName))
+  );
+
+  const toggleBank = (bankName: string) => {
+    setExpandedBanks(prev => {
+      const next = new Set(prev);
+      if (next.has(bankName)) {
+        next.delete(bankName);
+      } else {
+        next.add(bankName);
+      }
+      return next;
+    });
+  };
+
+  return (
+    <div className="space-y-4">
+      {bankGroups.map((group) => {
+        const isExpanded = expandedBanks.has(group.bankName);
+        const bridgeItemId = group.accounts[0]?.bridge_item_id;
+        
+        return (
+          <Collapsible 
+            key={`${group.bankName}-${bridgeItemId}`} 
+            open={isExpanded}
+            onOpenChange={() => toggleBank(group.bankName)}
+          >
+            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
+              <div className="flex items-center gap-2 flex-1">
+                <CollapsibleTrigger className="flex items-center gap-2">
+                  {isExpanded ? (
+                    <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                  )}
+                  <Landmark className="w-5 h-5 text-primary" />
+                </CollapsibleTrigger>
+                
+                <span className="font-semibold text-foreground">
+                  {group.bankName}
+                </span>
+                
+                <Badge variant="secondary" className="text-xs ml-2">
+                  {group.accounts.length} compte{group.accounts.length > 1 ? 's' : ''}
+                </Badge>
+              </div>
+              <span className="font-semibold text-foreground">
+                {formatBalance(group.totalBalance)}
+              </span>
+            </div>
+            
+            <CollapsibleContent>
+              <div className="mt-2 ml-4 space-y-2 border-l-2 border-muted pl-4">
+                {group.accounts.map((account, index) => {
+                  const displayName = account.name || 'Compte sans nom';
+
+                  return (
+                    <motion.div
+                      key={account.id}
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: index * 0.03 }}
+                      className="flex items-center gap-4 p-3 rounded-lg border border-border bg-card"
+                    >
+                      {/* Account info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-foreground truncate">
+                            {displayName}
+                          </span>
+                          {account.account_type && (
+                            <Badge variant="outline" className="text-xs capitalize">
+                              {account.account_type}
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
+                          {account.iban && (
+                            <span className="font-mono text-xs">
+                              {formatIban(account.iban)}
+                            </span>
+                          )}
+                          <span className="font-medium text-primary">
+                            {formatBalance(account.balance)}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Company badge (read-only) */}
+                      <Badge variant="outline" className="flex items-center gap-1">
+                        <Building2 className="w-3 h-3" />
+                        {currentCompanyName}
+                      </Badge>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+        );
+      })}
+    </div>
+  );
+}
+
+// Full admin list with editing capabilities
 function BankAccountsList({
   accounts,
   assignments,
@@ -644,6 +864,7 @@ function BankAccountsList({
   formatBalance,
   formatIban,
   onBankNameUpdate,
+  isOrgAdmin,
 }: {
   accounts: BridgeAccount[];
   assignments: Map<number, AccountAssignment>;
@@ -654,6 +875,7 @@ function BankAccountsList({
   formatBalance: (balance: number | null) => string;
   formatIban: (iban: string | null) => string;
   onBankNameUpdate: (bridgeItemId: number, newName: string) => Promise<void>;
+  isOrgAdmin: boolean;
 }) {
   const bankGroups = useMemo(() => groupAccountsByBank(accounts), [accounts]);
   const [expandedBanks, setExpandedBanks] = useState<Set<string>>(() => 
@@ -753,13 +975,15 @@ function BankAccountsList({
                 ) : (
                   <div 
                     className="flex items-center gap-2 group cursor-pointer hover:text-primary transition-colors"
-                    onDoubleClick={(e) => handleStartEdit(e, group)}
-                    title="Double-cliquez pour modifier"
+                    onDoubleClick={(e) => isOrgAdmin && handleStartEdit(e, group)}
+                    title={isOrgAdmin ? "Double-cliquez pour modifier" : undefined}
                   >
                     <span className="font-semibold text-foreground group-hover:text-primary transition-colors">
                       {group.bankName}
                     </span>
-                    <Pencil className="w-3.5 h-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                    {isOrgAdmin && (
+                      <Pencil className="w-3.5 h-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                    )}
                   </div>
                 )}
                 
@@ -794,7 +1018,7 @@ function BankAccountsList({
                           : 'border-dashed border-muted bg-muted/30 opacity-60'
                       }`}
                     >
-                      {/* Toggle */}
+                      {/* Toggle - only for admins */}
                       <Switch
                         checked={isEnabled}
                         onCheckedChange={(checked) => onToggle(account.bridge_account_id, checked)}
