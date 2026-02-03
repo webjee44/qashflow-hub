@@ -16,13 +16,6 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import {
-  Table,
-  TableBody,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Tables } from '@/integrations/supabase/types';
@@ -518,66 +511,63 @@ export function TransactionsView() {
             </p>
           </div>
         ) : (
-          <div 
-            ref={parentRef} 
-            className="max-h-[600px] overflow-auto"
-          >
-            <Table>
-              <TableHeader className="sticky top-0 bg-card z-10">
-                <TableRow>
-                  <TableHead className="w-12">
-                    <Checkbox
-                      checked={selectedTransactionIds.size === filteredTransactions.length && filteredTransactions.length > 0}
-                      onCheckedChange={(checked) => {
-                        if (checked) selectAllVisible();
-                        else clearSelection();
+          <>
+            {/* Table Header */}
+            <div className="grid grid-cols-[48px_120px_1fr_220px_140px_48px] gap-2 px-4 py-3 border-b border-border bg-muted/50 text-sm font-medium text-muted-foreground sticky top-0 z-10">
+              <div className="flex items-center justify-center">
+                <Checkbox
+                  checked={selectedTransactionIds.size === filteredTransactions.length && filteredTransactions.length > 0}
+                  onCheckedChange={(checked) => {
+                    if (checked) selectAllVisible();
+                    else clearSelection();
+                  }}
+                />
+              </div>
+              <div>Date</div>
+              <div>Libellé</div>
+              <div>Catégorie</div>
+              <div className="text-right">Montant TTC</div>
+              <div></div>
+            </div>
+
+            {/* Virtualized Rows */}
+            <div 
+              ref={parentRef} 
+              className="max-h-[600px] overflow-auto"
+            >
+              <div style={{ height: `${virtualizer.getTotalSize()}px`, position: 'relative' }}>
+                {virtualizer.getVirtualItems().map((virtualRow) => {
+                  const transaction = filteredTransactions[virtualRow.index];
+                  return (
+                    <div
+                      key={transaction.id}
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        transform: `translateY(${virtualRow.start}px)`,
                       }}
-                    />
-                  </TableHead>
-                  <TableHead className="w-32">Date</TableHead>
-                  <TableHead>Libellé</TableHead>
-                  <TableHead className="w-56">Catégorie</TableHead>
-                  <TableHead className="w-36 text-right">Montant TTC</TableHead>
-                  <TableHead className="w-12"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                <tr style={{ height: `${virtualizer.getTotalSize()}px`, display: 'block', position: 'relative' }}>
-                  <td style={{ display: 'block', height: '100%' }}>
-                    {virtualizer.getVirtualItems().map((virtualRow) => {
-                      const transaction = filteredTransactions[virtualRow.index];
-                      return (
-                        <div
-                          key={transaction.id}
-                          style={{
-                            position: 'absolute',
-                            top: 0,
-                            left: 0,
-                            width: '100%',
-                            transform: `translateY(${virtualRow.start}px)`,
-                          }}
-                        >
-                          <TransactionTableRow
-                            transaction={transaction}
-                            isSelected={selectedTransactionIds.has(transaction.id)}
-                            onToggleSelection={toggleTransactionSelection}
-                            onUpdateCategory={handleUpdateCategory}
-                            onCreateCategory={onCreateCategoryForTransaction}
-                            getCategoryName={getCategoryName}
-                            getCategoryColor={getCategoryColor}
-                            incomeCategories={incomeCategories}
-                            expenseCategories={expenseCategories}
-                            formatAmount={formatAmount}
-                            formatDate={formatDate}
-                          />
-                        </div>
-                      );
-                    })}
-                  </td>
-                </tr>
-              </TableBody>
-            </Table>
-          </div>
+                    >
+                      <TransactionTableRow
+                        transaction={transaction}
+                        isSelected={selectedTransactionIds.has(transaction.id)}
+                        onToggleSelection={toggleTransactionSelection}
+                        onUpdateCategory={handleUpdateCategory}
+                        onCreateCategory={onCreateCategoryForTransaction}
+                        getCategoryName={getCategoryName}
+                        getCategoryColor={getCategoryColor}
+                        incomeCategories={incomeCategories}
+                        expenseCategories={expenseCategories}
+                        formatAmount={formatAmount}
+                        formatDate={formatDate}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </>
         )}
       </motion.div>
 
