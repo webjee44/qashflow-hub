@@ -7,8 +7,9 @@ import {
   XCircle,
   Sparkles,
   Scissors,
+  Circle,
+  CheckCircle2,
 } from 'lucide-react';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -83,12 +84,24 @@ export const TransactionTableRow = memo(function TransactionTableRow({
         isSelected && "bg-primary/5"
       )}
     >
-      {/* Checkbox */}
+      {/* Selection circle */}
       <div className="flex items-center justify-center">
-        <Checkbox
-          checked={isSelected}
-          onCheckedChange={() => onToggleSelection(transaction.id)}
-        />
+        <button
+          type="button"
+          onClick={() => onToggleSelection(transaction.id)}
+          className={cn(
+            "transition-all duration-150",
+            isSelected 
+              ? "text-primary" 
+              : "text-muted-foreground/40 hover:text-muted-foreground"
+          )}
+        >
+          {isSelected ? (
+            <CheckCircle2 className="w-5 h-5" />
+          ) : (
+            <Circle className="w-5 h-5" />
+          )}
+        </button>
       </div>
 
       {/* Date */}
