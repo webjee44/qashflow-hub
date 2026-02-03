@@ -248,6 +248,35 @@ export function useInvoices() {
     },
   });
 
+  // Update category
+  const updateCategoryMutation = useMutation({
+    mutationFn: async ({ id, categoryId }: { id: string; categoryId: string | null }) => {
+      const { data: invoice, error } = await supabase
+        .from('invoices')
+        .update({
+          category_id: categoryId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return invoice;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Erreur',
+        description: 'Impossible de mettre à jour la catégorie.',
+        variant: 'destructive',
+      });
+      console.error('Update category error:', error);
+    },
+  });
+
   // Get unique partner names for autocomplete
   const partnerNames = useMemo(() => {
     const names = new Set(invoices.map(i => i.partner_name));
@@ -264,6 +293,8 @@ export function useInvoices() {
     updateInvoice: updateMutation.mutate,
     markAsPaid: markAsPaidMutation.mutate,
     deleteInvoice: deleteMutation.mutate,
+    updateCategory: (id: string, categoryId: string | null) => 
+      updateCategoryMutation.mutate({ id, categoryId }),
     isCreating: createMutation.isPending,
     isUpdating: updateMutation.isPending,
     isDeleting: deleteMutation.isPending,

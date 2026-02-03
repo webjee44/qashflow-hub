@@ -26,6 +26,7 @@ export default function Invoices() {
     updateInvoice,
     markAsPaid, 
     deleteInvoice,
+    updateCategory,
   } = useInvoices();
 
   const {
@@ -158,6 +159,7 @@ export default function Invoices() {
           onEdit={handleOpenDialog}
           onMarkAsPaid={markAsPaid}
           onDelete={deleteInvoice}
+          onUpdateCategory={updateCategory}
         />
       )}
 
