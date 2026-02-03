@@ -15,13 +15,14 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+  Table,
+  TableBody,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Tables } from '@/integrations/supabase/types';
@@ -33,7 +34,7 @@ import { useBankBalance } from '@/hooks/useBankBalance';
 import { useQuery } from '@tanstack/react-query';
 import { SuggestAutomationDialog } from './SuggestAutomationDialog';
 import { CategoryDialog } from '@/components/categories/CategoryDialog';
-import { TransactionRow } from './TransactionRow';
+import { TransactionTableRow } from './TransactionTableRow';
 import { SortDropdown } from './SortDropdown';
 import { BulkCategorizeDialog } from './BulkCategorizeDialog';
 
@@ -502,12 +503,12 @@ export function TransactionsView() {
         </motion.div>
       )}
 
-      {/* Virtualized Transactions List */}
+      {/* Table View */}
       <motion.div
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ delay: 0.3 }}
-        className="bg-card rounded-2xl border border-border shadow-card"
+        className="bg-card rounded-2xl border border-border shadow-card overflow-hidden"
       >
         {filteredTransactions.length === 0 ? (
           <div className="p-12 text-center">
@@ -519,49 +520,63 @@ export function TransactionsView() {
         ) : (
           <div 
             ref={parentRef} 
-            className="max-h-[600px] overflow-auto scrollbar-none"
-            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+            className="max-h-[600px] overflow-auto"
           >
-            <div
-              style={{
-                height: `${virtualizer.getTotalSize()}px`,
-                width: '100%',
-                position: 'relative',
-              }}
-            >
-              {virtualizer.getVirtualItems().map((virtualRow) => {
-                const transaction = filteredTransactions[virtualRow.index];
-                return (
-                  <div
-                    key={transaction.id}
-                    style={{
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      width: '100%',
-                      height: `${virtualRow.size}px`,
-                      transform: `translateY(${virtualRow.start}px)`,
-                    }}
-                    className="border-b border-border last:border-b-0"
-                  >
-                    <TransactionRow
-                      transaction={transaction}
-                      isSelected={selectedTransactionIds.has(transaction.id)}
-                      onToggleSelection={toggleTransactionSelection}
-                      onUpdateCategory={handleUpdateCategory}
-                      onCreateCategory={onCreateCategoryForTransaction}
-                      getCategoryName={getCategoryName}
-                      getCategoryColor={getCategoryColor}
-                      getBankAccountDisplay={getBankAccountDisplay}
-                      incomeCategories={incomeCategories}
-                      expenseCategories={expenseCategories}
-                      formatAmount={formatAmount}
-                      formatDate={formatDate}
+            <Table>
+              <TableHeader className="sticky top-0 bg-card z-10">
+                <TableRow>
+                  <TableHead className="w-12">
+                    <Checkbox
+                      checked={selectedTransactionIds.size === filteredTransactions.length && filteredTransactions.length > 0}
+                      onCheckedChange={(checked) => {
+                        if (checked) selectAllVisible();
+                        else clearSelection();
+                      }}
                     />
-                  </div>
-                );
-              })}
-            </div>
+                  </TableHead>
+                  <TableHead className="w-32">Date</TableHead>
+                  <TableHead>Libellé</TableHead>
+                  <TableHead className="w-56">Catégorie</TableHead>
+                  <TableHead className="w-36 text-right">Montant TTC</TableHead>
+                  <TableHead className="w-12"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                <tr style={{ height: `${virtualizer.getTotalSize()}px`, display: 'block', position: 'relative' }}>
+                  <td style={{ display: 'block', height: '100%' }}>
+                    {virtualizer.getVirtualItems().map((virtualRow) => {
+                      const transaction = filteredTransactions[virtualRow.index];
+                      return (
+                        <div
+                          key={transaction.id}
+                          style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            width: '100%',
+                            transform: `translateY(${virtualRow.start}px)`,
+                          }}
+                        >
+                          <TransactionTableRow
+                            transaction={transaction}
+                            isSelected={selectedTransactionIds.has(transaction.id)}
+                            onToggleSelection={toggleTransactionSelection}
+                            onUpdateCategory={handleUpdateCategory}
+                            onCreateCategory={onCreateCategoryForTransaction}
+                            getCategoryName={getCategoryName}
+                            getCategoryColor={getCategoryColor}
+                            incomeCategories={incomeCategories}
+                            expenseCategories={expenseCategories}
+                            formatAmount={formatAmount}
+                            formatDate={formatDate}
+                          />
+                        </div>
+                      );
+                    })}
+                  </td>
+                </tr>
+              </TableBody>
+            </Table>
           </div>
         )}
       </motion.div>
