@@ -60,17 +60,15 @@ export function useAutomationRules() {
     if (!user || !currentCompany) return;
     
     try {
-      // Use company-based filtering (RLS handles permissions)
-      let query = supabase
+      // Strict company isolation
+      const { data, error } = await supabase
         .from('automation_rules')
         .select(`
           *,
           category:categories(id, name, color)
         `)
-        .or(`company_id.eq.${currentCompany.id},company_id.is.null`)
+        .eq('company_id', currentCompany.id)
         .order('created_at', { ascending: false });
-
-      const { data, error } = await query;
 
       if (error) throw error;
       
@@ -118,13 +116,11 @@ export function useAutomationRules() {
     if (!user || !currentCompany) return;
     
     try {
-      // Use company-based filtering (RLS handles permissions)
-      let query = supabase
+      // Strict company isolation
+      const { data, error } = await supabase
         .from('categories')
         .select('*')
-        .or(`company_id.eq.${currentCompany.id},company_id.is.null`);
-
-      const { data, error } = await query;
+        .eq('company_id', currentCompany.id);
 
       if (error) throw error;
       setCategories(data || []);
