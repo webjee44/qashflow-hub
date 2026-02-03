@@ -12,8 +12,6 @@ const automationRuleRequestSchema = z.object({
 });
 
 interface RuleCondition {
-  id: string;
-  rule_id: string;
   condition_field: string;
   condition_operator: string;
   condition_value: string;
@@ -24,7 +22,12 @@ interface AutomationRule {
   target_category_id: string;
   user_id: string;
   match_count: number;
-  conditions: RuleCondition[];
+  // Primary condition from automation_rules table
+  condition_field: string;
+  condition_operator: string;
+  condition_value: string;
+  // Additional conditions
+  extra_conditions: RuleCondition[];
 }
 
 interface Transaction {
@@ -92,9 +95,24 @@ function matchCondition(transaction: Transaction, condition: RuleCondition): boo
 }
 
 // Check if transaction matches ALL conditions (AND logic)
-function matchesRule(transaction: Transaction, conditions: RuleCondition[]): boolean {
-  if (!conditions || conditions.length === 0) return false;
-  return conditions.every(condition => matchCondition(transaction, condition));
+function matchesRule(transaction: Transaction, rule: AutomationRule): boolean {
+  // First check the primary condition from the rule itself
+  const primaryCondition: RuleCondition = {
+    condition_field: rule.condition_field,
+    condition_operator: rule.condition_operator,
+    condition_value: rule.condition_value,
+  };
+  
+  if (!matchCondition(transaction, primaryCondition)) {
+    return false;
+  }
+  
+  // Then check any additional conditions (AND logic)
+  if (rule.extra_conditions && rule.extra_conditions.length > 0) {
+    return rule.extra_conditions.every(condition => matchCondition(transaction, condition));
+  }
+  
+  return true;
 }
 
 // Helper to chunk array into smaller batches
@@ -165,7 +183,7 @@ Deno.serve(async (req) => {
     // Client admin pour les updates
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Récupérer la règle
+    // Récupérer la règle with its primary condition
     const { data: rule, error: ruleError } = await supabaseAdmin
       .from('automation_rules')
       .select('*')
@@ -196,29 +214,43 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Fetch conditions for this rule
-    const { data: conditions, error: conditionsError } = await supabaseAdmin
-      .from('automation_rule_conditions')
-      .select('*')
-      .eq('rule_id', rule_id);
-
-    if (conditionsError) {
-      console.error('[apply-automation-rule] Error fetching conditions:', conditionsError);
-      return new Response(
-        JSON.stringify({ error: 'Failed to fetch conditions' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    if (!conditions || conditions.length === 0) {
-      console.log('[apply-automation-rule] Rule has no conditions');
+    // Check that rule has valid primary condition
+    if (!rule.condition_field || !rule.condition_operator || !rule.condition_value) {
+      console.log('[apply-automation-rule] Rule has no valid primary condition');
       return new Response(
         JSON.stringify({ matched: 0, updated: 0 }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log(`[apply-automation-rule] Rule has ${conditions.length} conditions`);
+    // Fetch any additional conditions for this rule
+    const { data: extraConditions, error: conditionsError } = await supabaseAdmin
+      .from('automation_rule_conditions')
+      .select('*')
+      .eq('rule_id', rule_id);
+
+    if (conditionsError) {
+      console.error('[apply-automation-rule] Error fetching conditions:', conditionsError);
+      // Continue anyway - extra conditions are optional
+    }
+
+    // Build the full rule object
+    const fullRule: AutomationRule = {
+      id: rule.id,
+      target_category_id: rule.target_category_id,
+      user_id: rule.user_id,
+      match_count: rule.match_count || 0,
+      condition_field: rule.condition_field,
+      condition_operator: rule.condition_operator,
+      condition_value: rule.condition_value,
+      extra_conditions: (extraConditions || []).map(c => ({
+        condition_field: c.condition_field,
+        condition_operator: c.condition_operator,
+        condition_value: c.condition_value,
+      })),
+    };
+
+    console.log(`[apply-automation-rule] Rule: ${fullRule.condition_field} ${fullRule.condition_operator} "${fullRule.condition_value}", plus ${fullRule.extra_conditions.length} extra conditions`);
 
     // Récupérer TOUTES les transactions NON catégorisées de l'utilisateur (paginé pour dépasser la limite de 1000)
     let allTransactions: Transaction[] = [];
@@ -255,9 +287,9 @@ Deno.serve(async (req) => {
     const transactions = allTransactions;
     console.log(`[apply-automation-rule] Found ${transactions.length} uncategorized transactions (${page} pages)`);
 
-    // Trouver les transactions qui matchent la règle (ALL conditions must match)
+    // Trouver les transactions qui matchent la règle (primary + extra conditions)
     const matchingTransactions = (transactions || []).filter(tx => 
-      matchesRule(tx as Transaction, conditions as RuleCondition[])
+      matchesRule(tx as Transaction, fullRule)
     );
 
     console.log(`[apply-automation-rule] ${matchingTransactions.length} transactions match the rule`);
