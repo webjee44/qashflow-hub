@@ -91,7 +91,7 @@ const BP_ENABLED_STORAGE_KEY = 'bp_enabled';
 
 function readStoredBpEnabled(): boolean {
   const raw = localStorage.getItem(BP_ENABLED_STORAGE_KEY);
-  if (raw === null) return true; // default: BP only (Treasury hidden)
+  if (raw === null) return false; // default: Treasury enabled (both modules shown)
   return raw === 'true';
 }
 
@@ -128,7 +128,7 @@ export function useOnboarding(): UseOnboardingReturn {
     try {
       return readStoredBpEnabled();
     } catch {
-      return true;
+      return false; // default: Treasury enabled
     }
   });
 
@@ -174,9 +174,9 @@ export function useOnboarding(): UseOnboardingReturn {
         setIsCompleted(data.onboarding_completed ?? false);
         setCurrentStep(data.onboarding_step ?? 0);
         
-        // Use user's own bp_enabled preference
-        writeStoredBpEnabled(data.bp_enabled ?? true);
-        setBpEnabled(data.bp_enabled ?? true);
+        // Use user's own bp_enabled preference (default false = Treasury enabled)
+        writeStoredBpEnabled(data.bp_enabled ?? false);
+        setBpEnabled(data.bp_enabled ?? false);
 
         const shouldShowTour = localStorage.getItem('show-onboarding-tour') === 'true';
         if (shouldShowTour) {
