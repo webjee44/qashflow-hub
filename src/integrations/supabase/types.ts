@@ -1968,6 +1968,7 @@ export type Database = {
           description: string
           id: string
           is_reconciled: boolean
+          parent_transaction_id: string | null
           pennylane_id: string | null
           source: string | null
           type: Database["public"]["Enums"]["transaction_type"]
@@ -1986,6 +1987,7 @@ export type Database = {
           description: string
           id?: string
           is_reconciled?: boolean
+          parent_transaction_id?: string | null
           pennylane_id?: string | null
           source?: string | null
           type: Database["public"]["Enums"]["transaction_type"]
@@ -2004,6 +2006,7 @@ export type Database = {
           description?: string
           id?: string
           is_reconciled?: boolean
+          parent_transaction_id?: string | null
           pennylane_id?: string | null
           source?: string | null
           type?: Database["public"]["Enums"]["transaction_type"]
@@ -2023,6 +2026,13 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_parent_transaction_id_fkey"
+            columns: ["parent_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
             referencedColumns: ["id"]
           },
         ]
