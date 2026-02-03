@@ -1,4 +1,4 @@
-import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import {
   LayoutDashboard,
@@ -20,7 +20,6 @@ const navItems = [
 
 export function SuperAdminSidebar() {
   const location = useLocation();
-  const navigate = useNavigate();
   const { signOut } = useAuth();
 
   const handleSignOut = async () => {

@@ -118,7 +118,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    // Use local scope to reliably clear the browser session even if the server
+    // no longer recognizes the JWT session (e.g. session_not_found).
+    try {
+      const { error } = await supabase.auth.signOut({ scope: 'local' });
+      if (error) throw error;
+    } catch (err) {
+      // Fallback: ensure we clear any persisted auth tokens so route guards
+      // don't immediately treat the user as authenticated again.
+      try {
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+          const key = localStorage.key(i);
+          if (!key) continue;
+          if (/^sb-.*-auth-token$/.test(key)) {
+            localStorage.removeItem(key);
+          }
+        }
+      } catch {
+        // ignore storage errors
+      }
+
+      // Re-throw so callers can log if needed
+      throw err;
+    }
   };
 
   const resetPassword = async (email: string) => {
