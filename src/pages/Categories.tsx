@@ -98,6 +98,8 @@ export default function Categories() {
     return null;
   };
 
+  // Get all groups (categories with icon 'Folder') for the group selector
+  const availableGroups = categories.filter(c => c.icon === 'Folder');
   const handleSaveGroup = async (data: {
     name: string;
     color: string;
@@ -152,6 +154,7 @@ export default function Categories() {
           <div className="flex gap-3 flex-shrink-0">
             <CategoryDialog
               onSave={createCategory}
+              availableGroups={availableGroups}
               trigger={
                 <Button className="gradient-primary">
                   <Plus className="w-4 h-4 mr-2" />
@@ -238,6 +241,7 @@ export default function Categories() {
             </Button>
             <CategoryDialog
               onSave={createCategory}
+              availableGroups={availableGroups}
               trigger={
                 <Button className="gradient-primary">
                   <Plus className="w-4 h-4 mr-2" />
@@ -297,6 +301,7 @@ export default function Categories() {
       {/* Edit Category Dialog */}
       <CategoryDialog
         category={editingCategory}
+        availableGroups={availableGroups}
         open={editDialogOpen}
         onOpenChange={setEditDialogOpen}
         onSave={handleSaveEdit}

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Palette, Percent, Check, TrendingUp, TrendingDown } from 'lucide-react';
+import { Palette, Percent, Check, TrendingUp, TrendingDown, FolderOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,17 +10,26 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Category } from '@/hooks/useCategories';
 import { cn } from '@/lib/utils';
 
 interface CategoryDialogProps {
   category?: Category | null;
+  availableGroups?: Category[];
   onSave: (data: {
     name: string;
     color: string;
     icon: string;
     type: 'income' | 'expense';
     vat_rate: number;
+    parent_id?: string | null;
   }) => Promise<any>;
   onClose?: () => void;
   trigger?: React.ReactNode;
@@ -49,7 +58,8 @@ const vatOptions = [
 ];
 
 export function CategoryDialog({ 
-  category, 
+  category,
+  availableGroups = [],
   onSave, 
   onClose,
   trigger, 
@@ -65,11 +75,15 @@ export function CategoryDialog({
     icon: 'Tag',
     type: 'expense' as 'income' | 'expense',
     vat_rate: 0.20,
+    parent_id: null as string | null,
   });
 
   const isControlled = controlledOpen !== undefined;
   const open = isControlled ? controlledOpen : internalOpen;
   const setOpen = isControlled ? controlledOnOpenChange! : setInternalOpen;
+
+  // Filter groups by selected type
+  const filteredGroups = availableGroups.filter(g => g.type === form.type);
 
   useEffect(() => {
     if (category) {
@@ -81,6 +95,7 @@ export function CategoryDialog({
         icon: category.icon,
         type: category.type,
         vat_rate: category.vat_rate,
+        parent_id: category.parent_id || null,
       });
     } else {
       setShowCustomVat(false);
@@ -90,9 +105,20 @@ export function CategoryDialog({
         icon: 'Tag',
         type: 'expense',
         vat_rate: 0.20,
+        parent_id: null,
       });
     }
   }, [category, open]);
+
+  // Reset parent_id when type changes (groups are type-specific)
+  useEffect(() => {
+    if (form.parent_id) {
+      const parentGroup = availableGroups.find(g => g.id === form.parent_id);
+      if (parentGroup && parentGroup.type !== form.type) {
+        setForm(prev => ({ ...prev, parent_id: null }));
+      }
+    }
+  }, [form.type, form.parent_id, availableGroups]);
 
   const handleCustomVatChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const percent = parseFloat(e.target.value) || 0;
@@ -172,6 +198,38 @@ export function CategoryDialog({
               </button>
             </div>
           </div>
+
+          {/* Group Selection */}
+          {filteredGroups.length > 0 && (
+            <div className="space-y-2">
+              <Label>Groupe (optionnel)</Label>
+              <Select
+                value={form.parent_id || 'none'}
+                onValueChange={(value) => setForm({ ...form, parent_id: value === 'none' ? null : value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Aucun groupe" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">
+                    <span className="text-muted-foreground">Aucun groupe</span>
+                  </SelectItem>
+                  {filteredGroups.map((group) => (
+                    <SelectItem key={group.id} value={group.id}>
+                      <div className="flex items-center gap-2">
+                        <div 
+                          className="w-3 h-3 rounded-full" 
+                          style={{ backgroundColor: group.color }}
+                        />
+                        <FolderOpen className="w-3.5 h-3.5 text-muted-foreground" />
+                        {group.name}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           {/* VAT Selection - Radio buttons */}
           <div className="space-y-2">

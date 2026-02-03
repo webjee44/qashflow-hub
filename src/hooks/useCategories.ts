@@ -123,6 +123,7 @@ export function useCategories() {
       icon: string;
       type: 'income' | 'expense';
       vat_rate?: number;
+      parent_id?: string | null;
     }) => {
       if (!user || !currentCompany) throw new Error('User not authenticated or no company');
       
@@ -134,6 +135,7 @@ export function useCategories() {
         .insert({
           ...category,
           vat_rate: category.vat_rate ?? 0,
+          parent_id: category.parent_id ?? null,
           user_id: dataOwnerId,
           company_id: currentCompany.id
         })
@@ -159,6 +161,7 @@ export function useCategories() {
     icon: string;
     type: 'income' | 'expense';
     vat_rate?: number;
+    parent_id?: string | null;
   }) => {
     try {
       return await createMutation.mutateAsync(category);
