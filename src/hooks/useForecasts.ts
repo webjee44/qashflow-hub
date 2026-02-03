@@ -4,7 +4,7 @@ import { useAuth } from './useAuth';
 import { useCompany } from './useCompany';
 import { useCategories, Category } from './useCategories';
 import { toast } from 'sonner';
-import { addMonths, startOfMonth, endOfMonth, format, differenceInMonths, isBefore } from 'date-fns';
+import { addMonths, startOfMonth, endOfMonth, format, differenceInMonths, isBefore, isSameMonth } from 'date-fns';
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 
 export interface PayableInvoice {
@@ -333,6 +333,29 @@ export function useForecasts() {
     enabled: !!user?.id,
   });
 
+  // Fetch all transactions for opening balance calculation
+  const { data: allTransactions = [], isLoading: transactionsLoading } = useQuery({
+    queryKey: ['all-transactions-for-balance', user?.id, currentCompany?.id, startMonthStr],
+    queryFn: async () => {
+      if (!user?.id || !startMonthStr) return [];
+      
+      let query = supabase
+        .from('transactions')
+        .select('amount, date, type')
+        .gte('date', startMonthStr)
+        .is('deleted_at', null);
+
+      if (currentCompany) {
+        query = query.or(`company_id.eq.${currentCompany.id},company_id.is.null`);
+      }
+      
+      const { data, error } = await query;
+      if (error) throw error;
+      return data as { amount: number; date: string; type: string }[];
+    },
+    enabled: !!user?.id && !!startMonthStr,
+  });
+
   // Helper to get payable outflow for a specific month
   // Rule: overdue invoices (due_date < today) -> placed at end of current month
   //       pending invoices -> placed at their due_date month
@@ -408,13 +431,72 @@ export function useForecasts() {
       .reduce((sum, inv) => sum + Number(inv.amount_ttc), 0);
   }, [payableInvoices]);
 
+  // Helper to calculate month net forecast (for projected balance calculation)
+  const getMonthNetForecast = useCallback((month: Date): number => {
+    // Income TTC - Expense TTC
+    let incomeTtc = 0;
+    let expenseTtc = 0;
+    
+    categories.forEach(cat => {
+      const forecast = getForecast(cat.id, month);
+      const vatAmount = forecast * cat.vat_rate;
+      const ttc = forecast + vatAmount;
+      
+      if (cat.type === 'income') {
+        incomeTtc += ttc;
+      } else {
+        expenseTtc += ttc;
+        // Add payables for expenses
+        const payable = getPayableOutflowByCategory(cat.id, month);
+        expenseTtc += payable;
+      }
+    });
+    
+    // Add uncategorized payables
+    expenseTtc += getPayableOutflowUncategorized(month);
+    
+    return incomeTtc - expenseTtc;
+  }, [categories, getForecast, getPayableOutflowByCategory, getPayableOutflowUncategorized]);
+
+  // Calculate the opening balance for a given month
+  const getOpeningBalance = useCallback((month: Date): { balance: number; isActual: boolean } => {
+    const currentBankBalance = currentCompany?.bank_balance ?? 0;
+    const todayMonth = startOfMonth(new Date());
+    const targetMonth = startOfMonth(month);
+    
+    if (isSameMonth(month, new Date())) {
+      // Current month: return the current bank balance
+      return { balance: currentBankBalance, isActual: true };
+    }
+    
+    if (isBefore(targetMonth, todayMonth)) {
+      // Past month: reconstruct balance at the 1st of that month
+      // = current balance - all transactions from target month to today
+      const transactionsSinceTarget = allTransactions.filter(tx => {
+        const txDate = new Date(tx.date);
+        return txDate >= targetMonth && txDate < todayMonth;
+      });
+      const netSince = transactionsSinceTarget.reduce((sum, tx) => sum + Number(tx.amount), 0);
+      return { balance: currentBankBalance - netSince, isActual: true };
+    }
+    
+    // Future month: calculate projected balance
+    // = current balance + sum of net forecasts for intermediate months
+    let projectedBalance = currentBankBalance;
+    for (let m = todayMonth; isBefore(m, targetMonth); m = addMonths(m, 1)) {
+      const monthNet = getMonthNetForecast(m);
+      projectedBalance += monthNet;
+    }
+    return { balance: projectedBalance, isActual: false };
+  }, [currentCompany, allTransactions, getMonthNetForecast]);
+
   return {
     months,
     forecasts,
     actuals,
     uncategorized,
     categories,
-    isLoading: forecastsLoading || actualsLoading || uncategorizedLoading || payablesLoading,
+    isLoading: forecastsLoading || actualsLoading || uncategorizedLoading || payablesLoading || transactionsLoading,
     upsertForecast,
     getForecast,
     getForecastSource,
@@ -428,6 +510,8 @@ export function useForecasts() {
     getPayableOutflowByCategory,
     getPayableOutflowUncategorized,
     payablesLoading,
+    // Opening balance
+    getOpeningBalance,
     // Period controls
     extendBefore,
     extendAfter,
