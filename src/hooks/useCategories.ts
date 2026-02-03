@@ -603,32 +603,41 @@ export function useCategories() {
     const target = categories.find(c => c.id === targetId);
     if (!target) return;
 
-    // Get all siblings at the target level (same parent_id)
-    const siblings = categories.filter(c => 
+    // Get all items at the target level (same parent_id), INCLUDING the target
+    const allAtLevel = categories.filter(c => 
       c.type === item.type && 
-      c.parent_id === targetParentId &&
-      c.id !== itemId
+      c.parent_id === targetParentId
     );
+
+    // Remove the item being moved from this list (if it's there)
+    const siblings = allAtLevel.filter(c => c.id !== itemId);
 
     // Sort by current sort_order
     siblings.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
 
-    // Find target index
+    // Find target index in the filtered list
     const targetIndex = siblings.findIndex(c => c.id === targetId);
     
-    // Insert at correct position
-    const insertIndex = position === 'before' ? targetIndex : targetIndex + 1;
-    siblings.splice(insertIndex, 0, item);
+    if (targetIndex === -1) {
+      // Target not found at this level, just append
+      siblings.push(item);
+    } else {
+      // Insert at correct position
+      const insertIndex = position === 'before' ? targetIndex : targetIndex + 1;
+      siblings.splice(insertIndex, 0, item);
+    }
 
     // Build updates with new sort_order values
     const updates = siblings.map((cat, index) => ({
       id: cat.id,
       sort_order: index,
+      // Only update parent_id for the moved item
       parent_id: cat.id === itemId ? targetParentId : undefined
     }));
 
     try {
       await reorderMutation.mutateAsync(updates);
+      toast.success('Ordre mis à jour');
     } catch {
       // Error handled in mutation
     }
