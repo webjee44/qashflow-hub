@@ -8,9 +8,7 @@ import { BankAccountsCard } from '@/components/settings/BankAccountsCard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
-import { Building2, User, Play, Wallet, Landmark } from 'lucide-react';
+import { Building2, User, Play, Landmark } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useOnboarding } from '@/hooks/useOnboarding';
 import { useCompany } from '@/hooks/useCompany';
@@ -22,7 +20,7 @@ type TabValue = typeof VALID_TABS[number];
 
 export default function Settings() {
   const { user } = useAuth();
-  const { isCompleted, bpEnabled, toggleBP } = useOnboarding();
+  const { isCompleted } = useOnboarding();
   const { companies } = useCompany();
   const navigate = useNavigate();
   const location = useLocation();
@@ -182,37 +180,6 @@ export default function Settings() {
                 </CardContent>
               </Card>
 
-              {/* Module Trésorerie - Désactivé par défaut */}
-              <Card className="bg-card border-border">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Wallet className="h-5 w-5 text-primary" />
-                    Module Trésorerie
-                  </CardTitle>
-                  <CardDescription>
-                    Par défaut, seul le Business Plan est affiché. Activez le module Trésorerie pour gérer également vos flux bancaires, transactions et prévisions.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="treasury-toggle" className="text-sm font-medium">
-                        Afficher le module Trésorerie
-                      </Label>
-                      <p className="text-xs text-muted-foreground">
-                        {!bpEnabled 
-                          ? "Les deux modules sont affichés" 
-                          : "Seul le Business Plan est affiché"}
-                      </p>
-                    </div>
-                    <Switch
-                      id="treasury-toggle"
-                      checked={!bpEnabled}
-                      onCheckedChange={(checked) => toggleBP(!checked)}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
 
               {/* Onboarding Tour */}
               <Card className="bg-card border-border">
