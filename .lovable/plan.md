@@ -1,159 +1,130 @@
 
-# Plan : Isolation stricte des données par société (Treasury)
+# Plan : Gestion des déconnexions bancaires Bridge
 
-## Problème identifié
-
-Les requêtes dans les hooks de trésorerie utilisent un filtre **inclusif** :
-```typescript
-query.or(`company_id.eq.${currentCompany.id},company_id.is.null`)
-```
-
-Ce filtre inclut :
-1. Les données de la société actuelle ✅
-2. Les données **sans** company_id (legacy ou autres) ❌
-
-Pour une isolation stricte entre sociétés, il faut filtrer **uniquement** par `company_id`.
+## Objectif
+Afficher clairement quand une connexion bancaire nécessite une action (expiration, SCA, erreur) et permettre à l'utilisateur de la reconnecter facilement.
 
 ---
 
-## Fichiers à corriger
+## Étape 1 : Ajouter les champs de statut d'Item
 
-### 1. `src/hooks/useTransactions.ts`
-- Ligne 31-33 : Utilise `if (currentCompany?.id) q = q.eq('company_id', ...)` → OK mais doit être **obligatoire**
-- **Problème** : La query s'exécute même sans company sélectionné
+**Migration SQL :**
+- Ajouter `item_status` (text) : statut de la connexion bancaire (`ok`, `needs_action`, `error`, `deleted`)
+- Ajouter `item_status_message` (text) : message d'erreur Bridge le cas échéant
+- Ajouter `item_status_updated_at` (timestamp) : dernière mise à jour du statut
 
-### 2. `src/hooks/useForecasts.ts`
-Multiples requêtes utilisent `.or(...,company_id.is.null)` :
-- **Ligne 115** : category_forecasts
-- **Ligne 143** : transactions (actuals)
-- **Ligne 190** : transactions (uncategorized)
-- **Ligne 325** : invoices (payables)
-- **Ligne 349** : transactions (balance)
-
-### 3. `src/hooks/useCategories.ts`
-- **Ligne 46** : `.or(company_id.eq.${companyId},company_id.is.null)`
-- **Ligne 57** : Même problème avec legacy fallback
-
-### 4. `src/hooks/useAutomationRules.ts`
-- **Ligne 70** : `.or(company_id.eq.${currentCompany.id},company_id.is.null)`
-- **Ligne 125** : Idem pour les catégories
+```text
+┌────────────────────────────────────────────────────────┐
+│                   bridge_accounts                       │
+├────────────────────────────────────────────────────────┤
+│ + item_status         │ text   │ 'ok' par défaut       │
+│ + item_status_message │ text   │ nullable              │
+│ + item_status_updated_at │ timestamptz │ nullable      │
+└────────────────────────────────────────────────────────┘
+```
 
 ---
 
-## Corrections à appliquer
+## Étape 2 : Mettre à jour le webhook Bridge
 
-### Principe : Filtre strict `company_id = X`
+Modifier `bridge-webhook/index.ts` pour :
 
-```typescript
-// AVANT (inclusif - problématique)
-query.or(`company_id.eq.${currentCompany.id},company_id.is.null`)
+1. **Gérer `item.refreshed`** avec le nouveau statut :
+   - Stocker `content.status` dans `item_status`
+   - Stocker `content.status_code_info` dans `item_status_message`
+   
+2. **Statuts Bridge à mapper :**
+   - `0` → `ok` (tout va bien)
+   - `402`, `429`, etc. → `needs_action` (SCA requise)
+   - Autres codes erreur → `error`
 
-// APRÈS (strict - isolation garantie)
-query.eq('company_id', currentCompany.id)
+---
+
+## Étape 3 : Afficher l'indicateur de statut
+
+### Dans BankAccountsCard.tsx (Paramètres)
+- Badge coloré à côté de chaque groupe de banque :
+  - 🟢 Vert : `ok`
+  - 🟠 Orange : `needs_action` → "Action requise"
+  - 🔴 Rouge : `error` → "Erreur de connexion"
+  
+- Bouton **"Reconnecter"** visible uniquement si `needs_action` ou `error`
+
+### Dans BankAccounts.tsx (Dashboard)  
+- Alerte en haut si une banque nécessite une action
+- Badge sur le header "⚠️ 1 banque déconnectée"
+
+---
+
+## Étape 4 : Action de reconnexion
+
+Créer une fonction `handleReconnect(bridgeItemId)` :
+1. Appeler `bridge-connect` avec le paramètre `manage: true` pour ouvrir la session de gestion Bridge (pas une nouvelle connexion)
+2. L'utilisateur peut alors mettre à jour ses identifiants ou valider le SCA
+3. Au retour, synchroniser automatiquement
+
+---
+
+## Étape 5 : Sync du statut lors des synchronisations
+
+Modifier `bridge-sync/index.ts` :
+- Après avoir récupéré les comptes, appeler l'API Bridge `/items` pour récupérer le statut de chaque item
+- Mettre à jour `item_status` en base de données
+
+---
+
+## Interface finale (maquette)
+
+```text
+┌─────────────────────────────────────────────────────────────┐
+│ 🏦 Comptes bancaires                    [+ Ajouter] [🔄]    │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│ ▼ Qonto                                         🟢 Connecté │
+│   ├── Compte principal         12 345,67 €                 │
+│   └── Compte épargne            5 000,00 €                 │
+│                                                             │
+│ ▼ CIC                            🟠 Action requise [Reconnecter]
+│   └── Compte Courant E...       8 234,12 €                 │
+│       ⚠️ Votre banque nécessite une authentification       │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-### Liste des modifications
+---
 
-| Fichier | Fonction/Query | Correction |
-|---------|----------------|------------|
-| `useForecasts.ts` | category_forecasts | `.eq('company_id', currentCompany.id)` |
-| `useForecasts.ts` | transactions (actuals) | `.eq('company_id', currentCompany.id)` |
-| `useForecasts.ts` | transactions (uncategorized) | `.eq('company_id', currentCompany.id)` |
-| `useForecasts.ts` | invoices (payables) | `.eq('company_id', currentCompany.id)` |
-| `useForecasts.ts` | transactions (balance) | `.eq('company_id', currentCompany.id)` |
-| `useCategories.ts` | fetchCategories | `.eq('company_id', companyId)` |
-| `useAutomationRules.ts` | fetchRules | `.eq('company_id', currentCompany.id)` |
-| `useAutomationRules.ts` | fetchCategories | `.eq('company_id', currentCompany.id)` |
+## Fichiers à modifier
+
+| Fichier | Modification |
+|---------|--------------|
+| `supabase/migrations/` | Nouveau fichier migration (ajout colonnes) |
+| `supabase/functions/bridge-webhook/index.ts` | Gérer item.refreshed avec statut |
+| `supabase/functions/bridge-sync/index.ts` | Récupérer et stocker statut des items |
+| `supabase/functions/_shared/bridge-client.ts` | Ajouter méthode `fetchItems()` |
+| `src/components/settings/BankAccountsCard.tsx` | Afficher badges + bouton Reconnecter |
+| `src/components/dashboard/BankAccounts.tsx` | Alerte si banque déconnectée |
 
 ---
 
 ## Détails techniques
 
-### useForecasts.ts - 5 corrections
-
+### API Bridge pour les Items
 ```typescript
-// category_forecasts (ligne ~115)
-const { data: forecasts = [] } = useQuery({
-  queryFn: async () => {
-    if (!currentCompany?.id || !startMonthStr) return [];
-    
-    const { data, error } = await supabase
-      .from('category_forecasts')
-      .select('*')
-      .eq('company_id', currentCompany.id)  // ← Strict
-      .gte('month', startMonthStr)
-      .lte('month', endMonthStr);
-    // ...
-  },
-  enabled: !!user?.id && !!currentCompany?.id && !!startMonthStr,
-});
+// Récupérer les items (connexions bancaires)
+GET /aggregation/items
+→ Retourne les items avec leur status et status_code_info
 
-// transactions actuals (ligne ~143)
-query = query.eq('company_id', currentCompany.id);  // ← Strict
-
-// transactions uncategorized (ligne ~190)
-query = query.eq('company_id', currentCompany.id);  // ← Strict
-
-// invoices payables (ligne ~325)
-query = query.eq('company_id', currentCompany.id);  // ← Strict
-
-// transactions balance (ligne ~349)
-query = query.eq('company_id', currentCompany.id);  // ← Strict
-```
-
-### useCategories.ts - 1 correction
-
-```typescript
-// fetchCategories (ligne ~40)
-async function fetchCategories(companyId?: string | null): Promise<Category[]> {
-  if (!companyId) return [];
-  
-  const { data, error } = await supabase
-    .from('categories')
-    .select('*')
-    .eq('company_id', companyId)  // ← Strict (supprime le .or avec is.null)
-    .order('type', { ascending: true })
-    .order('sort_order', { ascending: true })
-    .order('name', { ascending: true });
-
-  if (error) throw error;
-  return data || [];
+// Exemple de réponse
+{
+  "resources": [{
+    "id": 123,
+    "status": 0,              // 0 = ok, autre = problème
+    "status_code_info": null  // ou message d'erreur
+  }]
 }
 ```
 
-### useAutomationRules.ts - 2 corrections
+### Session Manage vs Connect
+- `bridge-connect` avec `prefill_email` → nouvelle connexion
+- `bridge-connect` avec `item_id` → gérer/reconnecter une connexion existante
 
-```typescript
-// fetchRules (ligne ~70)
-const { data, error } = await supabase
-  .from('automation_rules')
-  .select(`*, category:categories(id, name, color)`)
-  .eq('company_id', currentCompany.id)  // ← Strict
-  .order('created_at', { ascending: false });
-
-// fetchCategories (ligne ~125)
-const { data, error } = await supabase
-  .from('categories')
-  .select('*')
-  .eq('company_id', currentCompany.id);  // ← Strict
-```
-
----
-
-## Résultat attendu
-
-Après ces corrections, pour la société "E-fumeur internet" :
-
-| Page | Avant | Après |
-|------|-------|-------|
-| /reglages-tresorerie | Catégories mélangées | Catégories isolées |
-| /transactions | Transactions d'autres sociétés visibles | Uniquement E-fumeur |
-| /creances | Factures mélangées | Factures isolées |
-| /previsions | Prévisions/actuals mélangés | Données isolées |
-
-Chaque société sera **100% indépendante** avec ses propres :
-- Catégories
-- Règles d'automatisation
-- Transactions
-- Factures (créances/dettes)
-- Prévisions
