@@ -12,16 +12,6 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectSeparator,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -30,6 +20,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Tables } from '@/integrations/supabase/types';
 import { Category } from '@/hooks/useCategories';
+import { CategorySearchSelect } from './CategorySearchSelect';
 
 type Transaction = Tables<'transactions'>;
 
@@ -64,17 +55,14 @@ export const TransactionTableRow = memo(function TransactionTableRow({
   formatAmount,
   formatDate,
 }: TransactionTableRowProps) {
-  const categoryColor = getCategoryColor(transaction.category_id);
   const isUncategorized = !transaction.category_id;
 
-  const handleCategoryChange = (value: string) => {
-    if (value === 'create-new') {
-      onCreateCategory(transaction.id);
-    } else if (value === 'uncategorized') {
-      onUpdateCategory(transaction.id, null);
-    } else {
-      onUpdateCategory(transaction.id, value);
-    }
+  const handleCategoryChange = (categoryId: string | null) => {
+    onUpdateCategory(transaction.id, categoryId);
+  };
+
+  const handleCreateCategory = () => {
+    onCreateCategory(transaction.id);
   };
 
   return (
@@ -126,93 +114,18 @@ export const TransactionTableRow = memo(function TransactionTableRow({
         </div>
       </div>
 
-      {/* Category Select */}
+      {/* Category Select with Search */}
       <div>
-        <Select
-          value={transaction.category_id || 'uncategorized'}
-          onValueChange={handleCategoryChange}
-        >
-          <SelectTrigger 
-            className={cn(
-              "w-full h-9",
-              isUncategorized && "bg-warning/20 border-warning text-warning dark:bg-warning/10"
-            )}
-          >
-            <SelectValue>
-              {isUncategorized ? (
-                <span>Sélect. catégorie</span>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <span
-                    className="w-2.5 h-2.5 rounded-full shrink-0"
-                    style={{ backgroundColor: categoryColor }}
-                  />
-                  <span className="truncate">{getCategoryName(transaction.category_id)}</span>
-                </div>
-              )}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent className="max-h-80">
-            <SelectItem value="create-new" className="text-primary">
-              <div className="flex items-center gap-2">
-                <PlusCircle className="w-4 h-4" />
-                <span>Créer une catégorie</span>
-              </div>
-            </SelectItem>
-            
-            {transaction.category_id && (
-              <>
-                <SelectSeparator />
-                <SelectItem value="uncategorized" className="text-muted-foreground">
-                  <div className="flex items-center gap-2">
-                    <XCircle className="w-4 h-4" />
-                    <span>Retirer la catégorie</span>
-                  </div>
-                </SelectItem>
-              </>
-            )}
-
-            {incomeCategories.length > 0 && (
-              <>
-                <SelectSeparator />
-                <SelectGroup>
-                  <SelectLabel>Encaissements</SelectLabel>
-                  {incomeCategories.map(cat => (
-                    <SelectItem key={cat.id} value={cat.id}>
-                      <div className="flex items-center gap-2">
-                        <span
-                          className="w-2.5 h-2.5 rounded-full shrink-0"
-                          style={{ backgroundColor: cat.color }}
-                        />
-                        <span className="truncate">{cat.name}</span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </>
-            )}
-
-            {expenseCategories.length > 0 && (
-              <>
-                <SelectSeparator />
-                <SelectGroup>
-                  <SelectLabel>Décaissements</SelectLabel>
-                  {expenseCategories.map(cat => (
-                    <SelectItem key={cat.id} value={cat.id}>
-                      <div className="flex items-center gap-2">
-                        <span
-                          className="w-2.5 h-2.5 rounded-full shrink-0"
-                          style={{ backgroundColor: cat.color }}
-                        />
-                        <span className="truncate">{cat.name}</span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </>
-            )}
-          </SelectContent>
-        </Select>
+        <CategorySearchSelect
+          value={transaction.category_id}
+          onChange={handleCategoryChange}
+          onCreateCategory={handleCreateCategory}
+          incomeCategories={incomeCategories}
+          expenseCategories={expenseCategories}
+          getCategoryName={getCategoryName}
+          getCategoryColor={getCategoryColor}
+          isUncategorized={isUncategorized}
+        />
       </div>
 
       {/* Amount */}

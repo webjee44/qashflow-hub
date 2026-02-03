@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { 
   ArrowUpRight, 
@@ -8,17 +8,26 @@ import {
   Tag,
   Building2,
   PlusCircle,
+  Search,
+  XCircle,
 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandSeparator,
+} from '@/components/ui/command';
 import { Tables } from '@/integrations/supabase/types';
 import { Category } from '@/hooks/useCategories';
 
@@ -53,6 +62,29 @@ export const TransactionRow = memo(function TransactionRow({
   formatAmount,
   formatDate,
 }: TransactionRowProps) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+
+  // Filter categories based on search
+  const filteredIncomeCategories = search
+    ? incomeCategories.filter(cat => cat.name.toLowerCase().includes(search.toLowerCase()))
+    : incomeCategories;
+  const filteredExpenseCategories = search
+    ? expenseCategories.filter(cat => cat.name.toLowerCase().includes(search.toLowerCase()))
+    : expenseCategories;
+
+  const handleSelect = (categoryId: string | null) => {
+    onUpdateCategory(transaction.id, categoryId);
+    setOpen(false);
+    setSearch('');
+  };
+
+  const handleCreateCategory = () => {
+    onCreateCategory(transaction.id);
+    setOpen(false);
+    setSearch('');
+  };
+
   return (
     <div
       className={cn(
@@ -94,8 +126,8 @@ export const TransactionRow = memo(function TransactionRow({
             )}
           </div>
           <div className="flex items-center gap-3 mt-1.5 flex-wrap">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
+            <Popover open={open} onOpenChange={setOpen}>
+              <PopoverTrigger asChild>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -116,79 +148,91 @@ export const TransactionRow = memo(function TransactionRow({
                     {getCategoryName(transaction.category_id)}
                   </Badge>
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" side="top" sideOffset={5} collisionPadding={20} className="w-56 max-h-80 overflow-y-auto">
-                <DropdownMenuItem
-                  onClick={() => onCreateCategory(transaction.id)}
-                  className="flex items-center gap-2 text-primary"
-                >
-                  <PlusCircle className="w-4 h-4" />
-                  Créer une catégorie
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
+              </PopoverTrigger>
+              <PopoverContent align="start" side="top" sideOffset={5} className="w-[280px] p-0">
+                <Command shouldFilter={false}>
+                  <CommandInput 
+                    placeholder="Rechercher..." 
+                    value={search}
+                    onValueChange={setSearch}
+                  />
+                  <CommandList>
+                    <CommandEmpty>Aucune catégorie trouvée</CommandEmpty>
+                    
+                    <CommandGroup>
+                      <CommandItem
+                        onSelect={handleCreateCategory}
+                        className="text-primary"
+                      >
+                        <PlusCircle className="mr-2 h-4 w-4" />
+                        Créer une catégorie
+                      </CommandItem>
+                    </CommandGroup>
+                    <CommandSeparator />
 
-                {transaction.category_id && (
-                  <>
-                    <DropdownMenuItem
-                      onClick={() => onUpdateCategory(transaction.id, null)}
-                      className="text-muted-foreground"
-                    >
-                      Retirer la catégorie
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                  </>
-                )}
-                
-                {incomeCategories.length > 0 && (
-                  <>
-                    <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
-                      Encaissements
-                    </div>
-                    {incomeCategories.map(cat => (
-                      <DropdownMenuItem
-                        key={cat.id}
-                        onClick={() => onUpdateCategory(transaction.id, cat.id)}
-                        className="flex items-center gap-2"
-                      >
-                        <div 
-                          className="w-3 h-3 rounded-full shrink-0" 
-                          style={{ backgroundColor: cat.color }}
-                        />
-                        <span className="truncate">{cat.name}</span>
-                        {transaction.category_id === cat.id && (
-                          <Check className="w-4 h-4 ml-auto shrink-0" />
-                        )}
-                      </DropdownMenuItem>
-                    ))}
-                  </>
-                )}
-                
-                {expenseCategories.length > 0 && (
-                  <>
-                    {incomeCategories.length > 0 && <DropdownMenuSeparator />}
-                    <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
-                      Décaissements
-                    </div>
-                    {expenseCategories.map(cat => (
-                      <DropdownMenuItem
-                        key={cat.id}
-                        onClick={() => onUpdateCategory(transaction.id, cat.id)}
-                        className="flex items-center gap-2"
-                      >
-                        <div 
-                          className="w-3 h-3 rounded-full shrink-0" 
-                          style={{ backgroundColor: cat.color }}
-                        />
-                        <span className="truncate">{cat.name}</span>
-                        {transaction.category_id === cat.id && (
-                          <Check className="w-4 h-4 ml-auto shrink-0" />
-                        )}
-                      </DropdownMenuItem>
-                    ))}
-                  </>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
+                    {transaction.category_id && (
+                      <>
+                        <CommandGroup>
+                          <CommandItem
+                            onSelect={() => handleSelect(null)}
+                            className="text-muted-foreground"
+                          >
+                            <XCircle className="mr-2 h-4 w-4" />
+                            Retirer la catégorie
+                          </CommandItem>
+                        </CommandGroup>
+                        <CommandSeparator />
+                      </>
+                    )}
+
+                    {filteredIncomeCategories.length > 0 && (
+                      <CommandGroup heading="Encaissements">
+                        {filteredIncomeCategories.map(cat => (
+                          <CommandItem
+                            key={cat.id}
+                            value={cat.id}
+                            onSelect={() => handleSelect(cat.id)}
+                          >
+                            <div
+                              className="mr-2 h-3 w-3 rounded-full shrink-0"
+                              style={{ backgroundColor: cat.color }}
+                            />
+                            <span className="truncate flex-1">{cat.name}</span>
+                            {transaction.category_id === cat.id && (
+                              <Check className="ml-2 h-4 w-4 shrink-0" />
+                            )}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    )}
+
+                    {filteredExpenseCategories.length > 0 && (
+                      <>
+                        {filteredIncomeCategories.length > 0 && <CommandSeparator />}
+                        <CommandGroup heading="Décaissements">
+                          {filteredExpenseCategories.map(cat => (
+                            <CommandItem
+                              key={cat.id}
+                              value={cat.id}
+                              onSelect={() => handleSelect(cat.id)}
+                            >
+                              <div
+                                className="mr-2 h-3 w-3 rounded-full shrink-0"
+                                style={{ backgroundColor: cat.color }}
+                              />
+                              <span className="truncate flex-1">{cat.name}</span>
+                              {transaction.category_id === cat.id && (
+                                <Check className="ml-2 h-4 w-4 shrink-0" />
+                              )}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </>
+                    )}
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
 
             <span className="text-sm text-muted-foreground">
               {formatDate(transaction.date)}
