@@ -87,13 +87,14 @@ export function ForecastTable() {
   const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
   const [transactionCount, setTransactionCount] = useState<number>(0);
 
-  // Show all categories toggle (including empty ones)
+  // Show all categories toggle (including empty ones) - default TRUE (show all)
   const [showAllCategories, setShowAllCategories] = useState<boolean>(() => {
     try {
       const saved = localStorage.getItem(SHOW_ALL_CATEGORIES_KEY);
-      return saved ? JSON.parse(saved) : false;
+      // Default to true = show all categories; user can manually hide if desired
+      return saved !== null ? JSON.parse(saved) : true;
     } catch {
-      return false;
+      return true;
     }
   });
 
