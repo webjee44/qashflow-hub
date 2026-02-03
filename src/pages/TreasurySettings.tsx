@@ -8,10 +8,12 @@ import { UnifiedCategoryList } from '@/components/categories/UnifiedCategoryList
 import { CategoryDialog } from '@/components/categories/CategoryDialog';
 import { GroupDialog } from '@/components/categories/GroupDialog';
 import { AutomationRules } from '@/components/automations/AutomationRules';
+import { AutomationStats } from '@/components/automations/AutomationStats';
 import { ZenfirstImportDialog } from '@/components/settings/ZenfirstImportDialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { useAutomationRules } from '@/hooks/useAutomationRules';
 import { 
   Plus, 
   Loader2,
@@ -43,6 +45,8 @@ export default function TreasurySettings() {
     bulkAssignToGroup,
     reorderCategories
   } = useCategories();
+  
+  const { stats } = useAutomationRules();
   
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -140,7 +144,14 @@ export default function TreasurySettings() {
 
   return (
     <div className="space-y-6">
-      {/* Header with stats inline */}
+      {/* Stats en haut de page */}
+      <AutomationStats
+        totalAutomated={stats.totalAutomated}
+        accuracy={stats.accuracy}
+        timeSaved={stats.timeSaved}
+      />
+
+      {/* Header with badges */}
       <div className="flex items-start justify-between gap-4">
         <PageHeader 
           title="Réglages Trésorerie" 
