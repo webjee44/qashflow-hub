@@ -30,6 +30,7 @@ import { useTransactions, sortTransactions, filterTransactions, SortOption } fro
 import { useBankBalance } from '@/hooks/useBankBalance';
 import { useQuery } from '@tanstack/react-query';
 import { SuggestAutomationDialog } from './SuggestAutomationDialog';
+import { CategorizationModal } from './CategorizationModal';
 import { CategoryDialog } from '@/components/categories/CategoryDialog';
 import { TransactionTableRow } from './TransactionTableRow';
 import { SortDropdown } from './SortDropdown';
@@ -57,6 +58,8 @@ export function TransactionsView() {
   const [applyingRules, setApplyingRules] = useState(false);
   const [showSplitDialog, setShowSplitDialog] = useState(false);
   const [transactionToSplit, setTransactionToSplit] = useState<Transaction | null>(null);
+  const [showCategorizationModal, setShowCategorizationModal] = useState(false);
+  const [transactionToCategorize, setTransactionToCategorize] = useState<Transaction | null>(null);
 
   const parentRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
@@ -404,6 +407,19 @@ export function TransactionsView() {
     setShowSplitDialog(true);
   }, []);
 
+  const handleOpenCategorizationModal = useCallback((transaction: Transaction) => {
+    setTransactionToCategorize(transaction);
+    setShowCategorizationModal(true);
+  }, []);
+
+  const handleCategorizationSelect = useCallback(async (categoryId: string) => {
+    if (!transactionToCategorize) return;
+    
+    await handleUpdateCategory(transactionToCategorize.id, categoryId);
+    setShowCategorizationModal(false);
+    setTransactionToCategorize(null);
+  }, [transactionToCategorize, handleUpdateCategory]);
+
   const handleSplitTransaction = useCallback(async (splits: { categoryId: string | null; amount: number }[]) => {
     if (!transactionToSplit) return;
 
@@ -651,6 +667,7 @@ export function TransactionsView() {
                         onToggleSelection={toggleTransactionSelection}
                         onUpdateCategory={handleUpdateCategory}
                         onCreateCategory={onCreateCategoryForTransaction}
+                        onOpenCategorizationModal={handleOpenCategorizationModal}
                         onSplitTransaction={handleOpenSplitDialog}
                         getCategoryName={getCategoryName}
                         getCategoryColor={getCategoryColor}
@@ -718,6 +735,24 @@ export function TransactionsView() {
         expenseCategories={expenseCategories}
         onSplit={handleSplitTransaction}
         isLoading={isSplitting}
+      />
+
+      <CategorizationModal
+        open={showCategorizationModal}
+        onOpenChange={(open) => {
+          setShowCategorizationModal(open);
+          if (!open) setTransactionToCategorize(null);
+        }}
+        transaction={transactionToCategorize}
+        incomeCategories={incomeCategories}
+        expenseCategories={expenseCategories}
+        onSelectCategory={handleCategorizationSelect}
+        onCreateCategory={() => {
+          setShowCategorizationModal(false);
+          if (transactionToCategorize) {
+            onCreateCategoryForTransaction(transactionToCategorize.id);
+          }
+        }}
       />
     </div>
   );

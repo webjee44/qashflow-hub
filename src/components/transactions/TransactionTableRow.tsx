@@ -9,6 +9,7 @@ import {
   Scissors,
   Circle,
   CheckCircle2,
+  Tag,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -30,6 +31,7 @@ interface TransactionTableRowProps {
   onToggleSelection: (id: string) => void;
   onUpdateCategory: (transactionId: string, categoryId: string | null) => void;
   onCreateCategory: (transactionId: string) => void;
+  onOpenCategorizationModal?: (transaction: Transaction) => void;
   onSuggestAutomation?: (transaction: Transaction) => void;
   onSplitTransaction?: (transaction: Transaction) => void;
   getCategoryName: (categoryId: string | null) => string;
@@ -47,6 +49,7 @@ export const TransactionTableRow = memo(function TransactionTableRow({
   onToggleSelection,
   onUpdateCategory,
   onCreateCategory,
+  onOpenCategorizationModal,
   onSuggestAutomation,
   onSplitTransaction,
   getCategoryName,
@@ -125,18 +128,30 @@ export const TransactionTableRow = memo(function TransactionTableRow({
         </span>
       </div>
 
-      {/* Category Select with Search */}
+      {/* Category: CTA button for uncategorized, dropdown for categorized */}
       <div>
-        <CategorySearchSelect
-          value={transaction.category_id}
-          onChange={handleCategoryChange}
-          onCreateCategory={handleCreateCategory}
-          incomeCategories={incomeCategories}
-          expenseCategories={expenseCategories}
-          getCategoryName={getCategoryName}
-          getCategoryColor={getCategoryColor}
-          isUncategorized={isUncategorized}
-        />
+        {isUncategorized ? (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onOpenCategorizationModal?.(transaction)}
+            className="h-9 w-full gap-2 bg-warning/20 border-warning text-warning hover:bg-warning/30 hover:text-warning dark:bg-warning/10"
+          >
+            <Tag className="w-4 h-4" />
+            Catégoriser
+          </Button>
+        ) : (
+          <CategorySearchSelect
+            value={transaction.category_id}
+            onChange={handleCategoryChange}
+            onCreateCategory={handleCreateCategory}
+            incomeCategories={incomeCategories}
+            expenseCategories={expenseCategories}
+            getCategoryName={getCategoryName}
+            getCategoryColor={getCategoryColor}
+            isUncategorized={false}
+          />
+        )}
       </div>
 
       {/* Amount */}
