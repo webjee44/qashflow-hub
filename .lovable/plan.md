@@ -1,173 +1,153 @@
 
-# Plan : Isolation des comptes bancaires par société
+# Plan : Mapping automatique Partenaire → Catégorie pour les factures
 
-## Contexte du problème
+## Objectif
+Créer un système de mapping simple où l'utilisateur définit une association **partenaire = catégorie** qui s'applique automatiquement à toutes les factures importées (Odoo/Pennylane) et futures.
 
-Actuellement, dans l'onglet **Comptes bancaires** (`/parametres#accounts`), un administrateur d'organisation voit **tous les comptes bancaires** de toutes les sociétés de l'organisation. Un utilisateur membre de "Cloud Vapor" devrait uniquement voir les comptes assignés à cette société.
-
-Le problème vient du fait que `BankAccountsCard.tsx` récupère les comptes pour **tous les `bridge_user_uuid`** de toutes les sociétés accessibles, sans tenir compte de la société actuellement sélectionnée (`currentCompany`).
-
----
-
-## Approche proposée
-
-Créer **deux modes d'affichage** selon le rôle de l'utilisateur :
-
-| Rôle | Vue | Actions |
-|------|-----|---------|
-| **Owner/Admin** de l'organisation | Tous les comptes, groupés par banque | Peut assigner/désassigner les comptes à n'importe quelle société |
-| **Membre** simple d'une société | Seulement les comptes de `currentCompany` | Lecture seule (pas de modification d'assignation) |
-
-Cette approche :
-- Préserve la capacité d'administration globale pour les propriétaires
-- Isole les données sensibles pour les membres
-- Évite toute régression sur les fonctionnalités existantes
+## Principe de fonctionnement
+1. Quand l'utilisateur sélectionne une catégorie pour une facture avec un partenaire donné → un mapping est créé/mis à jour
+2. Lors des prochaines synchros ou pour les factures existantes avec ce partenaire → la catégorie est appliquée automatiquement
+3. Pas d'IA, pas de modal complexe : juste un mapping direct `partner_name` → `category_id`
 
 ---
 
-## Interface utilisateur
+## Étapes d'implémentation
 
-### Pour un Membre (ex: utilisateur de Cloud Vapor)
+### 1. Créer la table `partner_category_mappings`
 
-```text
-┌───────────────────────────────────────────────────────────────────────┐
-│  🏦 Comptes bancaires de Cloud Vapor                                  │
-│  Solde total : 30 981,95 €                                           │
-├───────────────────────────────────────────────────────────────────────┤
-│  ▼ Banque Populaire                           1 compte    30 981,95 € │
-│    ┌───────────────────────────────────────────────────────────────┐  │
-│    │ Cloud Vapor           Checking    •••• 2484      30 981,95 €  │  │
-│    └───────────────────────────────────────────────────────────────┘  │
-└───────────────────────────────────────────────────────────────────────┘
+```sql
+CREATE TABLE public.partner_category_mappings (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL,
+  partner_name TEXT NOT NULL,
+  category_id UUID REFERENCES categories(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(company_id, partner_name)
+);
+
+-- RLS policies similaires aux autres tables
+ALTER TABLE partner_category_mappings ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view accessible mappings" ON partner_category_mappings
+  FOR SELECT USING (has_company_access(auth.uid(), company_id));
+
+CREATE POLICY "Users can create accessible mappings" ON partner_category_mappings
+  FOR INSERT WITH CHECK (has_company_access(auth.uid(), company_id));
+
+CREATE POLICY "Users can update accessible mappings" ON partner_category_mappings
+  FOR UPDATE USING (has_company_access(auth.uid(), company_id));
+
+CREATE POLICY "Users can delete accessible mappings" ON partner_category_mappings
+  FOR DELETE USING (has_company_access(auth.uid(), company_id));
 ```
 
-- **Pas de switch** pour activer/désactiver
-- **Pas de sélecteur** de société
-- Juste un affichage informatif des comptes assignés à sa société
+### 2. Modifier `useInvoices.ts` pour gérer le mapping
 
-### Pour un Owner/Admin
+Quand l'utilisateur change la catégorie d'une facture :
+1. Mettre à jour la facture (comme actuellement)
+2. Créer/mettre à jour le mapping `partner_name → category_id`
+3. Appliquer automatiquement aux autres factures du même partenaire non catégorisées
 
-Garde l'interface actuelle avec tous les comptes et la possibilité de les assigner.
-
----
-
-## Modifications techniques
-
-### 1. Modifier `BankAccountsCard.tsx`
-
-**Ajouter la détection du rôle :**
 ```typescript
-import { useOrganization } from '@/hooks/useOrganization';
+// Dans updateCategoryMutation
+const updateCategoryMutation = useMutation({
+  mutationFn: async ({ id, categoryId }: { id: string; categoryId: string | null }) => {
+    // 1. Récupérer la facture pour avoir le partner_name
+    const invoice = invoices.find(i => i.id === id);
+    if (!invoice) throw new Error('Invoice not found');
+    
+    // 2. Mettre à jour la facture
+    await supabase
+      .from('invoices')
+      .update({ category_id: categoryId })
+      .eq('id', id);
 
-const { isOwner, isAdmin } = useOrganization();
-const isOrgAdmin = isOwner || isAdmin;
+    // 3. Upsert le mapping partenaire → catégorie
+    if (categoryId) {
+      await supabase
+        .from('partner_category_mappings')
+        .upsert({
+          company_id: currentCompany.id,
+          user_id: currentCompany.user_id,
+          partner_name: invoice.partner_name,
+          category_id: categoryId,
+        }, { onConflict: 'company_id,partner_name' });
+      
+      // 4. Appliquer aux autres factures du même partenaire (sans catégorie)
+      await supabase
+        .from('invoices')
+        .update({ category_id: categoryId })
+        .eq('company_id', currentCompany.id)
+        .eq('partner_name', invoice.partner_name)
+        .is('category_id', null);
+    } else {
+      // Supprimer le mapping si on retire la catégorie
+      await supabase
+        .from('partner_category_mappings')
+        .delete()
+        .eq('company_id', currentCompany.id)
+        .eq('partner_name', invoice.partner_name);
+    }
+  }
+});
 ```
 
-**Filtrer les comptes selon le contexte :**
+### 3. Modifier l'edge function `accounting-connector-sync`
+
+Dans la fonction `upsertInvoice`, avant d'insérer une nouvelle facture :
+1. Chercher un mapping existant pour ce `partner_name`
+2. Si trouvé, ajouter le `category_id` automatiquement
+
 ```typescript
-// Pour un membre : ne charger que les comptes de currentCompany
-const bridgeUserUuids = isOrgAdmin 
-  ? [...new Set(companies.filter(c => c.bridge_user_uuid).map(c => c.bridge_user_uuid as string))]
-  : currentCompany?.bridge_user_uuid 
-    ? [currentCompany.bridge_user_uuid] 
-    : [];
+async function upsertInvoice(supabase, invoice, result) {
+  // Chercher un mapping partenaire → catégorie
+  let categoryId = null;
+  const { data: mapping } = await supabase
+    .from('partner_category_mappings')
+    .select('category_id')
+    .eq('company_id', invoice.company_id)
+    .eq('partner_name', invoice.partner_name)
+    .maybeSingle();
+  
+  if (mapping) {
+    categoryId = mapping.category_id;
+  }
 
-// Filtrer les assignations par company_id pour les membres
-const assignmentsQuery = supabase
-  .from('company_bridge_accounts')
-  .select('bridge_account_id, company_id');
-
-if (!isOrgAdmin && currentCompany) {
-  assignmentsQuery.eq('company_id', currentCompany.id);
+  // Lors de l'insert, ajouter category_id
+  if (!existing) {
+    await supabase.from("invoices").insert({
+      ...invoice,
+      category_id: categoryId  // ← Ajout automatique
+    });
+  }
 }
 ```
 
-**Filtrer les comptes affichés :**
-```typescript
-// Pour les membres : ne montrer que les comptes assignés à leur société
-const displayedAccounts = isOrgAdmin 
-  ? accounts 
-  : accounts.filter(account => {
-      const assignment = assignments.get(account.bridge_account_id);
-      return assignment?.is_enabled && assignment?.company_id === currentCompany?.id;
-    });
-```
+---
 
-**Masquer les contrôles pour les membres :**
-```typescript
-// Dans le rendu des comptes
-{isOrgAdmin && (
-  <Switch
-    checked={isEnabled}
-    onCheckedChange={(checked) => onToggle(account.bridge_account_id, checked)}
-  />
-)}
+## Récapitulatif UX
 
-{isOrgAdmin ? (
-  <Select ... />
-) : (
-  <Badge variant="outline">
-    <Building2 className="w-3 h-3 mr-1" />
-    {currentCompany?.name}
-  </Badge>
-)}
-```
-
-### 2. Adapter l'en-tête et les actions
-
-Pour les membres, masquer les boutons "Ajouter banque" et "Synchroniser" :
-
-```typescript
-// Header buttons
-{isOrgAdmin && (
-  <>
-    <Button onClick={handleConnectBridge}>+ Ajouter banque</Button>
-    <Button onClick={handleFullSync}>Synchroniser</Button>
-  </>
-)}
-```
-
-### 3. Sécuriser la sauvegarde (anti-régression)
-
-Modifier `handleSave` pour ne supprimer que les assignations pertinentes :
-
-```typescript
-const handleSave = async () => {
-  // Pour les admins : supprimer uniquement les assignations des comptes affichés
-  const accountIds = accounts.map(a => a.bridge_account_id);
-  
-  await supabase
-    .from('company_bridge_accounts')
-    .delete()
-    .in('bridge_account_id', accountIds);
-  
-  // Reste inchangé...
-};
-```
+| Action utilisateur | Comportement |
+|---|---|
+| Sélectionne une catégorie pour "AMAZON" | Mapping créé + toutes les factures "AMAZON" catégorisées |
+| Prochaine synchro Odoo avec "AMAZON" | Catégorie appliquée automatiquement |
+| Retire la catégorie d'une facture "AMAZON" | Mapping supprimé (ne touche pas aux factures déjà catégorisées) |
 
 ---
 
-## Fichiers impactés
+## Fichiers à modifier
 
-| Fichier | Modifications |
-|---------|---------------|
-| `src/components/settings/BankAccountsCard.tsx` | Ajouter filtrage par rôle, masquer contrôles pour membres |
-
----
-
-## Points de vigilance (anti-régression)
-
-1. **RLS existant** : La table `company_bridge_accounts` utilise déjà `has_company_access()` → pas de changement nécessaire côté DB
-2. **Logique de synchronisation** : Les fonctions `bridge-sync` restent identiques, seul l'affichage change
-3. **Calcul du solde** : Le hook `useBankBalance` filtre déjà par `currentCompany.id` → pas d'impact
-4. **Transactions** : La vue transactions filtre déjà par société → pas d'impact
+1. **Migration SQL** : Créer la table `partner_category_mappings`
+2. **`src/hooks/useInvoices.ts`** : Gérer le mapping lors du changement de catégorie
+3. **`supabase/functions/accounting-connector-sync/index.ts`** : Appliquer le mapping lors de la synchro
 
 ---
 
-## Résultat attendu
+## Avantages de cette approche
 
-| Scénario | Avant | Après |
-|----------|-------|-------|
-| Admin sur `/parametres#accounts` | Voit tous les comptes | Inchangé |
-| Membre Cloud Vapor sur `/parametres#accounts` | Voit tous les comptes de l'org | Voit seulement les comptes de Cloud Vapor |
-| Membre tente de modifier une assignation | Peut modifier | Lecture seule (badges au lieu de selects) |
+- **Simple** : Pas de modal, pas d'IA - un clic suffit
+- **Transparent** : L'utilisateur catégorise une fois, le système mémorise
+- **Continu** : S'applique automatiquement aux nouvelles factures importées
+- **Réversible** : Retirer la catégorie supprime le mapping
