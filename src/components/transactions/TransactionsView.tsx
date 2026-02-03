@@ -104,15 +104,14 @@ export function TransactionsView() {
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
-  // Create a mapping from account name to "Bank - Account" display
+  // Create a mapping from account name to bank name only (e.g., "Qonto" instead of "Qonto - E-fumeur")
   const bankAccountDisplayMap = useMemo(() => {
     const map = new Map<string, string>();
     bridgeAccounts.forEach(acc => {
       if (acc.name) {
-        // Filter out "Bridge" as it's not useful info - show only real bank names
+        // Only show bank name, not the full account name
         const bankName = acc.bank_name && acc.bank_name.toLowerCase() !== 'bridge' ? acc.bank_name : null;
-        const displayName = bankName ? `${bankName} - ${acc.name}` : acc.name;
-        map.set(acc.name, displayName);
+        map.set(acc.name, bankName || acc.name);
       }
     });
     return map;
