@@ -1,153 +1,159 @@
 
-# Plan : Mapping automatique Partenaire → Catégorie pour les factures
+# Plan : Isolation stricte des données par société (Treasury)
 
-## Objectif
-Créer un système de mapping simple où l'utilisateur définit une association **partenaire = catégorie** qui s'applique automatiquement à toutes les factures importées (Odoo/Pennylane) et futures.
+## Problème identifié
 
-## Principe de fonctionnement
-1. Quand l'utilisateur sélectionne une catégorie pour une facture avec un partenaire donné → un mapping est créé/mis à jour
-2. Lors des prochaines synchros ou pour les factures existantes avec ce partenaire → la catégorie est appliquée automatiquement
-3. Pas d'IA, pas de modal complexe : juste un mapping direct `partner_name` → `category_id`
+Les requêtes dans les hooks de trésorerie utilisent un filtre **inclusif** :
+```typescript
+query.or(`company_id.eq.${currentCompany.id},company_id.is.null`)
+```
+
+Ce filtre inclut :
+1. Les données de la société actuelle ✅
+2. Les données **sans** company_id (legacy ou autres) ❌
+
+Pour une isolation stricte entre sociétés, il faut filtrer **uniquement** par `company_id`.
 
 ---
 
-## Étapes d'implémentation
+## Fichiers à corriger
 
-### 1. Créer la table `partner_category_mappings`
+### 1. `src/hooks/useTransactions.ts`
+- Ligne 31-33 : Utilise `if (currentCompany?.id) q = q.eq('company_id', ...)` → OK mais doit être **obligatoire**
+- **Problème** : La query s'exécute même sans company sélectionné
 
-```sql
-CREATE TABLE public.partner_category_mappings (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-  user_id UUID NOT NULL,
-  partner_name TEXT NOT NULL,
-  category_id UUID REFERENCES categories(id) ON DELETE SET NULL,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now(),
-  UNIQUE(company_id, partner_name)
-);
+### 2. `src/hooks/useForecasts.ts`
+Multiples requêtes utilisent `.or(...,company_id.is.null)` :
+- **Ligne 115** : category_forecasts
+- **Ligne 143** : transactions (actuals)
+- **Ligne 190** : transactions (uncategorized)
+- **Ligne 325** : invoices (payables)
+- **Ligne 349** : transactions (balance)
 
--- RLS policies similaires aux autres tables
-ALTER TABLE partner_category_mappings ENABLE ROW LEVEL SECURITY;
+### 3. `src/hooks/useCategories.ts`
+- **Ligne 46** : `.or(company_id.eq.${companyId},company_id.is.null)`
+- **Ligne 57** : Même problème avec legacy fallback
 
-CREATE POLICY "Users can view accessible mappings" ON partner_category_mappings
-  FOR SELECT USING (has_company_access(auth.uid(), company_id));
+### 4. `src/hooks/useAutomationRules.ts`
+- **Ligne 70** : `.or(company_id.eq.${currentCompany.id},company_id.is.null)`
+- **Ligne 125** : Idem pour les catégories
 
-CREATE POLICY "Users can create accessible mappings" ON partner_category_mappings
-  FOR INSERT WITH CHECK (has_company_access(auth.uid(), company_id));
+---
 
-CREATE POLICY "Users can update accessible mappings" ON partner_category_mappings
-  FOR UPDATE USING (has_company_access(auth.uid(), company_id));
+## Corrections à appliquer
 
-CREATE POLICY "Users can delete accessible mappings" ON partner_category_mappings
-  FOR DELETE USING (has_company_access(auth.uid(), company_id));
-```
-
-### 2. Modifier `useInvoices.ts` pour gérer le mapping
-
-Quand l'utilisateur change la catégorie d'une facture :
-1. Mettre à jour la facture (comme actuellement)
-2. Créer/mettre à jour le mapping `partner_name → category_id`
-3. Appliquer automatiquement aux autres factures du même partenaire non catégorisées
+### Principe : Filtre strict `company_id = X`
 
 ```typescript
-// Dans updateCategoryMutation
-const updateCategoryMutation = useMutation({
-  mutationFn: async ({ id, categoryId }: { id: string; categoryId: string | null }) => {
-    // 1. Récupérer la facture pour avoir le partner_name
-    const invoice = invoices.find(i => i.id === id);
-    if (!invoice) throw new Error('Invoice not found');
+// AVANT (inclusif - problématique)
+query.or(`company_id.eq.${currentCompany.id},company_id.is.null`)
+
+// APRÈS (strict - isolation garantie)
+query.eq('company_id', currentCompany.id)
+```
+
+### Liste des modifications
+
+| Fichier | Fonction/Query | Correction |
+|---------|----------------|------------|
+| `useForecasts.ts` | category_forecasts | `.eq('company_id', currentCompany.id)` |
+| `useForecasts.ts` | transactions (actuals) | `.eq('company_id', currentCompany.id)` |
+| `useForecasts.ts` | transactions (uncategorized) | `.eq('company_id', currentCompany.id)` |
+| `useForecasts.ts` | invoices (payables) | `.eq('company_id', currentCompany.id)` |
+| `useForecasts.ts` | transactions (balance) | `.eq('company_id', currentCompany.id)` |
+| `useCategories.ts` | fetchCategories | `.eq('company_id', companyId)` |
+| `useAutomationRules.ts` | fetchRules | `.eq('company_id', currentCompany.id)` |
+| `useAutomationRules.ts` | fetchCategories | `.eq('company_id', currentCompany.id)` |
+
+---
+
+## Détails techniques
+
+### useForecasts.ts - 5 corrections
+
+```typescript
+// category_forecasts (ligne ~115)
+const { data: forecasts = [] } = useQuery({
+  queryFn: async () => {
+    if (!currentCompany?.id || !startMonthStr) return [];
     
-    // 2. Mettre à jour la facture
-    await supabase
-      .from('invoices')
-      .update({ category_id: categoryId })
-      .eq('id', id);
-
-    // 3. Upsert le mapping partenaire → catégorie
-    if (categoryId) {
-      await supabase
-        .from('partner_category_mappings')
-        .upsert({
-          company_id: currentCompany.id,
-          user_id: currentCompany.user_id,
-          partner_name: invoice.partner_name,
-          category_id: categoryId,
-        }, { onConflict: 'company_id,partner_name' });
-      
-      // 4. Appliquer aux autres factures du même partenaire (sans catégorie)
-      await supabase
-        .from('invoices')
-        .update({ category_id: categoryId })
-        .eq('company_id', currentCompany.id)
-        .eq('partner_name', invoice.partner_name)
-        .is('category_id', null);
-    } else {
-      // Supprimer le mapping si on retire la catégorie
-      await supabase
-        .from('partner_category_mappings')
-        .delete()
-        .eq('company_id', currentCompany.id)
-        .eq('partner_name', invoice.partner_name);
-    }
-  }
+    const { data, error } = await supabase
+      .from('category_forecasts')
+      .select('*')
+      .eq('company_id', currentCompany.id)  // ← Strict
+      .gte('month', startMonthStr)
+      .lte('month', endMonthStr);
+    // ...
+  },
+  enabled: !!user?.id && !!currentCompany?.id && !!startMonthStr,
 });
+
+// transactions actuals (ligne ~143)
+query = query.eq('company_id', currentCompany.id);  // ← Strict
+
+// transactions uncategorized (ligne ~190)
+query = query.eq('company_id', currentCompany.id);  // ← Strict
+
+// invoices payables (ligne ~325)
+query = query.eq('company_id', currentCompany.id);  // ← Strict
+
+// transactions balance (ligne ~349)
+query = query.eq('company_id', currentCompany.id);  // ← Strict
 ```
 
-### 3. Modifier l'edge function `accounting-connector-sync`
-
-Dans la fonction `upsertInvoice`, avant d'insérer une nouvelle facture :
-1. Chercher un mapping existant pour ce `partner_name`
-2. Si trouvé, ajouter le `category_id` automatiquement
+### useCategories.ts - 1 correction
 
 ```typescript
-async function upsertInvoice(supabase, invoice, result) {
-  // Chercher un mapping partenaire → catégorie
-  let categoryId = null;
-  const { data: mapping } = await supabase
-    .from('partner_category_mappings')
-    .select('category_id')
-    .eq('company_id', invoice.company_id)
-    .eq('partner_name', invoice.partner_name)
-    .maybeSingle();
+// fetchCategories (ligne ~40)
+async function fetchCategories(companyId?: string | null): Promise<Category[]> {
+  if (!companyId) return [];
   
-  if (mapping) {
-    categoryId = mapping.category_id;
-  }
+  const { data, error } = await supabase
+    .from('categories')
+    .select('*')
+    .eq('company_id', companyId)  // ← Strict (supprime le .or avec is.null)
+    .order('type', { ascending: true })
+    .order('sort_order', { ascending: true })
+    .order('name', { ascending: true });
 
-  // Lors de l'insert, ajouter category_id
-  if (!existing) {
-    await supabase.from("invoices").insert({
-      ...invoice,
-      category_id: categoryId  // ← Ajout automatique
-    });
-  }
+  if (error) throw error;
+  return data || [];
 }
 ```
 
+### useAutomationRules.ts - 2 corrections
+
+```typescript
+// fetchRules (ligne ~70)
+const { data, error } = await supabase
+  .from('automation_rules')
+  .select(`*, category:categories(id, name, color)`)
+  .eq('company_id', currentCompany.id)  // ← Strict
+  .order('created_at', { ascending: false });
+
+// fetchCategories (ligne ~125)
+const { data, error } = await supabase
+  .from('categories')
+  .select('*')
+  .eq('company_id', currentCompany.id);  // ← Strict
+```
+
 ---
 
-## Récapitulatif UX
+## Résultat attendu
 
-| Action utilisateur | Comportement |
-|---|---|
-| Sélectionne une catégorie pour "AMAZON" | Mapping créé + toutes les factures "AMAZON" catégorisées |
-| Prochaine synchro Odoo avec "AMAZON" | Catégorie appliquée automatiquement |
-| Retire la catégorie d'une facture "AMAZON" | Mapping supprimé (ne touche pas aux factures déjà catégorisées) |
+Après ces corrections, pour la société "E-fumeur internet" :
 
----
+| Page | Avant | Après |
+|------|-------|-------|
+| /reglages-tresorerie | Catégories mélangées | Catégories isolées |
+| /transactions | Transactions d'autres sociétés visibles | Uniquement E-fumeur |
+| /creances | Factures mélangées | Factures isolées |
+| /previsions | Prévisions/actuals mélangés | Données isolées |
 
-## Fichiers à modifier
-
-1. **Migration SQL** : Créer la table `partner_category_mappings`
-2. **`src/hooks/useInvoices.ts`** : Gérer le mapping lors du changement de catégorie
-3. **`supabase/functions/accounting-connector-sync/index.ts`** : Appliquer le mapping lors de la synchro
-
----
-
-## Avantages de cette approche
-
-- **Simple** : Pas de modal, pas d'IA - un clic suffit
-- **Transparent** : L'utilisateur catégorise une fois, le système mémorise
-- **Continu** : S'applique automatiquement aux nouvelles factures importées
-- **Réversible** : Retirer la catégorie supprime le mapping
+Chaque société sera **100% indépendante** avec ses propres :
+- Catégories
+- Règles d'automatisation
+- Transactions
+- Factures (créances/dettes)
+- Prévisions
