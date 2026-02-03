@@ -488,24 +488,33 @@ export function TransactionsView() {
         transition={{ delay: 0.2 }}
       >
         <Tabs value={tabFilter} onValueChange={(v) => setTabFilter(v as TabFilter)}>
-          <TabsList className="w-full sm:w-auto grid grid-cols-3 sm:inline-flex">
-            <TabsTrigger value="all" className="gap-2">
+          <TabsList className="w-full sm:w-auto grid grid-cols-3 sm:inline-flex h-12 p-1 bg-muted/80">
+            <TabsTrigger 
+              value="all" 
+              className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+            >
               <List className="w-4 h-4" />
               <span className="hidden sm:inline">Tous les mouvements</span>
               <span className="sm:hidden">Tous</span>
-              <Badge variant="secondary" className="ml-1 text-xs">
+              <Badge variant="outline" className="ml-1 text-xs bg-background/50">
                 {tabCounts.all.toLocaleString('fr-FR')}
               </Badge>
             </TabsTrigger>
-            <TabsTrigger value="categorized" className="gap-2">
+            <TabsTrigger 
+              value="categorized" 
+              className="gap-2 data-[state=active]:bg-success data-[state=active]:text-success-foreground"
+            >
               <CheckCircle2 className="w-4 h-4" />
               <span className="hidden sm:inline">Catégorisé</span>
               <span className="sm:hidden">Catég.</span>
-              <Badge variant="secondary" className="ml-1 text-xs">
+              <Badge variant="outline" className="ml-1 text-xs bg-background/50">
                 {tabCounts.categorized.toLocaleString('fr-FR')}
               </Badge>
             </TabsTrigger>
-            <TabsTrigger value="uncategorized" className="gap-2 relative">
+            <TabsTrigger 
+              value="uncategorized" 
+              className="gap-2 data-[state=active]:bg-warning data-[state=active]:text-warning-foreground"
+            >
               <CircleDashed className="w-4 h-4" />
               <span className="hidden sm:inline">Non catégorisé</span>
               <span className="sm:hidden">Non cat.</span>
