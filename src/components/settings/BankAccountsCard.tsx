@@ -848,6 +848,7 @@ export function BankAccountsCard() {
           formatBalance={formatBalance}
           formatIban={formatIban}
           onBankNameUpdate={handleBankNameUpdate}
+          onReconnect={handleReconnectBank}
           isOrgAdmin={isOrgAdmin}
         />
 
@@ -991,6 +992,7 @@ function BankAccountsList({
   formatBalance,
   formatIban,
   onBankNameUpdate,
+  onReconnect,
   isOrgAdmin,
 }: {
   accounts: BridgeAccount[];
