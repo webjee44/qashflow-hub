@@ -30,6 +30,7 @@ import { CategoryDialog } from '@/components/categories/CategoryDialog';
 import { TransactionTableRow } from './TransactionTableRow';
 import { SortDropdown } from './SortDropdown';
 import { BulkCategorizeDialog } from './BulkCategorizeDialog';
+import { SplitTransactionDialog } from './SplitTransactionDialog';
 
 type Transaction = Tables<'transactions'>;
 
@@ -45,6 +46,8 @@ export function TransactionsView() {
   const [selectedTransactionIds, setSelectedTransactionIds] = useState<Set<string>>(new Set());
   const [showBulkCategorizeDialog, setShowBulkCategorizeDialog] = useState(false);
   const [applyingRules, setApplyingRules] = useState(false);
+  const [showSplitDialog, setShowSplitDialog] = useState(false);
+  const [transactionToSplit, setTransactionToSplit] = useState<Transaction | null>(null);
 
   const parentRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
@@ -57,7 +60,9 @@ export function TransactionsView() {
     isLoading, 
     updateCategory, 
     bulkUpdateCategory,
+    splitTransaction,
     isBulkUpdating,
+    isSplitting,
     refetch: refetchTransactions
   } = useTransactions();
   
@@ -359,6 +364,36 @@ export function TransactionsView() {
     setShowCategoryDialog(true);
   }, []);
 
+  const handleOpenSplitDialog = useCallback((transaction: Transaction) => {
+    setTransactionToSplit(transaction);
+    setShowSplitDialog(true);
+  }, []);
+
+  const handleSplitTransaction = useCallback(async (splits: { categoryId: string | null; amount: number }[]) => {
+    if (!transactionToSplit) return;
+
+    try {
+      await splitTransaction({
+        originalTransactionId: transactionToSplit.id,
+        splits,
+      });
+      
+      toast({
+        title: 'Transaction divisée',
+        description: `La transaction a été divisée en ${splits.length} sous-transactions`,
+      });
+      
+      setShowSplitDialog(false);
+      setTransactionToSplit(null);
+    } catch {
+      toast({
+        title: 'Erreur',
+        description: 'Impossible de diviser la transaction',
+        variant: 'destructive',
+      });
+    }
+  }, [transactionToSplit, splitTransaction, toast]);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -555,6 +590,7 @@ export function TransactionsView() {
                         onToggleSelection={toggleTransactionSelection}
                         onUpdateCategory={handleUpdateCategory}
                         onCreateCategory={onCreateCategoryForTransaction}
+                        onSplitTransaction={handleOpenSplitDialog}
                         getCategoryName={getCategoryName}
                         getCategoryColor={getCategoryColor}
                         incomeCategories={incomeCategories}
@@ -607,6 +643,19 @@ export function TransactionsView() {
         }}
         onCreateRule={createRule}
         isLoading={isBulkUpdating}
+      />
+
+      <SplitTransactionDialog
+        open={showSplitDialog}
+        onOpenChange={(open) => {
+          setShowSplitDialog(open);
+          if (!open) setTransactionToSplit(null);
+        }}
+        transaction={transactionToSplit}
+        incomeCategories={incomeCategories}
+        expenseCategories={expenseCategories}
+        onSplit={handleSplitTransaction}
+        isLoading={isSplitting}
       />
     </div>
   );

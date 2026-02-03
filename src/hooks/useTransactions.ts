@@ -126,6 +126,64 @@ export function useTransactions(options: UseTransactionsOptions = {}) {
     },
   });
 
+  const splitTransactionMutation = useMutation({
+    mutationFn: async ({
+      originalTransactionId,
+      splits,
+    }: {
+      originalTransactionId: string;
+      splits: { categoryId: string | null; amount: number }[];
+    }) => {
+      // 1. Fetch original transaction
+      const { data: original, error: fetchError } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('id', originalTransactionId)
+        .single();
+
+      if (fetchError || !original) {
+        throw new Error('Transaction originale introuvable');
+      }
+
+      // 2. Soft-delete the original transaction
+      const { error: deleteError } = await supabase
+        .from('transactions')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', originalTransactionId);
+
+      if (deleteError) throw deleteError;
+
+      // 3. Create new split transactions
+      const newTransactions = splits.map((split, index) => ({
+        user_id: original.user_id,
+        company_id: original.company_id,
+        date: original.date,
+        type: original.type,
+        amount: split.amount,
+        category_id: split.categoryId,
+        description: `${original.description} (${index + 1}/${splits.length})`,
+        parent_transaction_id: originalTransactionId,
+        source: 'split',
+        is_reconciled: false,
+      }));
+
+      const { error: insertError } = await supabase
+        .from('transactions')
+        .insert(newTransactions);
+
+      if (insertError) throw insertError;
+
+      return { originalTransactionId, splits };
+    },
+    onSuccess: () => {
+      // Refetch transactions after split
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+    },
+    onError: (err) => {
+      logError('Error splitting transaction:', err);
+    },
+  });
+
   return {
     transactions: query.data || [],
     isLoading: query.isLoading,
@@ -134,8 +192,10 @@ export function useTransactions(options: UseTransactionsOptions = {}) {
     refetch: query.refetch,
     updateCategory: updateCategoryMutation.mutateAsync,
     bulkUpdateCategory: bulkUpdateCategoryMutation.mutateAsync,
+    splitTransaction: splitTransactionMutation.mutateAsync,
     isUpdating: updateCategoryMutation.isPending,
     isBulkUpdating: bulkUpdateCategoryMutation.isPending,
+    isSplitting: splitTransactionMutation.isPending,
   };
 }
 

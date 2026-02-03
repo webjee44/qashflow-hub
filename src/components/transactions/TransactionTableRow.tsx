@@ -6,6 +6,7 @@ import {
   Wand2,
   XCircle,
   Sparkles,
+  Scissors,
 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
@@ -38,6 +39,7 @@ interface TransactionTableRowProps {
   onUpdateCategory: (transactionId: string, categoryId: string | null) => void;
   onCreateCategory: (transactionId: string) => void;
   onSuggestAutomation?: (transaction: Transaction) => void;
+  onSplitTransaction?: (transaction: Transaction) => void;
   getCategoryName: (categoryId: string | null) => string;
   getCategoryColor: (categoryId: string | null) => string | undefined;
   incomeCategories: Category[];
@@ -53,6 +55,7 @@ export const TransactionTableRow = memo(function TransactionTableRow({
   onUpdateCategory,
   onCreateCategory,
   onSuggestAutomation,
+  onSplitTransaction,
   getCategoryName,
   getCategoryColor,
   incomeCategories,
@@ -226,6 +229,12 @@ export const TransactionTableRow = memo(function TransactionTableRow({
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
               </>
+            )}
+            {onSplitTransaction && (
+              <DropdownMenuItem onClick={() => onSplitTransaction(transaction)}>
+                <Scissors className="w-4 h-4 mr-2" />
+                Diviser en plusieurs
+              </DropdownMenuItem>
             )}
             {onSuggestAutomation && (
               <DropdownMenuItem onClick={() => onSuggestAutomation(transaction)}>
