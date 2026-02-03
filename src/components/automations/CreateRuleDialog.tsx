@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Plus, Zap, PlusCircle, Lightbulb, Check, Euro, X } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { Plus, Zap, PlusCircle, Lightbulb, Check, Euro, X, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -69,7 +69,17 @@ export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, t
   const [amountOperator, setAmountOperator] = useState('equals');
   const [amountValue, setAmountValue] = useState(defaultAmount?.toString() || '');
 
+  // Category search
+  const [categorySearch, setCategorySearch] = useState('');
+
   const selectedCategory = categories.find(c => c.id === selectedCategoryId);
+
+  // Filter categories based on search
+  const filteredCategories = useMemo(() => {
+    if (!categorySearch.trim()) return categories;
+    const search = categorySearch.toLowerCase().trim();
+    return categories.filter(c => c.name.toLowerCase().includes(search));
+  }, [categories, categorySearch]);
 
   const handleCreateCategory = async (data: {
     name: string;
@@ -94,6 +104,7 @@ export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, t
     setShowAmountCondition(!!defaultAmount);
     setAmountOperator('equals');
     setAmountValue(defaultAmount?.toString() || '');
+    setCategorySearch('');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -258,8 +269,19 @@ export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, t
               Alors catégoriser dans...
             </Label>
             
+            {/* Search bar */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Rechercher une catégorie..."
+                value={categorySearch}
+                onChange={(e) => setCategorySearch(e.target.value)}
+                className="pl-9 h-9"
+              />
+            </div>
+            
             <div className="grid grid-cols-2 gap-2 max-h-[180px] overflow-y-auto">
-              {categories.map((category) => (
+              {filteredCategories.map((category) => (
                 <button
                   key={category.id}
                   type="button"
@@ -299,6 +321,12 @@ export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, t
                 </button>
               )}
             </div>
+
+            {filteredCategories.length === 0 && categorySearch && (
+              <p className="text-sm text-muted-foreground text-center py-2">
+                Aucune catégorie ne correspond à "{categorySearch}"
+              </p>
+            )}
 
             {categories.length === 0 && (
               <p className="text-sm text-muted-foreground text-center py-2">
