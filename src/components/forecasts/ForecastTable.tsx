@@ -1451,7 +1451,6 @@ export function ForecastTable() {
               </td>
             </tr>
             {renderGroupedSection(incomeGroups, 'income', 0)}
-            {renderUncategorizedRow('income')}
             {renderTtcRow('Total Encaissements', 'income')}
 
             {/* Expense Section */}
@@ -1461,7 +1460,6 @@ export function ForecastTable() {
               </td>
             </tr>
             {renderGroupedSection(expenseGroups, 'expense', incomeCategories.length)}
-            {renderUncategorizedRow('expense')}
             {renderTtcRow('Total Décaissements', 'expense')}
 
             {/* Payables Row (supplier debts) */}
