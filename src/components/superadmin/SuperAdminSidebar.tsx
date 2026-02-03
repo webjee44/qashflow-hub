@@ -24,8 +24,13 @@ export function SuperAdminSidebar() {
   const { signOut } = useAuth();
 
   const handleSignOut = async () => {
-    await signOut();
-    navigate('/auth');
+    try {
+      await signOut();
+      // Force navigation after signOut completes
+      window.location.href = '/auth';
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
   };
 
   return (
