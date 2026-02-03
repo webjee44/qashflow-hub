@@ -393,9 +393,10 @@ export class BridgeClient {
   }
 
   getTransactionDescription(transaction: BridgeTransaction): string {
-    return transaction.clean_description 
+    // Priority: raw_description (most complete) > bank_description > clean_description
+    return transaction.raw_description 
       || transaction.bank_description 
-      || transaction.raw_description 
+      || transaction.clean_description 
       || 'Transaction Bridge';
   }
 
