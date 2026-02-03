@@ -18,6 +18,7 @@ interface PDFRequest {
 
 interface FinancialData {
   revenueStreams: any[];
+  revenueForecasts: any[]; // Monthly revenue forecasts from bp_revenue_forecasts
   fixedExpenses: any[];
   variableExpenses: any[];
   personnel: any[];
@@ -66,9 +67,10 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Fetch all financial data
+    // Fetch all financial data including revenue forecasts
     const [
       { data: revenueStreams },
+      { data: revenueForecasts },
       { data: fixedExpenses },
       { data: variableExpenses },
       { data: personnel },
@@ -81,6 +83,7 @@ serve(async (req) => {
       { data: bonuses }
     ] = await Promise.all([
       supabase.from('bp_revenue_streams').select('*').eq('company_id', companyId).eq('is_active', true),
+      supabase.from('bp_revenue_forecasts').select('*').eq('company_id', companyId),
       supabase.from('bp_fixed_expenses').select('*').eq('company_id', companyId),
       supabase.from('bp_variable_expenses').select('*').eq('company_id', companyId),
       supabase.from('bp_personnel').select('*').eq('company_id', companyId),
@@ -93,8 +96,11 @@ serve(async (req) => {
       supabase.from('bp_bonuses').select('*')
     ]);
 
+    console.log('Revenue forecasts loaded:', revenueForecasts?.length || 0, 'entries');
+
     const financialData: FinancialData = {
       revenueStreams: revenueStreams || [],
+      revenueForecasts: revenueForecasts || [],
       fixedExpenses: fixedExpenses || [],
       variableExpenses: variableExpenses || [],
       personnel: personnel || [],
@@ -341,17 +347,81 @@ serve(async (req) => {
       return purchaseDate >= bpStartDate && purchaseDate <= bpEndDate;
     });
 
+    // Helper to format date as YYYY-MM-DD for forecast lookup
+    const formatDateYYYYMM01 = (date: Date): string => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      return `${year}-${month}-01`;
+    };
+
+    // Get monthly revenue for a specific stream and month
+    // Rule: Use forecast amount if > 0, otherwise fallback to auto calculation
+    const getMonthlyRevenueForStream = (streamId: string, monthDate: Date): number => {
+      const stream = financialData.revenueStreams.find(s => s.id === streamId);
+      if (!stream) return 0;
+
+      const monthStr = formatDateYYYYMM01(monthDate);
+      const forecast = financialData.revenueForecasts.find(
+        f => f.stream_id === streamId && f.month === monthStr
+      );
+
+      // If forecast exists with amount > 0, use it (explicit entry)
+      if (forecast?.amount && forecast.amount > 0) {
+        console.log(`Using forecast for ${stream.name} on ${monthStr}: ${forecast.amount}`);
+        return forecast.amount;
+      }
+
+      // If amount === 0, treat as "not entered" -> fallback to auto calculation
+      // For subscription model: calculate MRR automatically
+      if (stream.model === 'subscription') {
+        const monthlyPrice = stream.monthly_price || 0;
+        const subscribers = stream.initial_subscribers || 0;
+        return monthlyPrice * subscribers;
+      }
+
+      // For variable/other models without explicit forecast: return 0
+      return 0;
+    };
+
+    // Calculate total yearly revenue from forecasts (Year 0 = first 12 months from BP start)
+    // For Year 1+, apply growth rates to Year 0 base
     const calculateYearlyRevenue = (year: number) => {
-      return financialData.revenueStreams.reduce((sum, rs) => {
-        const monthlyPrice = rs.monthly_price || 0;
-        const subscribers = rs.initial_subscribers || 0;
-        let growthRate = rs.growth_rate || 0;
-        if (year === 1 && rs.growth_rate_year2) growthRate = rs.growth_rate_year2;
-        if (year === 2 && rs.growth_rate_year3) growthRate = rs.growth_rate_year3;
-        if (year === 3 && rs.growth_rate_year4) growthRate = rs.growth_rate_year4;
-        const growthMultiplier = Math.pow(1 + growthRate / 100, year);
-        return sum + (monthlyPrice * subscribers * 12 * growthMultiplier);
-      }, 0);
+      // Calculate Year 0 revenue from monthly forecasts
+      const year0Revenue = (() => {
+        let total = 0;
+        for (let month = 0; month < 12; month++) {
+          const monthDate = new Date(bpStartDate);
+          monthDate.setMonth(monthDate.getMonth() + month);
+          
+          for (const stream of financialData.revenueStreams) {
+            total += getMonthlyRevenueForStream(stream.id, monthDate);
+          }
+        }
+        return total;
+      })();
+
+      console.log(`Year 0 revenue calculated: ${year0Revenue}`);
+
+      if (year === 0) {
+        return year0Revenue;
+      }
+
+      // For years 1+, apply growth rates
+      let cumulativeGrowth = 1;
+      for (let y = 1; y <= year; y++) {
+        // Use average growth rate across streams or default
+        const avgGrowthRate = financialData.revenueStreams.reduce((sum, rs) => {
+          let rate = rs.growth_rate || 10;
+          if (y === 1 && rs.growth_rate_year2) rate = rs.growth_rate_year2;
+          if (y === 2 && rs.growth_rate_year3) rate = rs.growth_rate_year3;
+          if (y === 3 && rs.growth_rate_year4) rate = rs.growth_rate_year4;
+          return sum + rate;
+        }, 0) / Math.max(financialData.revenueStreams.length, 1);
+        
+        cumulativeGrowth *= (1 + avgGrowthRate / 100);
+      }
+
+      return year0Revenue * cumulativeGrowth;
     };
 
     const calculateYearlyFixedExpenses = () => {
@@ -377,13 +447,30 @@ serve(async (req) => {
       }, 0);
     };
 
-    const calculateYearlyDirectorCosts = () => {
+    // Calculate director costs from bp_directors table
+    const calculateDirectorTableCosts = () => {
       return financialData.directors.reduce((sum, d) => {
         const remuneration = d.monthly_remuneration || 0;
         const chargesRate = normalizeChargeRate(d.charges_rate, 45);
         const charges = remuneration * chargesRate / 100;
         return sum + (remuneration + charges) * 12;
       }, 0);
+    };
+
+    // Calculate director-type expenses from fixed expenses (présidence, dirigeant, refacturation)
+    const calculateDirectorFixedExpenses = () => {
+      const directorKeywords = /prési|dirig|refact|gérant|pdg|dg\b|directeur/i;
+      return financialData.fixedExpenses
+        .filter(e => directorKeywords.test(e.name || ''))
+        .reduce((sum, e) => sum + (e.monthly_amount || 0) * 12, 0);
+    };
+
+    // Total director costs = bp_directors + director-type fixed expenses
+    const calculateYearlyDirectorCosts = () => {
+      const fromDirectorsTable = calculateDirectorTableCosts();
+      const fromFixedExpenses = calculateDirectorFixedExpenses();
+      console.log(`Director costs: ${fromDirectorsTable} (table) + ${fromFixedExpenses} (fixed expenses)`);
+      return fromDirectorsTable + fromFixedExpenses;
     };
 
     // Use filtered investments for depreciation
@@ -434,15 +521,18 @@ serve(async (req) => {
       });
     };
 
-    // FIX #8: Data validation for warnings
+    // FIX #8: Data validation for warnings - now checks actual forecasts
     const validateFinancialData = (): string[] => {
       const warnings: string[] = [];
       
-      // Check if there's revenue
-      const hasRevenue = financialData.revenueStreams.some(rs => 
-        (rs.monthly_price || 0) * (rs.initial_subscribers || 0) > 0
-      );
-      const hasExpenses = financialData.fixedExpenses.length > 0 || financialData.personnel.length > 0;
+      // Check if there's actual revenue from forecasts or stream parameters
+      const year0Revenue = calculateYearlyRevenue(0);
+      const hasRevenue = year0Revenue > 0;
+      const hasExpenses = financialData.fixedExpenses.length > 0 || financialData.personnel.length > 0 || financialData.directors.length > 0;
+      
+      if (!hasRevenue && hasExpenses) {
+        warnings.push('Aucun chiffre d\'affaires prévu malgré des charges (vérifiez /bp/revenus)');
+      }
       
       if (!hasRevenue && hasExpenses) {
         warnings.push('Aucun chiffre d\'affaires prévu malgré des charges');
@@ -693,9 +783,14 @@ serve(async (req) => {
       doc.setFont('helvetica', 'normal');
       setColor(COLORS.text);
       
+      // Count directors from both bp_directors table and director-type fixed expenses
+      const directorKeywords = /prési|dirig|refact|gérant|pdg|dg\b|directeur/i;
+      const directorFixedExpensesCount = financialData.fixedExpenses.filter(e => directorKeywords.test(e.name || '')).length;
+      const totalDirectorCount = financialData.directors.length + (directorFixedExpensesCount > 0 ? directorFixedExpensesCount : 0);
+      
       const teamInfo = [
         `• ${financialData.personnel.length} salarié(s) prévu(s)`,
-        `• ${financialData.directors.length} dirigeant(s)`,
+        `• ${totalDirectorCount} poste(s) de direction identifié(s)`,
         `• ${financialData.revenueStreams.length} source(s) de revenus identifiée(s)`,
         `• ${relevantInvestments.length} investissement(s) planifié(s) sur la période`,
       ];
