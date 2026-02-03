@@ -864,15 +864,10 @@ export function ForecastTable() {
       
       // Render children if not collapsed (or if no group header)
       if (!isCollapsed && visibleChildren.length > 0) {
-        elements.push(
-          <AnimatePresence key={`children-${groupId}`}>
-            {visibleChildren.map((category) => {
-              const row = renderCategoryRow(category, currentIndex, type, !!group.group);
-              currentIndex++;
-              return row;
-            })}
-          </AnimatePresence>
-        );
+        visibleChildren.forEach((category) => {
+          elements.push(renderCategoryRow(category, currentIndex, type, !!group.group));
+          currentIndex++;
+        });
       }
       
       return elements;
