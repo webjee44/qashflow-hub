@@ -46,8 +46,9 @@ Deno.serve(async (req) => {
       return validationErrorResponse(validation.error, corsHeaders);
     }
 
-    const { bridge_user_uuid, redirect_url } = validation.data;
-    console.info('[bridge-connect] Creating connect session...');
+    const { bridge_user_uuid, redirect_url, item_id } = validation.data;
+    const isManageSession = !!item_id;
+    console.info(`[bridge-connect] Creating ${isManageSession ? 'manage' : 'connect'} session...`);
 
     // Authenticate user
     const authHeader = req.headers.get('Authorization');
@@ -74,8 +75,15 @@ Deno.serve(async (req) => {
     const authData = await bridgeClient.getAuthToken(bridge_user_uuid);
     bridgeClient.setAccessToken(authData.access_token);
 
-    // Create connect session with redirect URL for callback after bank connection
-    const connectUrl = await bridgeClient.createConnectSession(userEmail, redirect_url);
+    // Create connect or manage session based on item_id presence
+    let connectUrl: string;
+    if (isManageSession && item_id) {
+      // Manage session for reconnecting/updating existing bank connection
+      connectUrl = await bridgeClient.createManageSession(item_id, redirect_url);
+    } else {
+      // New connection session
+      connectUrl = await bridgeClient.createConnectSession(userEmail, redirect_url);
+    }
 
     return successResponse({ connect_url: connectUrl });
 

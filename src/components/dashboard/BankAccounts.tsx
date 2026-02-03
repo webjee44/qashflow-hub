@@ -1,14 +1,18 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Landmark, RefreshCw, Loader2, Building2, ArrowDownToLine } from 'lucide-react';
+import { Landmark, RefreshCw, Loader2, Building2, ArrowDownToLine, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useCompany } from '@/hooks/useCompany';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { Link } from 'react-router-dom';
+
+type ItemStatus = 'ok' | 'needs_action' | 'error' | 'deleted';
 
 interface BridgeAccount {
   id: string;
@@ -17,6 +21,7 @@ interface BridgeAccount {
   iban: string | null;
   type: string;
   updated_at: string;
+  item_status: ItemStatus | null;
 }
 
 const formatCurrency = (value: number) => {
@@ -36,6 +41,7 @@ export function BankAccounts() {
   const [syncing, setSyncing] = useState(false);
   const [syncingTransactions, setSyncingTransactions] = useState(false);
   const [lastSync, setLastSync] = useState<string | null>(null);
+  const [hasDisconnectedBank, setHasDisconnectedBank] = useState(false);
 
   const bridgeUserUuid = (currentCompany as any)?.bridge_user_uuid;
 
@@ -61,9 +67,17 @@ export function BankAccounts() {
         return;
       }
 
-      setAccounts(data.accounts || []);
+      const accountsList = data.accounts || [];
+      setAccounts(accountsList);
       setTotalBalance(data.total_balance || 0);
       setLastSync(new Date().toISOString());
+      
+      // Check if any account has a disconnection issue
+      const hasIssue = accountsList.some((a: BridgeAccount) => 
+        a.item_status === 'needs_action' || a.item_status === 'error' || a.item_status === 'deleted'
+      );
+      setHasDisconnectedBank(hasIssue);
+      
       await refetch();
     } catch (error) {
       console.error('Error fetching Bridge accounts:', error);
@@ -190,6 +204,18 @@ export function BankAccounts() {
         </div>
       </CardHeader>
       <CardContent>
+        {hasDisconnectedBank && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription className="flex items-center justify-between">
+              <span>Une ou plusieurs banques nécessitent une reconnexion</span>
+              <Button variant="outline" size="sm" asChild>
+                <Link to="/parametres#accounts">Reconnecter</Link>
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+        
         {loading && accounts.length === 0 ? (
           <div className="space-y-3">
             <Skeleton className="h-16 w-full" />

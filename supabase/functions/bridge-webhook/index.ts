@@ -366,8 +366,47 @@ async function handleItemDeleted(
   // Mark all accounts from this item as deleted
   await supabaseAdmin
     .from('bridge_accounts')
-    .update({ status: 'deleted', updated_at: new Date().toISOString() })
+    .update({ 
+      status: 'deleted', 
+      item_status: 'deleted',
+      item_status_updated_at: new Date().toISOString(),
+      updated_at: new Date().toISOString() 
+    })
     .eq('bridge_item_id', item_id);
+}
+
+// Map Bridge status code to our status
+function mapBridgeStatus(statusCode: number): 'ok' | 'needs_action' | 'error' {
+  if (statusCode === 0) return 'ok';
+  if ([402, 429, 1003, 1005, 1010].includes(statusCode)) return 'needs_action';
+  return 'error';
+}
+
+async function handleItemRefreshed(
+  supabaseAdmin: any,
+  content: any
+): Promise<void> {
+  const { item_id, status, status_code_info } = content;
+  
+  const itemStatus = mapBridgeStatus(status);
+  console.info(`[bridge-webhook] Processing item.refreshed for item ${item_id}, status: ${status} → ${itemStatus}`);
+
+  // Update all accounts from this item with the new status
+  const { error } = await supabaseAdmin
+    .from('bridge_accounts')
+    .update({ 
+      item_status: itemStatus,
+      item_status_message: status_code_info || null,
+      item_status_updated_at: new Date().toISOString(),
+      updated_at: new Date().toISOString() 
+    })
+    .eq('bridge_item_id', item_id);
+
+  if (error) {
+    console.error(`[bridge-webhook] Error updating item status:`, error);
+  } else {
+    console.info(`[bridge-webhook] Updated item ${item_id} status to ${itemStatus}`);
+  }
 }
 
 // ============================================
@@ -465,7 +504,7 @@ Deno.serve(async (req) => {
           await handleItemDeleted(supabaseAdmin, content);
           break;
         case 'item.refreshed':
-          console.info(`[bridge-webhook] Item refreshed: ${content.item_id}, status: ${content.status}`);
+          await handleItemRefreshed(supabaseAdmin, content);
           break;
         case 'TEST_EVENT':
           console.info('[bridge-webhook] Test event received successfully');

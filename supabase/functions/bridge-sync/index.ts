@@ -8,6 +8,8 @@ import {
   BridgeClient, 
   BridgeAccount,
   BridgeTransaction,
+  BridgeItem,
+  mapBridgeStatus,
   corsHeaders, 
   errorResponse, 
   successResponse 
@@ -92,9 +94,21 @@ async function syncBridgeAccounts(
   bridgeClient: BridgeClient,
   companyId: string,
   bridgeUserUuid: string,
-  accounts: BridgeAccount[]
+  accounts: BridgeAccount[],
+  items?: BridgeItem[]
 ): Promise<number> {
   let syncedCount = 0;
+
+  // Build item status map
+  const itemStatusMap = new Map<number, { status: string; message: string | null }>();
+  if (items) {
+    for (const item of items) {
+      itemStatusMap.set(item.id, {
+        status: mapBridgeStatus(item.status),
+        message: item.status_code_info,
+      });
+    }
+  }
 
   const getItemId = (account: BridgeAccount): number | null => {
     const anyAccount = account as any;
@@ -114,6 +128,9 @@ async function syncBridgeAccounts(
       continue;
     }
 
+    // Get item status for this account
+    const itemStatus = itemStatusMap.get(itemId);
+
     const { error } = await supabaseAdmin
       .from('bridge_accounts')
       .upsert({
@@ -127,6 +144,10 @@ async function syncBridgeAccounts(
         account_type: account.type || null,
         status: account.status || 'active',
         bank_id: account.bank_id || null,
+        // Item connection status
+        item_status: itemStatus?.status || 'ok',
+        item_status_message: itemStatus?.message || null,
+        item_status_updated_at: new Date().toISOString(),
         // IMPORTANT: bank_name is 100% manual.
         // We do NOT fetch or set it from Bridge to avoid overwriting user edits.
         last_sync_at: new Date().toISOString(),
@@ -291,16 +312,18 @@ Deno.serve(async (req) => {
           // Get auth token
           await bridgeClient.getAuthToken(company.bridge_user_uuid!);
 
-          // Get accounts
+          // Get accounts and items (for status)
           const allAccounts = await bridgeClient.fetchAllAccounts();
+          const allItems = await bridgeClient.fetchAllItems();
 
-          // Sync bridge accounts to database (with bank names)
+          // Sync bridge accounts to database (with bank names and status)
           await syncBridgeAccounts(
             supabaseAdmin,
             bridgeClient,
             company.id,
             company.bridge_user_uuid!,
-            allAccounts
+            allAccounts,
+            allItems
           );
 
           // Calculate balance and count based on assigned accounts only
@@ -387,17 +410,19 @@ Deno.serve(async (req) => {
       // Get auth token
       await bridgeClient.getAuthToken(bridge_user_uuid);
 
-      // Get accounts and balances
+      // Get accounts, balances and items (for status)
       const allAccounts = await bridgeClient.fetchAllAccounts();
-      console.info(`[bridge-sync] Fetched ${allAccounts.length} accounts from Bridge`);
+      const allItems = await bridgeClient.fetchAllItems();
+      console.info(`[bridge-sync] Fetched ${allAccounts.length} accounts and ${allItems.length} items from Bridge`);
 
-      // Sync bridge accounts to database (with bank names)
+      // Sync bridge accounts to database (with bank names and status)
       const syncedAccounts = await syncBridgeAccounts(
         supabaseAdmin,
         bridgeClient,
         company_id,
         bridge_user_uuid,
-        allAccounts
+        allAccounts,
+        allItems
       );
 
       // Calculate balance and count based on assigned accounts only

@@ -38,6 +38,7 @@ export type BridgeSyncRequest = z.infer<typeof bridgeSyncRequestSchema>;
 export const bridgeConnectRequestSchema = z.object({
   bridge_user_uuid: z.string().uuid(),
   redirect_url: z.string().url().optional(),
+  item_id: z.number().optional(), // For manage/reconnect sessions
 });
 
 export type BridgeConnectRequest = z.infer<typeof bridgeConnectRequestSchema>;

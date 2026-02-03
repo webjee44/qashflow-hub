@@ -36,6 +36,21 @@ export interface BridgeBank {
   logo_url?: string;
 }
 
+export interface BridgeItem {
+  id: number;
+  status: number;
+  status_code_info: string | null;
+  bank_id: number;
+  accounts: number[];
+}
+
+export interface BridgeItemsResponse {
+  resources: BridgeItem[];
+  pagination: {
+    next_uri: string | null;
+  };
+}
+
 export interface BridgeAccountsResponse {
   resources: BridgeAccount[];
   pagination: {
@@ -73,6 +88,21 @@ export interface BridgeTransactionsResponse {
 export interface BridgeAuthToken {
   access_token: string;
   expires_at: string;
+}
+
+// ============================================
+// Status Mapping Helper
+// ============================================
+export function mapBridgeStatus(statusCode: number): 'ok' | 'needs_action' | 'error' {
+  // Bridge status codes:
+  // 0 = OK
+  // 402 = SCA required
+  // 429 = Too many requests (temporary)
+  // 1003 = Action needed (e.g. password change)
+  // Other codes = error
+  if (statusCode === 0) return 'ok';
+  if ([402, 429, 1003, 1005, 1010].includes(statusCode)) return 'needs_action';
+  return 'error';
 }
 
 // ============================================
@@ -251,6 +281,37 @@ export class BridgeClient {
     return data.url;
   }
 
+  async createManageSession(itemId: number, redirectUrl?: string): Promise<string> {
+    console.info('[BridgeClient] Creating manage session for item:', itemId);
+    
+    const payload: Record<string, any> = {
+      item_id: itemId,
+    };
+    
+    if (redirectUrl) {
+      payload.callback_url = redirectUrl;
+      console.info('[BridgeClient] Callback URL set to:', redirectUrl);
+    }
+    
+    console.info('[BridgeClient] Manage session payload:', JSON.stringify(payload));
+    
+    const response = await fetch(`${BRIDGE_API_URL}/aggregation/connect-sessions`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[BridgeClient] Manage session error:', response.status, errorText);
+      throw new Error(`Bridge manage session failed: ${response.status} - ${errorText}`);
+    }
+
+    const data = await response.json();
+    console.info('[BridgeClient] Manage session created');
+    return data.url;
+  }
+
   // ============================================
   // Account Methods
   // ============================================
@@ -284,6 +345,40 @@ export class BridgeClient {
 
     console.info(`[BridgeClient] Fetched ${allAccounts.length} accounts`);
     return allAccounts;
+  }
+
+  // ============================================
+  // Item Methods (for connection status)
+  // ============================================
+
+  async fetchAllItems(): Promise<BridgeItem[]> {
+    console.info('[BridgeClient] Fetching all items...');
+    
+    const allItems: BridgeItem[] = [];
+    let nextUri: string | null = `${BRIDGE_API_URL}/aggregation/items?limit=100`;
+
+    while (nextUri) {
+      const url = nextUri.startsWith('http') 
+        ? nextUri 
+        : `https://api.bridgeapi.io${nextUri}`;
+
+      const response = await fetch(url, {
+        headers: this.getAuthHeaders(),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[BridgeClient] Items error:', errorText);
+        throw new Error(`Bridge items failed: ${response.status}`);
+      }
+
+      const data = await response.json() as BridgeItemsResponse;
+      allItems.push(...(data.resources || []));
+      nextUri = data.pagination?.next_uri || null;
+    }
+
+    console.info(`[BridgeClient] Fetched ${allItems.length} items`);
+    return allItems;
   }
 
   // ============================================
