@@ -33,6 +33,7 @@ import { SuggestAutomationDialog } from './SuggestAutomationDialog';
 import { CategoryDialog } from '@/components/categories/CategoryDialog';
 import { TransactionTableRow } from './TransactionTableRow';
 import { SortDropdown } from './SortDropdown';
+import { BankFilterDropdown } from './BankFilterDropdown';
 import { BulkCategorizeDialog } from './BulkCategorizeDialog';
 import { SplitTransactionDialog } from './SplitTransactionDialog';
 
@@ -44,6 +45,7 @@ export function TransactionsView() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string | null>(null);
   const [sortOption, setSortOption] = useState<SortOption>('date_desc');
+  const [bankFilter, setBankFilter] = useState<string | null>(null);
   const [tabFilter, setTabFilter] = useState<TabFilter>('all');
   const [showSuggestDialog, setShowSuggestDialog] = useState(false);
   const [lastCategorizedTransaction, setLastCategorizedTransaction] = useState<Transaction | null>(null);
@@ -103,6 +105,16 @@ export function TransactionsView() {
     return map;
   }, [bridgeAccounts]);
 
+  // Get unique bank names for the filter dropdown
+  const uniqueBankNames = useMemo(() => {
+    const bankSet = new Set<string>();
+    bridgeAccounts.forEach(acc => {
+      const bankName = acc.bank_name && acc.bank_name.toLowerCase() !== 'bridge' ? acc.bank_name : acc.name;
+      if (bankName) bankSet.add(bankName);
+    });
+    return Array.from(bankSet).sort();
+  }, [bridgeAccounts]);
+
   const getBankAccountDisplay = useCallback((accountName: string | null) => {
     if (!accountName) return null;
     return bankAccountDisplayMap.get(accountName) || accountName;
@@ -135,13 +147,21 @@ export function TransactionsView() {
       baseFiltered = transactions.filter(t => t.category_id === null);
     }
     
+    // Apply bank filter
+    if (bankFilter) {
+      baseFiltered = baseFiltered.filter(t => {
+        const bankName = getBankAccountDisplay(t.bank_account_name);
+        return bankName === bankFilter;
+      });
+    }
+    
     const filtered = filterTransactions(baseFiltered, {
       searchQuery,
       categoryFilter: selectedCategoryFilter,
       getCategoryName,
     });
     return sortTransactions(filtered, sortOption);
-  }, [transactions, tabFilter, searchQuery, selectedCategoryFilter, sortOption, getCategoryName]);
+  }, [transactions, tabFilter, bankFilter, searchQuery, selectedCategoryFilter, sortOption, getCategoryName, getBankAccountDisplay]);
 
   // Tab counts (from all transactions, not filtered by tab)
   const tabCounts = useMemo(() => {
@@ -530,6 +550,11 @@ export function TransactionsView() {
           />
         </div>
 
+        <BankFilterDropdown 
+          value={bankFilter} 
+          onChange={setBankFilter} 
+          banks={uniqueBankNames} 
+        />
         <SortDropdown value={sortOption} onChange={setSortOption} />
       </motion.div>
 
