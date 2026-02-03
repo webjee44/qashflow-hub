@@ -1,100 +1,173 @@
 
+# Plan : Isolation des comptes bancaires par société
 
-# Plan : Fonctionnalité "Diviser en plusieurs" (simplifié)
+## Contexte du problème
 
-## Workflow utilisateur
+Actuellement, dans l'onglet **Comptes bancaires** (`/parametres#accounts`), un administrateur d'organisation voit **tous les comptes bancaires** de toutes les sociétés de l'organisation. Un utilisateur membre de "Cloud Vapor" devrait uniquement voir les comptes assignés à cette société.
 
-1. **Clic sur "Diviser"** dans le menu ⋯ d'une transaction
-2. **Modal s'ouvre** avec :
-   - Champ : "Nombre de transactions" avec input numérique
-   - Bouton "Appliquer" → génère N lignes avec répartition égale
-   - Tableau des sous-transactions : Catégorie (Select) | Montant TTC (éditable) | Supprimer
-   - Ligne "Total" vs "Montant à répartir" pour validation
-3. **Validation** : total doit égaler le montant original (±0,01€)
-4. **Bouton "Diviser"** : crée les N transactions et masque l'originale
+Le problème vient du fait que `BankAccountsCard.tsx` récupère les comptes pour **tous les `bridge_user_uuid`** de toutes les sociétés accessibles, sans tenir compte de la société actuellement sélectionnée (`currentCompany`).
 
 ---
 
-## Interface simplifiée
+## Approche proposée
+
+Créer **deux modes d'affichage** selon le rôle de l'utilisateur :
+
+| Rôle | Vue | Actions |
+|------|-----|---------|
+| **Owner/Admin** de l'organisation | Tous les comptes, groupés par banque | Peut assigner/désassigner les comptes à n'importe quelle société |
+| **Membre** simple d'une société | Seulement les comptes de `currentCompany` | Lecture seule (pas de modification d'assignation) |
+
+Cette approche :
+- Préserve la capacité d'administration globale pour les propriétaires
+- Isole les données sensibles pour les membres
+- Évite toute régression sur les fonctionnalités existantes
+
+---
+
+## Interface utilisateur
+
+### Pour un Membre (ex: utilisateur de Cloud Vapor)
 
 ```text
 ┌───────────────────────────────────────────────────────────────────────┐
-│  ✂ Diviser en plusieurs                                          ✕  │
-│  Prlv Sepa Humanis Prevoy Cotisations Ple Trg                        │
+│  🏦 Comptes bancaires de Cloud Vapor                                  │
+│  Solde total : 30 981,95 €                                           │
 ├───────────────────────────────────────────────────────────────────────┤
-│                                                                       │
-│     Nombre de transactions : [  2  ]  [Appliquer]                    │
-│                                                                       │
-│  ┌────────────────────────────────────────────────────────────────┐  │
-│  │         Catégorie                              Montant TTC     │  │
-│  ├────────────────────────────────────────────────────────────────┤  │
-│  │  [Sélectionnez une catégorie ▾]               [1 271,39 €] [✕] │  │
-│  │  [Sélectionnez une catégorie ▾]               [1 271,39 €] [✕] │  │
-│  ├────────────────────────────────────────────────────────────────┤  │
-│  │                                      Total     2 542,78 €      │  │
-│  │                        Montant à répartir      2 542,78 €  ✓   │  │
-│  └────────────────────────────────────────────────────────────────┘  │
-│                                                                       │
-│                                          [Annuler]  [Diviser]        │
+│  ▼ Banque Populaire                           1 compte    30 981,95 € │
+│    ┌───────────────────────────────────────────────────────────────┐  │
+│    │ Cloud Vapor           Checking    •••• 2484      30 981,95 €  │  │
+│    └───────────────────────────────────────────────────────────────┘  │
 └───────────────────────────────────────────────────────────────────────┘
 ```
 
----
+- **Pas de switch** pour activer/désactiver
+- **Pas de sélecteur** de société
+- Juste un affichage informatif des comptes assignés à sa société
 
-## Comportement
+### Pour un Owner/Admin
 
-### Répartition automatique (clic sur "Appliquer")
-- Montant / N arrondi à 2 décimales
-- Dernière ligne ajustée pour absorber l'écart (ex: 2542,78 / 3 → 847,59 + 847,59 + 847,60)
-
-### Édition manuelle
-- L'utilisateur peut modifier chaque montant individuellement
-- Le total se recalcule en temps réel
-- Suppression d'une ligne avec le bouton ✕ (minimum 2 lignes)
-
-### Validation
-- ✓ vert si total = montant original (±0,01€)
-- ✗ rouge si différence, bouton "Diviser" désactivé
+Garde l'interface actuelle avec tous les comptes et la possibilité de les assigner.
 
 ---
 
 ## Modifications techniques
 
-### 1. Migration base de données
-```sql
-ALTER TABLE transactions 
-ADD COLUMN parent_transaction_id UUID REFERENCES transactions(id);
+### 1. Modifier `BankAccountsCard.tsx`
+
+**Ajouter la détection du rôle :**
+```typescript
+import { useOrganization } from '@/hooks/useOrganization';
+
+const { isOwner, isAdmin } = useOrganization();
+const isOrgAdmin = isOwner || isAdmin;
 ```
 
-### 2. Fichiers impactés
-
-| Fichier | Action |
-|---------|--------|
-| `src/components/transactions/SplitTransactionDialog.tsx` | **Créer** |
-| `src/components/transactions/TransactionTableRow.tsx` | Ajouter action "Diviser" |
-| `src/components/transactions/TransactionsView.tsx` | Intégrer le dialog |
-| `src/hooks/useTransactions.ts` | Ajouter mutation `splitTransaction` |
-
-### 3. Logique de division
+**Filtrer les comptes selon le contexte :**
 ```typescript
-// Répartition équitable
-const baseAmount = Math.floor((total / count) * 100) / 100;
-const remainder = total - (baseAmount * count);
+// Pour un membre : ne charger que les comptes de currentCompany
+const bridgeUserUuids = isOrgAdmin 
+  ? [...new Set(companies.filter(c => c.bridge_user_uuid).map(c => c.bridge_user_uuid as string))]
+  : currentCompany?.bridge_user_uuid 
+    ? [currentCompany.bridge_user_uuid] 
+    : [];
 
-const splits = Array.from({ length: count }, (_, i) => ({
-  categoryId: null,
-  amount: i === count - 1 ? baseAmount + remainder : baseAmount,
-}));
+// Filtrer les assignations par company_id pour les membres
+const assignmentsQuery = supabase
+  .from('company_bridge_accounts')
+  .select('bridge_account_id, company_id');
+
+if (!isOrgAdmin && currentCompany) {
+  assignmentsQuery.eq('company_id', currentCompany.id);
+}
+```
+
+**Filtrer les comptes affichés :**
+```typescript
+// Pour les membres : ne montrer que les comptes assignés à leur société
+const displayedAccounts = isOrgAdmin 
+  ? accounts 
+  : accounts.filter(account => {
+      const assignment = assignments.get(account.bridge_account_id);
+      return assignment?.is_enabled && assignment?.company_id === currentCompany?.id;
+    });
+```
+
+**Masquer les contrôles pour les membres :**
+```typescript
+// Dans le rendu des comptes
+{isOrgAdmin && (
+  <Switch
+    checked={isEnabled}
+    onCheckedChange={(checked) => onToggle(account.bridge_account_id, checked)}
+  />
+)}
+
+{isOrgAdmin ? (
+  <Select ... />
+) : (
+  <Badge variant="outline">
+    <Building2 className="w-3 h-3 mr-1" />
+    {currentCompany?.name}
+  </Badge>
+)}
+```
+
+### 2. Adapter l'en-tête et les actions
+
+Pour les membres, masquer les boutons "Ajouter banque" et "Synchroniser" :
+
+```typescript
+// Header buttons
+{isOrgAdmin && (
+  <>
+    <Button onClick={handleConnectBridge}>+ Ajouter banque</Button>
+    <Button onClick={handleFullSync}>Synchroniser</Button>
+  </>
+)}
+```
+
+### 3. Sécuriser la sauvegarde (anti-régression)
+
+Modifier `handleSave` pour ne supprimer que les assignations pertinentes :
+
+```typescript
+const handleSave = async () => {
+  // Pour les admins : supprimer uniquement les assignations des comptes affichés
+  const accountIds = accounts.map(a => a.bridge_account_id);
+  
+  await supabase
+    .from('company_bridge_accounts')
+    .delete()
+    .in('bridge_account_id', accountIds);
+  
+  // Reste inchangé...
+};
 ```
 
 ---
 
-## Résultat après division
+## Fichiers impactés
 
-- Transaction originale → soft-deleted (`deleted_at` renseigné)
-- N nouvelles transactions créées avec :
-  - Même date, même type (income/expense)
-  - Description : "HUMANIS PREVOY (1/2)", "HUMANIS PREVOY (2/2)"
-  - `parent_transaction_id` pointant vers l'originale
-  - `source: 'split'`
+| Fichier | Modifications |
+|---------|---------------|
+| `src/components/settings/BankAccountsCard.tsx` | Ajouter filtrage par rôle, masquer contrôles pour membres |
 
+---
+
+## Points de vigilance (anti-régression)
+
+1. **RLS existant** : La table `company_bridge_accounts` utilise déjà `has_company_access()` → pas de changement nécessaire côté DB
+2. **Logique de synchronisation** : Les fonctions `bridge-sync` restent identiques, seul l'affichage change
+3. **Calcul du solde** : Le hook `useBankBalance` filtre déjà par `currentCompany.id` → pas d'impact
+4. **Transactions** : La vue transactions filtre déjà par société → pas d'impact
+
+---
+
+## Résultat attendu
+
+| Scénario | Avant | Après |
+|----------|-------|-------|
+| Admin sur `/parametres#accounts` | Voit tous les comptes | Inchangé |
+| Membre Cloud Vapor sur `/parametres#accounts` | Voit tous les comptes de l'org | Voit seulement les comptes de Cloud Vapor |
+| Membre tente de modifier une assignation | Peut modifier | Lecture seule (badges au lieu de selects) |
