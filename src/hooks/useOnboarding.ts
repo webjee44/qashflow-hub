@@ -153,21 +153,16 @@ export function useOnboarding(): UseOnboardingReturn {
     };
   }, []);
 
-  // Load onboarding state from profile - for members, inherit from owner
+  // Load onboarding state from the user's OWN profile
+  // Each user has their own bp_enabled preference, not inherited from company owner
   useEffect(() => {
     async function loadOnboardingState() {
-      if (!user || !currentCompany) return;
-
-      // Determine whose profile to read bp_enabled from
-      // If user is the owner, read from their profile
-      // If user is a member, read from the owner's profile
-      const isOwner = currentCompany.user_id === user.id;
-      const profileId = isOwner ? user.id : currentCompany.user_id;
+      if (!user) return;
 
       const { data, error } = await supabase
         .from('profiles')
         .select('onboarding_completed, onboarding_step, bp_enabled')
-        .eq('id', profileId)
+        .eq('id', user.id)
         .single();
 
       if (error) {
@@ -176,17 +171,15 @@ export function useOnboarding(): UseOnboardingReturn {
       }
 
       if (data) {
-        // Only update onboarding state from user's own profile
-        if (isOwner) {
-          setIsCompleted(data.onboarding_completed ?? false);
-          setCurrentStep(data.onboarding_step ?? 0);
-        }
-        // Always inherit bp_enabled from owner
+        setIsCompleted(data.onboarding_completed ?? false);
+        setCurrentStep(data.onboarding_step ?? 0);
+        
+        // Use user's own bp_enabled preference
         writeStoredBpEnabled(data.bp_enabled ?? true);
         setBpEnabled(data.bp_enabled ?? true);
 
         const shouldShowTour = localStorage.getItem('show-onboarding-tour') === 'true';
-        if (shouldShowTour && isOwner) {
+        if (shouldShowTour) {
           localStorage.removeItem('show-onboarding-tour');
           setIsActive(true);
           setCurrentStep(0);
@@ -195,7 +188,7 @@ export function useOnboarding(): UseOnboardingReturn {
     }
 
     loadOnboardingState();
-  }, [user, currentCompany]);
+  }, [user]);
 
   const saveProgress = useCallback(async (step: number, completed: boolean = false) => {
     if (!user) return;
