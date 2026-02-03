@@ -65,6 +65,7 @@ export function ForecastTable() {
     getPayableOutflow,
     getPayableOutflowByCategory,
     getPayableOutflowUncategorized,
+    getOpeningBalance,
     upsertForecast, 
     isLoading: forecastsLoading,
     extendBefore,
@@ -1160,6 +1161,64 @@ export function ForecastTable() {
     );
   };
 
+  // Render opening balance row (solde au 1er du mois)
+  const renderOpeningBalanceRow = () => {
+    return (
+      <tr className="font-semibold bg-primary/5 border-b-2 border-primary/30">
+        <td className="p-3 sticky left-0 z-10 bg-primary/5 border-r border-border text-primary">
+          🏦 Solde au 1er du mois
+        </td>
+        {months.map((month, monthIndex) => {
+          const { balance, isActual } = getOpeningBalance(month);
+          const periodType = getMonthPeriodType(month);
+          
+          if (periodType === 'past') {
+            return (
+              <td key={monthIndex} className="p-0 border-r border-border min-w-[90px]">
+                <div className={cn(
+                  "px-3 py-2 text-right font-bold",
+                  balance >= 0 ? "text-primary" : "text-destructive"
+                )}>
+                  {formatValue(balance)}
+                </div>
+              </td>
+            );
+          }
+          
+          if (periodType === 'future') {
+            return (
+              <td key={monthIndex} className="p-0 border-r border-border min-w-[90px]">
+                <div className={cn(
+                  "px-3 py-2 text-right font-bold italic",
+                  balance >= 0 ? "text-muted-foreground" : "text-destructive"
+                )}>
+                  {formatValue(balance)}
+                </div>
+              </td>
+            );
+          }
+          
+          // Current month: show actual balance only, forecast column shows "—"
+          return (
+            <td key={monthIndex} className="p-0 border-r border-border min-w-[160px]">
+              <div className="flex">
+                <div className={cn(
+                  "flex-1 px-3 py-2 text-right border-r border-border/50 font-bold",
+                  balance >= 0 ? "text-primary" : "text-destructive"
+                )}>
+                  {formatValue(balance)}
+                </div>
+                <div className="flex-1 px-3 py-2 text-right text-muted-foreground">
+                  —
+                </div>
+              </div>
+            </td>
+          );
+        })}
+      </tr>
+    );
+  };
+
   // Render uncategorized payables row (only shown if there are uncategorized payables)
   const renderPayablesRow = () => {
     // Check if there are any uncategorized payables across all months
@@ -1477,6 +1536,9 @@ export function ForecastTable() {
             </tr>
           </thead>
           <tbody>
+            {/* Opening Balance Row */}
+            {renderOpeningBalanceRow()}
+            
             {/* Income Section */}
             <tr className="bg-success/5">
               <td colSpan={months.length + 1} className="p-2 font-semibold text-success border-b border-border">
