@@ -5,7 +5,7 @@ import { useCategories, CategoryGroup, Category } from '@/hooks/useCategories';
 import { useForecasts } from '@/hooks/useForecasts';
 import { format, startOfMonth, isBefore, isSameMonth } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { Loader2, Copy, Check, TrendingUp, ChevronRight, ChevronDown, Link2, ChevronsUpDown, ChevronsDownUp, MoreHorizontal, Edit3, Trash2, Eye, EyeOff, ArrowUpRight } from 'lucide-react';
+import { Loader2, Copy, Check, TrendingUp, ChevronRight, ChevronDown, Link2, ChevronsUpDown, ChevronsDownUp, MoreHorizontal, Edit3, Trash2, Eye, EyeOff, ArrowUpRight, FileText, AlertTriangle } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -63,6 +63,8 @@ export function ForecastTable() {
     getVatActual,
     getUncategorized,
     getPayableOutflow,
+    getPayableOutflowByCategory,
+    getPayableOutflowUncategorized,
     upsertForecast, 
     isLoading: forecastsLoading,
     extendBefore,
@@ -340,13 +342,18 @@ export function ForecastTable() {
     const showingCopyForThis = showCopyOption && pendingSave?.categoryId === categoryId && pendingSave?.monthIndex === monthIndex;
     const isIncomeCategory = pendingSave?.type === 'income';
     
+    // For expenses, include payable invoices for this category
+    const payableForCategory = type === 'expense' ? getPayableOutflowByCategory(categoryId, months[monthIndex]) : 0;
+    const totalForecast = forecast + payableForCategory;
+    const hasPayables = payableForCategory > 0;
+    
     const periodType = getMonthPeriodType(months[monthIndex]);
     
     // Color logic: green if actual >= forecast (for income) or actual <= forecast (for expense)
     const hasActual = actual !== 0;
     const isPositive = type === 'income' 
-      ? actual >= forecast 
-      : Math.abs(actual) <= forecast;
+      ? actual >= totalForecast 
+      : Math.abs(actual) <= totalForecast;
 
     const isBpSource = source === 'bp_import' || source === 'bp_synced';
 
@@ -368,7 +375,7 @@ export function ForecastTable() {
       );
     }
 
-    // Future: only show forecast (editable)
+    // Future: only show forecast (editable) + payables if any
     if (periodType === 'future') {
       return (
         <td key={cellKey} className="p-0 border-r border-border min-w-[90px]">
@@ -381,11 +388,23 @@ export function ForecastTable() {
               <div 
                 className={cn(
                   "px-3 py-2 text-right cursor-pointer hover:bg-primary/5 transition-colors relative",
-                  isBpSource && "bg-primary/5"
+                  isBpSource && "bg-primary/5",
+                  hasPayables && "bg-amber-500/10"
                 )}
                 onClick={() => !isEditing && !showingCopyForThis && handleCellClick(categoryId, monthIndex, forecast)}
               >
-                {isBpSource && forecast > 0 && !isEditing && (
+                {/* Payables indicator */}
+                {hasPayables && !isEditing && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <FileText className="w-3 h-3 text-amber-600 absolute top-1 right-1 opacity-70" />
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="text-xs">
+                      Inclut {formatValue(payableForCategory)} de factures fournisseurs
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+                {isBpSource && forecast > 0 && !isEditing && !hasPayables && (
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Link2 className="w-3 h-3 text-primary absolute top-1 left-1 opacity-60" />
@@ -408,9 +427,9 @@ export function ForecastTable() {
                 ) : (
                   <span className={cn(
                     "text-muted-foreground",
-                    forecast > 0 && "text-foreground"
+                    totalForecast > 0 && "text-foreground"
                   )}>
-                    {forecast > 0 ? formatValue(forecast) : '—'}
+                    {totalForecast > 0 ? formatValue(totalForecast) : '—'}
                   </span>
                 )}
               </div>
@@ -513,11 +532,23 @@ export function ForecastTable() {
               <div 
                 className={cn(
                   "flex-1 px-3 py-2 text-right cursor-pointer hover:bg-primary/5 transition-colors relative",
-                  isBpSource && "bg-primary/5"
+                  isBpSource && "bg-primary/5",
+                  hasPayables && "bg-amber-500/10"
                 )}
                 onClick={() => !isEditing && !showingCopyForThis && handleCellClick(categoryId, monthIndex, forecast)}
               >
-                {isBpSource && forecast > 0 && !isEditing && (
+                {/* Payables indicator */}
+                {hasPayables && !isEditing && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <FileText className="w-3 h-3 text-amber-600 absolute top-1 right-1 opacity-70" />
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="text-xs">
+                      Inclut {formatValue(payableForCategory)} de factures fournisseurs
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+                {isBpSource && forecast > 0 && !isEditing && !hasPayables && (
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Link2 className="w-3 h-3 text-primary absolute top-1 left-1 opacity-60" />
@@ -540,9 +571,9 @@ export function ForecastTable() {
                 ) : (
                   <span className={cn(
                     "text-muted-foreground",
-                    forecast > 0 && "text-foreground"
+                    totalForecast > 0 && "text-foreground"
                   )}>
-                    {forecast > 0 ? formatValue(forecast) : '—'}
+                    {totalForecast > 0 ? formatValue(totalForecast) : '—'}
                   </span>
                 )}
               </div>
@@ -1134,18 +1165,25 @@ export function ForecastTable() {
     );
   };
 
-  // Render payables row (supplier debts)
+  // Render uncategorized payables row (only shown if there are uncategorized payables)
   const renderPayablesRow = () => {
+    // Check if there are any uncategorized payables across all months
+    const hasUncategorizedPayables = months.some(month => 
+      getPayableOutflowUncategorized(month) > 0
+    );
+    
+    if (!hasUncategorizedPayables) return null;
+    
     return (
-      <tr className="font-semibold bg-destructive/10">
-        <td className="p-3 sticky left-0 z-10 bg-destructive/10 border-r border-border text-destructive">
+      <tr className="font-semibold bg-amber-500/10">
+        <td className="p-3 sticky left-0 z-10 bg-amber-500/10 border-r border-border text-amber-700 dark:text-amber-400">
           <div className="flex items-center gap-2">
-            <ArrowUpRight className="w-4 h-4" />
-            Dettes à payer
+            <AlertTriangle className="w-4 h-4" />
+            ⚠️ Dettes non catégorisées
           </div>
         </td>
         {months.map((month, monthIndex) => {
-          const payableAmount = getPayableOutflow(month);
+          const payableAmount = getPayableOutflowUncategorized(month);
           const hasAmount = payableAmount > 0;
           const periodType = getMonthPeriodType(month);
           
@@ -1165,7 +1203,7 @@ export function ForecastTable() {
               <td key={monthIndex} className="p-0 border-r border-border min-w-[90px]">
                 <div className={cn(
                   "px-3 py-2 text-right",
-                  hasAmount ? "text-destructive font-medium" : "text-muted-foreground"
+                  hasAmount ? "text-amber-700 dark:text-amber-400 font-medium" : "text-muted-foreground"
                 )}>
                   {hasAmount ? formatValue(payableAmount) : '—'}
                 </div>
@@ -1181,7 +1219,7 @@ export function ForecastTable() {
                 </div>
                 <div className={cn(
                   "flex-1 px-3 py-2 text-right",
-                  hasAmount ? "text-destructive font-medium" : "text-muted-foreground"
+                  hasAmount ? "text-amber-700 dark:text-amber-400 font-medium" : "text-muted-foreground"
                 )}>
                   {hasAmount ? formatValue(payableAmount) : '—'}
                 </div>
