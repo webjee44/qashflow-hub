@@ -44,7 +44,8 @@ const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Transactions = lazy(() => import("./pages/Transactions"));
 const Forecasts = lazy(() => import("./pages/Forecasts"));
 const Invoices = lazy(() => import("./pages/Invoices"));
-const TreasurySettings = lazy(() => import("./pages/TreasurySettings"));
+const Categorisation = lazy(() => import("./pages/TreasurySettings"));
+const Automations = lazy(() => import("./pages/Automations"));
 const Settings = lazy(() => import("./pages/Settings"));
 
 // ============================================
@@ -141,7 +142,8 @@ const App = () => (
                   <Route path="/transactions" element={<Suspense fallback={<PageLoader />}><Transactions /></Suspense>} />
                   <Route path="/previsions" element={<Suspense fallback={<PageLoader />}><Forecasts /></Suspense>} />
                   <Route path="/creances" element={<Suspense fallback={<PageLoader />}><Invoices /></Suspense>} />
-                  <Route path="/reglages-tresorerie" element={<Suspense fallback={<PageLoader />}><TreasurySettings /></Suspense>} />
+                  <Route path="/categorisation" element={<Suspense fallback={<PageLoader />}><Categorisation /></Suspense>} />
+                  <Route path="/automatisations" element={<Suspense fallback={<PageLoader />}><Automations /></Suspense>} />
                   <Route path="/parametres" element={<Suspense fallback={<PageLoader />}><Settings /></Suspense>} />
                   
                   {/* Business Plan routes - Mono-BP architecture with lazy loading */}
