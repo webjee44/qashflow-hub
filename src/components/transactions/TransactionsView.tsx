@@ -10,8 +10,12 @@ import {
   CheckSquare,
   Square,
   X,
-  RefreshCw
+  RefreshCw,
+  List,
+  CheckCircle2,
+  CircleDashed
 } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -34,10 +38,13 @@ import { SplitTransactionDialog } from './SplitTransactionDialog';
 
 type Transaction = Tables<'transactions'>;
 
+type TabFilter = 'all' | 'categorized' | 'uncategorized';
+
 export function TransactionsView() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string | null>(null);
   const [sortOption, setSortOption] = useState<SortOption>('date_desc');
+  const [tabFilter, setTabFilter] = useState<TabFilter>('all');
   const [showSuggestDialog, setShowSuggestDialog] = useState(false);
   const [lastCategorizedTransaction, setLastCategorizedTransaction] = useState<Transaction | null>(null);
   const [lastSelectedCategory, setLastSelectedCategory] = useState<Category | null>(null);
@@ -135,13 +142,36 @@ export function TransactionsView() {
 
   // Filter and sort transactions
   const filteredTransactions = useMemo(() => {
-    const filtered = filterTransactions(transactions, {
+    // Apply tab filter first
+    let baseFiltered = transactions;
+    if (tabFilter === 'categorized') {
+      baseFiltered = transactions.filter(t => t.category_id !== null);
+    } else if (tabFilter === 'uncategorized') {
+      baseFiltered = transactions.filter(t => t.category_id === null);
+    }
+    
+    const filtered = filterTransactions(baseFiltered, {
       searchQuery,
       categoryFilter: selectedCategoryFilter,
       getCategoryName,
     });
     return sortTransactions(filtered, sortOption);
-  }, [transactions, searchQuery, selectedCategoryFilter, sortOption, getCategoryName]);
+  }, [transactions, tabFilter, searchQuery, selectedCategoryFilter, sortOption, getCategoryName]);
+
+  // Tab counts (from all transactions, not filtered by tab)
+  const tabCounts = useMemo(() => {
+    let categorized = 0;
+    let uncategorized = 0;
+    for (const t of transactions) {
+      if (t.category_id) categorized++;
+      else uncategorized++;
+    }
+    return { 
+      all: transactions.length,
+      categorized, 
+      uncategorized 
+    };
+  }, [transactions]);
 
   // Virtualizer for performance
   const virtualizer = useVirtualizer({
@@ -451,11 +481,49 @@ export function TransactionsView() {
         </div>
       </motion.div>
 
-      {/* Filters */}
+      {/* Tabs Filter */}
       <motion.div
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ delay: 0.2 }}
+      >
+        <Tabs value={tabFilter} onValueChange={(v) => setTabFilter(v as TabFilter)}>
+          <TabsList className="w-full sm:w-auto grid grid-cols-3 sm:inline-flex">
+            <TabsTrigger value="all" className="gap-2">
+              <List className="w-4 h-4" />
+              <span className="hidden sm:inline">Tous les mouvements</span>
+              <span className="sm:hidden">Tous</span>
+              <Badge variant="secondary" className="ml-1 text-xs">
+                {tabCounts.all.toLocaleString('fr-FR')}
+              </Badge>
+            </TabsTrigger>
+            <TabsTrigger value="categorized" className="gap-2">
+              <CheckCircle2 className="w-4 h-4" />
+              <span className="hidden sm:inline">Catégorisé</span>
+              <span className="sm:hidden">Catég.</span>
+              <Badge variant="secondary" className="ml-1 text-xs">
+                {tabCounts.categorized.toLocaleString('fr-FR')}
+              </Badge>
+            </TabsTrigger>
+            <TabsTrigger value="uncategorized" className="gap-2 relative">
+              <CircleDashed className="w-4 h-4" />
+              <span className="hidden sm:inline">Non catégorisé</span>
+              <span className="sm:hidden">Non cat.</span>
+              {tabCounts.uncategorized > 0 && (
+                <Badge variant="destructive" className="ml-1 text-xs">
+                  {tabCounts.uncategorized.toLocaleString('fr-FR')}
+                </Badge>
+              )}
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </motion.div>
+
+      {/* Filters */}
+      <motion.div
+        initial={{ y: 20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ delay: 0.25 }}
         className="flex items-center gap-3 flex-wrap"
       >
         <div className="relative flex-1 min-w-[200px] max-w-md">
@@ -469,20 +537,6 @@ export function TransactionsView() {
         </div>
 
         <SortDropdown value={sortOption} onChange={setSortOption} />
-
-        <Button
-          variant={selectedCategoryFilter === 'Non catégorisé' ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => setSelectedCategoryFilter(prev => prev === 'Non catégorisé' ? null : 'Non catégorisé')}
-          className="relative"
-        >
-          Non catégorisé
-          {uncategorizedCount > 0 && (
-            <span className="absolute -top-2 -right-2 min-w-5 h-5 flex items-center justify-center rounded-full bg-destructive text-destructive-foreground text-xs font-semibold px-1.5">
-              {uncategorizedCount}
-            </span>
-          )}
-        </Button>
 
         <Button
           variant={selectedTransactionIds.size > 0 ? 'default' : 'outline'}
