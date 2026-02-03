@@ -6,8 +6,6 @@ const corsHeaders = {
 };
 
 interface RuleCondition {
-  id: string;
-  rule_id: string;
   condition_field: string;
   condition_operator: string;
   condition_value: string;
@@ -20,7 +18,12 @@ interface AutomationRule {
   company_id: string | null;
   match_count: number;
   is_active: boolean;
-  conditions: RuleCondition[];
+  // Primary condition from automation_rules table
+  condition_field: string;
+  condition_operator: string;
+  condition_value: string;
+  // Additional conditions from automation_rule_conditions table
+  extra_conditions: RuleCondition[];
 }
 
 interface Transaction {
@@ -90,9 +93,24 @@ function matchCondition(transaction: Transaction, condition: RuleCondition): boo
 }
 
 // Check if transaction matches ALL conditions (AND logic)
-function matchesRule(transaction: Transaction, conditions: RuleCondition[]): boolean {
-  if (!conditions || conditions.length === 0) return false;
-  return conditions.every(condition => matchCondition(transaction, condition));
+function matchesRule(transaction: Transaction, rule: AutomationRule): boolean {
+  // First check the primary condition from the rule itself
+  const primaryCondition: RuleCondition = {
+    condition_field: rule.condition_field,
+    condition_operator: rule.condition_operator,
+    condition_value: rule.condition_value,
+  };
+  
+  if (!matchCondition(transaction, primaryCondition)) {
+    return false;
+  }
+  
+  // Then check any additional conditions (AND logic)
+  if (rule.extra_conditions && rule.extra_conditions.length > 0) {
+    return rule.extra_conditions.every(condition => matchCondition(transaction, condition));
+  }
+  
+  return true;
 }
 
 function chunkArray<T>(array: T[], chunkSize: number): T[][] {
@@ -145,7 +163,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    // 1. Fetch all active automation rules
+    // 1. Fetch all active automation rules with their primary conditions
     let rulesQuery = supabaseAdmin
       .from('automation_rules')
       .select('*')
@@ -179,42 +197,51 @@ Deno.serve(async (req) => {
 
     console.log(`[apply-all-automation-rules] Found ${rules.length} active rules`);
 
-    // 2. Fetch all conditions for these rules
+    // 2. Fetch additional conditions for these rules (if any)
     const ruleIds = rules.map(r => r.id);
-    const { data: allConditions, error: conditionsError } = await supabaseAdmin
+    const { data: allExtraConditions, error: conditionsError } = await supabaseAdmin
       .from('automation_rule_conditions')
       .select('*')
       .in('rule_id', ruleIds);
 
     if (conditionsError) {
       console.error('[apply-all-automation-rules] Error fetching conditions:', conditionsError);
-      return new Response(
-        JSON.stringify({ error: 'Failed to fetch conditions' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      // Continue anyway - extra conditions are optional
     }
 
-    // Group conditions by rule_id
-    const conditionsByRule = new Map<string, RuleCondition[]>();
-    for (const condition of (allConditions || [])) {
-      const ruleConditions = conditionsByRule.get(condition.rule_id) || [];
-      ruleConditions.push(condition as RuleCondition);
-      conditionsByRule.set(condition.rule_id, ruleConditions);
+    // Group extra conditions by rule_id
+    const extraConditionsByRule = new Map<string, RuleCondition[]>();
+    for (const condition of (allExtraConditions || [])) {
+      const ruleConditions = extraConditionsByRule.get(condition.rule_id) || [];
+      ruleConditions.push({
+        condition_field: condition.condition_field,
+        condition_operator: condition.condition_operator,
+        condition_value: condition.condition_value,
+      });
+      extraConditionsByRule.set(condition.rule_id, ruleConditions);
     }
 
-    // Create rules with conditions
+    // Create rules with their conditions
     const rulesWithConditions: AutomationRule[] = rules
+      .filter(rule => rule.condition_field && rule.condition_operator && rule.condition_value)
       .map(rule => ({
-        ...rule,
-        conditions: conditionsByRule.get(rule.id) || []
-      }))
-      .filter(rule => rule.conditions.length > 0) as AutomationRule[];
+        id: rule.id,
+        target_category_id: rule.target_category_id,
+        user_id: rule.user_id,
+        company_id: rule.company_id,
+        match_count: rule.match_count || 0,
+        is_active: rule.is_active,
+        condition_field: rule.condition_field,
+        condition_operator: rule.condition_operator,
+        condition_value: rule.condition_value,
+        extra_conditions: extraConditionsByRule.get(rule.id) || []
+      }));
 
-    console.log(`[apply-all-automation-rules] ${rulesWithConditions.length} rules have conditions`);
+    console.log(`[apply-all-automation-rules] ${rulesWithConditions.length} rules have valid primary conditions`);
 
     if (rulesWithConditions.length === 0) {
       return new Response(
-        JSON.stringify({ message: 'No rules with conditions', matched: 0, updated: 0 }),
+        JSON.stringify({ message: 'No rules with valid conditions', matched: 0, updated: 0 }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -287,7 +314,7 @@ Deno.serve(async (req) => {
           // Check company match if rule has company_id
           if (rule.company_id && tx.company_id !== rule.company_id) return false;
           
-          return matchesRule(tx, rule.conditions);
+          return matchesRule(tx, rule);
         });
 
         for (const tx of matchingTxs) {
