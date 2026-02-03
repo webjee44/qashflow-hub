@@ -1,216 +1,154 @@
 
 
-# Plan : Ajouter une ligne "Solde au 1er du mois" dans le tableau Prévisions
+# Plan: Vue Tableau pour /transactions avec Select de Catégorie
 
-## Contexte
+## Objectif
 
-L'utilisateur souhaite voir une ligne de solde bancaire au-dessus de la section "Encaissements" dans le tableau de trésorerie `/previsions`. Cette ligne doit afficher :
-- **Mois passés** : Le solde réel basé sur les transactions Bridge
-- **Mois courant et futurs** : Le solde prévisionnel calculé
+Transformer la liste des transactions actuelle (vue "cards") en une vraie vue tableau HTML avec :
+- Colonnes : Checkbox | Date | Libellé | Catégorie (Select) | Montant TTC | Actions
+- Un `<Select>` propre et net dans la colonne Catégorie (comme sur la capture)
+- Couleur jaune sur fond si non catégorisé
+
+---
 
 ## Approche technique
 
-### 1. Calcul du solde
+### 1. Créer un nouveau composant `TransactionTableRow.tsx`
 
-Le solde à une date donnée = Solde actuel (Bridge) - mouvements depuis cette date
+Ce composant affichera une ligne de tableau avec :
 
-**Pour le mois courant** : on utilise le `bank_balance` de la company (synchronisé via Bridge)
-
-**Pour les mois passés** : on reconstitue le solde en retranchant du solde actuel les transactions survenues après ce mois
-
-**Pour les mois futurs** : on part du solde actuel et on ajoute les encaissements/décaissements prévisionnels (net TTC) de chaque mois
-
-### 2. Modifications dans `src/hooks/useForecasts.ts`
-
-**a) Ajouter une fonction `getOpeningBalance`**
-
-```typescript
-// Calculer le solde au 1er jour d'un mois donné
-const getOpeningBalance = useCallback((month: Date): { balance: number; isActual: boolean } => {
-  const currentBankBalance = currentCompany?.bank_balance ?? 0;
-  const todayMonth = startOfMonth(new Date());
-  const targetMonth = startOfMonth(month);
-  
-  if (isSameMonth(month, new Date())) {
-    // Mois courant : retourner le solde actuel
-    return { balance: currentBankBalance, isActual: true };
-  }
-  
-  if (isBefore(targetMonth, todayMonth)) {
-    // Mois passé : reconstruire le solde au 1er du mois
-    // = solde actuel - toutes les transactions du mois cible jusqu'à aujourd'hui
-    const transactionsSinceTarget = transactions.filter(tx => {
-      const txDate = new Date(tx.date);
-      return txDate >= targetMonth && txDate < todayMonth;
-    });
-    const netSince = transactionsSinceTarget.reduce((sum, tx) => sum + tx.amount, 0);
-    return { balance: currentBankBalance - netSince, isActual: true };
-  }
-  
-  // Mois futur : calculer le solde prévisionnel
-  // = solde actuel + somme des nets prévisionnels des mois intermédiaires
-  let projectedBalance = currentBankBalance;
-  for (let m = todayMonth; isBefore(m, targetMonth); m = addMonths(m, 1)) {
-    const monthNet = getMonthNetForecast(m); // income - expenses (TTC)
-    projectedBalance += monthNet;
-  }
-  return { balance: projectedBalance, isActual: false };
-}, [currentCompany, transactions, categories, forecasts, payableInvoices]);
+```text
++------+------------+----------------------------------+------------------------------+---------------+------+
+|  ☐   |   Date     |           Libellé                |         Catégorie            |  Montant TTC  |  ⋯  |
++------+------------+----------------------------------+------------------------------+---------------+------+
+|  ☐   | 28 Jan 2026| VOTRE REMISE PRELEVMT...         | [Select: Ventes         ▾]  |  +21 308,91 € |  ⋯  |
++------+------------+----------------------------------+------------------------------+---------------+------+
 ```
 
-**b) Exposer la fonction dans le return**
+**Caractéristiques du Select :**
+- Fond jaune/ambre si "Sélectionnez une catégorie" (non catégorisé)
+- Fond blanc/neutre quand catégorisé
+- Groupes "Encaissements" et "Décaissements" dans les options
+- Pastille de couleur pour chaque catégorie
+- Option "Créer une catégorie" en haut
 
-```typescript
-return {
-  // ... existant
-  getOpeningBalance,
-};
+### 2. Modifier `TransactionsView.tsx`
+
+Remplacer la liste virtualisée actuelle par un `<Table>` avec :
+
+**Header :**
+```tsx
+<TableHeader>
+  <TableRow>
+    <TableHead className="w-10">
+      <Checkbox /> {/* Select all */}
+    </TableHead>
+    <TableHead className="w-28">Date</TableHead>
+    <TableHead>Libellé</TableHead>
+    <TableHead className="w-56">Catégorie</TableHead>
+    <TableHead className="w-32 text-right">Montant TTC</TableHead>
+    <TableHead className="w-10"></TableHead>
+  </TableRow>
+</TableHeader>
 ```
 
-### 3. Modifications dans `src/components/forecasts/ForecastTable.tsx`
+**Body :** Utiliser les composants Table de shadcn avec virtualisation pour la performance.
 
-**a) Ajouter la fonction `renderOpeningBalanceRow`**
+### 3. Implémenter le Select de catégorie
 
-```typescript
-const renderOpeningBalanceRow = () => {
-  return (
-    <tr className="font-semibold bg-primary/5 border-b-2 border-primary/30">
-      <td className="p-3 sticky left-0 z-10 bg-primary/5 border-r border-border text-primary">
-        🏦 Solde au 1er du mois
-      </td>
-      {months.map((month, monthIndex) => {
-        const { balance, isActual } = getOpeningBalance(month);
-        const periodType = getMonthPeriodType(month);
-        
-        // Même layout que les autres lignes
-        if (periodType === 'past') {
-          return (
-            <td key={monthIndex} className="p-0 border-r border-border min-w-[90px]">
-              <div className={cn(
-                "px-3 py-2 text-right font-bold",
-                balance >= 0 ? "text-primary" : "text-destructive"
-              )}>
-                {formatValue(balance)}
-              </div>
-            </td>
-          );
-        }
-        
-        if (periodType === 'future') {
-          return (
-            <td key={monthIndex} className="p-0 border-r border-border min-w-[90px]">
-              <div className={cn(
-                "px-3 py-2 text-right font-bold text-muted-foreground italic",
-                balance >= 0 ? "" : "text-destructive"
-              )}>
-                {formatValue(balance)}
-              </div>
-            </td>
-          );
-        }
-        
-        // Mois courant : afficher uniquement le réel (pas de prévu)
-        return (
-          <td key={monthIndex} className="p-0 border-r border-border min-w-[160px]">
-            <div className="flex">
-              <div className={cn(
-                "flex-1 px-3 py-2 text-right border-r border-border/50 font-bold",
-                balance >= 0 ? "text-primary" : "text-destructive"
-              )}>
-                {formatValue(balance)}
-              </div>
-              <div className="flex-1 px-3 py-2 text-right text-muted-foreground">
-                —
-              </div>
-            </div>
-          </td>
-        );
-      })}
-    </tr>
-  );
-};
-```
-
-**b) Insérer la ligne avant "Encaissements"**
-
-Dans le `<tbody>` (lignes ~1479-1506), ajouter `{renderOpeningBalanceRow()}` juste avant la section Encaissements :
+Utiliser le composant `Select` de shadcn/ui :
 
 ```tsx
-<tbody>
-  {/* Opening Balance Row */}
-  {renderOpeningBalanceRow()}  {/* ← NOUVELLE LIGNE */}
-  
-  {/* Income Section */}
-  <tr className="bg-success/5">
-    <td colSpan={months.length + 1} className="p-2 font-semibold text-success border-b border-border">
-      📈 Encaissements
-    </td>
-  </tr>
-  {/* ... reste du code */}
-</tbody>
-```
-
-### 4. Récupérer les données nécessaires
-
-Dans `useForecasts.ts`, il faudra également récupérer toutes les transactions de la période pour pouvoir recalculer les soldes passés.
-
-La requête existante `actuals` récupère déjà les transactions groupées par catégorie et mois. On devra ajouter une requête similaire mais non groupée pour avoir le total net par mois :
-
-```typescript
-// Fetch all transactions for balance calculation
-const { data: allTransactions = [], isLoading: transactionsLoading } = useQuery({
-  queryKey: ['all-transactions-for-balance', user?.id, currentCompany?.id, startMonthStr, endMonthStr],
-  queryFn: async () => {
-    // Fetch transactions from earliest displayed month to today
-    let query = supabase
-      .from('transactions')
-      .select('amount, date, type')
-      .gte('date', startMonthStr)
-      .is('deleted_at', null);
-
-    if (currentCompany) {
-      query = query.or(`company_id.eq.${currentCompany.id},company_id.is.null`);
-    }
+<Select 
+  value={transaction.category_id || "uncategorized"}
+  onValueChange={(value) => onUpdateCategory(transaction.id, value === "uncategorized" ? null : value)}
+>
+  <SelectTrigger 
+    className={cn(
+      "w-full",
+      !transaction.category_id && "bg-amber-100 border-amber-300 text-amber-700"
+    )}
+  >
+    <SelectValue placeholder="Sélectionnez une catégorie" />
+  </SelectTrigger>
+  <SelectContent className="max-h-80">
+    <SelectItem value="create-new">
+      <PlusCircle /> Créer une catégorie
+    </SelectItem>
+    <SelectSeparator />
     
-    const { data, error } = await query;
-    if (error) throw error;
-    return data;
-  },
-  enabled: !!user?.id && !!startMonthStr,
-});
+    <SelectGroup>
+      <SelectLabel>Encaissements</SelectLabel>
+      {incomeCategories.map(cat => (
+        <SelectItem key={cat.id} value={cat.id}>
+          <span className="w-3 h-3 rounded-full" style={{backgroundColor: cat.color}} />
+          {cat.name}
+        </SelectItem>
+      ))}
+    </SelectGroup>
+    
+    <SelectGroup>
+      <SelectLabel>Décaissements</SelectLabel>
+      {expenseCategories.map(cat => (
+        <SelectItem key={cat.id} value={cat.id}>
+          <span className="w-3 h-3 rounded-full" style={{backgroundColor: cat.color}} />
+          {cat.name}
+        </SelectItem>
+      ))}
+    </SelectGroup>
+  </SelectContent>
+</Select>
 ```
+
+### 4. Ajouter le menu d'actions (⋯)
+
+Un `DropdownMenu` avec une icône `MoreHorizontal` pour :
+- Retirer la catégorie
+- Créer une règle d'automatisation
+- Autres actions futures
 
 ---
 
 ## Fichiers impactés
 
-| Fichier | Modification |
-|---------|--------------|
-| `src/hooks/useForecasts.ts` | Ajouter requête transactions + fonction `getOpeningBalance` |
-| `src/components/forecasts/ForecastTable.tsx` | Ajouter `renderOpeningBalanceRow` + appel dans tbody |
+| Fichier | Action |
+|---------|--------|
+| `src/components/transactions/TransactionTableRow.tsx` | **Créer** - Nouveau composant ligne tableau |
+| `src/components/transactions/TransactionsView.tsx` | **Modifier** - Remplacer la liste par un Table |
+| `src/components/transactions/TransactionRow.tsx` | Conserver (backup) ou supprimer après migration |
+
+---
+
+## Style du Select non catégorisé (comme la capture)
+
+```css
+/* Non catégorisé - fond ambre */
+.category-select-uncategorized {
+  background-color: hsl(48, 96%, 89%);  /* amber-100 */
+  border-color: hsl(45, 93%, 47%);       /* amber-400 */
+  color: hsl(32, 81%, 29%);              /* amber-800 */
+}
+```
 
 ---
 
 ## Résultat attendu
 
 ```text
-┌─────────────────┬─────────┬─────────────┬─────────┬─────────┐
-│                 │ Jan 26  │   Fév 26    │ Mar 26  │ Avr 26  │
-│                 │  Réel   │ Réel │Prévu │  Prévu  │  Prévu  │
-├─────────────────┼─────────┼──────┼──────┼─────────┼─────────┤
-│ 🏦 Solde 1er    │ 125 000 │127 450│  —  │ 130 000 │ 135 000 │  ← NOUVELLE LIGNE
-├─────────────────┼─────────┴──────┴──────┴─────────┴─────────┤
-│ 📈 Encaissements│          ... données existantes ...       │
-│ Total Encaiss.  │                                           │
-├─────────────────┼───────────────────────────────────────────┤
-│ 📉 Décaissements│          ... données existantes ...       │
-│ Total Décaiss.  │                                           │
-├─────────────────┼───────────────────────────────────────────┤
-│ Solde Net TTC   │                                           │
-└─────────────────┴───────────────────────────────────────────┘
+┌──┬────────────┬──────────────────────────────────────────┬────────────────────────────┬─────────────┬───┐
+│☐ │    Date    │                 Libellé                  │         Catégorie          │ Montant TTC │   │
+├──┼────────────┼──────────────────────────────────────────┼────────────────────────────┼─────────────┼───┤
+│☐ │ 28 Jan 2026│ VOTRE REMISE PRELEVMT DU 260126...       │ [🔵 Ventes            ▾]  │+21 308,91 € │ ⋯ │
+│☐ │ 28 Jan 2026│ PRLV SEPA HUMANIS PREVOY 601815...       │ [⚠ Sélect. catégorie  ▾]  │  2 542,78 € │ ⋯ │
+│☐ │ 26 Jan 2026│ PRLV SEPA We Doo Account INV/2025...     │ [⚠ Sélect. catégorie  ▾]  │    282,96 € │ ⋯ │
+│☐ │ 26 Jan 2026│ PAIEMENT CB 2501 ST ETIENNE...           │ [🔴 Fournisseurs      ▾]  │     76,06 € │ ⋯ │
+└──┴────────────┴──────────────────────────────────────────┴────────────────────────────┴─────────────┴───┘
+
+⚠ = Fond jaune/ambre pour non catégorisé
 ```
 
-- **Mois passés** : Solde réel (police normale)
-- **Mois courant** : Solde réel uniquement (colonne Prévu = "—")
-- **Mois futurs** : Solde prévisionnel (police italique/grisée pour indiquer la projection)
+- Les lignes non catégorisées ont un select avec fond ambre bien visible
+- Le select inclut les pastilles de couleur des catégories
+- Le menu ⋯ permet d'accéder aux actions secondaires
+- Conservation de la virtualisation pour les performances (1900+ transactions)
 
