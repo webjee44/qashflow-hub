@@ -100,6 +100,9 @@ export default function TreasurySettings() {
     return null;
   };
 
+  // Get all groups (categories with icon 'Folder') for the group selector
+  const availableGroups = categories.filter(c => c.icon === 'Folder');
+
   const handleSaveGroup = async (data: {
     name: string;
     color: string;
@@ -204,6 +207,7 @@ export default function TreasurySettings() {
                     </Button>
                     <CategoryDialog
                       onSave={createCategory}
+                      availableGroups={availableGroups}
                       trigger={
                         <Button className="gradient-primary">
                           <Plus className="w-4 h-4 mr-2" />
@@ -224,6 +228,7 @@ export default function TreasurySettings() {
                       </div>
                       <CategoryDialog
                         onSave={createCategory}
+                        availableGroups={availableGroups}
                         trigger={
                           <Button variant="outline" size="sm">
                             <Plus className="w-4 h-4 mr-2" />
@@ -255,6 +260,7 @@ export default function TreasurySettings() {
                       </div>
                       <CategoryDialog
                         onSave={createCategory}
+                        availableGroups={availableGroups}
                         trigger={
                           <Button variant="outline" size="sm">
                             <Plus className="w-4 h-4 mr-2" />
@@ -297,6 +303,7 @@ export default function TreasurySettings() {
               {/* Edit Category Dialog */}
               <CategoryDialog
                 category={editingCategory}
+                availableGroups={availableGroups}
                 open={editDialogOpen}
                 onOpenChange={setEditDialogOpen}
                 onSave={handleSaveEdit}
