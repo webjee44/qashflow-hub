@@ -34,6 +34,7 @@ interface TransactionTableRowProps {
   onSplitTransaction?: (transaction: Transaction) => void;
   getCategoryName: (categoryId: string | null) => string;
   getCategoryColor: (categoryId: string | null) => string | undefined;
+  getBankAccountDisplay: (accountName: string | null) => string | null;
   incomeCategories: Category[];
   expenseCategories: Category[];
   formatAmount: (amount: number) => string;
@@ -50,6 +51,7 @@ export const TransactionTableRow = memo(function TransactionTableRow({
   onSplitTransaction,
   getCategoryName,
   getCategoryColor,
+  getBankAccountDisplay,
   incomeCategories,
   expenseCategories,
   formatAmount,
@@ -65,10 +67,12 @@ export const TransactionTableRow = memo(function TransactionTableRow({
     onCreateCategory(transaction.id);
   };
 
+  const bankDisplay = getBankAccountDisplay(transaction.bank_account_name);
+
   return (
     <div 
       className={cn(
-        "grid grid-cols-[48px_120px_1fr_220px_140px_48px] gap-2 px-4 py-3 border-b border-border items-center hover:bg-muted/30 transition-colors",
+        "grid grid-cols-[48px_120px_1fr_140px_220px_140px_48px] gap-2 px-4 py-3 border-b border-border items-center hover:bg-muted/30 transition-colors",
         isSelected && "bg-primary/5"
       )}
     >
@@ -112,6 +116,13 @@ export const TransactionTableRow = memo(function TransactionTableRow({
             </div>
           )}
         </div>
+      </div>
+
+      {/* Bank Account */}
+      <div className="min-w-0">
+        <span className="text-sm text-muted-foreground truncate block">
+          {bankDisplay || '—'}
+        </span>
       </div>
 
       {/* Category Select with Search */}
