@@ -86,39 +86,6 @@ export function AutomationRules() {
 
   return (
     <div className="space-y-6">
-      {/* Header with AI suggestion */}
-      <motion.div
-        initial={{ y: -20, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        className="bg-gradient-to-r from-accent/10 to-primary/10 rounded-2xl border border-accent/20 p-6"
-      >
-        <div className="flex items-start gap-4">
-          <div className="w-12 h-12 rounded-xl bg-accent/20 flex items-center justify-center">
-            <Sparkles className="w-6 h-6 text-accent" />
-          </div>
-          <div className="flex-1">
-            <h3 className="font-semibold text-foreground">Suggestion IA</h3>
-            <p className="text-sm text-muted-foreground mt-1">
-              Créez des règles pour catégoriser automatiquement vos transactions. 
-              Combinez description et montant pour plus de précision.
-            </p>
-            <div className="flex gap-3 mt-4">
-              <CreateRuleDialog 
-                categories={categories} 
-                onCreateRule={createRule}
-                onCreateCategory={createCategory}
-                trigger={
-                  <Button size="sm" className="gradient-primary">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Créer une règle
-                  </Button>
-                }
-              />
-            </div>
-          </div>
-        </div>
-      </motion.div>
-
       {/* Rules List */}
       <motion.div
         initial={{ y: 20, opacity: 0 }}
