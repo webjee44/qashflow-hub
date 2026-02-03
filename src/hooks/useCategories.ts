@@ -36,30 +36,18 @@ const defaultCategories = [
   { name: 'Logiciels', color: 'hsl(221, 83%, 53%)', icon: 'Laptop', type: 'expense' as const, vat_rate: 0.20 },
 ];
 
-// Fetch function for categories - uses company_id based access (RLS handles permissions)
-async function fetchCategories(companyId?: string | null, ownerId?: string | null): Promise<Category[]> {
+// Fetch function for categories - strict company isolation
+async function fetchCategories(companyId?: string | null): Promise<Category[]> {
   if (!companyId) return [];
   
-  let query = supabase
+  const { data, error } = await supabase
     .from('categories')
     .select('*')
-    .or(`company_id.eq.${companyId},company_id.is.null`)
+    .eq('company_id', companyId)
     .order('type', { ascending: true })
     .order('sort_order', { ascending: true })
     .order('name', { ascending: true });
 
-  // If we have an owner ID, also filter by it for legacy data without company_id
-  if (ownerId) {
-    query = supabase
-      .from('categories')
-      .select('*')
-      .or(`company_id.eq.${companyId},and(company_id.is.null,user_id.eq.${ownerId})`)
-      .order('type', { ascending: true })
-      .order('sort_order', { ascending: true })
-      .order('name', { ascending: true });
-  }
-
-  const { data, error } = await query;
   if (error) throw error;
   return data || [];
 }
@@ -70,13 +58,12 @@ export function useCategories() {
   const queryClient = useQueryClient();
 
   const companyId = currentCompany?.id;
-  const ownerId = currentCompany?.user_id;
   const queryKey = ['categories', companyId];
 
-  // Main query with React Query caching - filter by company, not user
+  // Main query with React Query caching - strict company isolation
   const { data: categories = [], isLoading: loading, refetch } = useQuery({
     queryKey,
-    queryFn: () => fetchCategories(companyId, ownerId),
+    queryFn: () => fetchCategories(companyId),
     enabled: !!user && !!companyId,
     staleTime: 1000 * 60 * 10, // 10 minutes cache for categories
   });

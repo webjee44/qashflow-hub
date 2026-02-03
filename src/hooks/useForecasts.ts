@@ -103,19 +103,15 @@ export function useForecasts() {
     queryFn: async () => {
       if (!user?.id || !startMonthStr) return [];
       
-      let query = supabase
+      if (!currentCompany?.id) return [];
+      
+      const { data, error } = await supabase
         .from('category_forecasts')
         .select('*')
+        .eq('company_id', currentCompany.id)
         .gte('month', startMonthStr)
         .lte('month', endMonthStr)
         .order('month');
-
-      // Filter by company if one is selected
-      if (currentCompany) {
-        query = query.or(`company_id.eq.${currentCompany.id},company_id.is.null`);
-      }
-      
-      const { data, error } = await query;
       
       if (error) throw error;
       return data as CategoryForecast[];
@@ -131,19 +127,15 @@ export function useForecasts() {
       
       const endMonthPlusOne = format(addMonths(months[months.length - 1], 1), 'yyyy-MM-01');
       
-      let query = supabase
+      if (!currentCompany?.id) return [];
+      
+      const { data, error } = await supabase
         .from('transactions')
         .select('category_id, amount, date, type')
+        .eq('company_id', currentCompany.id)
         .gte('date', startMonthStr)
         .lt('date', endMonthPlusOne)
         .is('deleted_at', null);
-
-      // Filter by company if one is selected
-      if (currentCompany) {
-        query = query.or(`company_id.eq.${currentCompany.id},company_id.is.null`);
-      }
-      
-      const { data, error } = await query;
       
       if (error) throw error;
       
@@ -177,20 +169,16 @@ export function useForecasts() {
       
       const endMonthPlusOne = format(addMonths(months[months.length - 1], 1), 'yyyy-MM-01');
       
-      let query = supabase
+      if (!currentCompany?.id) return {};
+      
+      const { data, error } = await supabase
         .from('transactions')
         .select('amount, date, type')
+        .eq('company_id', currentCompany.id)
         .gte('date', startMonthStr)
         .lt('date', endMonthPlusOne)
         .is('category_id', null)
         .is('deleted_at', null);
-
-      // Filter by company if one is selected
-      if (currentCompany) {
-        query = query.or(`company_id.eq.${currentCompany.id},company_id.is.null`);
-      }
-      
-      const { data, error } = await query;
       
       if (error) throw error;
       
@@ -313,19 +301,15 @@ export function useForecasts() {
     queryFn: async () => {
       if (!user?.id) return [];
       
-      let query = supabase
+      if (!currentCompany?.id) return [];
+      
+      const { data, error } = await supabase
         .from('invoices')
         .select('id, due_date, amount_ttc, partner_name, status, category_id, invoice_number')
+        .eq('company_id', currentCompany.id)
         .eq('type', 'payable')
         .eq('status', 'pending')
         .order('due_date');
-
-      // Filter by company if one is selected
-      if (currentCompany) {
-        query = query.or(`company_id.eq.${currentCompany.id},company_id.is.null`);
-      }
-      
-      const { data, error } = await query;
       
       if (error) throw error;
       return data as PayableInvoice[];
@@ -339,17 +323,14 @@ export function useForecasts() {
     queryFn: async () => {
       if (!user?.id || !startMonthStr) return [];
       
-      let query = supabase
+      if (!currentCompany?.id) return [];
+      
+      const { data, error } = await supabase
         .from('transactions')
         .select('amount, date, type')
+        .eq('company_id', currentCompany.id)
         .gte('date', startMonthStr)
         .is('deleted_at', null);
-
-      if (currentCompany) {
-        query = query.or(`company_id.eq.${currentCompany.id},company_id.is.null`);
-      }
-      
-      const { data, error } = await query;
       if (error) throw error;
       return data as { amount: number; date: string; type: string }[];
     },
