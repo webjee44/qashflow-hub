@@ -90,11 +90,14 @@ Deno.serve(async (req) => {
     // Generate a magic link for the target user with proper hashed token
     const origin = req.headers.get("origin") || "https://pennylane-cash-flow-buddy.lovable.app";
     
+    // Use /impersonate-landing to handle session switch cleanly
+    const redirectPath = `${origin}/impersonate-landing`;
+    
     const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
       type: "magiclink",
       email: targetUser.user.email!,
       options: {
-        redirectTo: `${origin}/dashboard`,
+        redirectTo: redirectPath,
       },
     });
 
@@ -111,7 +114,7 @@ Deno.serve(async (req) => {
     
     // Build the verification URL that Supabase Auth will process
     // Format: /auth/v1/verify?token=HASHED_TOKEN&type=TYPE&redirect_to=URL
-    const verifyUrl = `${supabaseUrl}/auth/v1/verify?token=${hashed_token}&type=${verification_type}&redirect_to=${encodeURIComponent(`${origin}/dashboard`)}`;
+    const verifyUrl = `${supabaseUrl}/auth/v1/verify?token=${hashed_token}&type=${verification_type}&redirect_to=${encodeURIComponent(redirectPath)}`;
 
     // Log this impersonation action
     await supabaseAdmin.from("audit_logs").insert({
