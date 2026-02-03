@@ -6,24 +6,59 @@ import { Loader2, CheckCircle } from 'lucide-react';
 /**
  * Landing page for impersonation flow.
  * This page handles the session switch after a magic link is clicked.
- * It ensures the new session is properly established before redirecting.
+ * Supabase Auth redirects here with tokens in the URL hash.
  */
 export default function ImpersonateLanding() {
   const navigate = useNavigate();
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
     const handleSession = async () => {
       try {
-        // Wait a moment for the session to be established from the URL hash
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Check if there are tokens in the URL hash (from magic link redirect)
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        const accessToken = hashParams.get('access_token');
+        const refreshToken = hashParams.get('refresh_token');
         
-        // Get the current session
-        const { data: { session }, error } = await supabase.auth.getSession();
+        console.log('[Impersonate] Hash contains tokens:', !!accessToken);
         
-        if (error) {
-          console.error('[Impersonate] Session error:', error);
+        if (accessToken && refreshToken) {
+          // Set the session using the tokens from the URL
+          const { data, error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+          
+          if (error) {
+            console.error('[Impersonate] setSession error:', error);
+            setErrorMsg(error.message);
+            setStatus('error');
+            return;
+          }
+          
+          if (data.session?.user) {
+            setUserEmail(data.session.user.email || null);
+            setStatus('success');
+            console.log('[Impersonate] Session established for:', data.session.user.email);
+            
+            // Clean the URL hash and redirect
+            window.history.replaceState(null, '', window.location.pathname);
+            
+            setTimeout(() => {
+              navigate('/dashboard', { replace: true });
+            }, 1500);
+            return;
+          }
+        }
+        
+        // If no tokens in hash, check for existing session (fallback)
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError) {
+          console.error('[Impersonate] getSession error:', sessionError);
+          setErrorMsg(sessionError.message);
           setStatus('error');
           return;
         }
@@ -31,19 +66,19 @@ export default function ImpersonateLanding() {
         if (session?.user) {
           setUserEmail(session.user.email || null);
           setStatus('success');
+          console.log('[Impersonate] Existing session found for:', session.user.email);
           
-          console.log('[Impersonate] Session established for:', session.user.email);
-          
-          // Wait a moment to show success state, then redirect
           setTimeout(() => {
             navigate('/dashboard', { replace: true });
           }, 1500);
         } else {
-          console.error('[Impersonate] No session found');
+          console.error('[Impersonate] No session found and no tokens in URL');
+          setErrorMsg('Aucun token trouvé dans l\'URL');
           setStatus('error');
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('[Impersonate] Unexpected error:', err);
+        setErrorMsg(err.message || 'Erreur inattendue');
         setStatus('error');
       }
     };
@@ -83,9 +118,14 @@ export default function ImpersonateLanding() {
               <span className="text-destructive text-2xl">!</span>
             </div>
             <h1 className="text-xl font-semibold mb-2">Erreur de connexion</h1>
-            <p className="text-muted-foreground mb-4">
-              Impossible d'établir la session. Le lien a peut-être expiré.
+            <p className="text-muted-foreground mb-2">
+              Impossible d'établir la session.
             </p>
+            {errorMsg && (
+              <p className="text-xs text-muted-foreground mb-4 font-mono bg-muted p-2 rounded">
+                {errorMsg}
+              </p>
+            )}
             <button
               onClick={() => window.close()}
               className="text-primary hover:underline"
