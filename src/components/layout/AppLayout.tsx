@@ -1,3 +1,4 @@
+import { Suspense, useEffect } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { AppHeader } from './AppHeader';
@@ -7,9 +8,9 @@ import { DemoBanner } from './DemoBanner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAppModeSync } from '@/hooks/useAppMode';
 import { useAuth } from '@/hooks/useAuth';
-import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOnboarding } from '@/hooks/useOnboarding';
+import { PageLoader } from '@/components/ui/page-loader';
 
 // Widget de support - clé API publishable
 const SUPPORT_WIDGET_API_KEY = '6304a129-c64a-42eb-b298-c04f46b23363';
@@ -89,7 +90,9 @@ export function AppLayout() {
               transition={{ duration: 0.3 }}
               className="overflow-visible"
             >
-              <Outlet />
+              <Suspense fallback={<PageLoader />}>
+                <Outlet />
+              </Suspense>
             </motion.div>
           </AnimatePresence>
         </main>
