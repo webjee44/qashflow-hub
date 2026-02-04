@@ -49,24 +49,6 @@ export interface PLData {
     corporateTax: number[];
     netResult: number[];
   };
-  grandTotal: {
-    revenue: number;
-    fixedExpenses: number;
-    variableExpenses: number;
-    personnelCosts: number;
-    directorsCosts: number;
-    depreciation: number;
-    leaseExpenses: number;
-    payrollTaxes: number;
-    ebitda: number;
-    operatingResult: number;
-    financialResult: number;
-    netResultBeforeTax: number;
-    corporateTax: number;
-    netResult: number;
-    grossMarginPercent: number;
-    ebitdaMarginPercent: number;
-  };
   tva: {
     collected: number[];
     deductible: number[];
@@ -754,31 +736,6 @@ export function useProfitLoss() {
 
     const tvaBalanceValues = years.map((_, i) => tvaCollectedValues[i] - tvaDeductibleValues[i]);
 
-    const sumAll = (arr: number[]) => arr.reduce((a, b) => a + b, 0);
-    const totalRevenue = sumAll(revenueValues);
-    const totalCogs = sumAll(cogsValues);
-    
-    const grandTotal = {
-      revenue: totalRevenue,
-      fixedExpenses: sumAll(fixedExpenseValues),
-      variableExpenses: sumAll(variableExpenseValues),
-      personnelCosts: sumAll(totalPersonnelWithSeverance),
-      directorsCosts: sumAll(directorTotalValues),
-      depreciation: sumAll(depreciationValues),
-      leaseExpenses: sumAll(leaseExpenseValues),
-      payrollTaxes: sumAll(payrollTaxesValues),
-      severancePayments: sumAll(severanceValues),
-      ebitda: sumAll(ebeValues),
-      operatingResult: sumAll(operatingResultValues),
-      financialResult: sumAll(financialResultValues),
-      netResultBeforeTax: sumAll(rcaiValues),
-      corporateTax: sumAll(taxValues),
-      netResult: sumAll(netResultValues),
-      // Marge brute = (CA - COGS) / CA - utilise uniquement les coûts des ventes
-      grossMarginPercent: totalRevenue > 0 ? ((totalRevenue - totalCogs) / totalRevenue) * 100 : 0,
-      ebitdaMarginPercent: totalRevenue > 0 ? (sumAll(ebeValues) / totalRevenue) * 100 : 0,
-    };
-
     return {
       years,
       rows,
@@ -800,7 +757,6 @@ export function useProfitLoss() {
         corporateTax: taxValues,
         netResult: netResultValues,
       },
-      grandTotal,
       tva: {
         collected: tvaCollectedValues,
         deductible: tvaDeductibleValues,
@@ -818,8 +774,19 @@ export function useProfitLoss() {
     return null;
   };
 
-  const getGrossMargin = (): number => data.grandTotal.grossMarginPercent;
-  const getEBITDAMargin = (): number => data.grandTotal.ebitdaMarginPercent;
+  // Calculate gross margin for a specific year (or first year by default)
+  const getGrossMargin = (yearIndex: number = 0): number => {
+    const revenue = data.totals.revenue[yearIndex] || 0;
+    const cogs = data.totals.cogs[yearIndex] || 0;
+    return revenue > 0 ? ((revenue - cogs) / revenue) * 100 : 0;
+  };
+
+  // Calculate EBITDA margin for a specific year (or first year by default)
+  const getEBITDAMargin = (yearIndex: number = 0): number => {
+    const revenue = data.totals.revenue[yearIndex] || 0;
+    const ebitda = data.totals.ebitda[yearIndex] || 0;
+    return revenue > 0 ? (ebitda / revenue) * 100 : 0;
+  };
 
   return {
     data,
