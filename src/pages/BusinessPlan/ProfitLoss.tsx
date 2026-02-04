@@ -46,58 +46,40 @@ export default function ProfitLoss() {
         }
       />
 
-      {/* Summary cards */}
+      {/* Summary cards - Dynamic based on selected year */}
       <div data-tour-bp="pnl-summary" className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardContent className="pt-6">
-            <div className="flex items-center gap-1">
-              <p className="text-sm text-muted-foreground">CA Total</p>
-              <span className="text-xs text-muted-foreground/70">({settings.bp_years} ans)</span>
-            </div>
-            <p className="text-2xl font-bold text-success">{formatCurrency(data.grandTotal.revenue)}</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              An {selectedYear + 1}: {formatCurrency(data.totals.revenue[selectedYear] || 0)}
-            </p>
+            <p className="text-sm text-muted-foreground">Chiffre d'affaires</p>
+            <p className="text-2xl font-bold text-success">{formatCurrency(data.totals.revenue[selectedYear] || 0)}</p>
+            <p className="text-xs text-muted-foreground mt-1">Année {selectedYear + 1}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <div className="flex items-center gap-1">
-              <p className="text-sm text-muted-foreground">Marge Brute</p>
-              <span className="text-xs text-muted-foreground/70">(cumul {settings.bp_years} ans)</span>
-            </div>
-            <p className="text-2xl font-bold text-success">{data.grandTotal.grossMarginPercent.toFixed(1)}%</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              An {selectedYear + 1}: {((data.totals.revenue[selectedYear] - (data.totals.cogs?.[selectedYear] || 0)) / (data.totals.revenue[selectedYear] || 1) * 100).toFixed(1)}%
+            <p className="text-sm text-muted-foreground">Marge Brute</p>
+            <p className="text-2xl font-bold text-success">
+              {((data.totals.revenue[selectedYear] - (data.totals.cogs?.[selectedYear] || 0)) / (data.totals.revenue[selectedYear] || 1) * 100).toFixed(1)}%
             </p>
+            <p className="text-xs text-muted-foreground mt-1">Année {selectedYear + 1}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <div className="flex items-center gap-1">
-              <p className="text-sm text-muted-foreground">Marge EBE</p>
-              <span className="text-xs text-muted-foreground/70">(cumul {settings.bp_years} ans)</span>
-            </div>
-            <p className={`text-2xl font-bold ${data.grandTotal.ebitdaMarginPercent >= 0 ? 'text-success' : 'text-destructive'}`}>
-              {data.grandTotal.ebitdaMarginPercent.toFixed(1)}%
+            <p className="text-sm text-muted-foreground">Marge EBE</p>
+            <p className={`text-2xl font-bold ${(data.totals.ebitda[selectedYear] || 0) >= 0 ? 'text-success' : 'text-destructive'}`}>
+              {((data.totals.ebitda[selectedYear] || 0) / (data.totals.revenue[selectedYear] || 1) * 100).toFixed(1)}%
             </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              An {selectedYear + 1}: {((data.totals.ebitda[selectedYear] || 0) / (data.totals.revenue[selectedYear] || 1) * 100).toFixed(1)}%
-            </p>
+            <p className="text-xs text-muted-foreground mt-1">Année {selectedYear + 1}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <div className="flex items-center gap-1">
-              <p className="text-sm text-muted-foreground">Résultat Net</p>
-              <span className="text-xs text-muted-foreground/70">(cumul {settings.bp_years} ans)</span>
-            </div>
-            <p className={`text-2xl font-bold ${data.grandTotal.netResult >= 0 ? 'text-success' : 'text-destructive'}`}>
-              {formatCurrency(data.grandTotal.netResult)}
+            <p className="text-sm text-muted-foreground">Résultat Net</p>
+            <p className={`text-2xl font-bold ${(data.totals.netResult[selectedYear] || 0) >= 0 ? 'text-success' : 'text-destructive'}`}>
+              {formatCurrency(data.totals.netResult[selectedYear] || 0)}
             </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              An {selectedYear + 1}: {formatCurrency(data.totals.netResult[selectedYear] || 0)}
-            </p>
+            <p className="text-xs text-muted-foreground mt-1">Année {selectedYear + 1}</p>
           </CardContent>
         </Card>
       </div>

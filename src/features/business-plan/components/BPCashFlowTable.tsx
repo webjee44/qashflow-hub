@@ -263,28 +263,6 @@ export function BPCashFlowTable() {
               </Collapsible>
             ))}
 
-            {/* Ligne finale */}
-            <TableRow className="bg-muted/30 border-t-2">
-              <TableCell className="font-bold">Solde final</TableCell>
-              <TableCell className="text-right font-bold text-success">
-                {formatCurrency(data.totalInflows)}
-              </TableCell>
-              <TableCell className="text-right font-bold text-destructive">
-                {formatCurrency(data.totalOutflows)}
-              </TableCell>
-              <TableCell className={cn(
-                "text-right font-bold",
-                data.totalInflows - data.totalOutflows >= 0 ? 'text-success' : 'text-destructive'
-              )}>
-                {formatCurrency(data.totalInflows - data.totalOutflows)}
-              </TableCell>
-              <TableCell className={cn(
-                "text-right font-bold text-lg",
-                data.finalBalance >= 0 ? 'text-primary' : 'text-destructive'
-              )}>
-                {formatCurrency(data.finalBalance)}
-              </TableCell>
-            </TableRow>
           </TableBody>
         </Table>
       </div>

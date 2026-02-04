@@ -60,8 +60,6 @@ export function ProfitLossTable() {
     );
   }
 
-  const totalRevenue = data.grandTotal.revenue;
-
   // Format year label with dates
   const formatYearLabel = (year: typeof data.years[0], index: number) => {
     const startStr = format(year.start, 'MMM yyyy', { locale: fr });
@@ -85,22 +83,10 @@ export function ProfitLossTable() {
                 </div>
               </TableHead>
             ))}
-            <TableHead className="text-center min-w-[140px] bg-primary/10">
-              <div className="flex flex-col">
-                <span className="font-semibold">Total</span>
-                <span className="text-xs text-muted-foreground">{data.years.length} ans</span>
-              </div>
-            </TableHead>
-            <TableHead className="text-center min-w-[80px] bg-muted/50">%CA</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {data.rows.map((row, rowIndex) => {
-            const totalValue = row.values.reduce((a, b) => a + b, 0);
-            const percentOfRevenue = totalRevenue > 0 && row.type !== 'header' 
-              ? (totalValue / totalRevenue) * 100 
-              : null;
-
             return (
               <TableRow key={rowIndex} className={getRowClasses(row)}>
                 <TableCell className={cn(
@@ -128,24 +114,6 @@ export function ProfitLossTable() {
                     </TableCell>
                   );
                 })}
-                <TableCell className={cn(
-                  "text-center font-bold",
-                  row.type === 'total' ? "bg-primary/20" : 
-                  row.type === 'sig' ? "bg-primary/10" : "bg-primary/5",
-                  getValueClasses(row, totalValue)
-                )}>
-                  {row.type === 'header' ? '' : formatCurrency(totalValue)}
-                </TableCell>
-                <TableCell className={cn(
-                  "text-center text-sm",
-                  row.type === 'total' ? "bg-primary/20" : 
-                  row.type === 'sig' ? "bg-primary/10" : "bg-muted/50",
-                  row.isExpense && percentOfRevenue && percentOfRevenue !== 0 ? "text-destructive" : "",
-                  !row.isExpense && percentOfRevenue && percentOfRevenue > 0 ? "text-success" : ""
-                )}>
-                  {row.type === 'header' || percentOfRevenue === null ? '' : 
-                    `${percentOfRevenue.toFixed(1)}%`}
-                </TableCell>
               </TableRow>
             );
           })}

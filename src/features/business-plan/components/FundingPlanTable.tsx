@@ -72,12 +72,10 @@ export function FundingPlanTable() {
                     {year}
                   </TableHead>
                 ))}
-                <TableHead className="text-right min-w-[120px] font-bold">Total</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {data.rows.map((row, index) => {
-                const total = row.values.reduce((a, b) => a + b, 0);
                 const indent = row.indent || 0;
 
                 return (
@@ -108,15 +106,6 @@ export function FundingPlanTable() {
                         </TableCell>
                       ))
                     )}
-                    <TableCell 
-                      className={cn(
-                        "text-right font-mono font-bold",
-                        row.type === 'header' ? '' : '',
-                        total < 0 && row.type !== 'header' && "text-destructive"
-                      )}
-                    >
-                      {row.type === 'header' ? '–' : formatCurrency(total)}
-                    </TableCell>
                   </TableRow>
                 );
               })}
