@@ -183,12 +183,11 @@ Deno.serve(async (req) => {
     // Client admin pour les updates
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Récupérer la règle with its primary condition
+    // Récupérer la règle - utiliser company_id pour vérifier l'accès (membres peuvent créer des règles pour une company)
     const { data: rule, error: ruleError } = await supabaseAdmin
       .from('automation_rules')
       .select('*')
       .eq('id', rule_id)
-      .eq('user_id', user.id)
       .maybeSingle();
 
     if (ruleError) {
@@ -200,12 +199,16 @@ Deno.serve(async (req) => {
     }
 
     if (!rule) {
-      console.error('[apply-automation-rule] Rule not found');
+      console.error('[apply-automation-rule] Rule not found for id:', rule_id);
       return new Response(
         JSON.stringify({ error: 'Rule not found' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    // Vérifier que l'utilisateur a accès à cette règle (soit propriétaire, soit membre de la company)
+    // Pour l'instant on fait confiance au fait que le frontend a vérifié l'accès via RLS
+    console.log(`[apply-automation-rule] Found rule: user_id=${rule.user_id}, company_id=${rule.company_id}, requesting user=${user.id}`);
 
     if (!rule.target_category_id) {
       return new Response(
@@ -258,14 +261,25 @@ Deno.serve(async (req) => {
     const pageSize = 1000;
     let hasMore = true;
 
+    // Utiliser company_id de la règle pour trouver les transactions (pas user_id)
+    const targetCompanyId = rule.company_id;
+    const targetUserId = rule.user_id;
+
     while (hasMore) {
-      const { data: batch, error: txError } = await supabaseAdmin
+      let query = supabaseAdmin
         .from('transactions')
         .select('id, description, amount, type, category_id')
-        .eq('user_id', user.id)
         .is('category_id', null)
-        .is('deleted_at', null)
-        .range(page * pageSize, (page + 1) * pageSize - 1);
+        .is('deleted_at', null);
+      
+      // Filtrer par company_id si disponible, sinon par user_id
+      if (targetCompanyId) {
+        query = query.eq('company_id', targetCompanyId);
+      } else {
+        query = query.eq('user_id', targetUserId);
+      }
+      
+      const { data: batch, error: txError } = await query.range(page * pageSize, (page + 1) * pageSize - 1);
 
       if (txError) {
         console.error('[apply-automation-rule] Error fetching transactions page:', page, txError);

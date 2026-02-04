@@ -698,7 +698,14 @@ export function TransactionsView() {
         transaction={lastCategorizedTransaction}
         category={lastSelectedCategory as Tables<'categories'> | null}
         allTransactions={transactions}
-        onCreateRule={createRule}
+        onCreateRule={async (rule) => {
+          const result = await createRule(rule);
+          // Rafraîchir les transactions après application de la règle
+          if (result) {
+            refetchTransactions();
+          }
+          return result;
+        }}
       />
 
       <CategoryDialog
