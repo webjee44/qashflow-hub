@@ -129,9 +129,10 @@ export function ForecastTable() {
     setTransactionDetailOpen(true);
   };
 
-  // Show loading only on initial load, not on subsequent data fetches
-  // Also show loading while company is loading or not yet available
-  const isInitialLoading = companyLoading || !currentCompany || (categoriesLoading && categories.length === 0);
+  // Show loading only during initial context fetch - don't block on empty categories
+  // The component should render even if there are no categories (empty state)
+  const isInitialLoading = companyLoading || !currentCompany;
+  const isCategoriesLoading = categoriesLoading && categories.length === 0;
 
   // Get grouped categories
   const incomeGroups = useMemo(() => getGroupedCategories('income'), [categories]);
@@ -1371,7 +1372,7 @@ export function ForecastTable() {
     );
   };
 
-  if (isInitialLoading) {
+  if (isInitialLoading || isCategoriesLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
