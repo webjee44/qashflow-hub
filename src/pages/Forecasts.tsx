@@ -5,9 +5,17 @@ import { OnboardingTour } from '@/components/onboarding/OnboardingTour';
 import { BPImportDialog } from '@/components/forecasts/BPImportDialog';
 import { Button } from '@/components/ui/button';
 import { FileDown } from 'lucide-react';
+import { useCompany } from '@/hooks/useCompany';
+import { PageLoader } from '@/components/ui/page-loader';
 
 export default function Forecasts() {
   const [importOpen, setImportOpen] = useState(false);
+  const { currentCompany, isLoading: companyLoading } = useCompany();
+
+  // Wait for company context to be ready before rendering ForecastTable
+  if (companyLoading || !currentCompany) {
+    return <PageLoader />;
+  }
 
   return (
     <>
@@ -28,7 +36,8 @@ export default function Forecasts() {
             </Button>
           }
         />
-        <ForecastTable />
+        {/* Key forces re-mount when company changes, ensuring fresh data fetch */}
+        <ForecastTable key={currentCompany.id} />
       </div>
       
       {importOpen && <BPImportDialog open={importOpen} onOpenChange={setImportOpen} />}
