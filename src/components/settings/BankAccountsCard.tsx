@@ -1183,12 +1183,11 @@ function BankAccountsList({
                         </div>
                       </div>
 
-                      {/* Company selector */}
+                      {/* Company selector - always enabled for admins so they can assign directly */}
                       <div className="w-48">
                         <Select
                           value={companyId}
                           onValueChange={(value) => onCompanyChange(account.bridge_account_id, value)}
-                          disabled={!isEnabled}
                         >
                           <SelectTrigger className="bg-background">
                             <SelectValue placeholder="Assigner à...">
