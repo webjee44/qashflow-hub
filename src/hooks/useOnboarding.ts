@@ -175,15 +175,24 @@ export function useOnboarding(): UseOnboardingReturn {
         setCurrentStep(data.onboarding_step ?? 0);
 
         // bp_enabled can be used to configure a "BP-only" experience.
-        // To prevent route flicker (Treasury appears then disappears), we only apply
-        // the server value on first run when localStorage has no explicit choice yet.
-        const hasLocalChoice = localStorage.getItem(BP_ENABLED_STORAGE_KEY) !== null;
-        if (!hasLocalChoice) {
-          const serverValue = data.bp_enabled ?? false;
-          writeStoredBpEnabled(serverValue);
-          setBpEnabled(serverValue);
+        // IMPORTANT: localStorage can contain stale values (e.g. from past experiments).
+        // If the server says bp_enabled is false, we always reset localStorage to false to
+        // avoid Treasury routes flashing then being redirected.
+        const serverValue = data.bp_enabled ?? false;
+
+        if (serverValue === false) {
+          writeStoredBpEnabled(false);
+          setBpEnabled(false);
         } else {
-          setBpEnabled(readStoredBpEnabled());
+          // Only when BP-only is enabled server-side do we allow a local override (if any)
+          // to keep sidebar/settings in sync without route flicker.
+          const hasLocalChoice = localStorage.getItem(BP_ENABLED_STORAGE_KEY) !== null;
+          if (!hasLocalChoice) {
+            writeStoredBpEnabled(true);
+            setBpEnabled(true);
+          } else {
+            setBpEnabled(readStoredBpEnabled());
+          }
         }
 
         const shouldShowTour = localStorage.getItem('show-onboarding-tour') === 'true';
