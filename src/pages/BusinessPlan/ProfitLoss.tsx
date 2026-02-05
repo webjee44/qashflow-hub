@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Settings } from 'lucide-react';
+import { Settings, ChevronDown, TrendingUp } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -101,11 +103,24 @@ export default function ProfitLoss() {
         </Select>
       </div>
 
-      {/* Ratios and Break-even */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        <RatiosCard yearIndex={selectedYear} />
-        <BreakEvenChart yearIndex={selectedYear} />
-      </div>
+      {/* Collapsible analysis section */}
+      <Collapsible defaultOpen>
+        <CollapsibleTrigger asChild>
+          <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg cursor-pointer hover:bg-muted/50 transition-colors group">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-primary" />
+              <span className="font-medium">Analyse détaillée - Année {selectedYear + 1}</span>
+            </div>
+            <ChevronDown className="h-4 w-4 transition-transform duration-200 group-data-[state=open]:rotate-180" />
+          </div>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="pt-4">
+          <div className="grid gap-6 lg:grid-cols-2">
+            <RatiosCard yearIndex={selectedYear} />
+            <BreakEvenChart yearIndex={selectedYear} />
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
 
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
         <Card>
