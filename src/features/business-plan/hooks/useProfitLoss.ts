@@ -620,19 +620,18 @@ export function useProfitLoss() {
     // D. Charges de personnel (64)
     rows.push({ label: 'Charges de personnel (64)', type: 'header', values: [], isExpense: true, indent: 1, sectionType: 'expense' });
     
+    // Calcul des indemnités de départ à intégrer dans les salaires
+    const severanceValues = calculateYearlyValues(month => getSeverancePaymentsForMonth(month));
+    
+    // Salaires et traitements (641) incluant les indemnités de départ
     const grossSalaryValues = calculateYearlyValues(month => getPersonnelBreakdownForMonth(month).grossSalaries);
-    rows.push({ label: 'Salaires et traitements (641)', type: 'item', values: grossSalaryValues, isExpense: true, indent: 2, sectionType: 'expense', pcgCode: '641' });
+    const salariesWithSeverance = years.map((_, i) => grossSalaryValues[i] + severanceValues[i]);
+    rows.push({ label: 'Salaires et traitements (641)', type: 'item', values: salariesWithSeverance, isExpense: true, indent: 2, sectionType: 'expense', pcgCode: '641' });
     
     const chargesValues = calculateYearlyValues(month => getPersonnelBreakdownForMonth(month).employerCharges);
     rows.push({ label: 'Charges sociales (645)', type: 'item', values: chargesValues, isExpense: true, indent: 2, sectionType: 'expense', pcgCode: '645' });
 
     const personnelValues = calculateYearlyValues(month => getPersonnelBreakdownForMonth(month).total);
-    
-    const severanceValues = calculateYearlyValues(month => getSeverancePaymentsForMonth(month));
-    if (severanceValues.some(v => v > 0)) {
-      rows.push({ label: 'Indemnités de départ', type: 'item', values: severanceValues, isExpense: true, indent: 2, sectionType: 'expense' });
-    }
-
     const totalPersonnelWithSeverance = years.map((_, i) => personnelValues[i] + severanceValues[i]);
     rows.push({ label: 'Total charges de personnel', type: 'subtotal', values: totalPersonnelWithSeverance, isExpense: true, sectionType: 'expense' });
 
