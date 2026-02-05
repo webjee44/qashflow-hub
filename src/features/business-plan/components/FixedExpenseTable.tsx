@@ -233,22 +233,6 @@ export function FixedExpenseTable({ onEdit }: FixedExpenseTableProps) {
           })}
         </TableBody>
       </Table>
-
-      {/* Summary */}
-      <div className="flex justify-end gap-6 p-4 bg-muted/50 rounded-lg">
-        <div className="text-right">
-          <p className="text-sm text-muted-foreground">
-            {categoryFilter !== 'all' ? 'Total mensuel (filtré)' : 'Total mensuel (lissé)'}
-          </p>
-          <p className="text-xl font-bold text-destructive">{formatCurrency(filteredMonthlyTotal)}</p>
-        </div>
-        <div className="text-right">
-          <p className="text-sm text-muted-foreground">
-            {categoryFilter !== 'all' ? 'Total annuel (filtré)' : 'Total annuel'}
-          </p>
-          <p className="text-xl font-bold text-destructive">{formatCurrency(filteredAnnualTotal)}</p>
-        </div>
-      </div>
     </div>
   );
 }
