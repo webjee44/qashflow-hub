@@ -19,10 +19,13 @@ interface RevenueStreamDialogProps {
 const DEFAULT_COLOR = 'hsl(142, 76%, 36%)';
 
 type ModelType = 'variable' | 'subscription';
+type RevenueType = 'merchandise' | 'production';
 
 export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: RevenueStreamDialogProps) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [model, setModel] = useState<ModelType>('variable');
+  const [revenueType, setRevenueType] = useState<RevenueType>('production');
   const [model, setModel] = useState<ModelType>('variable');
   
   // Subscription model fields
@@ -46,18 +49,20 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
       // Map old models to new ones
       const mappedModel = stream.model === 'subscription' ? 'subscription' : 'variable';
       setModel(mappedModel);
+      setRevenueType((stream as any).revenue_type || 'production');
       setInitialSubscribers(stream.initial_subscribers?.toString() || '0');
       setMonthlyPrice(stream.monthly_price?.toString() || '');
       setChurnRate(((stream.churn_rate || 0.05) * 100).toString());
       setGrowthRate(((stream.growth_rate || 0.10) * 100).toString());
       setGrowthRateYear2(((stream.growth_rate_year2 ?? stream.annual_growth_rate ?? 0.10) * 100).toString());
       setGrowthRateYear3(((stream.growth_rate_year3 ?? stream.annual_growth_rate ?? 0.10) * 100).toString());
-      setHasPurchaseCost(stream.has_purchase_cost ?? false);
-      setPurchasePrice(stream.purchase_price?.toString() || '');
+      setHasPurchaseCost((stream as any).has_purchase_cost ?? false);
+      setPurchasePrice((stream as any).purchase_price?.toString() || '');
     } else {
       setName('');
       setDescription('');
       setModel('variable');
+      setRevenueType('production');
       setInitialSubscribers('0');
       setMonthlyPrice('');
       setChurnRate('5');
@@ -85,18 +90,20 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
       description: description || null,
       color: stream?.color || DEFAULT_COLOR,
       model,
+      revenue_type: revenueType,
       initial_subscribers: parseInt(initialSubscribers) || 0,
       monthly_price: parseFloat(monthlyPrice) || 0,
       churn_rate: parseRate(churnRate, 5) / 100,
       growth_rate: parseRate(growthRate, 10) / 100,
-      annual_growth_rate: rate2, // Keep for backwards compatibility
+      annual_growth_rate: rate2,
       growth_rate_year2: rate2,
       growth_rate_year3: rate3,
-      growth_rate_year4: rate3, // Use rate3 for year4 as fallback
+      growth_rate_year4: rate3,
       has_purchase_cost: hasPurchaseCost,
       purchase_price: parseFloat(purchasePrice) || 0,
-    });
+    } as any);
     onOpenChange(false);
+  };
   };
 
   // Calculate margin preview
@@ -144,6 +151,26 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
               rows={2}
             />
           </div>
+          
+          {/* Revenue Type (PCG) */}
+          <div className="grid gap-2">
+            <Label>Type de revenu (PCG)</Label>
+            <Select value={revenueType} onValueChange={(v) => setRevenueType(v as RevenueType)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="production">Prestation de services (706)</SelectItem>
+                <SelectItem value="merchandise">Vente de marchandises (707)</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              {revenueType === 'merchandise' 
+                ? 'Revente de produits achetés (e-commerce, négoce)' 
+                : 'Services, conseil, SaaS, abonnements'}
+            </p>
+          </div>
+          
           <div className="grid gap-2">
             <Label>Modèle de calcul</Label>
             <Select value={model} onValueChange={(v) => setModel(v as ModelType)}>
