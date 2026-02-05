@@ -221,11 +221,13 @@ export function ForecastTable() {
   };
 
   const handleCellClick = (categoryId: string, monthIndex: number, currentValue: number) => {
+    // Don't start editing another cell if we have a pending save operation
+    // This prevents clearing save state when clicking outside the popover
+    if (pendingSave || showCopyOption || isSaving) return;
+    
     const cellKey = `${categoryId}-${monthIndex}`;
     setEditingCell(cellKey);
     setEditValue(currentValue.toString());
-    setShowCopyOption(false);
-    setPendingSave(null);
   };
 
   const handleSave = async (categoryId: string, monthIndex: number, mode: 'single' | 'copy' | 'growth' = 'single') => {
