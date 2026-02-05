@@ -2,6 +2,7 @@
 export { BalanceSheetTable } from './BalanceSheetTable';
 export { BPCashFlowTable } from './BPCashFlowTable';
 export { ExternalServicesSummary } from './ExternalServicesSummary';
+export { ExpenseTable } from './ExpenseTable';
 export { FinancingTable } from './FinancingTable';
 export { FixedExpenseTable } from './FixedExpenseTable';
 export { FreelanceTable } from './FreelanceTable';

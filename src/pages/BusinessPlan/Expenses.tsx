@@ -1,15 +1,15 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, Building2, Percent, FileSpreadsheet, Loader2, FileDown, Briefcase, Store, Code, Stethoscope, Utensils } from 'lucide-react';
+import { Plus, Building2, FileSpreadsheet, Loader2, FileDown, Briefcase, Store, Code, Stethoscope, Utensils } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from '@/components/ui/dropdown-menu';
-import { FixedExpenseTable, VariableExpenseTable, SectionNotes, ExternalServicesSummary } from '@/features/business-plan/components';
-import { FixedExpenseDialog, BPExportDialog, BulkEditExpenseDialog } from '@/features/business-plan/dialogs';
+import { ExpenseTable, SectionNotes, ExternalServicesSummary } from '@/features/business-plan/components';
+import { ExpenseDialog, BPExportDialog, BulkEditExpenseDialog } from '@/features/business-plan/dialogs';
+import { UnifiedExpense } from '@/features/business-plan/dialogs/ExpenseDialog';
 import { useBPFixedExpenses, BPFixedExpense } from '@/hooks/useBPFixedExpenses';
-import { FIXED_EXPENSE_CATEGORIES, type FixedExpenseCategory } from '@/constants/bpConstants';
+import { useVariableExpenses, VariableExpense } from '@/hooks/useVariableExpenses';
 import { useCurrentBusinessPlan } from '@/hooks/useCurrentBusinessPlan';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { toast } from 'sonner';
@@ -99,10 +99,11 @@ export default function Expenses() {
   const { isLoading: isLoadingBP } = useCurrentBusinessPlan();
   const queryClient = useQueryClient();
   
-  const { expenses, createExpense, updateExpense } = useBPFixedExpenses();
+  const { expenses: fixedExpenses, createExpense: createFixed, updateExpense: updateFixed } = useBPFixedExpenses();
+  const { expenses: variableExpenses, createExpense: createVariable, updateExpense: updateVariable } = useVariableExpenses();
 
   const [expenseDialogOpen, setExpenseDialogOpen] = useState(false);
-  const [selectedExpense, setSelectedExpense] = useState<BPFixedExpense | null>(null);
+  const [selectedExpense, setSelectedExpense] = useState<UnifiedExpense | null>(null);
   const [bulkEditDialogOpen, setBulkEditDialogOpen] = useState(false);
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateKey | null>(null);
@@ -131,7 +132,7 @@ export default function Expenses() {
     
     try {
       for (const expense of template.expenses) {
-        await createExpense.mutateAsync({
+        await createFixed.mutateAsync({
           name: expense.name,
           category: expense.category,
           monthly_amount: expense.monthly_amount,
@@ -147,18 +148,28 @@ export default function Expenses() {
     }
   };
 
-  const handleSaveExpense = (data: Partial<BPFixedExpense>) => {
+  const handleSaveFixed = (data: Partial<BPFixedExpense>) => {
     if (data.id) {
-      updateExpense.mutate({ id: data.id, ...data });
+      updateFixed.mutate({ id: data.id, ...data });
     } else {
-      createExpense.mutate(data);
+      createFixed.mutate(data);
     }
   };
 
-  const handleEditExpense = (expense: BPFixedExpense) => {
+  const handleSaveVariable = async (data: Partial<VariableExpense>) => {
+    if (data.id) {
+      await updateVariable.mutateAsync({ id: data.id, ...data });
+    } else {
+      await createVariable.mutateAsync(data as Omit<VariableExpense, 'id' | 'user_id' | 'company_id' | 'created_at' | 'updated_at'>);
+    }
+  };
+
+  const handleEditExpense = (expense: UnifiedExpense) => {
     setSelectedExpense(expense);
     setExpenseDialogOpen(true);
   };
+
+  const allExpenses = fixedExpenses.length + variableExpenses.length;
 
   return (
     <div className="space-y-6">
@@ -168,106 +179,82 @@ export default function Expenses() {
         actions={<BPExportDialog />}
       />
 
-      <Tabs defaultValue="fixed" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="fixed" className="gap-2">
-            <Building2 className="h-4 w-4" />
-            Charges fixes
-          </TabsTrigger>
-          <TabsTrigger value="variable" className="gap-2">
-            <Percent className="h-4 w-4" />
-            Charges variables
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="fixed">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
-            <Card data-tour-bp="expenses-card">
-              <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle>Charges fixes</CardTitle>
-                <div className="flex gap-2">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button data-tour-bp="expense-template" size="sm" variant="outline" className="gap-2">
-                        <FileDown className="h-4 w-4" />
-                        Templates
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-64">
-                      <DropdownMenuLabel>Charger un template</DropdownMenuLabel>
-                      <DropdownMenuSeparator />
-                      {(Object.keys(EXPENSE_TEMPLATES) as TemplateKey[]).map((key) => {
-                        const template = EXPENSE_TEMPLATES[key];
-                        const Icon = template.icon;
-                        return (
-                          <DropdownMenuItem
-                            key={key}
-                            onClick={() => handleSelectTemplate(key)}
-                            className="flex flex-col items-start gap-1 py-2"
-                          >
-                            <div className="flex items-center gap-2 font-medium">
-                              <Icon className="h-4 w-4" />
-                              {template.name}
-                            </div>
-                            <span className="text-xs text-muted-foreground">
-                              {template.description}
-                            </span>
-                          </DropdownMenuItem>
-                        );
-                      })}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                  <Button 
-                    size="sm" 
-                    variant="outline"
-                    className="gap-2"
-                    onClick={() => setBulkEditDialogOpen(true)}
-                  >
-                    <FileSpreadsheet className="h-4 w-4" />
-                    Édition en masse
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+      >
+        <Card data-tour-bp="expenses-card">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle>Charges</CardTitle>
+            <div className="flex gap-2">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button data-tour-bp="expense-template" size="sm" variant="outline" className="gap-2">
+                    <FileDown className="h-4 w-4" />
+                    Templates
                   </Button>
-                  <Button 
-                    size="sm" 
-                    className="gap-2"
-                    onClick={() => {
-                      setSelectedExpense(null);
-                      setExpenseDialogOpen(true);
-                    }}
-                  >
-                    <Plus className="h-4 w-4" />
-                    Ajouter une charge
-                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-64">
+                  <DropdownMenuLabel>Charger un template</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {(Object.keys(EXPENSE_TEMPLATES) as TemplateKey[]).map((key) => {
+                    const template = EXPENSE_TEMPLATES[key];
+                    const Icon = template.icon;
+                    return (
+                      <DropdownMenuItem
+                        key={key}
+                        onClick={() => handleSelectTemplate(key)}
+                        className="flex flex-col items-start gap-1 py-2"
+                      >
+                        <div className="flex items-center gap-2 font-medium">
+                          <Icon className="h-4 w-4" />
+                          {template.name}
+                        </div>
+                        <span className="text-xs text-muted-foreground">
+                          {template.description}
+                        </span>
+                      </DropdownMenuItem>
+                    );
+                  })}
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Button 
+                size="sm" 
+                variant="outline"
+                className="gap-2"
+                onClick={() => setBulkEditDialogOpen(true)}
+              >
+                <FileSpreadsheet className="h-4 w-4" />
+                Édition en masse
+              </Button>
+              <Button 
+                size="sm" 
+                className="gap-2"
+                onClick={() => {
+                  setSelectedExpense(null);
+                  setExpenseDialogOpen(true);
+                }}
+              >
+                <Plus className="h-4 w-4" />
+                Ajouter une charge
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {allExpenses === 0 ? (
+              <div className="h-[200px] flex items-center justify-center">
+                <div className="text-center text-muted-foreground">
+                  <Building2 className="h-16 w-16 mx-auto mb-4 opacity-20" />
+                  <p className="text-lg font-medium">Aucune charge</p>
+                  <p className="text-sm">Loyer, assurances, abonnements, commissions...</p>
                 </div>
-              </CardHeader>
-              <CardContent>
-                {expenses.length === 0 ? (
-                  <div className="h-[200px] flex items-center justify-center">
-                    <div className="text-center text-muted-foreground">
-                      <Building2 className="h-16 w-16 mx-auto mb-4 opacity-20" />
-                      <p className="text-lg font-medium">Aucune charge fixe</p>
-                      <p className="text-sm">Loyer, assurances, abonnements SaaS...</p>
-                    </div>
-                  </div>
-                ) : (
-                  <FixedExpenseTable onEdit={handleEditExpense} />
-                )}
-              </CardContent>
-            </Card>
-          </motion.div>
-        </TabsContent>
-
-        <TabsContent value="variable">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
-            <VariableExpenseTable />
-          </motion.div>
-        </TabsContent>
-      </Tabs>
+              </div>
+            ) : (
+              <ExpenseTable onEdit={handleEditExpense} />
+            )}
+          </CardContent>
+        </Card>
+      </motion.div>
 
       {/* Synthèse 61/62 pour correspondre au P&L */}
       <ExternalServicesSummary />
@@ -278,18 +265,20 @@ export default function Expenses() {
         placeholder="Documentez vos hypothèses de charges, évolutions prévues, négociations en cours..."
       />
 
-      <FixedExpenseDialog
+      <ExpenseDialog
         open={expenseDialogOpen}
         onOpenChange={setExpenseDialogOpen}
         expense={selectedExpense}
-        onSave={handleSaveExpense}
+        onSaveFixed={handleSaveFixed}
+        onSaveVariable={handleSaveVariable}
+        isLoading={createFixed.isPending || updateFixed.isPending || createVariable.isPending || updateVariable.isPending}
       />
 
       {/* Bulk Edit Excel Dialog */}
       <BulkEditExpenseDialog
         open={bulkEditDialogOpen}
         onOpenChange={setBulkEditDialogOpen}
-        expenses={expenses}
+        expenses={fixedExpenses}
         onComplete={() => {
           queryClient.invalidateQueries({ queryKey: ['bp_fixed_expenses'] });
         }}

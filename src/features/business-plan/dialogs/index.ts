@@ -6,6 +6,7 @@ export { BPWizardDialog } from './BPWizardDialog';
 export { BulkEditExpenseDialog } from './BulkEditExpenseDialog';
 export { EditBonusDialog } from './EditBonusDialog';
 export { EmployeeDialog } from './EmployeeDialog';
+export { ExpenseDialog } from './ExpenseDialog';
 export { FinancingDialog } from './FinancingDialog';
 export { FixedExpenseDialog } from './FixedExpenseDialog';
 export { FreelanceDialog } from './FreelanceDialog';
