@@ -129,9 +129,9 @@ export function ForecastTable() {
     setTransactionDetailOpen(true);
   };
 
-  // Show loading only during initial context fetch - don't block on empty categories
-  // The component should render even if there are no categories (empty state)
-  const isInitialLoading = companyLoading || !currentCompany;
+  // Show loading during initial data fetch
+  // Include forecastsLoading to prevent blank screen on navigation
+  const isInitialLoading = companyLoading || !currentCompany || forecastsLoading;
   const isCategoriesLoading = categoriesLoading && categories.length === 0;
 
   // Get grouped categories
