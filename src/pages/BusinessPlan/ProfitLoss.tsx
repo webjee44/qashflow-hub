@@ -104,7 +104,7 @@ export default function ProfitLoss() {
       </div>
 
       {/* Collapsible analysis section */}
-      <Collapsible defaultOpen>
+      <Collapsible>
         <CollapsibleTrigger asChild>
           <div className="flex items-center justify-between p-4 bg-primary/5 border border-primary/20 rounded-lg cursor-pointer hover:bg-primary/10 transition-colors group">
             <div className="flex items-center gap-3">
