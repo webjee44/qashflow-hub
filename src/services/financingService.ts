@@ -66,6 +66,7 @@ export const financingService = {
         end_date: data.end_date || null,
         investment_id: data.investment_id || null,
         is_blocked: data.is_blocked ?? false,
+        is_operating_grant: data.is_operating_grant ?? true,
         notes: data.notes || null,
       })
       .select()
