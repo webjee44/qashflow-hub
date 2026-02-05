@@ -66,7 +66,7 @@ export function FixedExpenseDialog({ open, onOpenChange, expense, onSave }: Fixe
       setNotes(expense.notes || '');
       setPaymentFrequency(expense.payment_frequency || 'monthly');
       setPaymentMonths(expense.payment_months || DEFAULT_PAYMENT_MONTHS[expense.payment_frequency || 'monthly']);
-      setPcgSubcategory(expense.pcg_subcategory || '');
+      setPcgSubcategory(expense.pcg_subcategory || 'none');
     } else {
       setName('');
       setCategory('other');
@@ -76,14 +76,14 @@ export function FixedExpenseDialog({ open, onOpenChange, expense, onSave }: Fixe
       setNotes('');
       setPaymentFrequency('monthly');
       setPaymentMonths([]);
-      setPcgSubcategory('');
+      setPcgSubcategory('none');
     }
   }, [expense, open, settings.bp_start_date]);
 
   // Reset PCG subcategory when category changes
   useEffect(() => {
     if (!expense) {
-      setPcgSubcategory('');
+      setPcgSubcategory('none');
     }
   }, [category, expense]);
 
@@ -115,7 +115,7 @@ export function FixedExpenseDialog({ open, onOpenChange, expense, onSave }: Fixe
       notes: notes || null,
       payment_frequency: paymentFrequency,
       payment_months: paymentFrequency !== 'monthly' ? paymentMonths : null,
-      pcg_subcategory: pcgSubcategory || null,
+      pcg_subcategory: pcgSubcategory && pcgSubcategory !== 'none' ? pcgSubcategory : null,
     });
     onOpenChange(false);
   };
@@ -185,7 +185,7 @@ export function FixedExpenseDialog({ open, onOpenChange, expense, onSave }: Fixe
                   <SelectValue placeholder="Non précisé" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Non précisé</SelectItem>
+                  <SelectItem value="none">Non précisé</SelectItem>
                   {availablePcgSubcategories.map(({ code, label }) => (
                     <SelectItem key={code} value={code}>
                       {code} - {label}
