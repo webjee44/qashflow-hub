@@ -17,75 +17,39 @@ export function ProfitLossTable() {
     }).format(value);
   };
 
-  // Get row classes based on type and sectionType for PCG visual styling
+  // Get row classes - simplified 2-color scheme (muted + primary accent)
   const getRowClasses = (row: PLRow) => {
-    const baseClasses = [];
-    
-    // Section-based background colors
-    if (row.sectionType === 'revenue') {
-      if (row.type === 'header') {
-        baseClasses.push('bg-emerald-100 dark:bg-emerald-900/40 font-bold text-emerald-900 dark:text-emerald-100');
-      } else if (row.type === 'subtotal') {
-        baseClasses.push('bg-emerald-50 dark:bg-emerald-900/20 font-semibold border-t');
-      } else {
-        baseClasses.push('bg-emerald-50/50 dark:bg-emerald-900/10');
-      }
-    } else if (row.sectionType === 'expense') {
-      if (row.type === 'header') {
-        baseClasses.push('bg-red-100 dark:bg-red-900/40 font-bold text-red-900 dark:text-red-100');
-      } else if (row.type === 'subtotal') {
-        baseClasses.push('bg-red-50 dark:bg-red-900/20 font-semibold border-t');
-      } else {
-        baseClasses.push('bg-red-50/50 dark:bg-red-900/10');
-      }
-    } else if (row.sectionType === 'result') {
-      if (row.type === 'total') {
-        baseClasses.push('bg-primary/20 font-bold text-lg border-y-2');
-      } else {
-        baseClasses.push('bg-primary/10 font-bold text-primary border-y');
-      }
-    } else {
-      // Fallback for rows without sectionType
-      switch (row.type) {
-        case 'header':
-          baseClasses.push('bg-muted/50 font-bold text-foreground');
-          break;
-        case 'subtotal':
-          baseClasses.push('font-semibold border-t bg-muted/20');
-          break;
-        case 'sig':
-          baseClasses.push('bg-primary/5 font-bold text-primary border-y');
-          break;
-        case 'total':
-          baseClasses.push('bg-primary/10 font-bold text-lg border-y-2');
-          break;
-      }
+    // Headers - muted background
+    if (row.type === 'header') {
+      return 'bg-muted/60 font-bold text-foreground';
     }
     
-    return baseClasses.join(' ');
+    // Subtotals - light muted
+    if (row.type === 'subtotal') {
+      return 'bg-muted/30 font-semibold border-t border-border/50';
+    }
+    
+    // SIG lines (key metrics) - primary accent
+    if (row.type === 'sig') {
+      return 'bg-primary/10 font-bold border-y border-primary/20';
+    }
+    
+    // Final total - stronger primary accent
+    if (row.type === 'total') {
+      return 'bg-primary/15 font-bold text-lg border-y-2 border-primary/30';
+    }
+    
+    // Regular items - no background
+    return '';
   };
 
   const getValueClasses = (row: PLRow, value: number) => {
-    // For result rows, color based on positive/negative
-    if (row.sectionType === 'result' || row.type === 'total' || row.type === 'sig') {
+    // Only color key result lines (SIG, totals) based on positive/negative
+    if (row.type === 'total' || row.type === 'sig') {
       return value >= 0 ? 'text-success' : 'text-destructive';
     }
-    // For expense rows
-    if (row.sectionType === 'expense' && value !== 0) {
-      return 'text-red-700 dark:text-red-400';
-    }
-    // For revenue rows
-    if (row.sectionType === 'revenue' && value > 0) {
-      return 'text-emerald-700 dark:text-emerald-400';
-    }
-    // Legacy fallback
-    if (row.isExpense && value !== 0) {
-      return 'text-destructive';
-    }
-    if ((row.type === 'item' || row.type === 'subtotal') && !row.isExpense && value > 0) {
-      return 'text-success';
-    }
-    return '';
+    // All other values - neutral color
+    return 'text-foreground';
   };
 
   const getIndentClass = (indent?: number) => {
@@ -95,27 +59,12 @@ export function ProfitLossTable() {
     return '';
   };
 
-  // Get sticky cell background based on section type
+  // Get sticky cell background - simplified
   const getStickyBgClass = (row: PLRow) => {
-    if (row.sectionType === 'revenue') {
-      if (row.type === 'header') return 'bg-emerald-100 dark:bg-emerald-900/40';
-      if (row.type === 'subtotal') return 'bg-emerald-50 dark:bg-emerald-900/20';
-      return 'bg-emerald-50/50 dark:bg-emerald-900/10';
-    }
-    if (row.sectionType === 'expense') {
-      if (row.type === 'header') return 'bg-red-100 dark:bg-red-900/40';
-      if (row.type === 'subtotal') return 'bg-red-50 dark:bg-red-900/20';
-      return 'bg-red-50/50 dark:bg-red-900/10';
-    }
-    if (row.sectionType === 'result') {
-      if (row.type === 'total') return 'bg-primary/20';
-      return 'bg-primary/10';
-    }
-    // Fallback
-    if (row.type === 'header') return 'bg-muted/50';
-    if (row.type === 'subtotal') return 'bg-muted/20';
-    if (row.type === 'sig') return 'bg-primary/5';
-    if (row.type === 'total') return 'bg-primary/10';
+    if (row.type === 'header') return 'bg-muted/60';
+    if (row.type === 'subtotal') return 'bg-muted/30';
+    if (row.type === 'sig') return 'bg-primary/10';
+    if (row.type === 'total') return 'bg-primary/15';
     return 'bg-background';
   };
 
