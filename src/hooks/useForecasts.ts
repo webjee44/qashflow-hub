@@ -53,7 +53,9 @@ export function useForecasts() {
   const getStoredValue = useCallback((key: string, defaultValue: number): number => {
     if (typeof window === 'undefined') return defaultValue;
     const stored = localStorage.getItem(key);
-    return stored !== null ? parseInt(stored, 10) : defaultValue;
+    if (stored === null) return defaultValue;
+    const parsed = parseInt(stored, 10);
+    return Number.isFinite(parsed) ? parsed : defaultValue;
   }, []);
   
   const [monthsBefore, setMonthsBeforeState] = useState(() => getStoredValue(MONTHS_BEFORE_KEY, 0));
