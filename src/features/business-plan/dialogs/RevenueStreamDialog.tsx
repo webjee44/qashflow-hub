@@ -26,7 +26,6 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
   const [description, setDescription] = useState('');
   const [model, setModel] = useState<ModelType>('variable');
   const [revenueType, setRevenueType] = useState<RevenueType>('production');
-  const [model, setModel] = useState<ModelType>('variable');
   
   // Subscription model fields
   const [initialSubscribers, setInitialSubscribers] = useState('0');
@@ -103,7 +102,6 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
       purchase_price: parseFloat(purchasePrice) || 0,
     } as any);
     onOpenChange(false);
-  };
   };
 
   // Calculate margin preview
