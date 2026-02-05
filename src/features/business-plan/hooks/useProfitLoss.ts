@@ -11,8 +11,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { useCompany } from '@/hooks/useCompany';
 import { useBPSettings } from './useBPSettings';
 import { useStocks } from './useStocks';
-import { startOfMonth, addMonths, parseISO, format } from 'date-fns';
-import { calculateTaxByRegime, TVA_RATES_FR, TaxRegime, getGlobalChargesRate, URSSAF_RATES_2026, SEVERANCE_FORFAIT_SOCIAL } from '@/lib/french-rates';
+import { startOfMonth, addMonths, parseISO, format, differenceInMonths } from 'date-fns';
+import { calculateTaxByRegime, TVA_RATES_FR, TaxRegime, getGlobalChargesRate, URSSAF_RATES_2026, SEVERANCE_FORFAIT_SOCIAL, getLoanScheduleEntry } from '@/lib/french-rates';
 import { PAYMENT_FREQUENCIES, DEPARTURE_TYPES } from '@/constants/bpConstants';
 
 export interface PLRow {
@@ -355,7 +355,7 @@ export function useProfitLoss() {
   // Crédit-bail → Services Extérieurs (612) - impacte VA et EBE
   const getMonthlyLeasePayments = (month: Date): number => {
     if (!showFinancing) return 0;
-    return financings.filter(f => f.financing_type === 'leasing').reduce((sum, fin) => {
+    return financings.filter(f => f.financing_type === 'lease').reduce((sum, fin) => {
       const startDate = parseISO(fin.start_date);
       const endDate = fin.end_date ? parseISO(fin.end_date) : null;
       const monthStart = startOfMonth(month);
@@ -369,13 +369,28 @@ export function useProfitLoss() {
     if (!showFinancing) return 0;
     return financings.filter(f => f.financing_type === 'loan').reduce((sum, fin) => {
       const startDate = parseISO(fin.start_date);
-      const endDate = fin.end_date ? parseISO(fin.end_date) : null;
       const monthStart = startOfMonth(month);
+      
+      // Vérifier si le prêt est actif ce mois
       if (monthStart < startOfMonth(startDate)) return sum;
-      if (endDate && monthStart > startOfMonth(endDate)) return sum;
-      const rate = (fin.interest_rate || 0) / 100 / 12;
-      const principal = fin.amount || 0;
-      return sum + (principal * rate);
+      
+      // Calculer le numéro du mois dans le prêt (0-indexed)
+      const monthIndex = differenceInMonths(monthStart, startOfMonth(startDate));
+      const durationMonths = fin.duration_months || 60;
+      
+      // Prêt terminé
+      if (monthIndex >= durationMonths) return sum;
+      
+      // Utiliser getLoanScheduleEntry pour le calcul correct des intérêts
+      // basé sur le tableau d'amortissement réel
+      const entry = getLoanScheduleEntry(
+        Number(fin.amount) || 0,
+        Number(fin.interest_rate) || 0,
+        durationMonths,
+        monthIndex
+      );
+      
+      return sum + entry.interest;
     }, 0);
   };
 
