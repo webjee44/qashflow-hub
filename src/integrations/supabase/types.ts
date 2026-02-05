@@ -284,6 +284,7 @@ export type Database = {
           interest_rate: number | null
           investment_id: string | null
           is_blocked: boolean | null
+          is_operating_grant: boolean | null
           monthly_payment: number | null
           name: string
           notes: string | null
@@ -303,6 +304,7 @@ export type Database = {
           interest_rate?: number | null
           investment_id?: string | null
           is_blocked?: boolean | null
+          is_operating_grant?: boolean | null
           monthly_payment?: number | null
           name: string
           notes?: string | null
@@ -322,6 +324,7 @@ export type Database = {
           interest_rate?: number | null
           investment_id?: string | null
           is_blocked?: boolean | null
+          is_operating_grant?: boolean | null
           monthly_payment?: number | null
           name?: string
           notes?: string | null
@@ -717,6 +720,7 @@ export type Database = {
           monthly_price: number | null
           name: string
           purchase_price: number | null
+          revenue_type: string | null
           updated_at: string | null
           user_id: string
           vat_rate: number | null
@@ -742,6 +746,7 @@ export type Database = {
           monthly_price?: number | null
           name: string
           purchase_price?: number | null
+          revenue_type?: string | null
           updated_at?: string | null
           user_id: string
           vat_rate?: number | null
@@ -767,6 +772,7 @@ export type Database = {
           monthly_price?: number | null
           name?: string
           purchase_price?: number | null
+          revenue_type?: string | null
           updated_at?: string | null
           user_id?: string
           vat_rate?: number | null

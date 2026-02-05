@@ -13,7 +13,7 @@ export interface BPFinancing {
   company_id: string | null;
   business_plan_id: string | null;
   investment_id: string | null;
-  financing_type: 'capital' | 'loan' | 'grant' | 'current_account';
+  financing_type: 'capital' | 'loan' | 'grant' | 'current_account' | 'leasing';
   name: string;
   amount: number;
   interest_rate: number;
@@ -22,6 +22,7 @@ export interface BPFinancing {
   start_date: string;
   end_date: string | null;
   is_blocked: boolean;
+  is_operating_grant: boolean;
   notes: string | null;
   created_at: string;
   updated_at: string;

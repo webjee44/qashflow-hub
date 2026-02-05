@@ -6,6 +6,8 @@
 import { supabase } from '@/integrations/supabase/client';
 import { type RevenueModel } from '@/constants/bpConstants';
 
+export type RevenueType = 'merchandise' | 'production';
+
 export interface BPRevenueStream {
   id: string;
   user_id: string;
@@ -15,6 +17,7 @@ export interface BPRevenueStream {
   description: string | null;
   color: string;
   model: RevenueModel;
+  revenue_type: RevenueType;
   is_active: boolean;
   initial_subscribers: number;
   monthly_price: number;
@@ -26,6 +29,8 @@ export interface BPRevenueStream {
   growth_rate_year2: number;
   growth_rate_year3: number;
   growth_rate_year4: number;
+  has_purchase_cost: boolean;
+  purchase_price: number;
   created_at: string;
   updated_at: string;
 }
@@ -58,6 +63,7 @@ export const revenueStreamService = {
         description: data.description || null,
         color: data.color || 'hsl(142, 76%, 36%)',
         model: data.model || 'variable',
+        revenue_type: data.revenue_type || 'production',
         is_active: true,
         initial_subscribers: data.initial_subscribers || 0,
         monthly_price: data.monthly_price || 0,
@@ -69,6 +75,8 @@ export const revenueStreamService = {
         growth_rate_year2: data.growth_rate_year2 ?? 0.10,
         growth_rate_year3: data.growth_rate_year3 ?? 0.10,
         growth_rate_year4: data.growth_rate_year4 ?? 0.10,
+        has_purchase_cost: data.has_purchase_cost ?? false,
+        purchase_price: data.purchase_price ?? 0,
       })
       .select()
       .single();

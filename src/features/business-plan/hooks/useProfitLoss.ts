@@ -1,5 +1,6 @@
 // ============================================
-// useProfitLoss Hook - Company-based version
+// useProfitLoss Hook - PCG Compliant Version
+// Restructuré selon les normes bancaires françaises (SIG)
 // Uses company_id to fetch all related data
 // ============================================
 
@@ -9,9 +10,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useCompany } from '@/hooks/useCompany';
 import { useBPSettings } from './useBPSettings';
+import { useStocks } from './useStocks';
 import { startOfMonth, addMonths, parseISO, format } from 'date-fns';
 import { calculateTaxByRegime, TVA_RATES_FR, TaxRegime, getGlobalChargesRate, URSSAF_RATES_2026, SEVERANCE_FORFAIT_SOCIAL } from '@/lib/french-rates';
-import { PAYMENT_FREQUENCIES, DEFAULT_PAYMENT_MONTHS, PCG_EXPENSE_CATEGORIES, CATEGORY_TO_PCG_MAPPING, PCG_ORDER, PCGExpenseCategory, FIXED_EXPENSE_CATEGORIES, DEPARTURE_TYPES } from '@/constants/bpConstants';
+import { PAYMENT_FREQUENCIES, DEPARTURE_TYPES } from '@/constants/bpConstants';
 
 export interface PLRow {
   label: string;
@@ -20,6 +22,8 @@ export interface PLRow {
   isExpense?: boolean;
   indent?: number;
   sectionType?: 'revenue' | 'expense' | 'result';
+  pcgCode?: string;
+  isSIG?: boolean;
 }
 
 export interface FiscalYear {
@@ -33,16 +37,33 @@ export interface PLData {
   years: FiscalYear[];
   rows: PLRow[];
   totals: {
+    // Revenus
+    merchandiseSales: number[];     // 707
+    productionSold: number[];       // 706
+    operatingGrants: number[];      // 74
     revenue: number[];
-    cogs: number[]; // Coût des ventes uniquement (impacte la marge brute)
+    
+    // Charges
+    merchandisePurchases: number[]; // 607
+    stockVariation: number[];       // 603/713
+    externalServices: number[];     // 61/62
+    taxes: number[];                // 63
+    personnel: number[];            // 64
+    depreciation: number[];         // 68
+    
+    // Legacy (for backward compatibility)
+    cogs: number[];
     fixedExpenses: number[];
     variableExpenses: number[];
     personnelCosts: number[];
     directorsCosts: number[];
-    depreciation: number[];
     leaseExpenses: number[];
-    payrollTaxes: number[]; // Taxes sur salaires (apprentissage + formation)
-    severancePayments: number[]; // Indemnités de départ
+    payrollTaxes: number[];
+    severancePayments: number[];
+    
+    // SIG
+    commercialMargin: number[];
+    valueAdded: number[];
     ebitda: number[];
     operatingResult: number[];
     financialResult: number[];
@@ -61,6 +82,7 @@ export function useProfitLoss() {
   const { user } = useAuth();
   const { currentCompany } = useCompany();
   const { settings, isLoading: settingsLoading } = useBPSettings();
+  const { getStockVariation } = useStocks();
   const companyId = currentCompany?.id;
 
   // Fetch all BP data in parallel using company_id
@@ -192,18 +214,6 @@ export function useProfitLoss() {
     return true;
   };
 
-  const getPersonnelCost = (person: any): number => {
-    if (person.worker_type === 'freelance') {
-      const dailyRate = Number(person.daily_rate) || 0;
-      const daysPerMonth = Number(person.estimated_days_per_month) || 0;
-      return dailyRate * daysPerMonth;
-    }
-    const salary = Number(person.gross_salary) || 0;
-    const chargesRate = Number(person.employer_charges_rate) || 
-      getGlobalChargesRate(salary, person.is_executive, person.company_size || 'small', person.contract_type || 'cdi');
-    return salary + (salary * chargesRate);
-  };
-
   const getPersonnelBreakdownForMonth = (month: Date) => {
     const activePersonnel = personnel.filter(p => 
       isPersonnelActiveForMonth(p, month) && p.worker_type !== 'freelance'
@@ -217,7 +227,17 @@ export function useProfitLoss() {
     return { grossSalaries, employerCharges, total: grossSalaries + employerCharges };
   };
 
-  // Calculate severance payments for a month (departure indemnities)
+  const getFreelanceCostsForMonth = (month: Date) => {
+    const activeFreelancers = personnel.filter(p => 
+      isPersonnelActiveForMonth(p, month) && p.worker_type === 'freelance'
+    );
+    return activeFreelancers.reduce((sum, p) => {
+      const dailyRate = Number(p.daily_rate) || 0;
+      const daysPerMonth = Number(p.estimated_days_per_month) || 0;
+      return sum + (dailyRate * daysPerMonth);
+    }, 0);
+  };
+
   const getSeverancePaymentsForMonth = (month: Date) => {
     const monthStart = startOfMonth(month);
     
@@ -227,7 +247,6 @@ export function useProfitLoss() {
       const endDate = parseISO(person.end_date);
       if (startOfMonth(endDate).getTime() !== monthStart.getTime()) return sum;
       
-      // Calculate employer cost (severance + forfait social)
       const departureConfig = DEPARTURE_TYPES[person.departure_type as keyof typeof DEPARTURE_TYPES];
       const employerRate = departureConfig?.employerContributionRate ?? SEVERANCE_FORFAIT_SOCIAL;
       const severance = Number(person.severance_amount) || 0;
@@ -283,34 +302,25 @@ export function useProfitLoss() {
       return subscribers * (stream.monthly_price || 0);
     }
 
-    // For fixed model: look for explicit forecast first
     const monthStr = format(targetMonth, 'yyyy-MM-dd');
     const forecast = forecasts.find(f => f.stream_id === streamId && f.month === monthStr);
     if (forecast?.amount) return forecast.amount;
 
-    // If no forecast for this month, project from Year 1 with growth rates
-    // Find the same month in Year 1 to use as base
-    const targetMonthOfYear = targetMonth.getMonth(); // 0-11
+    const targetMonthOfYear = targetMonth.getMonth();
     const bpStartYear = startDate.getFullYear();
     const targetYear = targetMonth.getFullYear();
     const yearOffset = targetYear - bpStartYear;
 
     if (yearOffset <= 0) {
-      // Still in year 1, no forecast found - return 0 or monthly_price fallback
       return stream.monthly_price || 0;
     }
 
-    // Find the base forecast from Year 1 (same month)
     const baseMonthStr = format(new Date(bpStartYear, targetMonthOfYear, 1), 'yyyy-MM-dd');
     const baseForecast = forecasts.find(f => f.stream_id === streamId && f.month === baseMonthStr);
     const baseAmount = baseForecast?.amount || stream.monthly_price || 0;
 
     if (baseAmount === 0) return 0;
 
-    // Apply growth rates for each year
-    // Year 2: growth_rate_year2 or growth_rate
-    // Year 3: growth_rate_year3 or growth_rate
-    // Year 4+: growth_rate_year4 or growth_rate
     let projectedAmount = baseAmount;
     
     for (let y = 1; y <= yearOffset; y++) {
@@ -342,6 +352,7 @@ export function useProfitLoss() {
 
   const showFinancing = settings.show_financing !== false;
   
+  // Crédit-bail → Services Extérieurs (612) - impacte VA et EBE
   const getMonthlyLeasePayments = (month: Date): number => {
     if (!showFinancing) return 0;
     return financings.filter(f => f.financing_type === 'leasing').reduce((sum, fin) => {
@@ -390,16 +401,36 @@ export function useProfitLoss() {
   };
 
   // Calculate purchase costs from revenue streams (COGS from products)
-  // purchase_price now represents a percentage of revenue (e.g., 60 = 60% of CA)
-  const getPurchaseCostForMonth = (month: Date): number => {
+  const getPurchaseCostForMonth = (month: Date, revenueType?: 'merchandise' | 'production'): number => {
     return streams.reduce((sum, stream) => {
       if (!stream.has_purchase_cost || !stream.purchase_price) return sum;
+      if (revenueType && stream.revenue_type !== revenueType) return sum;
       
       const revenue = getRevenueForecast(stream.id, month);
-      // COGS = revenue × purchase percentage
       const purchaseCost = revenue * (stream.purchase_price / 100);
       
       return sum + purchaseCost;
+    }, 0);
+  };
+
+  // Get operating grants (subventions d'exploitation - compte 74)
+  const getOperatingGrantsForMonth = (month: Date): number => {
+    const monthStart = startOfMonth(month);
+    return financings.reduce((sum, fin) => {
+      if (fin.financing_type !== 'grant') return sum;
+      if (fin.is_operating_grant === false) return sum; // Exclude investment grants
+      
+      const startDate = parseISO(fin.start_date);
+      const endDate = fin.end_date ? parseISO(fin.end_date) : null;
+      
+      if (monthStart < startOfMonth(startDate)) return sum;
+      if (endDate && monthStart > startOfMonth(endDate)) return sum;
+      
+      // Subventions d'exploitation étalées sur la durée
+      const durationMonths = fin.duration_months || 12;
+      const monthlyAmount = (fin.amount || 0) / durationMonths;
+      
+      return sum + monthlyAmount;
     }, 0);
   };
 
@@ -453,115 +484,132 @@ export function useProfitLoss() {
     // ═══════════════════════════════════════════════════════════════
     rows.push({ label: 'I. PRODUITS D\'EXPLOITATION', type: 'header', values: [], sectionType: 'revenue' });
     
-    streams.forEach(stream => {
-      const values = calculateYearlyValues(month => getRevenueForecast(stream.id, month));
-      rows.push({ label: stream.name, type: 'item', values, indent: 1, sectionType: 'revenue' });
-    });
-
-    const revenueValues = calculateYearlyValues(month => 
-      streams.reduce((sum, stream) => sum + getRevenueForecast(stream.id, month), 0)
+    // Ventes de marchandises (707)
+    const merchandiseStreams = streams.filter(s => s.revenue_type === 'merchandise');
+    const merchandiseSalesValues = calculateYearlyValues(month => 
+      merchandiseStreams.reduce((sum, stream) => sum + getRevenueForecast(stream.id, month), 0)
     );
-    rows.push({ label: 'Chiffre d\'affaires', type: 'subtotal', values: revenueValues, sectionType: 'revenue' });
     
+    if (merchandiseSalesValues.some(v => v > 0)) {
+      rows.push({ label: 'Ventes de marchandises (707)', type: 'item', values: merchandiseSalesValues, indent: 1, sectionType: 'revenue', pcgCode: '707' });
+    }
+    
+    // Production vendue - Prestations de services (706)
+    const productionStreams = streams.filter(s => s.revenue_type !== 'merchandise');
+    const productionSoldValues = calculateYearlyValues(month => 
+      productionStreams.reduce((sum, stream) => sum + getRevenueForecast(stream.id, month), 0)
+    );
+    
+    if (productionSoldValues.some(v => v > 0)) {
+      rows.push({ label: 'Production vendue - Prestations de services (706)', type: 'item', values: productionSoldValues, indent: 1, sectionType: 'revenue', pcgCode: '706' });
+    }
+
+    // Subventions d'exploitation (74)
+    const operatingGrantsValues = calculateYearlyValues(month => getOperatingGrantsForMonth(month));
+    if (operatingGrantsValues.some(v => v > 0)) {
+      rows.push({ label: 'Subventions d\'exploitation (74)', type: 'item', values: operatingGrantsValues, indent: 1, sectionType: 'revenue', pcgCode: '74' });
+    }
+
     // Total produits d'exploitation
-    const totalRevenueValues = revenueValues; // Pour l'instant, égal au CA
+    const totalRevenueValues = years.map((_, i) => 
+      merchandiseSalesValues[i] + productionSoldValues[i] + operatingGrantsValues[i]
+    );
     rows.push({ label: 'TOTAL PRODUITS D\'EXPLOITATION (I)', type: 'subtotal', values: totalRevenueValues, sectionType: 'revenue' });
 
     // ═══════════════════════════════════════════════════════════════
-    // II. CHARGES D'EXPLOITATION
+    // II. CHARGES D'EXPLOITATION (Par nature PCG)
     // ═══════════════════════════════════════════════════════════════
     rows.push({ label: 'II. CHARGES D\'EXPLOITATION', type: 'header', values: [], isExpense: true, sectionType: 'expense' });
 
-    // Charges variables - COGS uniquement (pour la marge brute)
-    const cogsExpenses = variableExpenses.filter(e => e.is_cogs !== false);
-    const cogsValues = calculateYearlyValues(month => {
-      const revenueByStream = new Map<string | null, { amount: number; units: number }>();
-      streams.forEach(stream => {
-        const amount = getRevenueForecast(stream.id, month);
-        revenueByStream.set(stream.id, { amount, units: 1 });
-      });
-      
-      const variableCogs = cogsExpenses.reduce((total, expense) => {
-        return total + calculateVariableExpenseForMonth(expense, month, revenueByStream);
-      }, 0);
-      
-      const purchaseCogs = getPurchaseCostForMonth(month);
-      return variableCogs + purchaseCogs;
-    });
-
-    // Charges variables d'exploitation (hors COGS)
-    const operatingVariableExpenses = variableExpenses.filter(e => e.is_cogs === false);
-    const operatingVariableValues = calculateYearlyValues(month => {
-      const revenueByStream = new Map<string | null, { amount: number; units: number }>();
-      streams.forEach(stream => {
-        const amount = getRevenueForecast(stream.id, month);
-        revenueByStream.set(stream.id, { amount, units: 1 });
-      });
-      return operatingVariableExpenses.reduce((total, expense) => {
-        return total + calculateVariableExpenseForMonth(expense, month, revenueByStream);
-      }, 0);
-    });
+    // A. Achats (Classe 60)
     
-    const variableExpenseValues = years.map((_, i) => cogsValues[i] + operatingVariableValues[i]);
-
-    // Regrouper les charges par rubrique PCG
-    type ExpenseWithSource = { expense: any; source: 'fixed' | 'variable' };
-    const allExpenses: ExpenseWithSource[] = [
-      ...fixedExpenses.map(e => ({ expense: e, source: 'fixed' as const })),
-      ...variableExpenses.map(e => ({ expense: e, source: 'variable' as const })),
-    ];
-
-    const expensesByPCG = allExpenses.reduce((acc, item) => {
-      const category = item.expense.category || 'other';
-      const pcgCode = CATEGORY_TO_PCG_MAPPING[category] || 'other_operating';
-      if (!acc[pcgCode]) acc[pcgCode] = [];
-      acc[pcgCode].push(item);
-      return acc;
-    }, {} as Record<PCGExpenseCategory, ExpenseWithSource[]>);
-
-    // Afficher les charges par rubrique PCG
-    PCG_ORDER.forEach(pcgCode => {
-      const items = expensesByPCG[pcgCode];
-      if (!items || items.length === 0) return;
-      
-      const pcgInfo = PCG_EXPENSE_CATEGORIES[pcgCode];
-      const values = calculateYearlyValues(month => {
-        return items.reduce((sum, { expense, source }) => {
-          if (source === 'fixed') {
-            return sum + getFixedExpenseForMonth(expense, month);
-          } else {
-            const revenueByStream = new Map<string | null, { amount: number; units: number }>();
-            streams.forEach(stream => {
-              const amount = getRevenueForecast(stream.id, month);
-              revenueByStream.set(stream.id, { amount, units: 1 });
-            });
-            return sum + calculateVariableExpenseForMonth(expense, month, revenueByStream);
-          }
-        }, 0);
-      });
-      
-      rows.push({ 
-        label: pcgInfo.label, 
-        type: 'item', 
-        values, 
-        isExpense: true, 
-        indent: 1,
-        sectionType: 'expense'
-      });
-    });
-
-    const fixedExpenseValues = calculateYearlyValues(month => 
-      fixedExpenses.reduce((sum, e) => sum + getFixedExpenseForMonth(e, month), 0)
+    // Achats de marchandises (607)
+    const merchandisePurchasesValues = calculateYearlyValues(month => 
+      getPurchaseCostForMonth(month, 'merchandise')
     );
+    if (merchandisePurchasesValues.some(v => v > 0)) {
+      rows.push({ label: 'Achats de marchandises (607)', type: 'item', values: merchandisePurchasesValues, isExpense: true, indent: 1, sectionType: 'expense', pcgCode: '607' });
+    }
 
-    // Charges de personnel
-    rows.push({ label: 'Charges de personnel', type: 'header', values: [], isExpense: true, indent: 1, sectionType: 'expense' });
+    // Variation de stocks (603/713) - from useStocks
+    const stockVariationValues = years.map((_, yearIndex) => getStockVariation(yearIndex + 1));
+    if (stockVariationValues.some(v => v !== 0)) {
+      rows.push({ label: 'Variation des stocks (603)', type: 'item', values: stockVariationValues, isExpense: true, indent: 1, sectionType: 'expense', pcgCode: '603' });
+    }
+
+    // Achats de matières et fournitures
+    const purchasesFromProductionValues = calculateYearlyValues(month => 
+      getPurchaseCostForMonth(month, 'production')
+    );
+    if (purchasesFromProductionValues.some(v => v > 0)) {
+      rows.push({ label: 'Achats de matières et fournitures (601/602)', type: 'item', values: purchasesFromProductionValues, isExpense: true, indent: 1, sectionType: 'expense', pcgCode: '601' });
+    }
+
+    // B. Services extérieurs (61/62) - Inclut le crédit-bail (612)
+    const externalServicesValues = calculateYearlyValues(month => {
+      // Fixed expenses that are services
+      const serviceCategories = ['rent', 'insurance', 'software', 'telecom', 'marketing', 'professional_fees', 'banking', 'travel'];
+      const servicesTotal = fixedExpenses
+        .filter(e => serviceCategories.includes(e.category || ''))
+        .reduce((sum, e) => sum + getFixedExpenseForMonth(e, month), 0);
+      
+      // Add leasing (credit-bail - 612)
+      const leasing = getMonthlyLeasePayments(month);
+      
+      // Add freelance costs (621 - Personnel extérieur)
+      const freelance = getFreelanceCostsForMonth(month);
+      
+      // Add variable expenses that are services (commission, payment fees)
+      const revenueByStream = new Map<string | null, { amount: number; units: number }>();
+      streams.forEach(stream => {
+        const amount = getRevenueForecast(stream.id, month);
+        revenueByStream.set(stream.id, { amount, units: 1 });
+      });
+      const variableServices = variableExpenses
+        .filter(e => ['commission', 'payment_fees'].includes(e.category || ''))
+        .reduce((sum, e) => sum + calculateVariableExpenseForMonth(e, month, revenueByStream), 0);
+      
+      return servicesTotal + leasing + freelance + variableServices;
+    });
+    rows.push({ label: 'Autres achats et charges externes (61/62)', type: 'item', values: externalServicesValues, isExpense: true, indent: 1, sectionType: 'expense', pcgCode: '61' });
+
+    // C. Impôts, taxes et versements assimilés (63)
+    const getPayrollTaxesForMonth = (month: Date) => {
+      const rates = URSSAF_RATES_2026.employer;
+      const activeEmployees = personnel.filter(p => {
+        if (!isPersonnelActiveForMonth(p, month)) return false;
+        if (p.worker_type !== 'employee') return false;
+        if (p.contract_type === 'internship' || p.contract_type === 'intern') return false;
+        return true;
+      });
+      const grossSalaries = activeEmployees.reduce((sum, p) => sum + (Number(p.gross_salary) || 0), 0);
+      const headcount = activeEmployees.length;
+      const isSmallCompany = headcount < 11;
+      const apprentissage = grossSalaries * rates.apprentissage;
+      const formationRate = isSmallCompany ? rates.formation.small : rates.formation.large;
+      const formation = grossSalaries * formationRate;
+      return apprentissage + formation;
+    };
+
+    const taxesValues = calculateYearlyValues(month => {
+      const payrollTaxes = getPayrollTaxesForMonth(month);
+      const otherTaxes = fixedExpenses
+        .filter(e => e.category === 'taxes')
+        .reduce((sum, e) => sum + getFixedExpenseForMonth(e, month), 0);
+      return payrollTaxes + otherTaxes;
+    });
+    if (taxesValues.some(v => v > 0)) {
+      rows.push({ label: 'Impôts, taxes et versements assimilés (63)', type: 'item', values: taxesValues, isExpense: true, indent: 1, sectionType: 'expense', pcgCode: '63' });
+    }
+
+    // D. Charges de personnel (64)
+    rows.push({ label: 'Charges de personnel (64)', type: 'header', values: [], isExpense: true, indent: 1, sectionType: 'expense' });
     
     const grossSalaryValues = calculateYearlyValues(month => getPersonnelBreakdownForMonth(month).grossSalaries);
-    rows.push({ label: 'Salaires et traitements', type: 'item', values: grossSalaryValues, isExpense: true, indent: 2, sectionType: 'expense' });
+    rows.push({ label: 'Salaires et traitements (641)', type: 'item', values: grossSalaryValues, isExpense: true, indent: 2, sectionType: 'expense', pcgCode: '641' });
     
     const chargesValues = calculateYearlyValues(month => getPersonnelBreakdownForMonth(month).employerCharges);
-    rows.push({ label: 'Charges sociales', type: 'item', values: chargesValues, isExpense: true, indent: 2, sectionType: 'expense' });
+    rows.push({ label: 'Charges sociales (645)', type: 'item', values: chargesValues, isExpense: true, indent: 2, sectionType: 'expense', pcgCode: '645' });
 
     const personnelValues = calculateYearlyValues(month => getPersonnelBreakdownForMonth(month).total);
     
@@ -585,53 +633,68 @@ export function useProfitLoss() {
       rows.push({ label: 'Total rémunération dirigeants', type: 'subtotal', values: directorTotalValues, isExpense: true, sectionType: 'expense' });
     }
 
-    // Dotations aux amortissements
+    // E. Autres charges de gestion courante (65)
+    const otherExpensesValues = calculateYearlyValues(month => 
+      fixedExpenses
+        .filter(e => ['software', 'office', 'other'].includes(e.category || ''))
+        .reduce((sum, e) => sum + getFixedExpenseForMonth(e, month), 0)
+    );
+    if (otherExpensesValues.some(v => v > 0)) {
+      rows.push({ label: 'Autres charges de gestion courante (65)', type: 'item', values: otherExpensesValues, isExpense: true, indent: 1, sectionType: 'expense', pcgCode: '65' });
+    }
+
+    // F. Dotations aux amortissements (68)
     const depreciationValues = calculateYearlyValues(month => getDepreciationForMonth(month));
     if (depreciationValues.some(v => v > 0)) {
-      rows.push({ label: 'Dotations aux amortissements', type: 'item', values: depreciationValues, isExpense: true, indent: 1, sectionType: 'expense' });
+      rows.push({ label: 'Dotations aux amortissements (68)', type: 'item', values: depreciationValues, isExpense: true, indent: 1, sectionType: 'expense', pcgCode: '68' });
     }
 
-    // Loyers de crédit-bail
-    const leaseExpenseValues = calculateYearlyValues(month => getMonthlyLeasePayments(month));
-    if (leaseExpenseValues.some(v => v > 0)) {
-      rows.push({ label: 'Loyers de crédit-bail', type: 'item', values: leaseExpenseValues, isExpense: true, indent: 1, sectionType: 'expense' });
-    }
+    // ═══════════════════════════════════════════════════════════════
+    // CALCUL DES SIG (Soldes Intermédiaires de Gestion)
+    // ═══════════════════════════════════════════════════════════════
 
-    // Taxes sur salaires
-    const getPayrollTaxesForMonth = (month: Date) => {
-      const rates = URSSAF_RATES_2026.employer;
-      const activeEmployees = personnel.filter(p => {
-        if (!isPersonnelActiveForMonth(p, month)) return false;
-        if (p.worker_type !== 'employee') return false;
-        if (p.contract_type === 'internship' || p.contract_type === 'intern') return false;
-        return true;
-      });
-      const grossSalaries = activeEmployees.reduce((sum, p) => sum + (Number(p.gross_salary) || 0), 0);
-      const headcount = activeEmployees.length;
-      const isSmallCompany = headcount < 11;
-      const apprentissage = grossSalaries * rates.apprentissage;
-      const formationRate = isSmallCompany ? rates.formation.small : rates.formation.large;
-      const formation = grossSalaries * formationRate;
-      return { apprentissage, formation, total: apprentissage + formation };
-    };
-
-    const payrollTaxesValues = calculateYearlyValues(month => getPayrollTaxesForMonth(month).total);
+    // Marge Commerciale = Ventes marchandises - Coût d'achat marchandises - Variation stocks marchandises
+    const commercialMarginValues = years.map((_, i) => 
+      merchandiseSalesValues[i] - merchandisePurchasesValues[i] - stockVariationValues[i]
+    );
     
-    if (payrollTaxesValues.some(v => v > 0)) {
-      rows.push({ label: 'Impôts, taxes et versements assimilés', type: 'item', values: payrollTaxesValues, isExpense: true, indent: 1, sectionType: 'expense' });
+    if (merchandiseSalesValues.some(v => v > 0)) {
+      rows.push({ label: 'MARGE COMMERCIALE', type: 'sig', values: commercialMarginValues, sectionType: 'result', isSIG: true });
     }
 
-    // Total charges d'exploitation
+    // Production de l'exercice (pour l'instant = Production vendue)
+    const productionValues = productionSoldValues;
+
+    // Valeur Ajoutée = Marge commerciale + Production - Consommations en provenance des tiers (60/61/62)
+    const externalConsumptionValues = years.map((_, i) => 
+      purchasesFromProductionValues[i] + externalServicesValues[i]
+    );
+    
+    const valueAddedValues = years.map((_, i) => 
+      commercialMarginValues[i] + productionValues[i] - externalConsumptionValues[i]
+    );
+    rows.push({ label: 'VALEUR AJOUTÉE', type: 'sig', values: valueAddedValues, sectionType: 'result', isSIG: true });
+
+    // Excédent Brut d'Exploitation (EBE) = VA + Subventions (74) - Impôts (63) - Personnel (64)
+    const ebeValues = years.map((_, i) => 
+      valueAddedValues[i] + operatingGrantsValues[i] - taxesValues[i] - totalPersonnelWithSeverance[i] - directorTotalValues[i]
+    );
+    rows.push({ label: 'EXCÉDENT BRUT D\'EXPLOITATION (EBE)', type: 'sig', values: ebeValues, sectionType: 'result', isSIG: true });
+
+    // Total charges d'exploitation (pour référence)
     const totalExpenseValues = years.map((_, i) => 
-      variableExpenseValues[i] + fixedExpenseValues[i] + totalPersonnelWithSeverance[i] + directorTotalValues[i] + 
-      depreciationValues[i] + leaseExpenseValues[i] + payrollTaxesValues[i]
+      merchandisePurchasesValues[i] + stockVariationValues[i] + purchasesFromProductionValues[i] + 
+      externalServicesValues[i] + taxesValues[i] + totalPersonnelWithSeverance[i] + directorTotalValues[i] + 
+      otherExpensesValues[i] + depreciationValues[i]
     );
     rows.push({ label: 'TOTAL CHARGES D\'EXPLOITATION (II)', type: 'subtotal', values: totalExpenseValues, isExpense: true, sectionType: 'expense' });
 
     // ═══════════════════════════════════════════════════════════════
-    // RÉSULTAT D'EXPLOITATION (I - II)
+    // RÉSULTAT D'EXPLOITATION (I - II) = EBE - Amortissements - Autres charges
     // ═══════════════════════════════════════════════════════════════
-    const operatingResultValues = years.map((_, i) => totalRevenueValues[i] - totalExpenseValues[i]);
+    const operatingResultValues = years.map((_, i) => 
+      ebeValues[i] - depreciationValues[i] - otherExpensesValues[i]
+    );
     rows.push({ label: 'RÉSULTAT D\'EXPLOITATION (I - II)', type: 'sig', values: operatingResultValues, sectionType: 'result' });
 
     // ═══════════════════════════════════════════════════════════════
@@ -650,7 +713,7 @@ export function useProfitLoss() {
     
     const interestExpenseValues = calculateYearlyValues(month => getMonthlyInterestExpense(month));
     if (interestExpenseValues.some(v => v > 0)) {
-      rows.push({ label: 'Intérêts et charges assimilées', type: 'item', values: interestExpenseValues, isExpense: true, indent: 1, sectionType: 'expense' });
+      rows.push({ label: 'Intérêts et charges assimilées (66)', type: 'item', values: interestExpenseValues, isExpense: true, indent: 1, sectionType: 'expense', pcgCode: '66' });
     }
     
     rows.push({ label: 'TOTAL CHARGES FINANCIÈRES (IV)', type: 'subtotal', values: interestExpenseValues, isExpense: true, sectionType: 'expense' });
@@ -692,12 +755,14 @@ export function useProfitLoss() {
     rows.push({ label: 'RÉSULTAT COURANT AVANT IMPÔTS', type: 'sig', values: rcaiValues, sectionType: 'result' });
 
     // ═══════════════════════════════════════════════════════════════
-    // IMPÔT SUR LES BÉNÉFICES
+    // IMPÔT SUR LES BÉNÉFICES (69)
     // ═══════════════════════════════════════════════════════════════
     const taxRegime = (settings.tax_regime || 'is') as TaxRegime;
     const isPME = settings.is_pme !== false;
     
-    const taxValues = years.map((_, i) => {
+    const revenueValues = years.map((_, i) => merchandiseSalesValues[i] + productionSoldValues[i]);
+    
+    const corporateTaxValues = years.map((_, i) => {
       const yearResult = rcaiValues[i];
       const yearRevenue = revenueValues[i];
       const taxResult = calculateTaxByRegime(Math.max(0, yearResult), taxRegime, {
@@ -708,25 +773,16 @@ export function useProfitLoss() {
       return taxResult.tax;
     });
     
-    const taxLabel = taxRegime === 'is' ? 'Impôt sur les sociétés' : taxRegime === 'ir' ? 'Impôt sur le revenu' : 'Impôt (micro-entreprise)';
-    rows.push({ label: taxLabel, type: 'item', values: taxValues, isExpense: true, sectionType: 'expense' });
+    const taxLabel = taxRegime === 'is' ? 'Impôt sur les sociétés (69)' : taxRegime === 'ir' ? 'Impôt sur le revenu' : 'Impôt (micro-entreprise)';
+    rows.push({ label: taxLabel, type: 'item', values: corporateTaxValues, isExpense: true, sectionType: 'expense', pcgCode: '69' });
 
     // ═══════════════════════════════════════════════════════════════
     // RÉSULTAT NET DE L'EXERCICE
     // ═══════════════════════════════════════════════════════════════
-    const netResultValues = years.map((_, i) => rcaiValues[i] - taxValues[i]);
+    const netResultValues = years.map((_, i) => rcaiValues[i] - corporateTaxValues[i]);
     rows.push({ label: 'RÉSULTAT NET DE L\'EXERCICE', type: 'total', values: netResultValues, sectionType: 'result' });
 
-    // ═══════════════════════════════════════════════════════════════
-    // CALCULS POUR LES KPIs (non affichés dans le tableau)
-    // ═══════════════════════════════════════════════════════════════
-    const grossMarginValues = years.map((_, i) => revenueValues[i] - cogsValues[i]);
-    const vaValues = years.map((_, i) => grossMarginValues[i] - fixedExpenseValues[i] - operatingVariableValues[i]);
-    const ebeValues = years.map((_, i) => 
-      vaValues[i] - totalPersonnelWithSeverance[i] - directorTotalValues[i] - leaseExpenseValues[i] - payrollTaxesValues[i]
-    );
-
-    // TVA
+    // TVA calculations
     const tvaCollectedValues = calculateYearlyValues(month => {
       return streams.reduce((sum, stream) => {
         const revenue = getRevenueForecast(stream.id, month);
@@ -746,26 +802,58 @@ export function useProfitLoss() {
 
     const tvaBalanceValues = years.map((_, i) => tvaCollectedValues[i] - tvaDeductibleValues[i]);
 
+    // Legacy values for backward compatibility
+    const legacyCogs = years.map((_, i) => merchandisePurchasesValues[i] + stockVariationValues[i] + purchasesFromProductionValues[i]);
+    const legacyFixedExpenses = calculateYearlyValues(month => 
+      fixedExpenses.reduce((sum, e) => sum + getFixedExpenseForMonth(e, month), 0)
+    );
+    const legacyVariableExpenses = calculateYearlyValues(month => {
+      const revenueByStream = new Map<string | null, { amount: number; units: number }>();
+      streams.forEach(stream => {
+        const amount = getRevenueForecast(stream.id, month);
+        revenueByStream.set(stream.id, { amount, units: 1 });
+      });
+      return variableExpenses.reduce((sum, e) => sum + calculateVariableExpenseForMonth(e, month, revenueByStream), 0);
+    });
+    const legacyLeaseValues = calculateYearlyValues(month => getMonthlyLeasePayments(month));
+    const legacyPayrollTaxes = calculateYearlyValues(month => getPayrollTaxesForMonth(month));
+
     return {
       years,
       rows,
       totals: {
+        // New PCG structure
+        merchandiseSales: merchandiseSalesValues,
+        productionSold: productionSoldValues,
+        operatingGrants: operatingGrantsValues,
         revenue: revenueValues,
-        cogs: cogsValues, // Coût des ventes uniquement (pour marge brute)
-        fixedExpenses: fixedExpenseValues,
-        variableExpenses: variableExpenseValues,
-        personnelCosts: totalPersonnelWithSeverance,
-        directorsCosts: directorTotalValues,
+        
+        merchandisePurchases: merchandisePurchasesValues,
+        stockVariation: stockVariationValues,
+        externalServices: externalServicesValues,
+        taxes: taxesValues,
+        personnel: totalPersonnelWithSeverance,
         depreciation: depreciationValues,
-        leaseExpenses: leaseExpenseValues,
-        payrollTaxes: payrollTaxesValues,
-        severancePayments: severanceValues,
+        
+        // SIG
+        commercialMargin: commercialMarginValues,
+        valueAdded: valueAddedValues,
         ebitda: ebeValues,
         operatingResult: operatingResultValues,
         financialResult: financialResultValues,
         netResultBeforeTax: rcaiValues,
-        corporateTax: taxValues,
+        corporateTax: corporateTaxValues,
         netResult: netResultValues,
+        
+        // Legacy (backward compatibility)
+        cogs: legacyCogs,
+        fixedExpenses: legacyFixedExpenses,
+        variableExpenses: legacyVariableExpenses,
+        personnelCosts: totalPersonnelWithSeverance,
+        directorsCosts: directorTotalValues,
+        leaseExpenses: legacyLeaseValues,
+        payrollTaxes: legacyPayrollTaxes,
+        severancePayments: severanceValues,
       },
       tva: {
         collected: tvaCollectedValues,
@@ -773,7 +861,7 @@ export function useProfitLoss() {
         balance: tvaBalanceValues,
       },
     };
-  }, [streams, fixedExpenses, variableExpenses, personnel, directors, investments, financings, forecasts, settings]);
+  }, [streams, fixedExpenses, variableExpenses, personnel, directors, investments, financings, forecasts, settings, getStockVariation]);
 
   const getBreakEvenYear = (): number | null => {
     let cumulative = 0;
@@ -784,18 +872,25 @@ export function useProfitLoss() {
     return null;
   };
 
-  // Calculate gross margin for a specific year (or first year by default)
+  // Calculate gross margin for a specific year
   const getGrossMargin = (yearIndex: number = 0): number => {
     const revenue = data.totals.revenue[yearIndex] || 0;
     const cogs = data.totals.cogs[yearIndex] || 0;
     return revenue > 0 ? ((revenue - cogs) / revenue) * 100 : 0;
   };
 
-  // Calculate EBITDA margin for a specific year (or first year by default)
+  // Calculate EBITDA (EBE) margin for a specific year
   const getEBITDAMargin = (yearIndex: number = 0): number => {
     const revenue = data.totals.revenue[yearIndex] || 0;
     const ebitda = data.totals.ebitda[yearIndex] || 0;
     return revenue > 0 ? (ebitda / revenue) * 100 : 0;
+  };
+
+  // Calculate Value Added margin for a specific year
+  const getValueAddedMargin = (yearIndex: number = 0): number => {
+    const revenue = data.totals.revenue[yearIndex] || 0;
+    const va = data.totals.valueAdded[yearIndex] || 0;
+    return revenue > 0 ? (va / revenue) * 100 : 0;
   };
 
   return {
@@ -804,5 +899,6 @@ export function useProfitLoss() {
     getBreakEvenYear,
     getGrossMargin,
     getEBITDAMargin,
+    getValueAddedMargin,
   };
 }
