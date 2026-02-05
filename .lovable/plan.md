@@ -1,93 +1,114 @@
 
+# Plan : Simplification - Liste unifiée avec un modal unifié
 
-# Plan : Sections pliables sur la page P&L
+## Analyse du problème
 
-## Objectif
-Réduire le scroll en rendant les sections "Ratios financiers" et "Seuil de rentabilité" pliables, tout en gardant les KPIs principaux toujours visibles.
+Actuellement :
+- 2 onglets séparés (Charges fixes / Charges variables)
+- 2 modales différentes avec des champs très différents
+- Navigation complexe pour l'utilisateur
 
-## Approche retenue
+## Solution proposée
 
-### Option choisie : Accordéon pour les graphiques/analyses
+### 1. Suppression des onglets - Une seule liste unifiée
 
-Les 4 cartes KPI en haut restent fixes (informations essentielles), mais les sections d'analyse (Ratios + Break-even) seront regroupées dans un accordéon pliable.
+Afficher toutes les charges dans un seul tableau avec un **badge distinctif** pour identifier les charges variables.
 
 ```text
 +--------------------------------------------------+
-| Header + 4 KPI cards (toujours visible)          |
+| Charges                              [+ Ajouter] |
 +--------------------------------------------------+
-| [▼] Analyse détaillée - Année 1       [Déplier]  |
-|   ┌─────────────────┐  ┌─────────────────┐       |
-|   │ Ratios          │  │ Break-even      │       |
-|   └─────────────────┘  └─────────────────┘       |
-+--------------------------------------------------+
-| P&L Tableau (toujours visible)                   |
+| Nom             | Catégorie    | Montant   | ... |
+|-----------------|--------------|-----------|-----|
+| Loyer bureau    | 🏢 Loyer      | 2 000€   |     |
+| Commission vte  | [Variable]   | 5% du CA  |     |
+| Assurance       | 🛡️ Assurance | 150€     |     |
+| Frais livraison | [Variable]   | 2€/unité  |     |
 +--------------------------------------------------+
 ```
 
-### Alternative envisagée mais non retenue
-Mettre le tableau P&L lui-même dans un accordéon. Non retenue car c'est l'élément principal de la page.
+### 2. Badge distinctif pour les charges variables
 
-## Modifications
+Un petit badge coloré `Variable` affiché uniquement sur les lignes de charges variables :
+- Couleur : `bg-amber-500/10 text-amber-600 border-amber-500/30`
+- Icône : `Percent` pour indiquer le caractère proportionnel
 
-### 1. ProfitLoss.tsx - Wrapper accordéon pour les analyses
+### 3. Modal unifié avec sections conditionnelles
 
-Encapsuler les sections Ratios + BreakEven dans un `Collapsible` :
+Un seul modal avec un switch pour choisir le type :
 
-- Import de `Collapsible`, `CollapsibleTrigger`, `CollapsibleContent`
-- Ajouter un état `analysisOpen` (défaut: `true`)
-- Wrapper les deux cartes avec le collapsible
-- Header cliquable avec icône chevron animée
+```text
++-----------------------------------------------+
+| Nouvelle charge                               |
++-----------------------------------------------+
+| Nom : [________________]                      |
+|                                               |
+| Type :  [● Fixe]  [○ Variable]                |
+|                                               |
+| --- Si FIXE ---                               |
+| Catégorie | Périodicité | Montant             |
+| [________]| [Mensuel ▼] | [____€]             |
+|                                               |
+| --- Si VARIABLE ---                           |
+| Catégorie | Flux lié | Type calcul            |
+| [________]| [Tous ▼] | [● %] [○ €/u]          |
+| Valeur : [____%] ou [___€/unité]              |
+|                                               |
+| [Coût des ventes] (switch)                    |
++-----------------------------------------------+
+| Dates début/fin | Notes                       |
+| TVA (commun aux deux)                         |
++-----------------------------------------------+
+```
 
-### 2. Style du header collapsible
+## Modifications techniques
 
-- Fond léger `bg-muted/30`
-- Bordure arrondie
-- Animation de transition pour le chevron
-- Label dynamique : "Masquer l'analyse" / "Afficher l'analyse"
+### 1. Créer `ExpenseDialog.tsx` (modal unifié)
 
-## Code prévu
+Nouveau fichier qui combine les deux modales existantes :
+- Switch en haut pour choisir Fixe/Variable
+- Affiche conditionnellement les champs spécifiques
+- Réutilise les constantes existantes (`FIXED_EXPENSE_CATEGORIES`, `VARIABLE_EXPENSE_CATEGORIES`)
+
+### 2. Créer `ExpenseTable.tsx` (liste unifiée)
+
+Nouveau composant qui affiche les deux types de charges :
+- Fetch les deux listes (`useBPFixedExpenses` + `useVariableExpenses`)
+- Tri par nom
+- Badge `Variable` avec icône `Percent` sur les charges variables
+- Colonnes adaptées : Nom, Type/Catégorie, Montant/Valeur, Période/Flux, Actions
+
+### 3. Simplifier `Expenses.tsx`
+
+- Supprimer les Tabs
+- Utiliser le nouveau `ExpenseTable` unifié
+- Utiliser le nouveau `ExpenseDialog` unifié
+- Conserver les fonctionnalités : templates, édition en masse (pour les fixes uniquement)
+
+### 4. Badge Variable - Design
 
 ```tsx
-// Dans ProfitLoss.tsx
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { ChevronDown } from 'lucide-react';
-
-// État
-const [analysisOpen, setAnalysisOpen] = useState(true);
-
-// JSX
-<Collapsible open={analysisOpen} onOpenChange={setAnalysisOpen}>
-  <CollapsibleTrigger asChild>
-    <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg cursor-pointer hover:bg-muted/50 transition-colors">
-      <div className="flex items-center gap-2">
-        <TrendingUp className="h-4 w-4 text-primary" />
-        <span className="font-medium">Analyse détaillée - Année {selectedYear + 1}</span>
-      </div>
-      <ChevronDown className={cn(
-        "h-4 w-4 transition-transform",
-        analysisOpen && "rotate-180"
-      )} />
-    </div>
-  </CollapsibleTrigger>
-  <CollapsibleContent>
-    <div className="grid gap-6 lg:grid-cols-2 mt-4">
-      <RatiosCard yearIndex={selectedYear} />
-      <BreakEvenChart yearIndex={selectedYear} />
-    </div>
-  </CollapsibleContent>
-</Collapsible>
+{isVariable && (
+  <Badge className="bg-amber-500/10 text-amber-600 border-amber-500/30">
+    <Percent className="h-3 w-3 mr-1" />
+    Variable
+  </Badge>
+)}
 ```
 
 ## Avantages
 
-1. Les KPIs principaux restent toujours visibles (info essentielle)
-2. Un clic = ~400px de scroll économisés
-3. Le sélecteur d'année reste accessible (utile pour le tableau)
-4. Animation fluide avec les classes existantes
+1. **Plus simple** : Une seule vue, pas de navigation entre onglets
+2. **Plus clair** : Badge visuel immédiat pour distinguer les types
+3. **Plus rapide** : Un seul clic pour créer n'importe quelle charge
+4. **Flexible** : Le switch dans le modal permet de changer de type facilement
 
-## Détails techniques
+## Fichiers impactés
 
-- Composant utilisé : `@/components/ui/collapsible` (déjà présent)
-- Animation : utilise `animate-accordion-down/up` déjà configuré
-- État par défaut : ouvert (l'utilisateur peut replier si besoin)
-
+| Fichier | Action |
+|---------|--------|
+| `src/features/business-plan/components/ExpenseTable.tsx` | Créer (liste unifiée) |
+| `src/features/business-plan/dialogs/ExpenseDialog.tsx` | Créer (modal unifié) |
+| `src/pages/BusinessPlan/Expenses.tsx` | Modifier (simplifier) |
+| `src/features/business-plan/components/index.ts` | Exporter nouveau composant |
+| `src/features/business-plan/dialogs/index.ts` | Exporter nouveau dialog |
