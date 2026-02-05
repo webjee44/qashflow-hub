@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from '@/components/ui/dropdown-menu';
-import { FixedExpenseTable, VariableExpenseTable, SectionNotes } from '@/features/business-plan/components';
+import { FixedExpenseTable, VariableExpenseTable, SectionNotes, ExternalServicesSummary } from '@/features/business-plan/components';
 import { FixedExpenseDialog, BPExportDialog, BulkEditExpenseDialog } from '@/features/business-plan/dialogs';
 import { useBPFixedExpenses, BPFixedExpense } from '@/hooks/useBPFixedExpenses';
 import { FIXED_EXPENSE_CATEGORIES, type FixedExpenseCategory } from '@/constants/bpConstants';
@@ -269,7 +269,10 @@ export default function Expenses() {
         </TabsContent>
       </Tabs>
 
-      <SectionNotes 
+      {/* Synthèse 61/62 pour correspondre au P&L */}
+      <ExternalServicesSummary />
+
+      <SectionNotes
         section="expenses" 
         title="Notes sur les charges"
         placeholder="Documentez vos hypothèses de charges, évolutions prévues, négociations en cours..."

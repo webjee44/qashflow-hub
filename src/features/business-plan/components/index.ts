@@ -1,6 +1,7 @@
 // Re-export all BP components
 export { BalanceSheetTable } from './BalanceSheetTable';
 export { BPCashFlowTable } from './BPCashFlowTable';
+export { ExternalServicesSummary } from './ExternalServicesSummary';
 export { FinancingTable } from './FinancingTable';
 export { FixedExpenseTable } from './FixedExpenseTable';
 export { FreelanceTable } from './FreelanceTable';
