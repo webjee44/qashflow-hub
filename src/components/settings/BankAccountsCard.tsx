@@ -480,17 +480,10 @@ export function BankAccountsCard() {
         }
       }
 
-      // Build redirect URL - use current origin for published apps
-      // For Lovable preview, prefer the published URL if available
+      // Build redirect URL - ALWAYS use current origin to preserve auth session
+      // Using a different origin (like published URL) would lose the user's session
       const currentOrigin = window.location.origin;
-      const isLovablePreview = currentOrigin.includes('lovableproject.com') || currentOrigin.includes('id-preview--');
-      
-      // Use published URL for Bridge callback if we're in preview
-      const baseUrl = isLovablePreview 
-        ? (import.meta.env.VITE_PUBLISHED_URL || 'https://pennylane-cash-flow-buddy.lovable.app')
-        : currentOrigin;
-      
-      const redirectUrl = `${baseUrl}/parametres?tab=accounts&bridge_callback=success`;
+      const redirectUrl = `${currentOrigin}/parametres?tab=accounts&bridge_callback=success`;
       console.log('[Bridge] Redirect URL:', redirectUrl);
 
       // Create Connect session
@@ -541,14 +534,9 @@ export function BankAccountsCard() {
         return;
       }
 
-      // Build redirect URL
+      // Build redirect URL - ALWAYS use current origin to preserve auth session
       const currentOrigin = window.location.origin;
-      const isLovablePreview = currentOrigin.includes('lovableproject.com') || currentOrigin.includes('id-preview--');
-      const baseUrl = isLovablePreview 
-        ? (import.meta.env.VITE_PUBLISHED_URL || 'https://pennylane-cash-flow-buddy.lovable.app')
-        : currentOrigin;
-      
-      const redirectUrl = `${baseUrl}/parametres?tab=accounts&bridge_callback=success`;
+      const redirectUrl = `${currentOrigin}/parametres?tab=accounts&bridge_callback=success`;
 
       // Create manage session (for reconnection)
       const { data: connectData, error: connectError } = await supabase.functions.invoke('bridge-connect', {
