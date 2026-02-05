@@ -74,7 +74,8 @@ export default function StartVerify() {
           phone,
           onboarding_completed: false,
           onboarding_step: 0,
-          bp_enabled: true,
+          // Default: keep Treasury accessible (BP-only should be an explicit choice)
+          bp_enabled: false,
         });
       }
 

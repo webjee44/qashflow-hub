@@ -173,10 +173,18 @@ export function useOnboarding(): UseOnboardingReturn {
       if (data) {
         setIsCompleted(data.onboarding_completed ?? false);
         setCurrentStep(data.onboarding_step ?? 0);
-        
-        // Use user's own bp_enabled preference (default false = Treasury enabled)
-        writeStoredBpEnabled(data.bp_enabled ?? false);
-        setBpEnabled(data.bp_enabled ?? false);
+
+        // bp_enabled can be used to configure a "BP-only" experience.
+        // To prevent route flicker (Treasury appears then disappears), we only apply
+        // the server value on first run when localStorage has no explicit choice yet.
+        const hasLocalChoice = localStorage.getItem(BP_ENABLED_STORAGE_KEY) !== null;
+        if (!hasLocalChoice) {
+          const serverValue = data.bp_enabled ?? false;
+          writeStoredBpEnabled(serverValue);
+          setBpEnabled(serverValue);
+        } else {
+          setBpEnabled(readStoredBpEnabled());
+        }
 
         const shouldShowTour = localStorage.getItem('show-onboarding-tour') === 'true';
         if (shouldShowTour) {
