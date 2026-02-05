@@ -78,7 +78,7 @@ export function FinancingDialog({ open, onOpenChange, financing, onSave }: Finan
     return format(fiscalYearStart, 'yyyy-MM-dd');
   };
 
-  const [financingType, setFinancingType] = useState<'loan' | 'lease' | 'current_account'>('loan');
+  const [financingType, setFinancingType] = useState<'loan' | 'lease' | 'current_account' | 'capital' | 'grant'>('loan');
   const [name, setName] = useState('');
   const [investmentId, setInvestmentId] = useState<string>('none');
   const [amount, setAmount] = useState('');

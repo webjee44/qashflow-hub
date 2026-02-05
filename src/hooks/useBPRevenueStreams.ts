@@ -5,6 +5,8 @@ import { useCompany } from './useCompany';
 import { toast } from 'sonner';
 import { type RevenueModel } from '@/constants/bpConstants';
 
+export type RevenueType = 'merchandise' | 'production';
+
 export interface BPRevenueStream {
   id: string;
   user_id: string;
@@ -13,6 +15,7 @@ export interface BPRevenueStream {
   description: string | null;
   color: string;
   model: RevenueModel;
+  revenue_type: RevenueType;
   is_active: boolean;
   initial_subscribers: number;
   monthly_price: number;
@@ -71,6 +74,7 @@ export function useBPRevenueStreams() {
           description: data.description || null,
           color: data.color || 'hsl(142, 76%, 36%)',
           model: data.model || 'variable',
+          revenue_type: data.revenue_type || 'production',
           is_active: true,
           initial_subscribers: data.initial_subscribers || 0,
           monthly_price: data.monthly_price || 0,

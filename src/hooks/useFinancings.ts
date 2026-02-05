@@ -12,7 +12,7 @@ export interface Financing {
   user_id: string;
   company_id: string | null;
   investment_id: string | null;
-  financing_type: 'loan' | 'lease' | 'current_account';
+  financing_type: 'loan' | 'lease' | 'current_account' | 'capital' | 'grant';
   name: string;
   amount: number;
   interest_rate: number;
@@ -20,6 +20,8 @@ export interface Financing {
   monthly_payment: number;
   start_date: string;
   end_date: string | null;
+  is_blocked: boolean;
+  is_operating_grant: boolean;
   notes: string | null;
   created_at: string;
   updated_at: string;
@@ -61,6 +63,8 @@ export function useFinancings() {
         start_date: financing.start_date || new Date().toISOString().split('T')[0],
         end_date: financing.end_date || null,
         investment_id: financing.investment_id || null,
+        is_blocked: financing.is_blocked ?? false,
+        is_operating_grant: financing.is_operating_grant ?? true,
         notes: financing.notes || null,
         user_id: user!.id,
         company_id: currentCompany?.id || null,
