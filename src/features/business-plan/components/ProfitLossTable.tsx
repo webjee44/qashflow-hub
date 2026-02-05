@@ -1,6 +1,8 @@
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useProfitLoss, PLRow } from '@/hooks/useProfitLoss';
 import { cn } from '@/lib/utils';
 import { Loader2 } from 'lucide-react';
@@ -96,6 +98,9 @@ export function ProfitLossTable() {
         </TableHeader>
         <TableBody>
           {data.rows.map((row, rowIndex) => {
+            // Check if this is the "Achats de matières" row to show gross margin badge
+            const isAchatsRow = row.label.includes('Achats de matières');
+            
             return (
               <TableRow key={rowIndex} className={getRowClasses(row)}>
                 <TableCell className={cn(
@@ -103,7 +108,23 @@ export function ProfitLossTable() {
                   getStickyBgClass(row),
                   getIndentClass(row.indent)
                 )}>
-                  {row.label}
+                  <div className="flex items-center gap-2">
+                    <span>{row.label}</span>
+                    {isAchatsRow && data.totals.revenue[0] > 0 && (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Badge variant="secondary" className="text-xs font-medium bg-success/10 text-success border-success/20">
+                              Marge brute : {((1 - (data.totals.cogs?.[0] || 0) / data.totals.revenue[0]) * 100).toFixed(1)}%
+                            </Badge>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Marge brute = (CA - Achats) / CA</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+                  </div>
                 </TableCell>
                 {data.years.map((_, yearIndex) => {
                   const value = row.values[yearIndex] || 0;
