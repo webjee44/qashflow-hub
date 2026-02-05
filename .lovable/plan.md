@@ -1,101 +1,93 @@
 
-# Correction du bug "Page blanche au 1er clic" dans le module Trésorerie
 
-## Analyse du problème
+# Plan : Sections pliables sur la page P&L
 
-Le problème vient d'un **conflit technique entre AnimatePresence et React Suspense** dans `AppLayout.tsx` :
+## Objectif
+Réduire le scroll en rendant les sections "Ratios financiers" et "Seuil de rentabilité" pliables, tout en gardant les KPIs principaux toujours visibles.
+
+## Approche retenue
+
+### Option choisie : Accordéon pour les graphiques/analyses
+
+Les 4 cartes KPI en haut restent fixes (informations essentielles), mais les sections d'analyse (Ratios + Break-even) seront regroupées dans un accordéon pliable.
 
 ```text
-+-------------------+
-|  AnimatePresence  |  <-- mode="wait" : attend la FIN de l'animation de sortie
-|    mode="wait"    |      avant de monter le nouveau composant
-+-------------------+
-         |
-         v
-+-------------------+
-|   motion.div      |  <-- key={pathname} : force un cycle mount/unmount
-|  key=pathname     |      à chaque navigation
-+-------------------+
-         |
-         v
-+-------------------+
-|    Suspense       |  <-- Le fallback ne s'affiche pas car AnimatePresence
-|   fallback=...    |      "bloque" le cycle de rendu pendant l'exit
-+-------------------+
-         |
-         v
-+-------------------+
-|     Outlet        |  <-- lazy() : suspend le rendu le temps du chargement
-|    (lazy page)    |
-+-------------------+
++--------------------------------------------------+
+| Header + 4 KPI cards (toujours visible)          |
++--------------------------------------------------+
+| [▼] Analyse détaillée - Année 1       [Déplier]  |
+|   ┌─────────────────┐  ┌─────────────────┐       |
+|   │ Ratios          │  │ Break-even      │       |
+|   └─────────────────┘  └─────────────────┘       |
++--------------------------------------------------+
+| P&L Tableau (toujours visible)                   |
++--------------------------------------------------+
 ```
 
-### Pourquoi la page blanche ?
+### Alternative envisagée mais non retenue
+Mettre le tableau P&L lui-même dans un accordéon. Non retenue car c'est l'élément principal de la page.
 
-1. L'utilisateur clique sur "Prévisions"
-2. L'URL change, `AnimatePresence` avec `mode="wait"` attend que l'ancienne page termine son animation de **sortie** (300ms)
-3. **Pendant ce temps**, la nouvelle page lazy-loaded déclenche un `Suspense` mais le `fallback` (PageLoader) n'apparaît pas car AnimatePresence n'a pas encore "libéré" le DOM
-4. Résultat : l'écran reste vide jusqu'à ce que React retente le rendu (2e clic ou interaction)
+## Modifications
 
-## Solution technique
+### 1. ProfitLoss.tsx - Wrapper accordéon pour les analyses
 
-Supprimer `mode="wait"` d'AnimatePresence pour que les pages s'animent en parallèle. Cela permet à `Suspense` d'afficher immédiatement son `fallback` pendant que l'ancienne page sort.
+Encapsuler les sections Ratios + BreakEven dans un `Collapsible` :
 
-| Avant | Après |
-|-------|-------|
-| `<AnimatePresence mode="wait">` | `<AnimatePresence>` |
-| Animations séquentielles (bloquantes) | Animations parallèles (non-bloquantes) |
-| Page blanche pendant la transition | Loader visible immédiatement |
+- Import de `Collapsible`, `CollapsibleTrigger`, `CollapsibleContent`
+- Ajouter un état `analysisOpen` (défaut: `true`)
+- Wrapper les deux cartes avec le collapsible
+- Header cliquable avec icône chevron animée
 
-### Optimisation additionnelle
+### 2. Style du header collapsible
 
-Réduire la durée de transition de 300ms à 150ms pour une navigation plus réactive.
+- Fond léger `bg-muted/30`
+- Bordure arrondie
+- Animation de transition pour le chevron
+- Label dynamique : "Masquer l'analyse" / "Afficher l'analyse"
 
-## Fichiers modifiés
+## Code prévu
 
-| Fichier | Modification |
-|---------|--------------|
-| `src/components/layout/AppLayout.tsx` | Retirer `mode="wait"` et réduire la durée de transition |
+```tsx
+// Dans ProfitLoss.tsx
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { ChevronDown } from 'lucide-react';
 
-## Code avant/après
+// État
+const [analysisOpen, setAnalysisOpen] = useState(true);
 
-```typescript
-// AVANT (problématique)
-<AnimatePresence mode="wait">
-  <motion.div
-    key={location.pathname}
-    initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: 1, y: 0 }}
-    exit={{ opacity: 0, y: -20 }}
-    transition={{ duration: 0.3 }}
-  >
-    <Suspense fallback={<PageLoader />}>
-      <Outlet />
-    </Suspense>
-  </motion.div>
-</AnimatePresence>
-
-// APRÈS (corrigé)
-<AnimatePresence>
-  <motion.div
-    key={location.pathname}
-    initial={{ opacity: 0, y: 10 }}
-    animate={{ opacity: 1, y: 0 }}
-    exit={{ opacity: 0 }}
-    transition={{ duration: 0.15 }}
-  >
-    <Suspense fallback={<PageLoader />}>
-      <Outlet />
-    </Suspense>
-  </motion.div>
-</AnimatePresence>
+// JSX
+<Collapsible open={analysisOpen} onOpenChange={setAnalysisOpen}>
+  <CollapsibleTrigger asChild>
+    <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg cursor-pointer hover:bg-muted/50 transition-colors">
+      <div className="flex items-center gap-2">
+        <TrendingUp className="h-4 w-4 text-primary" />
+        <span className="font-medium">Analyse détaillée - Année {selectedYear + 1}</span>
+      </div>
+      <ChevronDown className={cn(
+        "h-4 w-4 transition-transform",
+        analysisOpen && "rotate-180"
+      )} />
+    </div>
+  </CollapsibleTrigger>
+  <CollapsibleContent>
+    <div className="grid gap-6 lg:grid-cols-2 mt-4">
+      <RatiosCard yearIndex={selectedYear} />
+      <BreakEvenChart yearIndex={selectedYear} />
+    </div>
+  </CollapsibleContent>
+</Collapsible>
 ```
 
-## Risques et considérations
+## Avantages
 
-- **Changement visuel** : Les animations de pages seront légèrement différentes (superposition possible pendant la transition au lieu d'un enchaînement séquentiel)
-- **Comportement identique** : La navigation et le lazy-loading fonctionneront exactement comme avant, mais sans blocage
+1. Les KPIs principaux restent toujours visibles (info essentielle)
+2. Un clic = ~400px de scroll économisés
+3. Le sélecteur d'année reste accessible (utile pour le tableau)
+4. Animation fluide avec les classes existantes
 
-## Alternative si le rendu superposé ne convient pas
+## Détails techniques
 
-Si l'effet visuel de superposition n'est pas souhaité, on peut garder `mode="wait"` mais déplacer le `Suspense` **au-dessus** d'`AnimatePresence` pour que le loader s'affiche avant même le début de l'animation. Cela nécessiterait une refonte plus importante de la structure.
+- Composant utilisé : `@/components/ui/collapsible` (déjà présent)
+- Animation : utilise `animate-accordion-down/up` déjà configuré
+- État par défaut : ouvert (l'utilisateur peut replier si besoin)
+
