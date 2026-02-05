@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ForecastTable } from '@/components/forecasts/ForecastTable';
-import { OnboardingTour } from '@/components/onboarding/OnboardingTour';
 import { BPImportDialog } from '@/components/forecasts/BPImportDialog';
 import { Button } from '@/components/ui/button';
 import { FileDown } from 'lucide-react';
@@ -19,7 +18,6 @@ export default function Forecasts() {
 
   return (
     <>
-      <OnboardingTour />
       <div className="space-y-8" data-tour="forecasts">
         <PageHeader 
           title="Prévisions" 
