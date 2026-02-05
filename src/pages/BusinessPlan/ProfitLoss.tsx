@@ -106,12 +106,18 @@ export default function ProfitLoss() {
       {/* Collapsible analysis section */}
       <Collapsible defaultOpen>
         <CollapsibleTrigger asChild>
-          <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg cursor-pointer hover:bg-muted/50 transition-colors group">
-            <div className="flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-primary" />
-              <span className="font-medium">Analyse détaillée - Année {selectedYear + 1}</span>
+          <div className="flex items-center justify-between p-4 bg-primary/5 border border-primary/20 rounded-lg cursor-pointer hover:bg-primary/10 transition-colors group">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-primary/10 rounded-md">
+                <TrendingUp className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <span className="font-semibold">Ratios & Seuil de rentabilité</span>
+                <p className="text-sm text-muted-foreground group-data-[state=closed]:hidden">Année {selectedYear + 1} • Cliquez pour replier</p>
+                <p className="text-sm text-muted-foreground group-data-[state=open]:hidden">Année {selectedYear + 1} • Cliquez pour afficher</p>
+              </div>
             </div>
-            <ChevronDown className="h-4 w-4 transition-transform duration-200 group-data-[state=open]:rotate-180" />
+            <ChevronDown className="h-5 w-5 text-primary transition-transform duration-200 group-data-[state=open]:rotate-180" />
           </div>
         </CollapsibleTrigger>
         <CollapsibleContent className="pt-4">
