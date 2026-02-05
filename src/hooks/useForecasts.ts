@@ -319,11 +319,11 @@ export function useForecasts() {
     enabled: !!user?.id,
   });
 
-  // Fetch all transactions for opening balance calculation
+  // Fetch all transactions for opening balance calculation (need ALL transactions for proper balance)
   const { data: allTransactions = [], isLoading: transactionsLoading } = useQuery({
-    queryKey: ['all-transactions-for-balance', user?.id, currentCompany?.id, startMonthStr],
+    queryKey: ['all-transactions-for-balance', user?.id, currentCompany?.id],
     queryFn: async () => {
-      if (!user?.id || !startMonthStr) return [];
+      if (!user?.id) return [];
       
       if (!currentCompany?.id) return [];
       
@@ -331,12 +331,11 @@ export function useForecasts() {
         .from('transactions')
         .select('amount, date, type')
         .eq('company_id', currentCompany.id)
-        .gte('date', startMonthStr)
         .is('deleted_at', null);
       if (error) throw error;
       return data as { amount: number; date: string; type: string }[];
     },
-    enabled: !!user?.id && !!startMonthStr,
+    enabled: !!user?.id && !!currentCompany?.id,
   });
 
   // Helper to get payable outflow for a specific month
@@ -444,6 +443,7 @@ export function useForecasts() {
   // Calculate the opening balance for a given month
   const getOpeningBalance = useCallback((month: Date): { balance: number; isActual: boolean } => {
     const currentBankBalance = currentCompany?.bank_balance ?? 0;
+    const initialBalance = currentCompany?.initial_balance ?? 0;
     const todayMonth = startOfMonth(new Date());
     const targetMonth = startOfMonth(month);
     
@@ -454,13 +454,13 @@ export function useForecasts() {
     
     if (isBefore(targetMonth, todayMonth)) {
       // Past month: reconstruct balance at the 1st of that month
-      // = current balance - all transactions from target month to today
-      const transactionsSinceTarget = allTransactions.filter(tx => {
+      // = initial_balance + all transactions BEFORE target month
+      const transactionsBeforeTarget = allTransactions.filter(tx => {
         const txDate = new Date(tx.date);
-        return txDate >= targetMonth && txDate < todayMonth;
+        return txDate < targetMonth;
       });
-      const netSince = transactionsSinceTarget.reduce((sum, tx) => sum + Number(tx.amount), 0);
-      return { balance: currentBankBalance - netSince, isActual: true };
+      const netBefore = transactionsBeforeTarget.reduce((sum, tx) => sum + Number(tx.amount), 0);
+      return { balance: initialBalance + netBefore, isActual: true };
     }
     
     // Future month: calculate projected balance
