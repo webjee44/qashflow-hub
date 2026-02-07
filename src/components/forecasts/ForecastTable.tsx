@@ -63,6 +63,8 @@ export function ForecastTable() {
     getActual, 
     getVatForecast, 
     getVatActual,
+    getNetVatForecast,
+    getNetVatActual,
     getUncategorized,
     getPayableOutflow,
     getPayableOutflowByCategory,
@@ -998,8 +1000,17 @@ export function ForecastTable() {
           const forecastVat = getMonthVat(type, monthIndex, 'forecast');
           const actualVat = getMonthVat(type, monthIndex, 'actual');
           
-          const forecastTtc = forecastHt + forecastVat;
-          const actualTtc = actualHt + actualVat;
+          let forecastTtc = forecastHt + forecastVat;
+          let actualTtc = actualHt + actualVat;
+          
+          // For expenses, add net VAT to pay (only positive = amount owed to state)
+          if (type === 'expense') {
+            const netVatForecast = getNetVatForecast(months[monthIndex]);
+            const netVatActual = getNetVatActual(months[monthIndex]);
+            if (netVatForecast > 0) forecastTtc += netVatForecast;
+            if (netVatActual > 0) actualTtc += netVatActual;
+          }
+          
           const periodType = getMonthPeriodType(month);
           
           if (periodType === 'past') {
@@ -1103,31 +1114,26 @@ export function ForecastTable() {
 
   const renderVatToPayRow = () => {
     return (
-      <tr className="font-semibold bg-amber-500/10">
-        <td className="p-3 sticky left-0 z-10 bg-amber-500/10 border-r border-border text-amber-700 dark:text-amber-400">
-          💰 TVA à payer
+      <tr className="bg-muted/30 text-sm">
+        <td className="p-2 pl-6 sticky left-0 z-10 bg-muted/30 border-r border-border italic text-destructive/70">
+          💰 TVA à décaisser
         </td>
         {months.map((month, monthIndex) => {
-          const incomeVatForecast = getMonthVat('income', monthIndex, 'forecast');
-          const expenseVatForecast = getMonthVat('expense', monthIndex, 'forecast');
-          const incomeVatActual = getMonthVat('income', monthIndex, 'actual');
-          const expenseVatActual = getMonthVat('expense', monthIndex, 'actual');
+          const vatToPayForecast = getNetVatForecast(months[monthIndex]);
+          const vatToPayActual = getNetVatActual(months[monthIndex]);
           
-          const vatToPayForecast = incomeVatForecast - expenseVatForecast;
-          const vatToPayActual = incomeVatActual - expenseVatActual;
-          
-          const hasActual = incomeVatActual > 0 || expenseVatActual > 0;
-          const hasForecast = incomeVatForecast > 0 || expenseVatForecast > 0;
+          const hasActual = vatToPayActual !== 0;
+          const hasForecast = vatToPayForecast !== 0;
           const periodType = getMonthPeriodType(month);
           
           if (periodType === 'past') {
             return (
               <td key={monthIndex} className="p-0 border-r border-border min-w-[90px]">
                 <div className={cn(
-                  "px-3 py-2 text-right",
-                  vatToPayActual >= 0 ? "text-amber-700 dark:text-amber-400" : "text-success"
+                  "px-3 py-1.5 text-right",
+                  vatToPayActual > 0 ? "text-destructive/70" : vatToPayActual < 0 ? "text-success" : "text-muted-foreground"
                 )}>
-                  {hasActual ? formatValue(vatToPayActual) : '—'}
+                  {hasActual ? formatValue(Math.max(0, vatToPayActual)) : '—'}
                 </div>
               </td>
             );
@@ -1137,10 +1143,10 @@ export function ForecastTable() {
             return (
               <td key={monthIndex} className="p-0 border-r border-border min-w-[90px]">
                 <div className={cn(
-                  "px-3 py-2 text-right",
-                  vatToPayForecast >= 0 ? "text-amber-700 dark:text-amber-400" : "text-success"
+                  "px-3 py-1.5 text-right",
+                  vatToPayForecast > 0 ? "text-destructive/70" : vatToPayForecast < 0 ? "text-success" : "text-muted-foreground"
                 )}>
-                  {hasForecast ? formatValue(vatToPayForecast) : '—'}
+                  {hasForecast ? formatValue(Math.max(0, vatToPayForecast)) : '—'}
                 </div>
               </td>
             );
@@ -1150,16 +1156,16 @@ export function ForecastTable() {
             <td key={monthIndex} className="p-0 border-r border-border min-w-[160px]">
               <div className="flex">
                 <div className={cn(
-                  "flex-1 px-3 py-2 text-right border-r border-border/50",
-                  vatToPayActual >= 0 ? "text-amber-700 dark:text-amber-400" : "text-success"
+                  "flex-1 px-3 py-1.5 text-right border-r border-border/50",
+                  vatToPayActual > 0 ? "text-destructive/70" : vatToPayActual < 0 ? "text-success" : "text-muted-foreground"
                 )}>
-                  {hasActual ? formatValue(vatToPayActual) : '—'}
+                  {hasActual ? formatValue(Math.max(0, vatToPayActual)) : '—'}
                 </div>
                 <div className={cn(
-                  "flex-1 px-3 py-2 text-right",
-                  vatToPayForecast >= 0 ? "text-amber-700 dark:text-amber-400" : "text-success"
+                  "flex-1 px-3 py-1.5 text-right",
+                  vatToPayForecast > 0 ? "text-destructive/70" : vatToPayForecast < 0 ? "text-success" : "text-muted-foreground"
                 )}>
-                  {hasForecast ? formatValue(vatToPayForecast) : '—'}
+                  {hasForecast ? formatValue(Math.max(0, vatToPayForecast)) : '—'}
                 </div>
               </div>
             </td>
@@ -1313,16 +1319,22 @@ export function ForecastTable() {
           // Add payables to forecast expenses
           const payableAmount = getPayableOutflow(month);
           
+          // Add net VAT to pay (positive = amount owed)
+          const netVatActual = getNetVatActual(months[monthIndex]);
+          const netVatForecast = getNetVatForecast(months[monthIndex]);
+          const vatActualToDeduct = Math.max(0, netVatActual);
+          const vatForecastToDeduct = Math.max(0, netVatForecast);
+          
           const incomeTtc = incomeHt + incomeVat;
-          const expenseTtc = expenseHt + expenseVat;
+          const expenseTtc = expenseHt + expenseVat + vatActualToDeduct;
           const incomeForecastTtc = incomeForecastHt + incomeForecastVat;
-          const expenseForecastTtc = expenseForecastHt + expenseForecastVat + payableAmount;
+          const expenseForecastTtc = expenseForecastHt + expenseForecastVat + payableAmount + vatForecastToDeduct;
           
           const netActual = incomeTtc - expenseTtc;
           const netForecast = incomeForecastTtc - expenseForecastTtc;
           
           const hasActual = incomeHt > 0 || expenseHt > 0;
-          const hasForecast = incomeForecastHt > 0 || expenseForecastHt > 0 || payableAmount > 0;
+          const hasForecast = incomeForecastHt > 0 || expenseForecastHt > 0 || payableAmount > 0 || vatForecastToDeduct > 0;
           const periodType = getMonthPeriodType(month);
           
           if (periodType === 'past') {
@@ -1563,13 +1575,12 @@ export function ForecastTable() {
               </td>
             </tr>
             {renderGroupedSection(expenseGroups, 'expense', incomeCategories.length)}
+            {/* TVA à décaisser row - inside expense section, before total */}
+            {renderVatToPayRow()}
             {renderTtcRow('Total Décaissements', 'expense')}
 
             {/* Payables Row (supplier debts) */}
             {renderPayablesRow()}
-
-            {/* VAT to Pay Row */}
-            {renderVatToPayRow()}
 
             {/* Net Row */}
             {renderNetRow()}
