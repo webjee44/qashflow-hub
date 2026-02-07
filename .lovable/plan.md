@@ -1,66 +1,80 @@
 
-# Plan correctif : Equilibre du Bilan Previsionnel (Actif = Passif)
 
-## Probleme identifie
+# Ajout d'une ligne "TVA a decaisser" dans la section Decaissements
 
-Le bilan previsionnel ne s'equilibre pas car la **tresorerie (cash)** est calculee de maniere independante avec une formule simplifiee qui ne tient pas compte de tous les flux financiers. En comptabilite, la tresorerie doit etre l'element d'ajustement qui garantit l'equation fondamentale : **Actif = Passif**.
+## Contexte actuel
 
-## Causes racines (4 bugs identifies)
+Le tableau de previsions est structure ainsi :
+1. Solde au 1er du mois
+2. Encaissements (categories + Total Encaissements TTC)
+3. Decaissements (categories + Total Decaissements TTC)
+4. Dettes non categorisees
+5. TVA a payer (ligne separee, apres les totaux)
+6. Solde Net TTC
 
-1. **Calcul de tresorerie naif** : `cash = initial_cash + resultats nets cumules` -- ignore les investissements, emprunts, remboursements, amortissements (charge non-cash), et variations du BFR
-2. **Blocage a zero** : `Math.max(0, cash)` empeche la tresorerie d'etre negative, ce qui fausse le total actif
-3. **Bug sur les emprunts bancaires** : La boucle `.reduce()` appelle `getTotalOutstandingLoans()` (qui retourne le TOTAL de tous les prets) a chaque iteration, puis divise par le nombre de prets -- resultat mathematiquement faux
-4. **Postes manquants** : Les subventions d'investissement ne figurent pas au passif
+Le "Total Decaissements" inclut deja la TVA deductible sur les charges (HT + TVA par categorie). La ligne "TVA a payer" affiche le solde net TVA (collectee - deductible) mais n'est pas integree dans les decaissements.
 
-## Solution : La tresorerie comme poste d'equilibre
+## Ce qui change
 
-La methode standard en comptabilite previsionnelle : calculer tous les postes du bilan sauf la tresorerie, puis deduire la tresorerie par difference.
+Deplacer la ligne "TVA a decaisser" (TVA collectee - TVA deductible = montant a reverser a l'Etat) **juste avant** "Total Decaissements", et **inclure ce montant** dans le total.
+
+### Structure cible
 
 ```text
-Tresorerie = Total Passif - (Immobilisations nettes + Stocks + Creances clients)
+Decaissements
+  Groupe 1 (categories...)
+  Groupe 2 (categories...)
+  ...
+  TVA a decaisser                    <-- nouvelle position
+Total Decaissements TTC              <-- inclut desormais la TVA nette
+Dettes non categorisees
+Solde Net TTC
 ```
 
-Cela revient a la formule classique : **Tresorerie Nette = Fonds de Roulement - BFR**, et garantit l'equilibre par construction.
+## Proposition pour les mois passes
+
+Pour les mois passes, je propose d'afficher la **TVA calculee a partir des transactions reelles** (TVA collectee sur encaissements reels - TVA deductible sur decaissements reels). C'est coherent car :
+- On utilise les taux de TVA configures sur chaque categorie
+- On applique ces taux aux montants reels des transactions
+- C'est la meilleure approximation sans donnees de declaration CA3 dans le systeme
+
+Si la TVA nette est **negative** (credit de TVA), la valeur apparaitra en vert car c'est un flux favorable.
 
 ## Modifications techniques
 
-### Fichier : `src/features/business-plan/hooks/useBalanceSheet.ts`
+### 1. `src/components/forecasts/ForecastTable.tsx`
 
-**A. Corriger le calcul des emprunts bancaires (lignes 154-161)**
-- Remplacer la boucle buggee par un simple appel `getTotalOutstandingLoans(year.endDate)` une seule fois par annee
+**A. Deplacer `renderVatToPayRow()` avant `renderTtcRow('Total Decaissements')`**
+- Retirer l'appel actuel a `renderVatToPayRow()` (ligne 1572)
+- L'inserer juste avant `renderTtcRow('Total Decaissements', 'expense')` (ligne 1566)
 
-**B. Ajouter les subventions d'investissement au passif**
-- Filtrer les financements de type `grant` avec `is_operating_grant === false`
-- Les afficher dans les capitaux propres (norme PCG)
-- Les amortir sur la duree de vie des immobilisations correspondantes
+**B. Modifier `renderTtcRow` pour integrer la TVA nette dans le total des decaissements**
+- Pour le type `expense`, ajouter au total TTC la TVA nette a decaisser (quand positive)
+- Formule : `Total Decaissements = Sum(categories HT + TVA deductible) + max(0, TVA collectee - TVA deductible)`
+- Si credit de TVA (negatif), ne pas l'ajouter aux decaissements (il sera recupere comme encaissement)
 
-**C. Recalculer la tresorerie comme poste d'equilibre (lignes 100-109)**
-- Calculer d'abord tous les postes actif hors tresorerie (immobilisations nettes, stocks, creances)
-- Calculer le total passif (capitaux propres, dettes financieres, dettes d'exploitation)
-- Deduire : `cash = totalPassif - actifHorsTresorerie`
-- Supprimer le `Math.max(0, cash)` : une tresorerie negative est un signal valide (besoin de financement supplementaire)
+**C. Mettre a jour `renderNetRow` en coherence**
+- Le Solde Net TTC doit reflechir la nouvelle logique : encaissements TTC - decaissements TTC (incluant TVA nette)
+- Supprimer le double comptage : la TVA ne doit plus etre comptee separement si elle est deja dans les totaux
 
-**D. Reorganiser l'ordre des calculs**
-- Calculer le passif AVANT la tresorerie
-- Inserer la tresorerie en dernier dans l'actif circulant
-- Mettre a jour `totalAssets` pour qu'il soit egal a `totalLiabilities` par construction
+**D. Mettre a jour `getMonthNetForecast` dans `useForecasts.ts`**
+- Integrer la TVA nette dans le calcul du solde projete pour que le solde d'ouverture des mois futurs soit correct
+- Formule : `Net = Encaissements TTC - Decaissements TTC - max(0, TVA nette)`
 
-### Fichier : `src/features/business-plan/components/BalanceSheetTable.tsx`
+### 2. `src/hooks/useForecasts.ts`
 
-**E. Afficher un indicateur d'alerte si la tresorerie est negative**
-- Colorer la cellule en rouge quand la tresorerie est negative
-- Ajouter une icone d'avertissement pour signaler un besoin de financement
+**E. Ajouter un helper `getNetVat` pour exposer la TVA nette par mois**
+- `getNetVat(monthIndex, valueType) = VATcollectee - VATdeductible`
+- Reutilise `getVatForecast` et `getVatActual` existants
+- Permet au composant d'afficher la ligne et au calcul de solde d'etre coherent
 
-### Impact sur les autres fichiers
+### 3. Mise a jour du Solde Net
 
-- **`useFundingPlan.ts`** : Utilise `bsData.bfr` qui restera correct (pas impacte)
-- **`BFRChart.tsx`** : Utilise `data.bfr` et `data.workingCapital` qui resteront corrects
-- **`RatiosCard.tsx`** : Les ratios (endettement, solvabilite) seront plus fiables car bases sur des donnees equilibrees
-- **`BalanceSheet.tsx` (page)** : La fonction `isBalanced()` retournera toujours `true` par construction
+Le Solde Net sera recalcule ainsi :
+- `Encaissements TTC` (inchange : HT + TVA categories income)
+- `-` `Decaissements TTC` (inchange : HT + TVA categories expense)
+- `-` `TVA nette a decaisser` (si positive) ou `+` credit de TVA (si negatif)
+- `-` `Dettes fournisseurs` (payables)
 
-## Resultat attendu
+Cela evite tout double-comptage et garantit un solde coherent avec les lignes affichees.
 
-- TOTAL ACTIF = TOTAL PASSIF a chaque annee (garanti par construction)
-- Tresorerie nette = Fonds de Roulement - BFR (formule comptable standard)
-- Encours bancaires corrects (un seul appel par annee)
-- Signal clair quand la tresorerie est negative (besoin de financement)
