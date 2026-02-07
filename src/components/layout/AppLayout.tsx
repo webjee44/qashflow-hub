@@ -5,7 +5,6 @@ import { AppHeader } from './AppHeader';
 import { AppBreadcrumb } from './AppBreadcrumb';
 import { TrialExpiredBlocker } from './TrialExpiredBlocker';
 import { DemoBanner } from './DemoBanner';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useAppModeSync } from '@/hooks/useAppMode';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
@@ -20,15 +19,16 @@ export function AppLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { bpEnabled } = useOnboarding();
+  const { bpEnabled, profileLoaded } = useOnboarding();
   
   // Auto-sync mode with current route
   useAppModeSync();
 
-  // If the account is configured as "BP-only", prevent landing on Treasury routes
-  // (otherwise the sidebar can appear empty: treasury items hidden + BP items hidden).
+  // If the account is configured as "BP-only", prevent landing on Treasury routes.
+  // IMPORTANT: Only redirect AFTER the profile has loaded from the server to avoid
+  // premature redirects based on stale localStorage values.
   useEffect(() => {
-    if (!bpEnabled) return;
+    if (!profileLoaded || !bpEnabled) return;
 
     const path = location.pathname;
     const isBusinessPlanRoute = path.startsWith('/bp');
@@ -37,7 +37,7 @@ export function AppLayout() {
     if (!isBusinessPlanRoute && !isAllowedNonBPRoute) {
       navigate('/bp/revenus', { replace: true });
     }
-  }, [bpEnabled, location.pathname, navigate]);
+  }, [profileLoaded, bpEnabled, location.pathname, navigate]);
 
   // Charger le widget de support externe
   useEffect(() => {
@@ -82,18 +82,7 @@ export function AppLayout() {
         
         <main className="flex-1 p-8 overflow-visible">
           <Suspense fallback={<PageLoader />}>
-            <AnimatePresence>
-              <motion.div
-                key={location.pathname}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.15 }}
-                className="overflow-visible"
-              >
-                <Outlet />
-              </motion.div>
-            </AnimatePresence>
+            <Outlet />
           </Suspense>
         </main>
       </div>
