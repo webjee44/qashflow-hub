@@ -1,6 +1,7 @@
 import { useBalanceSheet } from '@/hooks/useBalanceSheet';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
+import { AlertTriangle } from 'lucide-react';
 
 export function BalanceSheetTable() {
   const { data, isLoading } = useBalanceSheet();
@@ -55,11 +56,17 @@ export function BalanceSheetTable() {
             {row.type === 'header' ? (
               data.years.map((_, i) => <TableCell key={i} />)
             ) : (
-              row.values.map((value, i) => (
-                <TableCell key={i} className="text-right">
-                  {formatCurrency(value)}
-                </TableCell>
-              ))
+              row.values.map((value, i) => {
+                const isNegativeAlert = row.alertNegative && value < 0;
+                return (
+                  <TableCell key={i} className="text-right">
+                    <span className={isNegativeAlert ? 'text-destructive font-semibold inline-flex items-center gap-1 justify-end' : ''}>
+                      {isNegativeAlert && <AlertTriangle className="h-4 w-4 shrink-0" />}
+                      {formatCurrency(value)}
+                    </span>
+                  </TableCell>
+                );
+              })
             )}
           </TableRow>
         ))}
@@ -98,14 +105,14 @@ export function BalanceSheetTable() {
           <TableCell>
             Trésorerie Nette (FR - BFR)
           </TableCell>
-          {data.workingCapital.map((wc, i) => {
-            const netCash = wc - data.bfr[i];
-            return (
-              <TableCell key={i} className={`text-right ${netCash >= 0 ? 'text-success' : 'text-destructive'}`}>
+          {data.cash.map((netCash, i) => (
+            <TableCell key={i} className={`text-right ${netCash >= 0 ? 'text-success' : 'text-destructive'}`}>
+              <span className={netCash < 0 ? 'inline-flex items-center gap-1 justify-end' : ''}>
+                {netCash < 0 && <AlertTriangle className="h-4 w-4 shrink-0" />}
                 {formatCurrency(netCash)}
-              </TableCell>
-            );
-          })}
+              </span>
+            </TableCell>
+          ))}
         </TableRow>
       </TableBody>
     </Table>
