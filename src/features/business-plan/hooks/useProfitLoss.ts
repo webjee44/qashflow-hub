@@ -552,12 +552,29 @@ export function useProfitLoss() {
       rows.push({ label: 'Variation des stocks (603)', type: 'item', values: stockVariationValues, isExpense: true, indent: 1, sectionType: 'expense', pcgCode: '603' });
     }
 
-    // Achats de matières et fournitures
+    // Achats de matières et fournitures (from streams with purchase cost)
     const purchasesFromProductionValues = calculateYearlyValues(month => 
       getPurchaseCostForMonth(month, 'production')
     );
-    if (purchasesFromProductionValues.some(v => v > 0)) {
-      rows.push({ label: 'Achats de matières et fournitures (601/602)', type: 'item', values: purchasesFromProductionValues, isExpense: true, indent: 1, sectionType: 'expense', pcgCode: '601' });
+
+    // Charges variables COGS (category 'cogs') - ex: frais de transport, frais accessoires d'achat
+    const cogsVariableExpensesValues = calculateYearlyValues(month => {
+      const revenueByStream = new Map<string | null, { amount: number; units: number }>();
+      streams.forEach(stream => {
+        const amount = getRevenueForecast(stream.id, month);
+        revenueByStream.set(stream.id, { amount, units: 1 });
+      });
+      return variableExpenses
+        .filter(e => e.category === 'cogs')
+        .reduce((sum, e) => sum + calculateVariableExpenseForMonth(e, month, revenueByStream), 0);
+    });
+
+    // Combined purchases line (601/602) = stream purchase costs + COGS variable expenses
+    const totalPurchasesFromProduction = years.map((_, i) => 
+      purchasesFromProductionValues[i] + cogsVariableExpensesValues[i]
+    );
+    if (totalPurchasesFromProduction.some(v => v > 0)) {
+      rows.push({ label: 'Achats de matières et fournitures (601/602)', type: 'item', values: totalPurchasesFromProduction, isExpense: true, indent: 1, sectionType: 'expense', pcgCode: '601' });
     }
 
     // B. Services extérieurs (61/62) - Inclut le crédit-bail (612)
@@ -681,7 +698,7 @@ export function useProfitLoss() {
 
     // Valeur Ajoutée = Marge commerciale + Production - Consommations en provenance des tiers (60/61/62)
     const externalConsumptionValues = years.map((_, i) => 
-      purchasesFromProductionValues[i] + externalServicesValues[i]
+      totalPurchasesFromProduction[i] + externalServicesValues[i]
     );
     
     const valueAddedValues = years.map((_, i) => 
@@ -697,7 +714,7 @@ export function useProfitLoss() {
 
     // Total charges d'exploitation (pour référence)
     const totalExpenseValues = years.map((_, i) => 
-      merchandisePurchasesValues[i] + stockVariationValues[i] + purchasesFromProductionValues[i] + 
+      merchandisePurchasesValues[i] + stockVariationValues[i] + totalPurchasesFromProduction[i] + 
       externalServicesValues[i] + taxesValues[i] + totalPersonnelWithSeverance[i] + directorTotalValues[i] + 
       otherExpensesValues[i] + depreciationValues[i]
     );
@@ -817,7 +834,7 @@ export function useProfitLoss() {
     const tvaBalanceValues = years.map((_, i) => tvaCollectedValues[i] - tvaDeductibleValues[i]);
 
     // Legacy values for backward compatibility
-    const legacyCogs = years.map((_, i) => merchandisePurchasesValues[i] + stockVariationValues[i] + purchasesFromProductionValues[i]);
+    const legacyCogs = years.map((_, i) => merchandisePurchasesValues[i] + stockVariationValues[i] + totalPurchasesFromProduction[i]);
     const legacyFixedExpenses = calculateYearlyValues(month => 
       fixedExpenses.reduce((sum, e) => sum + getFixedExpenseForMonth(e, month), 0)
     );
