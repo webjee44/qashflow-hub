@@ -128,6 +128,7 @@ export function ProfitLossTable() {
                 </TableCell>
                 {data.years.map((_, yearIndex) => {
                   const value = row.values[yearIndex] || 0;
+                  const pctOfRevenue = row.percentOfRevenue?.[yearIndex];
                   return (
                     <TableCell 
                       key={yearIndex} 
@@ -136,7 +137,24 @@ export function ProfitLossTable() {
                         getValueClasses(row, value)
                       )}
                     >
-                      {row.type === 'header' ? '' : (value !== 0 ? formatCurrency(value) : '-')}
+                      {row.type === 'header' ? '' : (
+                        <div className="flex items-center justify-center gap-2">
+                          <span>{value !== 0 ? formatCurrency(value) : '-'}</span>
+                          {pctOfRevenue !== undefined && value !== 0 && (
+                            <Badge 
+                              variant="secondary" 
+                              className={cn(
+                                "text-[10px] font-medium px-1.5",
+                                pctOfRevenue >= 0 
+                                  ? "bg-success/10 text-success border-success/20" 
+                                  : "bg-destructive/10 text-destructive border-destructive/20"
+                              )}
+                            >
+                              {pctOfRevenue.toFixed(1)}% CA
+                            </Badge>
+                          )}
+                        </div>
+                      )}
                     </TableCell>
                   );
                 })}

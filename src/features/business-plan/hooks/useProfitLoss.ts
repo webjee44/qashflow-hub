@@ -24,6 +24,8 @@ export interface PLRow {
   sectionType?: 'revenue' | 'expense' | 'result';
   pcgCode?: string;
   isSIG?: boolean;
+  /** Optional array of % of revenue values to display as badge per year */
+  percentOfRevenue?: number[];
 }
 
 export interface FiscalYear {
@@ -785,7 +787,11 @@ export function useProfitLoss() {
     // RÉSULTAT COURANT AVANT IMPÔTS
     // ═══════════════════════════════════════════════════════════════
     const rcaiValues = years.map((_, i) => operatingResultValues[i] + financialResultValues[i] + exceptionalResultValues[i]);
-    rows.push({ label: 'RÉSULTAT COURANT AVANT IMPÔTS', type: 'sig', values: rcaiValues, sectionType: 'result' });
+    const rcaiPercentOfRevenue = years.map((_, i) => {
+      const rev = merchandiseSalesValues[i] + productionSoldValues[i];
+      return rev > 0 ? (rcaiValues[i] / rev) * 100 : 0;
+    });
+    rows.push({ label: 'RÉSULTAT COURANT AVANT IMPÔTS', type: 'sig', values: rcaiValues, sectionType: 'result', percentOfRevenue: rcaiPercentOfRevenue });
 
     // ═══════════════════════════════════════════════════════════════
     // IMPÔT SUR LES BÉNÉFICES (69)
