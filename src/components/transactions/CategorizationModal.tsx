@@ -200,7 +200,7 @@ export function CategorizationModal({
 
   const handleSelectCategory = (categoryId: string) => {
     onSelectCategory(categoryId);
-    onOpenChange(false);
+    // Don't close here - let the parent handle closing to avoid race conditions with the suggestion dialog
   };
 
   const formatAmount = (amount: number) => {

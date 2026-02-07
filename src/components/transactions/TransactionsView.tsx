@@ -415,9 +415,14 @@ export function TransactionsView() {
   const handleCategorizationSelect = useCallback(async (categoryId: string) => {
     if (!transactionToCategorize) return;
     
-    await handleUpdateCategory(transactionToCategorize.id, categoryId);
+    // Close the categorization modal first
     setShowCategorizationModal(false);
     setTransactionToCategorize(null);
+    
+    // Small delay to let the modal close animation complete before potentially opening the suggestion dialog
+    await new Promise(resolve => setTimeout(resolve, 150));
+    
+    await handleUpdateCategory(transactionToCategorize.id, categoryId);
   }, [transactionToCategorize, handleUpdateCategory]);
 
   const handleSplitTransaction = useCallback(async (splits: { categoryId: string | null; amount: number }[]) => {
