@@ -181,8 +181,9 @@ export function SplitTransactionDialog({
               onChange={(e) => setSplitCount(Math.max(2, parseInt(e.target.value) || 2))}
               className="w-20"
             />
-            <Button onClick={handleApplySplit} variant="secondary">
-              Appliquer
+            <Button onClick={handleApplySplit} variant="default" className="gap-2">
+              <Scissors className="w-4 h-4" />
+              Diviser
             </Button>
           </div>
 
