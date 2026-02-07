@@ -595,6 +595,84 @@ Deno.serve(async (req) => {
       );
     }
 
+    // ============= CRON Sync (all companies) =============
+    if (action === "cron-sync") {
+      console.log("[accounting-connector-sync] CRON sync started");
+
+      // Find all companies that have accounting secrets configured
+      const { data: secretRows, error: secretsError } = await supabase
+        .from("company_secrets")
+        .select("company_id, secret_type")
+        .in("secret_type", ["pennylane_api_key", "odoo_api_key"]);
+
+      if (secretsError) {
+        console.error("[accounting-connector-sync] Error fetching company secrets:", secretsError);
+        return new Response(
+          JSON.stringify({ error: "Failed to fetch company secrets" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Get unique company IDs that have a connector
+      const companyIds = [...new Set((secretRows || []).map(r => r.company_id))];
+      console.log(`[accounting-connector-sync] Found ${companyIds.length} companies with connectors`);
+
+      if (companyIds.length === 0) {
+        return new Response(
+          JSON.stringify({ success: true, message: "No companies with connectors" }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Get company owner user_ids
+      const { data: companies, error: companiesError } = await supabase
+        .from("companies")
+        .select("id, user_id")
+        .in("id", companyIds);
+
+      if (companiesError) {
+        console.error("[accounting-connector-sync] Error fetching companies:", companiesError);
+        return new Response(
+          JSON.stringify({ error: "Failed to fetch companies" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const results: { company_id: string; provider: string; created: number; updated: number; errors: string[] }[] = [];
+
+      for (const company of companies || []) {
+        try {
+          const secrets = await getCompanySecrets(supabase, company.id);
+
+          if (secrets.has("odoo_api_key")) {
+            const creds: OdooCredentials = {
+              url: secrets.get("odoo_url") || "",
+              db: secrets.get("odoo_db") || "",
+              username: secrets.get("odoo_username") || "",
+              password: secrets.get("odoo_password") || "",
+              apiKey: secrets.get("odoo_api_key") || "",
+            };
+            const result = await syncOdooInvoices(supabase, company.user_id, company.id, creds);
+            results.push({ company_id: company.id, provider: "odoo", ...result });
+          } else if (secrets.has("pennylane_api_key")) {
+            const apiKey = secrets.get("pennylane_api_key")!;
+            const result = await syncPennylaneInvoices(supabase, company.user_id, company.id, apiKey);
+            results.push({ company_id: company.id, provider: "pennylane", ...result });
+          }
+        } catch (err: any) {
+          console.error(`[accounting-connector-sync] CRON sync error for company ${company.id}:`, err);
+          results.push({ company_id: company.id, provider: "unknown", created: 0, updated: 0, errors: [err.message] });
+        }
+      }
+
+      console.log(`[accounting-connector-sync] CRON sync completed for ${results.length} companies`);
+
+      return new Response(
+        JSON.stringify({ success: true, results }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     return new Response(
       JSON.stringify({ error: "Invalid action" }),
       { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
