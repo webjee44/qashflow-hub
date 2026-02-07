@@ -249,12 +249,26 @@ export function useForecasts() {
 
   // Helper to get forecast for a specific category and month
   const getForecast = useCallback((categoryId: string, month: Date): number => {
+    const category = categories.find(c => c.id === categoryId);
+    
+    // For percent_of_revenue categories: calculate from total income HT forecast
+    if (category?.forecast_mode === 'percent_of_revenue' && (category.forecast_percent ?? 0) > 0) {
+      const monthStr = format(month, 'yyyy-MM-01');
+      const incomeTotal = categories
+        .filter(c => c.type === 'income')
+        .reduce((sum, c) => {
+          const f = forecasts.find(fc => fc.category_id === c.id && fc.month === monthStr);
+          return sum + (f?.expected_amount ?? 0);
+        }, 0);
+      return (category.forecast_percent! / 100) * incomeTotal;
+    }
+    
     const monthStr = format(month, 'yyyy-MM-01');
     const forecast = forecasts.find(
       f => f.category_id === categoryId && f.month === monthStr
     );
     return forecast?.expected_amount ?? 0;
-  }, [forecasts]);
+  }, [forecasts, categories]);
 
   // Helper to get forecast source for a specific category and month
   const getForecastSource = (categoryId: string, month: Date): 'manual' | 'bp_import' | 'bp_synced' | null => {
@@ -488,6 +502,17 @@ export function useForecasts() {
     return { balance: projectedBalance, isActual: false };
   }, [currentCompany, allTransactions, getMonthNetForecast]);
 
+  // Helper to get total income forecast (HT) for a month - used for variable charge tooltips
+  const getIncomeForecastTotal = useCallback((month: Date): number => {
+    const monthStr = format(month, 'yyyy-MM-01');
+    return categories
+      .filter(c => c.type === 'income')
+      .reduce((sum, c) => {
+        const f = forecasts.find(fc => fc.category_id === c.id && fc.month === monthStr);
+        return sum + (f?.expected_amount ?? 0);
+      }, 0);
+  }, [categories, forecasts]);
+
   return {
     months,
     forecasts,
@@ -504,6 +529,7 @@ export function useForecasts() {
     getNetVatForecast,
     getNetVatActual,
     getUncategorized,
+    getIncomeForecastTotal,
     // Payables
     payableInvoices,
     getPayableOutflow,

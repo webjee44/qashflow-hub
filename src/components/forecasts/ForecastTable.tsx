@@ -66,6 +66,7 @@ export function ForecastTable() {
     getNetVatForecast,
     getNetVatActual,
     getUncategorized,
+    getIncomeForecastTotal,
     getPayableOutflow,
     getPayableOutflowByCategory,
     getPayableOutflowUncategorized,
@@ -359,6 +360,7 @@ export function ForecastTable() {
     const hasPayables = payableForCategory > 0;
     
     const periodType = getMonthPeriodType(months[monthIndex]);
+    const isVariable = category.forecast_mode === 'percent_of_revenue';
     
     // Color logic: green if actual >= forecast (for income) or actual <= forecast (for expense)
     const hasActual = actual !== 0;
@@ -381,6 +383,61 @@ export function ForecastTable() {
             onClick={() => hasActual && openTransactionDetail(category, monthIndex)}
           >
             {hasActual ? formatValue(Math.abs(actual)) : '—'}
+          </div>
+        </td>
+      );
+    }
+
+    // Variable categories (percent_of_revenue): non-editable computed cells
+    if (isVariable) {
+      const incomeForecastTotal = getIncomeForecastTotal(months[monthIndex]);
+      const forecastPercent = category.forecast_percent ?? 0;
+      
+      if (periodType === 'future') {
+        return (
+          <td key={cellKey} className="p-0 border-r border-border min-w-[90px]">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="px-3 py-2 text-right bg-violet-500/10 cursor-default">
+                  <span className={totalForecast > 0 ? "text-foreground" : "text-muted-foreground"}>
+                    {totalForecast > 0 ? formatValue(totalForecast) : '—'}
+                  </span>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="text-xs max-w-[280px]">
+                {forecastPercent}% × {formatValue(incomeForecastTotal)} (CA prévu HT) = {formatValue(forecast)}
+              </TooltipContent>
+            </Tooltip>
+          </td>
+        );
+      }
+      
+      // Current month: actual + non-editable forecast
+      return (
+        <td key={cellKey} className="p-0 border-r border-border min-w-[160px]">
+          <div className="flex">
+            <div 
+              className={cn(
+                "flex-1 px-3 py-2 text-right border-r border-border/50 bg-muted/20 transition-colors",
+                hasActual && (isPositive ? "text-success" : "text-destructive"),
+                hasActual && "cursor-pointer hover:bg-muted/40"
+              )}
+              onClick={() => hasActual && openTransactionDetail(category, monthIndex)}
+            >
+              {hasActual ? formatValue(Math.abs(actual)) : '—'}
+            </div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex-1 px-3 py-2 text-right bg-violet-500/10 cursor-default">
+                  <span className={totalForecast > 0 ? "text-foreground" : "text-muted-foreground"}>
+                    {totalForecast > 0 ? formatValue(totalForecast) : '—'}
+                  </span>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="text-xs max-w-[280px]">
+                {forecastPercent}% × {formatValue(incomeForecastTotal)} (CA prévu HT) = {formatValue(forecast)}
+              </TooltipContent>
+            </Tooltip>
           </div>
         </td>
       );
@@ -801,6 +858,11 @@ export function ForecastTable() {
               style={{ backgroundColor: category.color }}
             />
             <span className="font-medium text-foreground">{category.name}</span>
+            {category.forecast_mode === 'percent_of_revenue' && (
+              <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-violet-600 dark:text-violet-400 bg-violet-500/15 rounded px-1.5 py-0.5">
+                % {category.forecast_percent ?? 0}
+              </span>
+            )}
             {category.vat_rate > 0 && (
               <span className="text-xs text-muted-foreground">
                 ({(category.vat_rate * 100).toFixed(0)}%)
