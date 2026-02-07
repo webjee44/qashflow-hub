@@ -113,6 +113,7 @@ interface UseOnboardingReturn {
   completeTour: () => void;
   isCompleted: boolean;
   bpEnabled: boolean;
+  profileLoaded: boolean;
   enableBP: () => Promise<void>;
   toggleBP: (enabled: boolean) => Promise<void>;
 }
@@ -123,6 +124,7 @@ export function useOnboarding(): UseOnboardingReturn {
   const [isActive, setIsActive] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [isCompleted, setIsCompleted] = useState(true);
+  const [profileLoaded, setProfileLoaded] = useState(false);
   const [bpEnabled, setBpEnabled] = useState<boolean>(() => {
     // Guard in case localStorage isn't available yet
     try {
@@ -202,6 +204,7 @@ export function useOnboarding(): UseOnboardingReturn {
           setCurrentStep(0);
         }
       }
+      setProfileLoaded(true);
     }
 
     loadOnboardingState();
@@ -291,6 +294,7 @@ export function useOnboarding(): UseOnboardingReturn {
     completeTour,
     isCompleted,
     bpEnabled,
+    profileLoaded,
     enableBP,
     toggleBP,
   };
