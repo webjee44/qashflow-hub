@@ -291,7 +291,16 @@ export function useForecasts() {
     }, 0);
   };
 
-  // Helper to get uncategorized amounts for a month
+  // Helper to get net VAT to pay (collected - deductible) for a given month
+  // Positive = VAT to pay to the state, Negative = VAT credit
+  const getNetVatForecast = useCallback((month: Date): number => {
+    return getVatForecast('income', month) - getVatForecast('expense', month);
+  }, [categories, getForecast]);
+
+  const getNetVatActual = useCallback((month: Date): number => {
+    return getVatActual('income', month) - getVatActual('expense', month);
+  }, [categories]);
+
   const getUncategorized = (type: 'income' | 'expense', month: Date): number => {
     const monthStr = format(month, 'yyyy-MM-01');
     return uncategorized[monthStr]?.[type] ?? 0;
@@ -415,7 +424,7 @@ export function useForecasts() {
 
   // Helper to calculate month net forecast (for projected balance calculation)
   const getMonthNetForecast = useCallback((month: Date): number => {
-    // Income TTC - Expense TTC
+    // Income TTC - Expense TTC - TVA nette à décaisser
     let incomeTtc = 0;
     let expenseTtc = 0;
     
@@ -437,8 +446,14 @@ export function useForecasts() {
     // Add uncategorized payables
     expenseTtc += getPayableOutflowUncategorized(month);
     
+    // Add net VAT to pay (only if positive = amount to pay to state)
+    const netVat = getNetVatForecast(month);
+    if (netVat > 0) {
+      expenseTtc += netVat;
+    }
+    
     return incomeTtc - expenseTtc;
-  }, [categories, getForecast, getPayableOutflowByCategory, getPayableOutflowUncategorized]);
+  }, [categories, getForecast, getPayableOutflowByCategory, getPayableOutflowUncategorized, getNetVatForecast]);
 
   // Calculate the opening balance for a given month
   const getOpeningBalance = useCallback((month: Date): { balance: number; isActual: boolean } => {
@@ -486,6 +501,8 @@ export function useForecasts() {
     getActual,
     getVatForecast,
     getVatActual,
+    getNetVatForecast,
+    getNetVatActual,
     getUncategorized,
     // Payables
     payableInvoices,
