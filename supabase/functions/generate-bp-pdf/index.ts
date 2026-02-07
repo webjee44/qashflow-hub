@@ -216,11 +216,15 @@ serve(async (req) => {
     };
 
     const addSectionTitle = (title: string, level: number = 1) => {
-      checkPageBreak(20);
-      
-      tocEntries.push({ title, page: currentPage, level });
-      
       if (level === 1) {
+        // Force a new page for each major section (accounting-style page breaks)
+        // Unless we're already near the top of a fresh page
+        if (yPos > margin + 25) {
+          addNewPage();
+        }
+        
+        tocEntries.push({ title, page: currentPage, level });
+        
         // Main section title with decorative line
         setFillColor(COLORS.primary);
         doc.rect(margin, yPos - 2, 4, 10, 'F');
@@ -231,6 +235,9 @@ serve(async (req) => {
         doc.text(title, margin + 8, yPos + 5);
         yPos += 18;
       } else {
+        checkPageBreak(20);
+        tocEntries.push({ title, page: currentPage, level });
+        
         // Subsection title
         doc.setFontSize(13);
         doc.setFont('helvetica', 'bold');
