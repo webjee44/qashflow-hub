@@ -501,6 +501,140 @@ serve(async (req) => {
       return result * 0.25;
     };
 
+    // ── Per-stream yearly revenue helper ──
+    const calculateStreamYearlyRevenue = (stream: any, year: number): number => {
+      let year0Revenue = 0;
+      for (let m = 0; m < 12; m++) {
+        const monthDate = new Date(bpStartDate);
+        monthDate.setMonth(monthDate.getMonth() + m);
+        year0Revenue += getMonthlyRevenueForStream(stream.id, monthDate);
+      }
+      if (year === 0) return year0Revenue;
+      let growth = 1;
+      for (let gy = 1; gy <= year; gy++) {
+        let rate = stream.growth_rate || 10;
+        if (gy === 1 && stream.growth_rate_year2) rate = stream.growth_rate_year2;
+        if (gy === 2 && stream.growth_rate_year3) rate = stream.growth_rate_year3;
+        if (gy === 3 && stream.growth_rate_year4) rate = stream.growth_rate_year4;
+        growth *= (1 + rate / 100);
+      }
+      return year0Revenue * growth;
+    };
+
+    // ── Detailed P&L calculations per year (PCG-compliant) ──
+    const calculateDetailedPnlYear = (yearIndex: number) => {
+      const totalRevenue = calculateYearlyRevenue(yearIndex);
+
+      // Revenue breakdown by type (707 vs 706)
+      const merchandiseSales = financialData.revenueStreams
+        .filter((s: any) => s.revenue_type === 'merchandise')
+        .reduce((sum: number, s: any) => sum + calculateStreamYearlyRevenue(s, yearIndex), 0);
+      const productionSold = totalRevenue - merchandiseSales;
+
+      // Operating grants (74) from financings
+      const operatingGrants = financialData.financings
+        .filter((f: any) => f.financing_type === 'grant' && f.is_operating_grant)
+        .reduce((sum: number, f: any) => sum + (f.amount || 0) / years, 0);
+
+      // ── CHARGES D'EXPLOITATION ──
+
+      // Achats de marchandises (607) - purchase cost from merchandise streams
+      const merchandisePurchases = financialData.revenueStreams
+        .filter((s: any) => s.revenue_type === 'merchandise' && s.has_purchase_cost && s.monthly_price > 0)
+        .reduce((sum: number, s: any) => {
+          const streamRev = calculateStreamYearlyRevenue(s, yearIndex);
+          const ratio = (s.purchase_price || 0) / s.monthly_price;
+          return sum + streamRev * ratio;
+        }, 0);
+
+      // Variation de stocks (603)
+      const stockVariation = financialData.stocks
+        .filter((s: any) => s.fiscal_year === yearIndex + 1)
+        .reduce((sum: number, s: any) => sum + ((s.final_stock || 0) - (s.initial_stock || 0)), 0);
+
+      // Achats de matières et fournitures (601/602) = production purchase costs + COGS variable expenses
+      const productionPurchases = financialData.revenueStreams
+        .filter((s: any) => s.revenue_type !== 'merchandise' && s.has_purchase_cost && s.monthly_price > 0)
+        .reduce((sum: number, s: any) => {
+          const streamRev = calculateStreamYearlyRevenue(s, yearIndex);
+          const ratio = (s.purchase_price || 0) / s.monthly_price;
+          return sum + streamRev * ratio;
+        }, 0);
+      const cogsVarExpenses = financialData.variableExpenses
+        .filter((e: any) => e.category === 'cogs')
+        .reduce((sum: number, e: any) => {
+          if (e.calculation_type === 'percentage') return sum + totalRevenue * (e.percentage || 0) / 100;
+          return sum + (e.unit_cost || 0) * 12;
+        }, 0);
+      const totalPurchasesProduction = productionPurchases + cogsVarExpenses;
+
+      // Autres achats et charges externes (61/62) = fixed services + non-COGS variable + freelance
+      const serviceCategories = ['rent', 'insurance', 'software', 'telecom', 'marketing', 'professional_fees', 'banking', 'travel'];
+      const fixedServices = financialData.fixedExpenses
+        .filter((e: any) => serviceCategories.includes(e.category || ''))
+        .reduce((sum: number, e: any) => sum + (e.monthly_amount || 0) * 12, 0);
+      const nonCogsVarExpenses = financialData.variableExpenses
+        .filter((e: any) => e.category !== 'cogs')
+        .reduce((sum: number, e: any) => {
+          if (e.calculation_type === 'percentage') return sum + totalRevenue * (e.percentage || 0) / 100;
+          return sum + (e.unit_cost || 0) * 12;
+        }, 0);
+      const externalServices = fixedServices + nonCogsVarExpenses;
+
+      // Impôts, taxes et versements assimilés (63)
+      const taxExpenses = financialData.fixedExpenses
+        .filter((e: any) => e.category === 'taxes')
+        .reduce((sum: number, e: any) => sum + (e.monthly_amount || 0) * 12, 0);
+
+      // Charges de personnel (64)
+      let grossSalaries = 0;
+      let employerCharges = 0;
+      financialData.personnel.forEach((p: any) => {
+        const salary = p.gross_salary || 0;
+        const rate = normalizeChargeRate(p.employer_charges_rate, 45);
+        const charges = salary * rate / 100 + (p.mutuelle_employer_amount || 0);
+        grossSalaries += salary * 12;
+        employerCharges += charges * 12;
+      });
+
+      // Rémunération dirigeants
+      const directorCosts = calculateYearlyDirectorCosts();
+
+      // Autres charges de gestion courante (65)
+      const otherExpenses = financialData.fixedExpenses
+        .filter((e: any) => ['office', 'other'].includes(e.category || ''))
+        .reduce((sum: number, e: any) => sum + (e.monthly_amount || 0) * 12, 0);
+
+      // Dotations aux amortissements (68)
+      const depreciation = calculateYearlyDepreciation();
+
+      // Financial charges (66)
+      const financialCharges = calculateYearlyFinancialCharges();
+
+      // ── SIG (Soldes Intermédiaires de Gestion) ──
+      const totalRevenueOp = merchandiseSales + productionSold + operatingGrants;
+      const commercialMargin = merchandiseSales - merchandisePurchases - stockVariation;
+      const externalConsumption = totalPurchasesProduction + externalServices;
+      const valueAdded = commercialMargin + productionSold - externalConsumption;
+      const ebe = valueAdded + operatingGrants - taxExpenses - grossSalaries - employerCharges - directorCosts;
+      const totalChargesExploitation = merchandisePurchases + stockVariation + totalPurchasesProduction + externalServices + taxExpenses + grossSalaries + employerCharges + directorCosts + otherExpenses + depreciation;
+      const operatingResult = ebe - depreciation - otherExpenses;
+      const financialResult = -financialCharges;
+      const rcai = operatingResult + financialResult;
+      const tax = calculateIS(rcai, financialData.settings?.is_pme !== false);
+      const netResult = rcai - tax;
+
+      return {
+        merchandiseSales, productionSold, operatingGrants, totalRevenueOp,
+        merchandisePurchases, stockVariation, totalPurchasesProduction,
+        externalServices, taxExpenses, grossSalaries, employerCharges,
+        directorCosts, otherExpenses, depreciation, totalChargesExploitation,
+        commercialMargin, valueAdded, ebe, operatingResult,
+        financialCharges, financialResult, rcai, tax, netResult,
+        totalRevenue,
+      };
+    };
+
     // FIX #6: Calculate yearly net results for balance sheet
     const calculateYearlyNetResults = () => {
       return Array.from({ length: years }, (_, y) => {
@@ -1008,117 +1142,222 @@ serve(async (req) => {
       });
     }
 
-    // ============ PROFIT & LOSS ============
+    // ============ PROFIT & LOSS (PCG-compliant) ============
     
     if (sections?.includes('pnl')) {
       checkPageBreak(80);
       addSectionTitle('Compte de Résultat Prévisionnel', 1);
+
+      // Subtitle
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'italic');
+      setColor(COLORS.textLight);
+      doc.text('Structuré selon le Plan Comptable Général (PCG) et les Soldes Intermédiaires de Gestion (SIG)', margin, yPos);
+      yPos += 8;
       
-      // FIX #3: Ensure chronological order - headers in proper order
       const pnlHeaders = ['Rubrique', ...Array.from({ length: years }, (_, i) => `${startYear + i}`)];
-      const pnlData: { label: string; values: number[]; isTotal?: boolean; isSubtotal?: boolean }[] = [];
       
-      // Calculate all years in chronological order
-      const yearlyData = Array.from({ length: years }, (_, y) => {
-        const revenue = calculateYearlyRevenue(y);
-        const varExpenses = calculateYearlyVariableExpenses(revenue);
-        const fixedExpenses = calculateYearlyFixedExpenses();
-        const personnelCosts = calculateYearlyPersonnelCosts();
-        const directorCosts = calculateYearlyDirectorCosts();
-        const depreciation = calculateYearlyDepreciation();
-        const financialCharges = calculateYearlyFinancialCharges();
-        
-        const grossMargin = revenue - varExpenses;
-        const ebitda = grossMargin - fixedExpenses - personnelCosts - directorCosts;
-        const operatingResult = ebitda - depreciation;
-        const resultBeforeTax = operatingResult - financialCharges;
-        const tax = calculateIS(resultBeforeTax, financialData.settings?.is_pme || true);
-        const netResult = resultBeforeTax - tax;
-        
-        return {
-          revenue,
-          varExpenses,
-          grossMargin,
-          fixedExpenses,
-          personnelCosts,
-          directorCosts,
-          ebitda,
-          depreciation,
-          operatingResult,
-          financialCharges,
-          resultBeforeTax,
-          tax,
-          netResult
-        };
+      // Calculate detailed data per year
+      const detailedYears = Array.from({ length: years }, (_, y) => calculateDetailedPnlYear(y));
+
+      // Row type definitions for formatting
+      type PnlRowType = 'header' | 'item' | 'subtotal' | 'sig' | 'total';
+      interface PnlRow {
+        label: string;
+        values: number[];
+        rowType: PnlRowType;
+        indent?: number;
+        percentCA?: number[]; // Optional % of revenue badge
+      }
+
+      const pnlRows: PnlRow[] = [];
+      const d = detailedYears;
+      const vals = (fn: (y: any) => number) => d.map(fn);
+
+      // ── I. PRODUITS D'EXPLOITATION ──
+      pnlRows.push({ label: 'I. PRODUITS D\'EXPLOITATION', values: [], rowType: 'header' });
+      
+      if (d.some(y => y.merchandiseSales > 0)) {
+        pnlRows.push({ label: 'Ventes de marchandises (707)', values: vals(y => y.merchandiseSales), rowType: 'item', indent: 1 });
+      }
+      if (d.some(y => y.productionSold > 0)) {
+        pnlRows.push({ label: 'Production vendue (706)', values: vals(y => y.productionSold), rowType: 'item', indent: 1 });
+      }
+      if (d.some(y => y.operatingGrants > 0)) {
+        pnlRows.push({ label: 'Subventions d\'exploitation (74)', values: vals(y => y.operatingGrants), rowType: 'item', indent: 1 });
+      }
+      pnlRows.push({ label: 'TOTAL PRODUITS D\'EXPLOITATION (I)', values: vals(y => y.totalRevenueOp), rowType: 'subtotal' });
+
+      // ── II. CHARGES D'EXPLOITATION ──
+      pnlRows.push({ label: 'II. CHARGES D\'EXPLOITATION', values: [], rowType: 'header' });
+      
+      if (d.some(y => y.merchandisePurchases > 0)) {
+        pnlRows.push({ label: 'Achats de marchandises (607)', values: vals(y => y.merchandisePurchases), rowType: 'item', indent: 1 });
+      }
+      if (d.some(y => y.stockVariation !== 0)) {
+        pnlRows.push({ label: 'Variation des stocks (603)', values: vals(y => y.stockVariation), rowType: 'item', indent: 1 });
+      }
+      if (d.some(y => y.totalPurchasesProduction > 0)) {
+        pnlRows.push({ label: 'Achats de matières et fourn. (601/602)', values: vals(y => y.totalPurchasesProduction), rowType: 'item', indent: 1 });
+      }
+      pnlRows.push({ label: 'Autres achats et charges ext. (61/62)', values: vals(y => y.externalServices), rowType: 'item', indent: 1 });
+      if (d.some(y => y.taxExpenses > 0)) {
+        pnlRows.push({ label: 'Impôts, taxes et versements (63)', values: vals(y => y.taxExpenses), rowType: 'item', indent: 1 });
+      }
+      pnlRows.push({ label: 'Salaires et traitements (641)', values: vals(y => y.grossSalaries), rowType: 'item', indent: 1 });
+      pnlRows.push({ label: 'Charges sociales (645)', values: vals(y => y.employerCharges), rowType: 'item', indent: 1 });
+      if (d.some(y => y.directorCosts > 0)) {
+        pnlRows.push({ label: 'Rémunération dirigeants', values: vals(y => y.directorCosts), rowType: 'item', indent: 1 });
+      }
+      if (d.some(y => y.otherExpenses > 0)) {
+        pnlRows.push({ label: 'Autres charges de gestion (65)', values: vals(y => y.otherExpenses), rowType: 'item', indent: 1 });
+      }
+      if (d.some(y => y.depreciation > 0)) {
+        pnlRows.push({ label: 'Dotations aux amortissements (68)', values: vals(y => y.depreciation), rowType: 'item', indent: 1 });
+      }
+      pnlRows.push({ label: 'TOTAL CHARGES D\'EXPLOITATION (II)', values: vals(y => y.totalChargesExploitation), rowType: 'subtotal' });
+
+      // ── SIG ──
+      if (d.some(y => y.merchandiseSales > 0)) {
+        pnlRows.push({ label: 'MARGE COMMERCIALE', values: vals(y => y.commercialMargin), rowType: 'sig' });
+      }
+      pnlRows.push({ label: 'VALEUR AJOUTÉE', values: vals(y => y.valueAdded), rowType: 'sig' });
+      pnlRows.push({ label: 'EXCÉDENT BRUT D\'EXPLOITATION (EBE)', values: vals(y => y.ebe), rowType: 'sig' });
+      pnlRows.push({ label: 'RÉSULTAT D\'EXPLOITATION (I - II)', values: vals(y => y.operatingResult), rowType: 'sig' });
+
+      // ── III/IV. RÉSULTAT FINANCIER ──
+      if (d.some(y => y.financialCharges > 0)) {
+        pnlRows.push({ label: 'Charges financières (66)', values: vals(y => y.financialCharges), rowType: 'item', indent: 1 });
+        pnlRows.push({ label: 'RÉSULTAT FINANCIER', values: vals(y => y.financialResult), rowType: 'sig' });
+      }
+
+      // ── RCAI ──
+      pnlRows.push({ 
+        label: 'RÉSULTAT COURANT AVANT IMPÔTS', 
+        values: vals(y => y.rcai), 
+        rowType: 'sig',
+        percentCA: d.map(y => y.totalRevenue > 0 ? (y.rcai / y.totalRevenue) * 100 : 0)
       });
-      
-      pnlData.push({ label: 'Chiffre d\'affaires', values: yearlyData.map(d => d.revenue) });
-      pnlData.push({ label: '- Charges variables', values: yearlyData.map(d => -d.varExpenses) });
-      pnlData.push({ label: 'Marge brute', values: yearlyData.map(d => d.grossMargin), isSubtotal: true });
-      pnlData.push({ label: '- Charges fixes', values: yearlyData.map(d => -d.fixedExpenses) });
-      pnlData.push({ label: '- Masse salariale', values: yearlyData.map(d => -d.personnelCosts) });
-      pnlData.push({ label: '- Rémunération dirigeants', values: yearlyData.map(d => -d.directorCosts) });
-      pnlData.push({ label: 'EBE (EBITDA)', values: yearlyData.map(d => d.ebitda), isSubtotal: true });
-      pnlData.push({ label: '- Dotations amortissements', values: yearlyData.map(d => -d.depreciation) });
-      pnlData.push({ label: 'Résultat d\'exploitation', values: yearlyData.map(d => d.operatingResult), isSubtotal: true });
-      pnlData.push({ label: '- Charges financières', values: yearlyData.map(d => -d.financialCharges) });
-      pnlData.push({ label: 'Résultat avant impôt', values: yearlyData.map(d => d.resultBeforeTax), isSubtotal: true });
-      pnlData.push({ label: '- Impôt sur les sociétés', values: yearlyData.map(d => -d.tax) });
-      pnlData.push({ label: 'RÉSULTAT NET', values: yearlyData.map(d => d.netResult), isTotal: true });
-      
-      // Draw P&L table manually for special formatting
-      const colWidths = [70, ...Array(years).fill((contentWidth - 70) / years)];
+
+      // ── IS & NET ──
+      pnlRows.push({ label: 'Impôt sur les sociétés (69)', values: vals(y => y.tax), rowType: 'item', indent: 1 });
+      pnlRows.push({ label: 'RÉSULTAT NET DE L\'EXERCICE', values: vals(y => y.netResult), rowType: 'total' });
+
+      // ── Draw the detailed P&L table ──
+      const labelWidth = 80;
+      const colWidths = [labelWidth, ...Array(years).fill((contentWidth - labelWidth) / years)];
       const rowHeight = 7;
       let tableY = yPos;
-      
-      // Header
+
+      // Table header
       setFillColor(COLORS.primary);
       doc.rect(margin, tableY, contentWidth, 8, 'F');
-      doc.setFontSize(9);
+      doc.setFontSize(8.5);
       doc.setFont('helvetica', 'bold');
       setColor(COLORS.white);
       doc.text(pnlHeaders[0], margin + 3, tableY + 5.5);
       pnlHeaders.slice(1).forEach((h, i) => {
-        doc.text(h, margin + 70 + colWidths.slice(1, i + 1).reduce((a, b) => a + b, 0) + colWidths[i + 1] / 2, tableY + 5.5, { align: 'center' });
+        const colX = margin + labelWidth + colWidths.slice(1, i + 1).reduce((a, b) => a + b, 0);
+        doc.text(h, colX + colWidths[i + 1] / 2, tableY + 5.5, { align: 'center' });
       });
       tableY += 8;
-      
-      // Rows
-      pnlData.forEach((row, ri) => {
-        checkPageBreak(rowHeight + 2);
-        
-        if (row.isTotal) {
+
+      // Table rows
+      pnlRows.forEach((row) => {
+        // Page break check - if we need a new page, re-draw the header
+        if (tableY + rowHeight + 2 > pageHeight - 25) {
+          addNewPage();
+          tableY = yPos;
+          // Re-draw header on new page
           setFillColor(COLORS.primary);
-          doc.rect(margin, tableY, contentWidth, rowHeight + 1, 'F');
+          doc.rect(margin, tableY, contentWidth, 8, 'F');
+          doc.setFontSize(8.5);
+          doc.setFont('helvetica', 'bold');
           setColor(COLORS.white);
-          doc.setFont('helvetica', 'bold');
-        } else if (row.isSubtotal) {
-          setFillColor(COLORS.tableHeader);
-          doc.rect(margin, tableY, contentWidth, rowHeight, 'F');
-          setColor(COLORS.text);
-          doc.setFont('helvetica', 'bold');
-        } else {
-          if (ri % 2 === 1) {
-            setFillColor(COLORS.tableRowAlt);
-            doc.rect(margin, tableY, contentWidth, rowHeight, 'F');
-          }
-          setColor(COLORS.text);
-          doc.setFont('helvetica', 'normal');
+          doc.text(pnlHeaders[0], margin + 3, tableY + 5.5);
+          pnlHeaders.slice(1).forEach((h, i) => {
+            const colX = margin + labelWidth + colWidths.slice(1, i + 1).reduce((a, b) => a + b, 0);
+            doc.text(h, colX + colWidths[i + 1] / 2, tableY + 5.5, { align: 'center' });
+          });
+          tableY += 8;
         }
-        
-        doc.setFontSize(9);
-        doc.text(row.label, margin + 3, tableY + 5);
-        
-        row.values.forEach((v, vi) => {
-          const colX = margin + 70 + colWidths.slice(1, vi + 1).reduce((a, b) => a + b, 0);
-          const valueColor = v >= 0 ? (row.isTotal || row.isSubtotal ? COLORS.white : COLORS.success) : COLORS.danger;
-          if (!row.isTotal) setColor(valueColor);
-          doc.text(formatCurrency(Math.abs(v)), colX + colWidths[vi + 1] - 5, tableY + 5, { align: 'right' });
-        });
-        
-        tableY += row.isTotal ? rowHeight + 1 : rowHeight;
+
+        const rh = row.rowType === 'total' ? rowHeight + 1 : rowHeight;
+
+        // Row background
+        if (row.rowType === 'header') {
+          setFillColor({ r: 230, g: 236, b: 245 }); // muted blue-gray
+          doc.rect(margin, tableY, contentWidth, rh, 'F');
+        } else if (row.rowType === 'subtotal') {
+          setFillColor(COLORS.tableHeader);
+          doc.rect(margin, tableY, contentWidth, rh, 'F');
+        } else if (row.rowType === 'sig') {
+          setFillColor({ r: 219, g: 234, b: 254 }); // primary/10
+          doc.rect(margin, tableY, contentWidth, rh, 'F');
+        } else if (row.rowType === 'total') {
+          setFillColor(COLORS.primary);
+          doc.rect(margin, tableY, contentWidth, rh, 'F');
+        }
+
+        // Row bottom border
+        setDrawColor(COLORS.border);
+        doc.setLineWidth(0.1);
+        doc.line(margin, tableY + rh, margin + contentWidth, tableY + rh);
+
+        // Label
+        const indentPx = (row.indent || 0) * 4;
+        doc.setFontSize(8.5);
+        if (row.rowType === 'total') {
+          doc.setFont('helvetica', 'bold');
+          setColor(COLORS.white);
+        } else if (row.rowType === 'header' || row.rowType === 'subtotal' || row.rowType === 'sig') {
+          doc.setFont('helvetica', 'bold');
+          setColor(COLORS.text);
+        } else {
+          doc.setFont('helvetica', 'normal');
+          setColor(COLORS.text);
+        }
+
+        // Truncate label if needed
+        let labelText = row.label;
+        const maxLabelWidth = labelWidth - 6 - indentPx;
+        while (doc.getTextWidth(labelText) > maxLabelWidth && labelText.length > 5) {
+          labelText = labelText.slice(0, -4) + '...';
+        }
+        doc.text(labelText, margin + 3 + indentPx, tableY + 5);
+
+        // Values
+        if (row.values.length > 0) {
+          row.values.forEach((v, vi) => {
+            const colX = margin + labelWidth + colWidths.slice(1, vi + 1).reduce((a, b) => a + b, 0);
+            const colEnd = colX + colWidths[vi + 1] - 4;
+
+            if (row.rowType === 'total') {
+              setColor(COLORS.white);
+            } else if (row.rowType === 'sig') {
+              setColor(v >= 0 ? COLORS.success : COLORS.danger);
+            } else {
+              setColor(COLORS.text);
+            }
+
+            doc.text(formatCurrency(v), colEnd, tableY + 5, { align: 'right' });
+
+            // % CA badge for RCAI
+            if (row.percentCA && row.percentCA[vi] !== undefined) {
+              const pctText = `${row.percentCA[vi].toFixed(1)}%`;
+              doc.setFontSize(7);
+              doc.setFont('helvetica', 'normal');
+              const pctColor = row.percentCA[vi] >= 0 ? COLORS.success : COLORS.danger;
+              setColor(pctColor);
+              doc.text(pctText, colEnd, tableY + 5 - 3.5, { align: 'right' });
+              doc.setFontSize(8.5);
+            }
+          });
+        }
+
+        tableY += rh;
       });
-      
+
       yPos = tableY + 10;
     }
 
