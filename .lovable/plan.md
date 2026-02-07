@@ -1,80 +1,77 @@
 
+# Charges variables liees au CA dans les Previsions de Tresorerie
 
-# Ajout d'une ligne "TVA a decaisser" dans la section Decaissements
+## Analyse du besoin
 
-## Contexte actuel
+Tu as des categories de depenses (ex: "Toutatis") dont le montant depend du chiffre d'affaires (ex: 20% du CA TTC). Aujourd'hui, la seule facon de les prevoir est de saisir manuellement un montant fixe chaque mois. Tu veux que le previsionnel calcule automatiquement ces charges en fonction du CA prevu.
 
-Le tableau de previsions est structure ainsi :
-1. Solde au 1er du mois
-2. Encaissements (categories + Total Encaissements TTC)
-3. Decaissements (categories + Total Decaissements TTC)
-4. Dettes non categorisees
-5. TVA a payer (ligne separee, apres les totaux)
-6. Solde Net TTC
+## Comment font les concurrents
 
-Le "Total Decaissements" inclut deja la TVA deductible sur les charges (HT + TVA par categorie). La ligne "TVA a payer" affiche le solde net TVA (collectee - deductible) mais n'est pas integree dans les decaissements.
+- **Agicap / Fygr** : Permettent de creer des "regles de prevision" sur une categorie (montant fixe, % du CA, saisonnalite). Le % du CA est le mode le plus utilise pour les charges variables.
+- **Runway** : Modelise tout comme des formules (drivers), chaque ligne pouvant etre `= X% * autre ligne`.
+- **Approche standard** : La methode la plus repandue est d'ajouter un **mode de prevision** directement sur la categorie elle-meme : "fixe" (montant saisi) ou "variable" (% d'une base de calcul).
 
-## Ce qui change
+## Solution proposee : Mode de prevision par categorie
 
-Deplacer la ligne "TVA a decaisser" (TVA collectee - TVA deductible = montant a reverser a l'Etat) **juste avant** "Total Decaissements", et **inclure ce montant** dans le total.
+Ajouter un champ `forecast_mode` sur chaque categorie de depense, configurable depuis le dialogue de categorie. Deux modes :
 
-### Structure cible
+1. **Manuel** (par defaut, comportement actuel) : L'utilisateur saisit un montant en euros
+2. **% du CA** : L'utilisateur saisit un pourcentage ; le montant est calcule automatiquement a partir du total des encaissements prevus
 
-```text
-Decaissements
-  Groupe 1 (categories...)
-  Groupe 2 (categories...)
-  ...
-  TVA a decaisser                    <-- nouvelle position
-Total Decaissements TTC              <-- inclut desormais la TVA nette
-Dettes non categorisees
-Solde Net TTC
-```
+### Pourquoi cette approche plutot que les "Engagements" ?
 
-## Proposition pour les mois passes
+Les engagements (factures fournisseurs) sont des flux **confirmes** avec une date d'echeance precise. Les charges variables sont des **projections** basees sur l'activite future. Melanger les deux rendrait le tableau moins fiable. La bonne solution est d'automatiser le calcul previsionnel, pas de forcer l'utilisateur a creer des engagements fictifs.
 
-Pour les mois passes, je propose d'afficher la **TVA calculee a partir des transactions reelles** (TVA collectee sur encaissements reels - TVA deductible sur decaissements reels). C'est coherent car :
-- On utilise les taux de TVA configures sur chaque categorie
-- On applique ces taux aux montants reels des transactions
-- C'est la meilleure approximation sans donnees de declaration CA3 dans le systeme
+### UX dans le tableau
 
-Si la TVA nette est **negative** (credit de TVA), la valeur apparaitra en vert car c'est un flux favorable.
+- Les cellules des categories en mode "% du CA" affichent la valeur **calculee automatiquement** (non editable)
+- Un petit badge `% 20%` apparait a cote du nom de la categorie pour signaler le mode variable
+- Au survol de la cellule, un tooltip montre le detail : "20% x 54 960 EUR (CA prevu) = 10 992 EUR"
+- Pour les mois passes : le systeme affiche le **reel** (transactions bancaires) comme aujourd'hui, pas le calcul theorique
 
 ## Modifications techniques
 
-### 1. `src/components/forecasts/ForecastTable.tsx`
+### 1. Migration base de donnees : table `categories`
 
-**A. Deplacer `renderVatToPayRow()` avant `renderTtcRow('Total Decaissements')`**
-- Retirer l'appel actuel a `renderVatToPayRow()` (ligne 1572)
-- L'inserer juste avant `renderTtcRow('Total Decaissements', 'expense')` (ligne 1566)
+Ajouter deux colonnes :
+- `forecast_mode` : TEXT, defaut `'manual'`, valeurs possibles `'manual'` | `'percent_of_revenue'`
+- `forecast_percent` : NUMERIC, defaut `0`, le pourcentage a appliquer (ex: 20 pour 20%)
 
-**B. Modifier `renderTtcRow` pour integrer la TVA nette dans le total des decaissements**
-- Pour le type `expense`, ajouter au total TTC la TVA nette a decaisser (quand positive)
-- Formule : `Total Decaissements = Sum(categories HT + TVA deductible) + max(0, TVA collectee - TVA deductible)`
-- Si credit de TVA (negatif), ne pas l'ajouter aux decaissements (il sera recupere comme encaissement)
+### 2. `src/hooks/useCategories.ts`
 
-**C. Mettre a jour `renderNetRow` en coherence**
-- Le Solde Net TTC doit reflechir la nouvelle logique : encaissements TTC - decaissements TTC (incluant TVA nette)
-- Supprimer le double comptage : la TVA ne doit plus etre comptee separement si elle est deja dans les totaux
+- Ajouter les champs `forecast_mode` et `forecast_percent` a l'interface `Category`
+- Mettre a jour les mutations create/update pour supporter ces champs
 
-**D. Mettre a jour `getMonthNetForecast` dans `useForecasts.ts`**
-- Integrer la TVA nette dans le calcul du solde projete pour que le solde d'ouverture des mois futurs soit correct
-- Formule : `Net = Encaissements TTC - Decaissements TTC - max(0, TVA nette)`
+### 3. `src/components/categories/CategoryDialog.tsx`
 
-### 2. `src/hooks/useForecasts.ts`
+- Ajouter une section "Mode de prevision" dans le formulaire (visible uniquement pour les categories de type `expense`)
+- Selecteur : "Manuel" ou "% du CA"
+- Si "% du CA" : afficher un champ pour saisir le pourcentage
 
-**E. Ajouter un helper `getNetVat` pour exposer la TVA nette par mois**
-- `getNetVat(monthIndex, valueType) = VATcollectee - VATdeductible`
-- Reutilise `getVatForecast` et `getVatActual` existants
-- Permet au composant d'afficher la ligne et au calcul de solde d'etre coherent
+### 4. `src/hooks/useForecasts.ts`
 
-### 3. Mise a jour du Solde Net
+- Modifier `getForecast()` : pour les categories en mode `percent_of_revenue`, calculer dynamiquement le montant a partir du total des encaissements prevus du meme mois
+- Modifier `getMonthTotal()` et `getMonthNetForecast()` pour integrer les charges calculees
+- **Logique de calcul** : `montant = (forecast_percent / 100) * Total Encaissements HT du mois`
+- **Important** : utiliser le total HT des encaissements (pas TTC) comme base, car les charges variables sont generalement exprimees en % du CA HT
 
-Le Solde Net sera recalcule ainsi :
-- `Encaissements TTC` (inchange : HT + TVA categories income)
-- `-` `Decaissements TTC` (inchange : HT + TVA categories expense)
-- `-` `TVA nette a decaisser` (si positive) ou `+` credit de TVA (si negatif)
-- `-` `Dettes fournisseurs` (payables)
+### 5. `src/components/forecasts/ForecastTable.tsx`
 
-Cela evite tout double-comptage et garantit un solde coherent avec les lignes affichees.
+- **Cellules non-editables** : Pour les categories `percent_of_revenue`, rendre la cellule en lecture seule avec une couleur de fond differente (ex: `bg-violet-500/10`)
+- **Badge dans le nom** : Afficher un badge `% 20%` a cote du nom de la categorie
+- **Tooltip au survol** : Montrer la formule detaillee (pourcentage x CA prevu = montant)
+- **Mois passes** : Conserver l'affichage du reel (aucun changement)
 
+### 6. Impact sur les calculs existants
+
+- `renderTtcRow` (Total Decaissements) : inclura automatiquement les charges calculees car elles transitent par `getMonthTotal`
+- `getMonthNetForecast` (Solde Net) : idem, le solde sera exact
+- `getOpeningBalance` (Solde au 1er du mois) : pas impacte (utilise le reel pour les mois passes)
+- **Pas de reference circulaire** : Les charges variables dependent des *encaissements* prevus, pas des decaissements. Pas de boucle infinie.
+
+## Resultat attendu
+
+- L'utilisateur configure une seule fois le % sur la categorie
+- Quand il modifie ses previsions de CA (encaissements), les charges variables se recalculent instantanement
+- Le tableau reste lisible : les cellules calculees sont visuellement distinctes
+- Pour les mois passes, on affiche toujours les mouvements bancaires reels
