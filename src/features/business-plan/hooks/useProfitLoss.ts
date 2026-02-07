@@ -597,8 +597,10 @@ export function useProfitLoss() {
         const amount = getRevenueForecast(stream.id, month);
         revenueByStream.set(stream.id, { amount, units: 1 });
       });
+      // All non-COGS variable expenses go to Services extérieurs:
+      // delivery (6241), commission (622), transaction_fees (627), packaging, other
       const variableServices = variableExpenses
-        .filter(e => ['commission', 'payment_fees'].includes(e.category || ''))
+        .filter(e => e.category !== 'cogs')
         .reduce((sum, e) => sum + calculateVariableExpenseForMonth(e, month, revenueByStream), 0);
       
       return servicesTotal + leasing + freelance + variableServices;
