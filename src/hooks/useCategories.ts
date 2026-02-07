@@ -18,6 +18,8 @@ export interface Category {
   company_id?: string | null;
   parent_id?: string | null;
   sort_order?: number;
+  forecast_mode?: 'manual' | 'percent_of_revenue';
+  forecast_percent?: number;
 }
 
 export interface CategoryGroup {
@@ -49,7 +51,7 @@ async function fetchCategories(companyId?: string | null): Promise<Category[]> {
     .order('name', { ascending: true });
 
   if (error) throw error;
-  return data || [];
+  return (data || []) as Category[];
 }
 
 export function useCategories() {
@@ -111,6 +113,8 @@ export function useCategories() {
       type: 'income' | 'expense';
       vat_rate?: number;
       parent_id?: string | null;
+      forecast_mode?: 'manual' | 'percent_of_revenue';
+      forecast_percent?: number;
     }) => {
       if (!user || !currentCompany) throw new Error('User not authenticated or no company');
       
@@ -123,9 +127,11 @@ export function useCategories() {
           ...category,
           vat_rate: category.vat_rate ?? 0,
           parent_id: category.parent_id ?? null,
+          forecast_mode: category.forecast_mode ?? 'manual',
+          forecast_percent: category.forecast_percent ?? 0,
           user_id: dataOwnerId,
           company_id: currentCompany.id
-        })
+        } as any)
         .select()
         .single();
 
@@ -149,6 +155,8 @@ export function useCategories() {
     type: 'income' | 'expense';
     vat_rate?: number;
     parent_id?: string | null;
+    forecast_mode?: 'manual' | 'percent_of_revenue';
+    forecast_percent?: number;
   }) => {
     try {
       return await createMutation.mutateAsync(category);
@@ -162,7 +170,7 @@ export function useCategories() {
     mutationFn: async ({ id, updates }: { id: string; updates: Partial<Category> }) => {
       const { data, error } = await supabase
         .from('categories')
-        .update(updates)
+        .update(updates as any)
         .eq('id', id)
         .select()
         .single();

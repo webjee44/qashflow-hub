@@ -30,6 +30,8 @@ interface CategoryDialogProps {
     type: 'income' | 'expense';
     vat_rate: number;
     parent_id?: string | null;
+    forecast_mode?: 'manual' | 'percent_of_revenue';
+    forecast_percent?: number;
   }) => Promise<any>;
   onClose?: () => void;
   trigger?: React.ReactNode;
@@ -76,6 +78,8 @@ export function CategoryDialog({
     type: 'expense' as 'income' | 'expense',
     vat_rate: 0.20,
     parent_id: null as string | null,
+    forecast_mode: 'manual' as 'manual' | 'percent_of_revenue',
+    forecast_percent: 0,
   });
 
   const isControlled = controlledOpen !== undefined;
@@ -96,6 +100,8 @@ export function CategoryDialog({
         type: category.type,
         vat_rate: category.vat_rate,
         parent_id: category.parent_id || null,
+        forecast_mode: category.forecast_mode || 'manual',
+        forecast_percent: category.forecast_percent || 0,
       });
     } else {
       setShowCustomVat(false);
@@ -106,6 +112,8 @@ export function CategoryDialog({
         type: 'expense',
         vat_rate: 0.20,
         parent_id: null,
+        forecast_mode: 'manual',
+        forecast_percent: 0,
       });
     }
   }, [category, open]);
@@ -185,7 +193,7 @@ export function CategoryDialog({
               </button>
               <button
                 type="button"
-                onClick={() => setForm({ ...form, type: 'income' })}
+                onClick={() => setForm({ ...form, type: 'income', forecast_mode: 'manual', forecast_percent: 0 })}
                 className={cn(
                   "flex items-center justify-center gap-2 p-3 rounded-lg border-2 transition-all",
                   form.type === 'income'
@@ -198,6 +206,62 @@ export function CategoryDialog({
               </button>
             </div>
           </div>
+
+          {/* Forecast Mode - only for expense categories */}
+          {form.type === 'expense' && (
+            <div className="space-y-2">
+              <Label>Mode de prévision</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setForm({ ...form, forecast_mode: 'manual', forecast_percent: 0 })}
+                  className={cn(
+                    "flex items-center justify-center gap-2 p-3 rounded-lg border-2 transition-all",
+                    form.forecast_mode === 'manual'
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border hover:border-primary/50"
+                  )}
+                >
+                  <span className="font-medium text-sm">Manuel</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setForm({ ...form, forecast_mode: 'percent_of_revenue' })}
+                  className={cn(
+                    "flex items-center justify-center gap-2 p-3 rounded-lg border-2 transition-all",
+                    form.forecast_mode === 'percent_of_revenue'
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border hover:border-primary/50"
+                  )}
+                >
+                  <Percent className="w-4 h-4" />
+                  <span className="font-medium text-sm">% du CA</span>
+                </button>
+              </div>
+              {form.forecast_mode === 'percent_of_revenue' && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="forecast-percent">Pourcentage du CA HT</Label>
+                  <div className="relative">
+                    <Input
+                      id="forecast-percent"
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      max="100"
+                      placeholder="Ex: 20"
+                      value={form.forecast_percent || ''}
+                      onChange={(e) => setForm({ ...form, forecast_percent: parseFloat(e.target.value) || 0 })}
+                      className="pr-8"
+                    />
+                    <Percent className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Le montant sera calculé automatiquement : {form.forecast_percent || 0}% × CA HT prévu du mois
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Group Selection */}
           {filteredGroups.length > 0 && (

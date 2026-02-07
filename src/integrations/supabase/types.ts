@@ -1317,6 +1317,8 @@ export type Database = {
           color: string
           company_id: string | null
           created_at: string
+          forecast_mode: string
+          forecast_percent: number
           icon: string
           id: string
           name: string
@@ -1331,6 +1333,8 @@ export type Database = {
           color?: string
           company_id?: string | null
           created_at?: string
+          forecast_mode?: string
+          forecast_percent?: number
           icon?: string
           id?: string
           name: string
@@ -1345,6 +1349,8 @@ export type Database = {
           color?: string
           company_id?: string | null
           created_at?: string
+          forecast_mode?: string
+          forecast_percent?: number
           icon?: string
           id?: string
           name?: string
