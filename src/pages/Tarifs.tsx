@@ -12,9 +12,9 @@ import { toast } from 'sonner';
 import logo from '@/assets/logo.png';
 
 /* ───── countdown helpers ───── */
-function getEndOfMonth() {
+function get24hFromNow() {
   const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+  return new Date(now.getTime() + 24 * 60 * 60 * 1000);
 }
 
 function useCountdown(target: Date) {
@@ -66,8 +66,8 @@ export default function Tarifs() {
   const { plan: currentPlan, subscribed, is_trialing, createCheckout, checkoutLoading } = useSubscription();
   const [isAnnual, setIsAnnual] = useState(true);
 
-  const endOfMonth = useMemo(getEndOfMonth, []);
-  const countdown = useCountdown(endOfMonth);
+  const target24h = useMemo(get24hFromNow, []);
+  const countdown = useCountdown(target24h);
 
   const handleStartTrial = () => {
     if (!user) { navigate('/sign-up'); return; }
@@ -170,7 +170,6 @@ export default function Tarifs() {
           </p>
           <div className="flex justify-center gap-3">
             {[
-              { val: countdown.d, label: 'Jours' },
               { val: countdown.h, label: 'Heures' },
               { val: countdown.m, label: 'Min' },
               { val: countdown.s, label: 'Sec' },
