@@ -7,7 +7,7 @@ import { DataTable } from './DataTable';
 import { PnlSection } from './PnlSection';
 import { BalanceSheetSection } from './BalanceSheetSection';
 import { FundingPlanSection } from './FundingPlanSection';
-import { formatCurrency, formatPercent, formatShortDate } from './helpers';
+import { formatCurrency, formatPercent } from './helpers';
 import type { PLData } from '../hooks/useProfitLoss';
 import type { BalanceSheetData } from '@/hooks/useBalanceSheet';
 import type { FundingPlanData } from '../hooks/useFundingPlan';
@@ -21,34 +21,25 @@ export interface BPDocumentProps {
   primaryColor: { r: number; g: number; b: number };
   startYear: number;
   years: number;
-  // Data from hooks
   plData: PLData;
   bsData: BalanceSheetData;
   fpData: FundingPlanData;
   cashFlowData: CashFlowData;
   ratios: FinancialRatios;
   getBreakEvenData: (yearIndex: number) => BreakEvenData;
-  // Raw data for detail tables
-  revenueStreams: any[];
-  fixedExpenses: any[];
-  variableExpenses: any[];
-  personnel: any[];
-  directors: any[];
-  investments: any[];
   settings: any;
 }
 
 export function BPDocument(props: BPDocumentProps) {
   const {
     companyName, sections, introText, primaryColor, startYear, years,
-    plData, bsData, fpData, cashFlowData, ratios, getBreakEvenData,
-    revenueStreams, fixedExpenses, variableExpenses, personnel, directors, investments, settings,
+    plData, bsData, fpData, cashFlowData, ratios, getBreakEvenData, settings,
   } = props;
 
   const styles = createStyles(primaryColor);
   const has = (s: string) => sections.includes(s);
+  const yearLabels = plData.years.map(y => y.label);
 
-  // Section title component
   const SectionTitle = ({ title }: { title: string }) => (
     <View style={styles.sectionTitle}>
       <View style={styles.sectionBar} />
@@ -89,8 +80,8 @@ export function BPDocument(props: BPDocumentProps) {
               [`CA Année ${years}`, formatCurrency(plData.totals.revenue[years - 1] || 0)],
               ['Résultat Net Année 1', formatCurrency(plData.totals.netResult[0] || 0)],
               ['EBE Année 1', formatCurrency(plData.totals.ebitda[0] || 0)],
-              ['Effectif salarié', `${personnel.length} personne(s)`],
-              ['Investissements totaux', formatCurrency(investments.reduce((s: number, i: any) => s + (i.purchase_amount || 0), 0))],
+              ['Charges de personnel Année 1', formatCurrency((plData.totals.personnelCosts[0] || 0) + (plData.totals.directorsCosts[0] || 0))],
+              ['Dotations aux amortissements Année 1', formatCurrency(plData.totals.depreciation[0] || 0)],
             ].map(([label, value], i) => (
               <View key={i} style={styles.keyFiguresRow}>
                 <Text style={styles.keyFiguresLabel}>{label} :</Text>
@@ -102,7 +93,7 @@ export function BPDocument(props: BPDocumentProps) {
       )}
 
       {/* ═══ REVENUE ═══ */}
-      {has('revenue') && revenueStreams.length > 0 && (
+      {has('revenue') && (
         <PageWrapper styles={styles} companyName={companyName}>
           <SectionTitle title="Hypothèses de Revenus" />
           <SubTitle title="Projection du Chiffre d'Affaires" />
@@ -126,42 +117,21 @@ export function BPDocument(props: BPDocumentProps) {
       {has('expenses') && (
         <PageWrapper styles={styles} companyName={companyName}>
           <SectionTitle title="Charges Prévisionnelles" />
-          {fixedExpenses.length > 0 && (
-            <>
-              <SubTitle title="Charges Fixes" />
-              <DataTable
-                styles={styles}
-                headers={['Poste', 'Catégorie', 'Montant/mois', 'Montant annuel']}
-                rows={fixedExpenses.map((e: any) => [
-                  e.name || '-',
-                  e.category || '-',
-                  formatCurrency(e.monthly_amount || 0),
-                  formatCurrency((e.monthly_amount || 0) * 12),
-                ])}
-                colWidths={[30, 25, 22, 23]}
-                alignRight={[2, 3]}
-                totalLabel="Total charges fixes annuelles"
-                totalValue={formatCurrency(fixedExpenses.reduce((s: number, e: any) => s + (e.monthly_amount || 0) * 12, 0))}
-              />
-            </>
-          )}
-          {variableExpenses.length > 0 && (
-            <>
-              <SubTitle title="Charges Variables" />
-              <DataTable
-                styles={styles}
-                headers={['Poste', 'Type calcul', 'Valeur', 'Lié à']}
-                rows={variableExpenses.map((e: any) => [
-                  e.name || '-',
-                  e.calculation_type === 'percentage' ? '% du CA' : 'Coût unitaire',
-                  e.calculation_type === 'percentage' ? `${e.percentage || 0}%` : formatCurrency(e.unit_cost || 0),
-                  e.linked_revenue_stream_id ? 'Flux lié' : 'Global',
-                ])}
-                colWidths={[30, 25, 22, 23]}
-                alignRight={[2]}
-              />
-            </>
-          )}
+          <DataTable
+            styles={styles}
+            headers={['Rubrique', ...yearLabels]}
+            rows={[
+              ['Achats de marchandises', ...plData.totals.merchandisePurchases.map(v => formatCurrency(v))],
+              ['Variation de stock', ...plData.totals.stockVariation.map(v => formatCurrency(v))],
+              ['Services extérieurs', ...plData.totals.externalServices.map(v => formatCurrency(v))],
+              ['Charges variables', ...plData.totals.variableExpenses.map(v => formatCurrency(v))],
+              ['Charges fixes', ...plData.totals.fixedExpenses.map(v => formatCurrency(v))],
+              ['Crédit-bail', ...plData.totals.leaseExpenses.map(v => formatCurrency(v))],
+              ['Impôts et taxes', ...plData.totals.taxes.map(v => formatCurrency(v))],
+            ].filter(row => row.slice(1).some(v => v !== formatCurrency(0)))}
+            colWidths={[40, ...yearLabels.map(() => 60 / yearLabels.length)]}
+            alignRight={yearLabels.map((_, i) => i + 1)}
+          />
         </PageWrapper>
       )}
 
@@ -169,81 +139,34 @@ export function BPDocument(props: BPDocumentProps) {
       {has('personnel') && (
         <PageWrapper styles={styles} companyName={companyName}>
           <SectionTitle title="Charges de Personnel" />
-          {personnel.length > 0 && (
-            <>
-              <SubTitle title="Salariés" />
-              <DataTable
-                styles={styles}
-                headers={['Poste', 'Embauche', 'Brut mensuel', 'Charges', 'Coût total']}
-                rows={personnel.map((p: any) => {
-                  const salary = p.gross_salary || 0;
-                  const rate = p.employer_charges_rate || 0.45;
-                  const charges = salary * (rate > 1 ? rate / 100 : rate);
-                  return [
-                    p.position || '-',
-                    formatShortDate(p.start_date),
-                    formatCurrency(salary),
-                    `${(rate > 1 ? rate : rate * 100).toFixed(1)}%`,
-                    formatCurrency(salary + charges + (p.mutuelle_employer_amount || 0)),
-                  ];
-                })}
-                colWidths={[28, 16, 20, 16, 20]}
-                alignRight={[2, 3, 4]}
-                totalLabel="Coût annuel total"
-                totalValue={formatCurrency(plData.totals.personnelCosts[0] || 0)}
-              />
-            </>
-          )}
-          {directors.length > 0 && (
-            <>
-              <SubTitle title="Dirigeants" />
-              <DataTable
-                styles={styles}
-                headers={['Nom', 'Statut', 'Rémunération', 'Charges', 'Coût total']}
-                rows={directors.map((d: any) => {
-                  const rem = d.monthly_remuneration || 0;
-                  const rate = d.charges_rate || 0.45;
-                  const charges = rem * (rate > 1 ? rate / 100 : rate);
-                  return [
-                    d.name || '-',
-                    d.status || '-',
-                    formatCurrency(rem),
-                    `${(rate > 1 ? rate : rate * 100).toFixed(1)}%`,
-                    formatCurrency(rem + charges),
-                  ];
-                })}
-                colWidths={[26, 20, 20, 16, 18]}
-                alignRight={[2, 3, 4]}
-                totalLabel="Coût annuel total"
-                totalValue={formatCurrency(plData.totals.directorsCosts[0] || 0)}
-              />
-            </>
-          )}
+          <DataTable
+            styles={styles}
+            headers={['Rubrique', ...yearLabels]}
+            rows={[
+              ['Salariés (brut + charges)', ...plData.totals.personnelCosts.map(v => formatCurrency(v))],
+              ['Dirigeants (rémun. + charges)', ...plData.totals.directorsCosts.map(v => formatCurrency(v))],
+              ['Charges sociales patronales', ...plData.totals.payrollTaxes.map(v => formatCurrency(v))],
+              ['Indemnités de départ', ...plData.totals.severancePayments.map(v => formatCurrency(v))],
+              ['Total charges de personnel', ...plData.totals.personnel.map(v => formatCurrency(v))],
+            ].filter(row => row.slice(1).some(v => v !== formatCurrency(0)))}
+            colWidths={[40, ...yearLabels.map(() => 60 / yearLabels.length)]}
+            alignRight={yearLabels.map((_, i) => i + 1)}
+          />
         </PageWrapper>
       )}
 
       {/* ═══ INVESTMENTS ═══ */}
-      {has('investments') && investments.length > 0 && (
+      {has('investments') && (
         <PageWrapper styles={styles} companyName={companyName}>
           <SectionTitle title="Investissements" />
           <DataTable
             styles={styles}
-            headers={['Désignation', 'Catégorie', 'Date', 'Montant HT', 'Amort.', 'Dotation/an']}
-            rows={investments.map((i: any) => {
-              const depYears = i.depreciation_years || 5;
-              return [
-                i.name || '-',
-                i.category || '-',
-                formatShortDate(i.purchase_date),
-                formatCurrency(i.purchase_amount || 0),
-                `${depYears} ans`,
-                formatCurrency((i.purchase_amount || 0) / depYears),
-              ];
-            })}
-            colWidths={[24, 16, 14, 18, 12, 16]}
-            alignRight={[3, 5]}
-            totalLabel="Total investissements"
-            totalValue={formatCurrency(investments.reduce((s: number, i: any) => s + (i.purchase_amount || 0), 0))}
+            headers={['Rubrique', ...yearLabels]}
+            rows={[
+              ['Dotations aux amortissements', ...plData.totals.depreciation.map(v => formatCurrency(v))],
+            ]}
+            colWidths={[40, ...yearLabels.map(() => 60 / yearLabels.length)]}
+            alignRight={yearLabels.map((_, i) => i + 1)}
           />
         </PageWrapper>
       )}
@@ -281,7 +204,6 @@ export function BPDocument(props: BPDocumentProps) {
             styles={styles}
             headers={['Année', 'Encaissements', 'Décaissements', 'Flux net', 'Tréso. fin']}
             rows={plData.years.map((y, i) => {
-              // Sum monthly inflows/outflows for this year
               const startIdx = plData.years.slice(0, i).reduce((s, yr) => s + yr.months.length, 0);
               const monthCount = y.months.length;
               const yearInflows = cashFlowData.inflows.slice(startIdx, startIdx + monthCount).reduce((a, b) => a + b, 0);
@@ -324,7 +246,7 @@ export function BPDocument(props: BPDocumentProps) {
           <SectionTitle title="Indicateurs Financiers" />
           <DataTable
             styles={styles}
-            headers={['Indicateur', ...plData.years.map(y => y.label)]}
+            headers={['Indicateur', ...yearLabels]}
             rows={[
               ['Taux de marge brute', ...ratios.grossMargin.map(v => formatPercent(v))],
               ['Marge opérationnelle', ...ratios.operatingMargin.map(v => formatPercent(v))],
@@ -333,8 +255,8 @@ export function BPDocument(props: BPDocumentProps) {
               ['Dette / Fonds propres', ...ratios.debtToEquity.map(v => v.toFixed(2))],
               ['Couverture des intérêts', ...ratios.interestCoverage.map(v => v > 100 ? '> 100' : v.toFixed(1))],
             ]}
-            colWidths={[40, ...plData.years.map(() => 60 / plData.years.length)]}
-            alignRight={plData.years.map((_, i) => i + 1)}
+            colWidths={[40, ...yearLabels.map(() => 60 / yearLabels.length)]}
+            alignRight={yearLabels.map((_, i) => i + 1)}
           />
           {(() => {
             const be = getBreakEvenData(0);
