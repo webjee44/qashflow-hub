@@ -20,9 +20,6 @@ import { useBPSettings } from '@/hooks/useBPSettings';
 import { toast } from 'sonner';
 import { pdf } from '@react-pdf/renderer';
 import { BPDocument } from '../pdf/BPDocument';
-import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/hooks/useAuth';
 
 interface BPExportDialogProps {
   trigger?: React.ReactNode;
@@ -65,7 +62,6 @@ export function BPExportDialog({ trigger }: BPExportDialogProps) {
 
   const { scenarios } = useScenarios();
   const { currentCompany } = useCompany();
-  const { user } = useAuth();
   const { data: plData } = useProfitLoss();
   const { data: bsData } = useBalanceSheet();
   const { data: cashFlowData } = useBPCashFlow();
@@ -73,68 +69,8 @@ export function BPExportDialog({ trigger }: BPExportDialogProps) {
   const { ratios, getBreakEvenData } = useBPRatios();
   const { settings } = useBPSettings();
 
-  const companyId = currentCompany?.id;
-
-  // Fetch raw data for detail tables
-  const { data: revenueStreams = [] } = useQuery({
-    queryKey: ['bp_revenue_streams', companyId],
-    queryFn: async () => {
-      if (!companyId) return [];
-      const { data } = await supabase.from('bp_revenue_streams').select('*').eq('company_id', companyId).eq('is_active', true);
-      return data || [];
-    },
-    enabled: !!user && !!companyId,
-  });
-
-  const { data: fixedExpenses = [] } = useQuery({
-    queryKey: ['bp_fixed_expenses', companyId],
-    queryFn: async () => {
-      if (!companyId) return [];
-      const { data } = await supabase.from('bp_fixed_expenses').select('*').eq('company_id', companyId);
-      return data || [];
-    },
-    enabled: !!user && !!companyId,
-  });
-
-  const { data: variableExpenses = [] } = useQuery({
-    queryKey: ['bp_variable_expenses', companyId],
-    queryFn: async () => {
-      if (!companyId) return [];
-      const { data } = await supabase.from('bp_variable_expenses').select('*').eq('company_id', companyId);
-      return data || [];
-    },
-    enabled: !!user && !!companyId,
-  });
-
-  const { data: personnelData = [] } = useQuery({
-    queryKey: ['bp_personnel', companyId],
-    queryFn: async () => {
-      if (!companyId) return [];
-      const { data } = await supabase.from('bp_personnel').select('*').eq('company_id', companyId);
-      return data || [];
-    },
-    enabled: !!user && !!companyId,
-  });
-
-  const { data: directorsData = [] } = useQuery({
-    queryKey: ['bp_directors', companyId],
-    queryFn: async () => {
-      if (!companyId) return [];
-      const { data } = await supabase.from('bp_directors').select('*').eq('company_id', companyId);
-      return data || [];
-    },
-    enabled: !!user && !!companyId,
-  });
-
-  const { data: investmentsData = [] } = useQuery({
-    queryKey: ['bp_investments', companyId],
-    queryFn: async () => {
-      if (!companyId) return [];
-      const { data } = await supabase.from('bp_investments').select('*').eq('company_id', companyId);
-      return data || [];
-    },
-    enabled: !!user && !!companyId,
-  });
+  const startYear = settings.bp_start_date ? new Date(settings.bp_start_date).getFullYear() : new Date().getFullYear();
+  const years = settings.bp_years || 3;
 
   const toggleSection = (sectionId: string) => {
     setSelectedSections(prev =>
@@ -146,9 +82,6 @@ export function BPExportDialog({ trigger }: BPExportDialogProps) {
 
   const selectAll = () => setSelectedSections(SECTIONS.map(s => s.id));
   const selectNone = () => setSelectedSections([]);
-
-  const startYear = settings.bp_start_date ? new Date(settings.bp_start_date).getFullYear() : new Date().getFullYear();
-  const years = settings.bp_years || 3;
 
   const handleExport = async () => {
     setIsExporting(true);
@@ -167,12 +100,6 @@ export function BPExportDialog({ trigger }: BPExportDialogProps) {
           cashFlowData={cashFlowData}
           ratios={ratios}
           getBreakEvenData={getBreakEvenData}
-          revenueStreams={revenueStreams}
-          fixedExpenses={fixedExpenses}
-          variableExpenses={variableExpenses}
-          personnel={personnelData}
-          directors={directorsData}
-          investments={investmentsData}
           settings={settings}
         />
       ).toBlob();
