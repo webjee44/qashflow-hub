@@ -1,74 +1,58 @@
 
-# Refonte page Tarifs — 99€/mois + Offre Flash Annuelle -50% avec CRO
+# Correctif : Fiabilité 100% de l'export PDF du Business Plan
 
-## Objectif
-Passer le prix mensuel a 99€, ajouter une offre annuelle a -50% (soit ~594€/an au lieu de 1 188€), et optimiser la conversion avec des elements CRO (countdown, urgence, social proof, toggle mensuel/annuel).
+## Probleme identifie
 
-## Etapes
+Le PDF exporte des chiffres differents de la vue web car il utilise **deux sources de donnees independantes** :
+- Le hook `useProfitLoss` (calculs complexes, corrects) pour la section P&L
+- Les donnees brutes (personnel, fixedExpenses, etc.) avec des calculs simplifies pour les sections detail (charges, personnel, investissements)
 
-### 1. Creer le prix annuel sur Stripe
-- Creer un nouveau prix Stripe : **594€/an** (recurring yearly) sur le produit existant `prod_ToH9Su89hO20pL`
-- Le prix mensuel existant (`price_1SqebAItjz0ztyfFUOsYxcW5`) sera mis a jour dans le code pour refleter 99€ (il faudra aussi creer un nouveau prix mensuel Stripe a 9900 centimes)
+Les calculs simplifies du PDF ignorent : les dates de debut/fin, les frequences de paiement, les taux de charges detailles, les indemnites de depart, etc.
 
-### 2. Mettre a jour `useSubscription.ts` (PLANS)
-- Changer `price: 49` en `price: 99`
-- Ajouter un `priceIdAnnual` et un `annualPrice` (594€ = 49.50€/mois equivalent)
-- Mettre a jour les `priceId` avec les nouveaux IDs Stripe
+## Solution : Source unique de verite
 
-### 3. Refondre `Tarifs.tsx` — Page complete CRO
-- **Bandeau flash en haut** : "OFFRE FLASH — Economisez 50% sur l'annuel" avec fond degrade rouge/orange
-- **Toggle Mensuel / Annuel** : switch avec badge "-50%" sur l'annuel
-- **Countdown timer** : composant qui decompte en temps reel (jours, heures, minutes, secondes) avec une date de fin configurable (ex: fin du mois en cours)
-- **Pricing card** :
-  - Prix barre pour l'annuel (~~1 188€~~ → 594€/an soit 49,50€/mois)
-  - Badge "OFFRE LIMITEE" ou "MEILLEURE OFFRE"
-  - Nombre de places restantes simule ("Plus que 12 places a ce tarif")
-- **Social proof** : "Rejoint par +150 entrepreneurs" ou logos/temoignages
-- **CTA anime** : bouton pulse avec texte d'urgence
-- **Garantie** : "Satisfait ou rembourse 30 jours" avec icone bouclier
-- Mise a jour du FAQ (prix 99€, offre annuelle)
-- Mise a jour SEO meta
+Faire en sorte que **TOUTES les valeurs financieres du PDF proviennent exclusivement de `plData`** (le meme objet que la vue web). Les donnees brutes ne seront utilisees que pour les informations descriptives (noms, dates, categories).
 
-### 4. Mettre a jour `Landing.tsx`
-- Changer la reference "49€" en "99€" dans le texte
+## Modifications techniques
 
-### 5. Mettre a jour `OrganizationCard.tsx` et `TrialExpiredBlocker.tsx`
-- Ces composants utilisent `PLANS.pro.price` donc seront automatiquement mis a jour
-- Verifier que le checkout passe le bon `priceId` (mensuel ou annuel selon le choix)
+### 1. BPDocument.tsx - Refonte des sections detail
 
-### 6. Mettre a jour `create-checkout` edge function
-- Accepter un parametre `priceId` dynamique (deja le cas) pour supporter mensuel et annuel
+**Section Charges Previsionnelles** :
+- Les charges fixes : garder le listing descriptif (nom, categorie, montant/mois) mais le total annuel utilisera `plData.totals.fixedExpenses[yearIndex]` au lieu de `monthly_amount * 12`
+- Les charges variables : listing descriptif uniquement (nom, type, pourcentage), pas de totaux recalcules
 
----
+**Section Personnel** :
+- Salaries : listing descriptif (poste, date embauche, brut mensuel, taux charges) mais le total "Cout annuel" utilisera `plData.totals.personnelCosts[yearIndex]`
+- Dirigeants : idem avec `plData.totals.directorsCosts[yearIndex]`
 
-## Details techniques
+**Section Investissements** :
+- Listing descriptif inchange (nom, categorie, montant, duree amortissement)
+- Total utilisant `plData.totals.depreciation` pour la dotation annuelle
 
-### Nouveau composant : Countdown Timer
-- `useState` + `useEffect` avec `setInterval` toutes les secondes
-- Calcule la difference entre `now()` et une date cible (fin du mois courant)
-- Affiche JJ:HH:MM:SS dans des "cards" individuelles avec animation flip
+**Section Resume Executif** :
+- Deja correct (utilise `plData.totals`) - aucun changement
 
-### Structure de la page Tarifs refaite
-```
-- Flash Banner (urgence)
-- Hero section (titre + sous-titre)
-- Toggle Mensuel/Annuel
-- Countdown timer
-- 2 Pricing Cards cote a cote (Mensuel vs Annuel)
-  - Annuel = mis en avant avec bordure, badge, prix barre
-- Trust badges (securite, garantie, support)
-- Social proof / chiffres
-- FAQ mis a jour
-- CTA final
-```
+**Section Revenue** :
+- Deja correct (utilise `plData.totals.revenue`) - aucun changement
 
-### Fichiers modifies
-| Fichier | Modification |
-|---------|-------------|
-| `src/hooks/useSubscription.ts` | Prix 99€, ajout priceId annuel |
-| `src/pages/Tarifs.tsx` | Refonte complete CRO |
-| `src/pages/Landing.tsx` | Texte 49€ → 99€ |
+### 2. Section P&L (PnlSection) - Aucun changement
+Cette section rend deja `plData.rows` directement, c'est un miroir fidele de la vue web.
 
-### Dependances Stripe
-- Creer 2 nouveaux prix Stripe via l'outil : mensuel 99€ et annuel 594€
-- L'edge function `create-checkout` fonctionne deja avec n'importe quel `priceId`
+### 3. Sections Cash Flow, Bilan, Plan de Financement
+- Deja alimentees par les hooks dedies (cashFlowData, bsData, fpData) - aucun changement
+
+### 4. Suppression des props raw data inutiles de BPDocument
+- Retirer `revenueStreams`, `fixedExpenses`, `variableExpenses`, `personnel`, `directors`, `investments` des props de BPDocument
+- Ajouter a la place les totaux pre-calcules necessaires depuis `plData.totals`
+- Simplifier BPExportDialog en retirant les 6 requetes Supabase dediees aux donnees brutes
+
+## Fichiers impactes
+
+1. **src/features/business-plan/pdf/BPDocument.tsx** - Refonte majeure : toutes les valeurs financieres depuis plData
+2. **src/features/business-plan/dialogs/BPExportDialog.tsx** - Suppression des requetes raw data, passage de plData uniquement
+
+## Resultat attendu
+
+- Zero ecart possible entre la vue web et le PDF : meme hook, meme objet de donnees
+- Les sections detail restent informatives (noms, parametres) sans recalculer de totaux
+- Le P&L du PDF est un miroir exact de la table interactive
