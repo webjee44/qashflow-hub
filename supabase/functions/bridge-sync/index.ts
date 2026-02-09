@@ -92,7 +92,7 @@ async function getAssignedAccountsStats(
 async function syncBridgeAccounts(
   supabaseAdmin: any,
   bridgeClient: BridgeClient,
-  companyId: string,
+  fallbackCompanyId: string,
   bridgeUserUuid: string,
   accounts: BridgeAccount[],
   items?: BridgeItem[]
@@ -108,6 +108,30 @@ async function syncBridgeAccounts(
         message: item.status_code_info,
       });
     }
+  }
+
+  // CRITICAL FIX: Build account→company map from company_bridge_accounts
+  // so each account gets its CORRECT company_id, not the triggering company
+  const accountIds = accounts.map(a => a.id);
+  const { data: assignments } = await supabaseAdmin
+    .from('company_bridge_accounts')
+    .select('bridge_account_id, company_id')
+    .in('bridge_account_id', accountIds);
+
+  const assignmentMap: Record<number, string> = {};
+  for (const row of assignments || []) {
+    assignmentMap[row.bridge_account_id] = row.company_id;
+  }
+
+  // Also get existing bridge_accounts company_id to avoid overwriting with fallback
+  const { data: existingAccounts } = await supabaseAdmin
+    .from('bridge_accounts')
+    .select('bridge_account_id, company_id')
+    .in('bridge_account_id', accountIds);
+
+  const existingCompanyMap: Record<number, string> = {};
+  for (const row of existingAccounts || []) {
+    existingCompanyMap[row.bridge_account_id] = row.company_id;
   }
 
   const getItemId = (account: BridgeAccount): number | null => {
@@ -131,13 +155,21 @@ async function syncBridgeAccounts(
     // Get item status for this account
     const itemStatus = itemStatusMap.get(itemId);
 
+    // Determine correct company_id:
+    // 1. Use company_bridge_accounts assignment if exists (most authoritative)
+    // 2. Keep existing company_id from bridge_accounts if already set
+    // 3. Fall back to the triggering company_id only for new accounts
+    const correctCompanyId = assignmentMap[account.id] 
+      || existingCompanyMap[account.id] 
+      || fallbackCompanyId;
+
     const { error } = await supabaseAdmin
       .from('bridge_accounts')
       .upsert({
         bridge_account_id: account.id,
         bridge_item_id: itemId,
         bridge_user_uuid: bridgeUserUuid,
-        company_id: companyId,
+        company_id: correctCompanyId,
         name: account.name || null,
         iban: account.iban || null,
         balance: account.balance || 0,
