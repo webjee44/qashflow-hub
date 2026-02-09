@@ -19,6 +19,7 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   PlusCircle,
+  XCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
@@ -34,6 +35,7 @@ interface CategorizationModalProps {
   incomeCategories: Category[];
   expenseCategories: Category[];
   onSelectCategory: (categoryId: string) => void;
+  onRemoveCategory?: () => void;
   onCreateCategory?: () => void;
 }
 
@@ -105,6 +107,7 @@ export function CategorizationModal({
   incomeCategories,
   expenseCategories,
   onSelectCategory,
+  onRemoveCategory,
   onCreateCategory,
 }: CategorizationModalProps) {
   const [search, setSearch] = useState('');
@@ -327,6 +330,20 @@ export function CategorizationModal({
         {/* Category List */}
         <ScrollArea className="max-h-[300px]">
           <div className="p-2">
+            {/* Remove category (for already-categorized transactions) */}
+            {transaction?.category_id && onRemoveCategory && (
+              <button
+                onClick={() => {
+                  onRemoveCategory();
+                  onOpenChange(false);
+                }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:bg-destructive/10 hover:text-destructive rounded-md transition-colors mb-1"
+              >
+                <XCircle className="w-4 h-4" />
+                Retirer la catégorie
+              </button>
+            )}
+
             {/* Create new category */}
             {onCreateCategory && (
               <button

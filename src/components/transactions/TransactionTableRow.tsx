@@ -21,7 +21,6 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Tables } from '@/integrations/supabase/types';
 import { Category } from '@/hooks/useCategories';
-import { CategorySearchSelect } from './CategorySearchSelect';
 
 type Transaction = Tables<'transactions'>;
 
@@ -134,7 +133,7 @@ export const TransactionTableRow = memo(function TransactionTableRow({
         </span>
       </div>
 
-      {/* Category: CTA button for uncategorized, dropdown for categorized */}
+      {/* Category: Always opens the AI categorization modal */}
       <div>
         {isUncategorized ? (
           <Button
@@ -147,16 +146,18 @@ export const TransactionTableRow = memo(function TransactionTableRow({
             Catégoriser
           </Button>
         ) : (
-          <CategorySearchSelect
-            value={transaction.category_id}
-            onChange={handleCategoryChange}
-            onCreateCategory={handleCreateCategory}
-            incomeCategories={incomeCategories}
-            expenseCategories={expenseCategories}
-            getCategoryName={getCategoryName}
-            getCategoryColor={getCategoryColor}
-            isUncategorized={false}
-          />
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onOpenCategorizationModal?.(transaction)}
+            className="h-9 w-full justify-start gap-2 font-normal"
+          >
+            <div 
+              className="w-3 h-3 rounded-full shrink-0"
+              style={{ backgroundColor: getCategoryColor(transaction.category_id) }}
+            />
+            <span className="truncate">{getCategoryName(transaction.category_id)}</span>
+          </Button>
         )}
       </div>
 

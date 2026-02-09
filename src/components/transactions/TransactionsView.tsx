@@ -759,6 +759,13 @@ export function TransactionsView() {
         incomeCategories={incomeCategories}
         expenseCategories={expenseCategories}
         onSelectCategory={handleCategorizationSelect}
+        onRemoveCategory={() => {
+          if (transactionToCategorize) {
+            setShowCategorizationModal(false);
+            handleUpdateCategory(transactionToCategorize.id, null);
+            setTransactionToCategorize(null);
+          }
+        }}
         onCreateCategory={() => {
           setShowCategorizationModal(false);
           if (transactionToCategorize) {
