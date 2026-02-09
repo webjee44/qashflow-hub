@@ -105,23 +105,6 @@ export function BPDocument(props: BPDocumentProps) {
       {has('revenue') && revenueStreams.length > 0 && (
         <PageWrapper styles={styles} companyName={companyName}>
           <SectionTitle title="Hypothèses de Revenus" />
-          <DataTable
-            styles={styles}
-            headers={['Flux de revenus', 'Modèle', 'Prix/mois', 'Vol. initial', 'Croissance']}
-            rows={revenueStreams.map((rs: any) => {
-              const rate = rs.growth_rate ?? 0;
-              const displayRate = rate > 0 && rate < 1 ? (rate * 100).toFixed(1) : String(rate);
-              return [
-                rs.name || '-',
-                rs.model === 'subscription' ? 'Abonnement' : rs.model === 'one_time' ? 'Ponctuel' : rs.model === 'variable' ? 'Variable' : rs.model || '-',
-                formatCurrency(rs.monthly_price || 0),
-                String(rs.initial_subscribers || 0),
-                `${displayRate}%`,
-              ];
-            })}
-            colWidths={[32, 18, 18, 14, 18]}
-            alignRight={[2, 3, 4]}
-          />
           <SubTitle title="Projection du Chiffre d'Affaires" />
           <DataTable
             styles={styles}
