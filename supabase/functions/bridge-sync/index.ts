@@ -210,60 +210,82 @@ async function syncCompanyTransactions(
   let insertedCount = 0;
   let updatedCount = 0;
 
+  // Batch transactions by company for efficiency
+  const txByCompany = new Map<string, BridgeTransaction[]>();
   for (const transaction of transactions) {
-    // CRITICAL: Skip transactions from unassigned accounts
-    // If the account is not explicitly assigned to a company, DO NOT import
-    if (!accountToCompanyMap[transaction.account_id]) {
-      console.info(`[bridge-sync] Skipping transaction from unassigned account ${transaction.account_id}`);
-      continue;
+    const targetCompanyId = accountToCompanyMap[transaction.account_id];
+    if (!targetCompanyId) continue; // Skip unassigned accounts
+    if (!txByCompany.has(targetCompanyId)) txByCompany.set(targetCompanyId, []);
+    txByCompany.get(targetCompanyId)!.push(transaction);
+  }
+
+  console.info(`[bridge-sync] Processing transactions for ${txByCompany.size} companies`);
+
+  for (const [correctCompanyId, companyTransactions] of txByCompany) {
+    // Get existing bridge_transaction_ids for this company in one query
+    const bridgeIds = companyTransactions.map(t => t.id);
+    const { data: existingTxs } = await supabaseAdmin
+      .from('transactions')
+      .select('id, bridge_transaction_id, pennylane_id')
+      .eq('company_id', correctCompanyId)
+      .or(
+        `bridge_transaction_id.in.(${bridgeIds.join(',')}),` +
+        `pennylane_id.in.(${bridgeIds.map(id => `bridge_${id}`).join(',')})`
+      );
+
+    // Build lookup maps
+    const existingByBridgeId = new Map<number, string>();
+    const existingByPennylaneId = new Map<string, string>();
+    for (const tx of existingTxs || []) {
+      if (tx.bridge_transaction_id) existingByBridgeId.set(tx.bridge_transaction_id, tx.id);
+      if (tx.pennylane_id) existingByPennylaneId.set(tx.pennylane_id, tx.id);
     }
 
-    const transactionType = bridgeClient.getTransactionType(transaction);
-    const accountName = accountNameMap[transaction.account_id] || null;
-    const description = bridgeClient.getTransactionDescription(transaction);
+    for (const transaction of companyTransactions) {
+      const transactionType = bridgeClient.getTransactionType(transaction);
+      const accountName = accountNameMap[transaction.account_id] || null;
+      const description = bridgeClient.getTransactionDescription(transaction);
 
-    // Transaction is assigned to the company that owns this account
-    const correctCompanyId = accountToCompanyMap[transaction.account_id];
+      // Check if already exists by bridge_transaction_id OR legacy pennylane_id
+      const existingId = existingByBridgeId.get(transaction.id) 
+        || existingByPennylaneId.get(`bridge_${transaction.id}`);
 
-    const { data: existing } = await supabaseAdmin
-      .from('transactions')
-      .select('id')
-      .eq('pennylane_id', `bridge_${transaction.id}`)
-      .maybeSingle();
+      if (existingId) {
+        const { error } = await supabaseAdmin
+          .from('transactions')
+          .update({
+            amount: Math.abs(transaction.amount),
+            description: description,
+            date: transaction.date,
+            type: transactionType,
+            bank_account_name: accountName,
+            source: 'bridge',
+            bridge_transaction_id: transaction.id, // Backfill for legacy rows
+            company_id: correctCompanyId,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', existingId);
 
-    if (existing) {
-      const { error } = await supabaseAdmin
-        .from('transactions')
-        .update({
-          amount: Math.abs(transaction.amount),
-          description: description,
-          date: transaction.date,
-          type: transactionType,
-          bank_account_name: accountName,
-          source: 'bridge',
-          company_id: correctCompanyId, // Update company_id in case mapping changed
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', existing.id);
+        if (!error) updatedCount++;
+      } else {
+        const { error } = await supabaseAdmin
+          .from('transactions')
+          .insert({
+            user_id: userId,
+            company_id: correctCompanyId,
+            bridge_transaction_id: transaction.id,
+            pennylane_id: `bridge_${transaction.id}`,
+            amount: Math.abs(transaction.amount),
+            description: description,
+            date: transaction.date,
+            type: transactionType,
+            bank_account_name: accountName,
+            source: 'bridge',
+            is_reconciled: false,
+          });
 
-      if (!error) updatedCount++;
-    } else {
-      const { error } = await supabaseAdmin
-        .from('transactions')
-        .insert({
-          user_id: userId,
-          company_id: correctCompanyId, // Use correct company based on account mapping
-          pennylane_id: `bridge_${transaction.id}`,
-          amount: Math.abs(transaction.amount),
-          description: description,
-          date: transaction.date,
-          type: transactionType,
-          bank_account_name: accountName,
-          source: 'bridge',
-          is_reconciled: false,
-        });
-
-      if (!error) insertedCount++;
+        if (!error) insertedCount++;
+      }
     }
   }
 
