@@ -11,13 +11,16 @@ interface SubscriptionStatus {
   trial_end: string | null;
 }
 
-// Plan configuration with Stripe IDs - Single Pro plan at 49€/month with 30-day trial
+// Plan configuration with Stripe IDs - Pro plan at 99€/month with annual -50% offer
 export const PLANS = {
   pro: {
     name: 'Pro',
-    price: 49,
-    priceId: 'price_1SqebAItjz0ztyfFUOsYxcW5',
-    productId: 'prod_ToH9Su89hO20pL',
+    price: 99,
+    annualPrice: 594,
+    annualMonthlyEquivalent: 49.50,
+    priceId: 'price_1Sz063Itjz0ztyfFABi0I3xD',
+    priceIdAnnual: 'price_1Sz06aItjz0ztyfFKePWR6BC',
+    productId: 'prod_TwttzOOTErLyXG',
     trialDays: 30,
     features: [
       'Sociétés illimitées',

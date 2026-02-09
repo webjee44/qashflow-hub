@@ -78,9 +78,9 @@ const plans = [
     popular: false,
   },
   {
-    name: 'Par société',
-    price: '49',
-    description: 'Tarif unique et simple',
+    name: 'Pro',
+    price: '99',
+    description: 'Tout inclus, sans limite',
     features: [
       'Comptes bancaires illimités',
       'Transactions illimitées',
@@ -327,7 +327,7 @@ export default function Landing() {
               Un tarif unique et transparent
             </h2>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              49€ par société, comptes bancaires illimités. C'est tout.
+              À partir de 49,50€/mois avec l'offre annuelle. Sans engagement.
             </p>
           </motion.div>
 
