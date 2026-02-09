@@ -11,8 +11,18 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Download, FileText, Loader2, Building2, Palette, FileCheck } from 'lucide-react';
 import { useScenarios } from '@/hooks/useScenarios';
 import { useCompany } from '@/hooks/useCompany';
-import { supabase } from '@/integrations/supabase/client';
+import { useProfitLoss } from '@/hooks/useProfitLoss';
+import { useBalanceSheet } from '@/hooks/useBalanceSheet';
+import { useBPCashFlow } from '@/features/business-plan/hooks/useBPCashFlow';
+import { useFundingPlan } from '@/features/business-plan/hooks/useFundingPlan';
+import { useBPRatios } from '@/features/business-plan/hooks/useBPRatios';
+import { useBPSettings } from '@/hooks/useBPSettings';
 import { toast } from 'sonner';
+import { pdf } from '@react-pdf/renderer';
+import { BPDocument } from '../pdf/BPDocument';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 
 interface BPExportDialogProps {
   trigger?: React.ReactNode;
@@ -55,60 +65,132 @@ export function BPExportDialog({ trigger }: BPExportDialogProps) {
 
   const { scenarios } = useScenarios();
   const { currentCompany } = useCompany();
+  const { user } = useAuth();
+  const { data: plData } = useProfitLoss();
+  const { data: bsData } = useBalanceSheet();
+  const { data: cashFlowData } = useBPCashFlow();
+  const { data: fpData } = useFundingPlan();
+  const { ratios, getBreakEvenData } = useBPRatios();
+  const { settings } = useBPSettings();
+
+  const companyId = currentCompany?.id;
+
+  // Fetch raw data for detail tables
+  const { data: revenueStreams = [] } = useQuery({
+    queryKey: ['bp_revenue_streams', companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const { data } = await supabase.from('bp_revenue_streams').select('*').eq('company_id', companyId).eq('is_active', true);
+      return data || [];
+    },
+    enabled: !!user && !!companyId,
+  });
+
+  const { data: fixedExpenses = [] } = useQuery({
+    queryKey: ['bp_fixed_expenses', companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const { data } = await supabase.from('bp_fixed_expenses').select('*').eq('company_id', companyId);
+      return data || [];
+    },
+    enabled: !!user && !!companyId,
+  });
+
+  const { data: variableExpenses = [] } = useQuery({
+    queryKey: ['bp_variable_expenses', companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const { data } = await supabase.from('bp_variable_expenses').select('*').eq('company_id', companyId);
+      return data || [];
+    },
+    enabled: !!user && !!companyId,
+  });
+
+  const { data: personnelData = [] } = useQuery({
+    queryKey: ['bp_personnel', companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const { data } = await supabase.from('bp_personnel').select('*').eq('company_id', companyId);
+      return data || [];
+    },
+    enabled: !!user && !!companyId,
+  });
+
+  const { data: directorsData = [] } = useQuery({
+    queryKey: ['bp_directors', companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const { data } = await supabase.from('bp_directors').select('*').eq('company_id', companyId);
+      return data || [];
+    },
+    enabled: !!user && !!companyId,
+  });
+
+  const { data: investmentsData = [] } = useQuery({
+    queryKey: ['bp_investments', companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const { data } = await supabase.from('bp_investments').select('*').eq('company_id', companyId);
+      return data || [];
+    },
+    enabled: !!user && !!companyId,
+  });
 
   const toggleSection = (sectionId: string) => {
-    setSelectedSections(prev => 
-      prev.includes(sectionId) 
+    setSelectedSections(prev =>
+      prev.includes(sectionId)
         ? prev.filter(s => s !== sectionId)
         : [...prev, sectionId]
     );
   };
 
-  const selectAll = () => {
-    setSelectedSections(SECTIONS.map(s => s.id));
-  };
+  const selectAll = () => setSelectedSections(SECTIONS.map(s => s.id));
+  const selectNone = () => setSelectedSections([]);
 
-  const selectNone = () => {
-    setSelectedSections([]);
-  };
+  const startYear = settings.bp_start_date ? new Date(settings.bp_start_date).getFullYear() : new Date().getFullYear();
+  const years = settings.bp_years || 3;
 
   const handleExport = async () => {
     setIsExporting(true);
     try {
-      const { data, error } = await supabase.functions.invoke('generate-bp-pdf', {
-        body: {
-          companyId: currentCompany?.id,
-          companyName: companyName || currentCompany?.name || 'Ma Société',
-          sections: selectedSections,
-          scenarioId: selectedScenario === 'all' ? null : selectedScenario,
-          introText,
-          primaryColor,
-        },
-      });
+      const blob = await pdf(
+        <BPDocument
+          companyName={companyName || currentCompany?.name || 'Ma Société'}
+          sections={selectedSections}
+          introText={introText}
+          primaryColor={primaryColor}
+          startYear={startYear}
+          years={years}
+          plData={plData}
+          bsData={bsData}
+          fpData={fpData}
+          cashFlowData={cashFlowData}
+          ratios={ratios}
+          getBreakEvenData={getBreakEvenData}
+          revenueStreams={revenueStreams}
+          fixedExpenses={fixedExpenses}
+          variableExpenses={variableExpenses}
+          personnel={personnelData}
+          directors={directorsData}
+          investments={investmentsData}
+          settings={settings}
+        />
+      ).toBlob();
 
-      if (error) throw error;
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `business-plan-${(companyName || currentCompany?.name || 'export').replace(/\s+/g, '-').toLowerCase()}-${new Date().toISOString().split('T')[0]}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
 
-      if (data?.pdf) {
-        // Handle data URI PDF from jsPDF
-        const link = document.createElement('a');
-        link.href = data.pdf;
-        link.download = data.filename || `business-plan-${new Date().toISOString().split('T')[0]}.pdf`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        toast.success(`Business Plan exporté (${data.pages || '?'} pages)`);
-        setOpen(false);
-      } else if (data?.pdfUrl) {
-        // Handle URL-based PDF
-        window.open(data.pdfUrl, '_blank');
-        toast.success('Business Plan exporté avec succès');
-        setOpen(false);
-      } else {
-        throw new Error('Aucun PDF généré');
-      }
+      toast.success('Business Plan exporté avec succès');
+      setOpen(false);
     } catch (error: any) {
       console.error('Export error:', error);
-      toast.error(error.message || 'Erreur lors de l\'export');
+      toast.error(error.message || "Erreur lors de l'export");
     } finally {
       setIsExporting(false);
     }
@@ -152,29 +234,24 @@ export function BPExportDialog({ trigger }: BPExportDialogProps) {
           </TabsList>
 
           <TabsContent value="content" className="space-y-4 mt-4">
-            {/* Sections Selection */}
             <Card>
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-sm font-medium">Sections à inclure</CardTitle>
                   <div className="flex gap-2">
-                    <Button variant="ghost" size="sm" onClick={selectAll}>
-                      Tout
-                    </Button>
-                    <Button variant="ghost" size="sm" onClick={selectNone}>
-                      Aucun
-                    </Button>
+                    <Button variant="ghost" size="sm" onClick={selectAll}>Tout</Button>
+                    <Button variant="ghost" size="sm" onClick={selectNone}>Aucun</Button>
                   </div>
                 </div>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 gap-3">
                   {SECTIONS.map(section => (
-                    <div 
-                      key={section.id} 
+                    <div
+                      key={section.id}
                       className={`flex items-start gap-3 p-2 rounded-md border cursor-pointer transition-colors ${
-                        selectedSections.includes(section.id) 
-                          ? 'bg-primary/5 border-primary/30' 
+                        selectedSections.includes(section.id)
+                          ? 'bg-primary/5 border-primary/30'
                           : 'hover:bg-muted/50'
                       }`}
                       onClick={() => toggleSection(section.id)}
@@ -186,15 +263,10 @@ export function BPExportDialog({ trigger }: BPExportDialogProps) {
                         className="mt-0.5"
                       />
                       <div className="flex-1 min-w-0">
-                        <Label 
-                          htmlFor={section.id} 
-                          className="text-sm font-medium cursor-pointer"
-                        >
+                        <Label htmlFor={section.id} className="text-sm font-medium cursor-pointer">
                           {section.label}
                         </Label>
-                        <p className="text-xs text-muted-foreground truncate">
-                          {section.description}
-                        </p>
+                        <p className="text-xs text-muted-foreground truncate">{section.description}</p>
                       </div>
                     </div>
                   ))}
@@ -202,7 +274,6 @@ export function BPExportDialog({ trigger }: BPExportDialogProps) {
               </CardContent>
             </Card>
 
-            {/* Scenario Selection */}
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium">Scénario</CardTitle>
@@ -215,9 +286,7 @@ export function BPExportDialog({ trigger }: BPExportDialogProps) {
                   <SelectContent>
                     <SelectItem value="all">Tous les scénarios (comparatif)</SelectItem>
                     {scenarios.map(scenario => (
-                      <SelectItem key={scenario.id} value={scenario.id}>
-                        {scenario.name}
-                      </SelectItem>
+                      <SelectItem key={scenario.id} value={scenario.id}>{scenario.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -275,14 +344,14 @@ export function BPExportDialog({ trigger }: BPExportDialogProps) {
                       key={preset.name}
                       onClick={() => setPrimaryColor(preset.value)}
                       className={`flex items-center gap-3 p-3 rounded-lg border-2 transition-all ${
-                        primaryColor.r === preset.value.r && 
-                        primaryColor.g === preset.value.g && 
+                        primaryColor.r === preset.value.r &&
+                        primaryColor.g === preset.value.g &&
                         primaryColor.b === preset.value.b
                           ? 'border-primary ring-2 ring-primary/20'
                           : 'border-transparent hover:border-muted-foreground/30'
                       }`}
                     >
-                      <div 
+                      <div
                         className="w-8 h-8 rounded-md shadow-sm"
                         style={{ backgroundColor: `rgb(${preset.value.r}, ${preset.value.g}, ${preset.value.b})` }}
                       />
@@ -301,7 +370,7 @@ export function BPExportDialog({ trigger }: BPExportDialogProps) {
                 <CardTitle className="text-sm font-medium">Aperçu du style</CardTitle>
               </CardHeader>
               <CardContent>
-                <div 
+                <div
                   className="p-4 rounded-lg"
                   style={{ backgroundColor: `rgb(${primaryColor.r}, ${primaryColor.g}, ${primaryColor.b})` }}
                 >
@@ -311,7 +380,7 @@ export function BPExportDialog({ trigger }: BPExportDialogProps) {
                   </div>
                 </div>
                 <div className="mt-3 border rounded-lg overflow-hidden">
-                  <div 
+                  <div
                     className="px-3 py-2 text-white text-sm font-medium"
                     style={{ backgroundColor: `rgb(${primaryColor.r}, ${primaryColor.g}, ${primaryColor.b})` }}
                   >
@@ -332,11 +401,9 @@ export function BPExportDialog({ trigger }: BPExportDialogProps) {
               {selectedSections.length} section(s) sélectionnée(s)
             </p>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setOpen(false)}>
-                Annuler
-              </Button>
-              <Button 
-                onClick={handleExport} 
+              <Button variant="outline" onClick={() => setOpen(false)}>Annuler</Button>
+              <Button
+                onClick={handleExport}
                 disabled={isExporting || selectedSections.length === 0}
                 className="gap-2 min-w-[140px]"
               >
