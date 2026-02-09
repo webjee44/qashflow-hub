@@ -1948,7 +1948,6 @@ export type Database = {
           id: string
           onboarding_completed: boolean | null
           onboarding_step: number | null
-          pennylane_api_key: string | null
           phone: string | null
           updated_at: string
         }
@@ -1961,7 +1960,6 @@ export type Database = {
           id: string
           onboarding_completed?: boolean | null
           onboarding_step?: number | null
-          pennylane_api_key?: string | null
           phone?: string | null
           updated_at?: string
         }
@@ -1974,7 +1972,6 @@ export type Database = {
           id?: string
           onboarding_completed?: boolean | null
           onboarding_step?: number | null
-          pennylane_api_key?: string | null
           phone?: string | null
           updated_at?: string
         }
