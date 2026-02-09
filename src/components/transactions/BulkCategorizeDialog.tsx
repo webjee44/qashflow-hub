@@ -176,11 +176,20 @@ export function BulkCategorizeDialog({
       setAiSuggestion(null);
       try {
         const tx = selectedTransactions[0];
+        const categoriesForAI = categories
+          .filter(c => c.icon !== 'Folder')
+          .map(c => ({ id: c.id, name: c.name, type: c.type }));
+        
+        if (categoriesForAI.length === 0) {
+          setIsLoadingAI(false);
+          return;
+        }
+
         const { data, error } = await supabase.functions.invoke('suggest-category', {
           body: {
             description: tx.description,
             type: tx.type,
-            categories: categories.map(c => ({ id: c.id, name: c.name, type: c.type })),
+            categories: categoriesForAI,
           },
         });
         
