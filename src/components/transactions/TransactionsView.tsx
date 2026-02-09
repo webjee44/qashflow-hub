@@ -28,7 +28,7 @@ import { useAutomationRules } from '@/hooks/useAutomationRules';
 import { useCategories, Category } from '@/hooks/useCategories';
 import { useTransactions, sortTransactions, filterTransactions, SortOption } from '@/hooks/useTransactions';
 import { useBankBalance } from '@/hooks/useBankBalance';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { SuggestAutomationDialog } from './SuggestAutomationDialog';
 import { CategorizationModal } from './CategorizationModal';
 import { CategoryDialog } from '@/components/categories/CategoryDialog';
@@ -352,11 +352,17 @@ export function TransactionsView() {
     setSelectedTransactionIds(new Set());
   }, []);
 
+  const queryClient = useQueryClient();
+
   const handleCreateCategory = useCallback(async (data: {
     name: string;
     color: string;
     icon: string;
     type: 'income' | 'expense';
+    vat_rate?: number;
+    parent_id?: string | null;
+    forecast_mode?: 'manual' | 'percent_of_revenue';
+    forecast_percent?: number;
   }) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
@@ -370,6 +376,10 @@ export function TransactionsView() {
         type: data.type,
         user_id: user.id,
         company_id: currentCompany?.id || null,
+        vat_rate: data.vat_rate ?? 0.20,
+        parent_id: data.parent_id ?? null,
+        forecast_mode: data.forecast_mode ?? 'manual',
+        forecast_percent: data.forecast_percent ?? 0,
       })
       .select()
       .single();
@@ -384,6 +394,9 @@ export function TransactionsView() {
       return null;
     }
 
+    // Invalidate categories cache so the list refreshes
+    queryClient.invalidateQueries({ queryKey: ['categories'] });
+
     toast({
       title: 'Catégorie créée',
       description: `La catégorie "${data.name}" a été créée`,
@@ -395,7 +408,7 @@ export function TransactionsView() {
     }
 
     return newCategory;
-  }, [currentCompany, pendingTransactionId, handleUpdateCategory, toast]);
+  }, [currentCompany, pendingTransactionId, handleUpdateCategory, toast, queryClient]);
 
   const onCreateCategoryForTransaction = useCallback((transactionId: string) => {
     setPendingTransactionId(transactionId);
