@@ -418,14 +418,16 @@ serve(async (req) => {
       for (let y = 1; y <= year; y++) {
         // Use average growth rate across streams or default
         const avgGrowthRate = financialData.revenueStreams.reduce((sum, rs) => {
-          let rate = rs.growth_rate || 10;
-          if (y === 1 && rs.growth_rate_year2) rate = rs.growth_rate_year2;
-          if (y === 2 && rs.growth_rate_year3) rate = rs.growth_rate_year3;
-          if (y === 3 && rs.growth_rate_year4) rate = rs.growth_rate_year4;
-          return sum + rate;
+          let rate = rs.growth_rate ?? 0.10;
+          if (y === 1 && rs.growth_rate_year2 != null) rate = rs.growth_rate_year2;
+          if (y === 2 && rs.growth_rate_year3 != null) rate = rs.growth_rate_year3;
+          if (y === 3 && rs.growth_rate_year4 != null) rate = rs.growth_rate_year4;
+          // Rates are stored as decimals (0.10 = 10%), normalize if stored as percentage (>1)
+          const normalizedRate = rate > 1 ? rate / 100 : rate;
+          return sum + normalizedRate;
         }, 0) / Math.max(financialData.revenueStreams.length, 1);
         
-        cumulativeGrowth *= (1 + avgGrowthRate / 100);
+        cumulativeGrowth *= (1 + avgGrowthRate);
       }
 
       return year0Revenue * cumulativeGrowth;
@@ -519,11 +521,13 @@ serve(async (req) => {
       if (year === 0) return year0Revenue;
       let growth = 1;
       for (let gy = 1; gy <= year; gy++) {
-        let rate = stream.growth_rate || 10;
-        if (gy === 1 && stream.growth_rate_year2) rate = stream.growth_rate_year2;
-        if (gy === 2 && stream.growth_rate_year3) rate = stream.growth_rate_year3;
-        if (gy === 3 && stream.growth_rate_year4) rate = stream.growth_rate_year4;
-        growth *= (1 + rate / 100);
+        let rate = stream.growth_rate ?? 0.10;
+        if (gy === 1 && stream.growth_rate_year2 != null) rate = stream.growth_rate_year2;
+        if (gy === 2 && stream.growth_rate_year3 != null) rate = stream.growth_rate_year3;
+        if (gy === 3 && stream.growth_rate_year4 != null) rate = stream.growth_rate_year4;
+        // Rates stored as decimals (0.10 = 10%), normalize if stored as percentage (>1)
+        const normalizedRate = rate > 1 ? rate / 100 : rate;
+        growth *= (1 + normalizedRate);
       }
       return year0Revenue * growth;
     };
@@ -952,16 +956,24 @@ serve(async (req) => {
       
       // Revenue streams table
       const revenueHeaders = ['Flux de revenus', 'Modèle', 'Prix/mois', 'Vol. initial', 'Croissance'];
-      const revenueRows = financialData.revenueStreams.map(rs => [
-        rs.name || '-',
-        rs.model === 'subscription' ? 'Abonnement' : rs.model === 'one_time' ? 'Ponctuel' : rs.model || '-',
-        formatCurrency(rs.monthly_price || 0),
-        String(rs.initial_subscribers || 0),
-        `${rs.growth_rate || 0}%`
-      ]);
+      const revenueRows = financialData.revenueStreams.map(rs => {
+        const rate = rs.growth_rate ?? 0;
+        // Display growth rate: if stored as decimal (<1), multiply by 100 for display
+        const displayRate = rate > 0 && rate < 1 ? (rate * 100).toFixed(1) : String(rate);
+        return [
+          rs.name || '-',
+          rs.model === 'subscription' ? 'Abonnement' : rs.model === 'one_time' ? 'Ponctuel' : rs.model === 'variable' ? 'Variable' : rs.model || '-',
+          formatCurrency(rs.monthly_price || 0),
+          String(rs.initial_subscribers || 0),
+          `${displayRate}%`
+        ];
+      });
       
-      const totalMonthlyRevenue = financialData.revenueStreams.reduce((s, rs) => 
-        s + (rs.monthly_price || 0) * (rs.initial_subscribers || 0), 0);
+      // Calculate total monthly revenue from actual forecasts (first month) instead of stream params
+      let totalMonthlyRevenue = 0;
+      for (const stream of financialData.revenueStreams) {
+        totalMonthlyRevenue += getMonthlyRevenueForStream(stream.id, bpStartDate);
+      }
       
       drawTable(revenueHeaders, revenueRows, [55, 30, 30, 25, 30], {
         showTotal: true,
