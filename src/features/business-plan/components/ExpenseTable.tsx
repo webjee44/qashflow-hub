@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Edit, Trash2, Building2, Shield, Laptop, Megaphone, Zap, MoreHorizontal, Briefcase, CalendarClock, Copy, Filter, Phone, Landmark, Plane, Building, X, Percent, Hash, Loader2 } from 'lucide-react';
+import { Edit, Trash2, Building2, Shield, Laptop, Megaphone, Zap, MoreHorizontal, Briefcase, CalendarClock, Copy, Filter, Phone, Landmark, Plane, Building, X, Percent, Hash, Loader2, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -94,7 +94,25 @@ export function ExpenseTable({ onEdit }: ExpenseTableProps) {
   }, [variableExpenses, streams, forecasts, settings, calculateVariableExpenseForMonth]);
 
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [sortColumn, setSortColumn] = useState<'name' | 'category' | 'amount' | 'start_date'>('name');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [deleteId, setDeleteId] = useState<{ id: string; type: 'fixed' | 'variable' } | null>(null);
+
+  const toggleSort = (column: typeof sortColumn) => {
+    if (sortColumn === column) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  };
+
+  const SortIcon = ({ column }: { column: typeof sortColumn }) => {
+    if (sortColumn !== column) return <ArrowUpDown className="h-3 w-3 ml-1 opacity-40" />;
+    return sortDirection === 'asc' 
+      ? <ArrowUp className="h-3 w-3 ml-1" /> 
+      : <ArrowDown className="h-3 w-3 ml-1" />;
+  };
 
   const handleDuplicate = (expense: BPFixedExpense) => {
     const { id, created_at, updated_at, user_id, company_id, ...expenseData } = expense;
@@ -163,10 +181,30 @@ export function ExpenseTable({ onEdit }: ExpenseTableProps) {
     ? allExpenses 
     : allExpenses.filter(e => e.category === categoryFilter);
   
-  // Sort by name
-  const sortedExpenses = [...filteredExpenses].sort((a, b) => 
-    a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' })
-  );
+  // Sort expenses
+  const getExpenseAmount = (e: UnifiedExpense): number => {
+    if (e.expenseType === 'variable') {
+      const estimate = variableEstimates.get(e.id);
+      return estimate ?? 0;
+    }
+    return Number((e as BPFixedExpense).monthly_amount) || 0;
+  };
+
+  const sortedExpenses = [...filteredExpenses].sort((a, b) => {
+    const dir = sortDirection === 'asc' ? 1 : -1;
+    switch (sortColumn) {
+      case 'name':
+        return dir * a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' });
+      case 'category':
+        return dir * (a.category || '').localeCompare(b.category || '', 'fr');
+      case 'amount':
+        return dir * (getExpenseAmount(a) - getExpenseAmount(b));
+      case 'start_date':
+        return dir * (a.start_date.localeCompare(b.start_date));
+      default:
+        return 0;
+    }
+  });
 
   // Get unique categories for filter
   const usedCategories = [...new Set(allExpenses.map(e => e.category))].sort();
@@ -224,11 +262,19 @@ export function ExpenseTable({ onEdit }: ExpenseTableProps) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Nom</TableHead>
-              <TableHead>Catégorie</TableHead>
-              <TableHead>Montant / Valeur</TableHead>
+              <TableHead className="cursor-pointer select-none hover:text-foreground transition-colors" onClick={() => toggleSort('name')}>
+                <span className="flex items-center">Nom<SortIcon column="name" /></span>
+              </TableHead>
+              <TableHead className="cursor-pointer select-none hover:text-foreground transition-colors" onClick={() => toggleSort('category')}>
+                <span className="flex items-center">Catégorie<SortIcon column="category" /></span>
+              </TableHead>
+              <TableHead className="cursor-pointer select-none hover:text-foreground transition-colors" onClick={() => toggleSort('amount')}>
+                <span className="flex items-center">Montant / Valeur<SortIcon column="amount" /></span>
+              </TableHead>
               <TableHead>Période / Flux</TableHead>
-              <TableHead>Début</TableHead>
+              <TableHead className="cursor-pointer select-none hover:text-foreground transition-colors" onClick={() => toggleSort('start_date')}>
+                <span className="flex items-center">Début<SortIcon column="start_date" /></span>
+              </TableHead>
               <TableHead>Fin</TableHead>
               <TableHead className="w-[100px]"></TableHead>
             </TableRow>
