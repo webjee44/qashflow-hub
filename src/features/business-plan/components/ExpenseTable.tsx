@@ -74,7 +74,7 @@ export function ExpenseTable({ onEdit }: ExpenseTableProps) {
       let annualTotal = 0;
       for (let m = 0; m < 12; m++) {
         const monthDate = new Date(startYear, startMonth - 1 + m, 1);
-        const monthKey = `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, '0')}`;
+        const monthKey = `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, '0')}-01`;
         
         const revenueByStream = new Map<string | null, { amount: number; units: number }>();
         streams.forEach(stream => {
