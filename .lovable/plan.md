@@ -1,75 +1,90 @@
 
-# Plan anti-doublons : transactions bancaires
 
-## Le probleme
+# Facturation isolee par organisation
 
-Il y a **2 911 doublons** dans la base. Cause : les anciennes transactions (2 880) ont ete importees **sans `bridge_transaction_id`**. Quand la synchronisation s'execute a nouveau, elle ne les retrouve pas et en cree de nouvelles avec le bon identifiant.
+## Concept
 
-## Plan en 3 phases
+Aujourd'hui, tu as une seule organisation "GROUPE TRADEFLIX" avec toutes tes societes dedans. L'abonnement est lie a ton compte utilisateur, pas a l'organisation.
 
-### Phase 1 -- Nettoyage des doublons existants (migration SQL)
-
-1. **Identifier les doublons** : transactions avec meme `description`, `date`, `amount`, `type`, `company_id` ou l'une a `bridge_transaction_id = NULL` et l'autre non.
-2. **Transferer les categories** : si l'ancienne ligne (sans bridge_id) avait une `category_id`, la reporter sur la nouvelle (avec bridge_id) pour ne pas perdre le travail de categorisation.
-3. **Soft-delete les anciennes lignes** : mettre `deleted_at = now()` sur les lignes sans `bridge_transaction_id` qui ont un doublon.
-
-### Phase 2 -- Backfill des orphelins (migration SQL)
-
-Pour les ~2 880 transactions sans `bridge_transaction_id` qui n'ont **pas** de doublon (cas rare mais possible) :
-1. Tenter un matching par `pennylane_id` (format `bridge_XXXX`) pour remplir le `bridge_transaction_id`.
-2. Les lignes restantes sans correspondance conservent leur etat actuel -- elles seront protegees par la phase 3.
-
-### Phase 3 -- Protection anti-doublons dans le code de sync
-
-Modifier `supabase/functions/bridge-sync/index.ts` pour ajouter une **troisieme couche de deduplication** :
-
-1. Apres la recherche par `bridge_transaction_id` et `pennylane_id`, faire un **fallback par signature** : `(description, date, amount, type, company_id)`.
-2. Si une transaction existante correspond a cette signature, la mettre a jour (et backfill son `bridge_transaction_id`) au lieu d'en creer une nouvelle.
-3. Utiliser `upsert` avec `onConflict: 'idx_transactions_bridge_id_company'` pour que la base de donnees bloque tout doublon residuel.
-
-### Phase 4 -- Contrainte de securite en base (migration SQL)
-
-Ajouter un **trigger de validation** sur la table `transactions` :
-- Avant INSERT, verifier qu'il n'existe pas deja une transaction avec les memes `(description, date, amount, type, company_id)` non supprimee.
-- Si doublon detecte, rejeter l'insertion avec un message d'erreur clair.
-- Cela constitue le dernier filet de securite, independant du code applicatif.
-
-## Detail technique
-
-### Migration SQL (Phases 1, 2, 4)
+Pour isoler Vapeclub sur la facturation, la solution la plus simple est de **creer une seconde organisation dediee a Vapeclub**, avec son propre abonnement Stripe et ses propres coordonnees de facturation.
 
 ```text
-Phase 1 : UPDATE + soft-delete des doublons
-  - UPDATE new SET category_id = old.category_id FROM old WHERE match AND old.category_id IS NOT NULL
-  - UPDATE old SET deleted_at = now() WHERE has_duplicate_with_bridge_id
+Avant :
+  GROUPE TRADEFLIX (1 abonnement sur ton email)
+    ├── Holding
+    ├── Vapeclub
+    └── Autre societe
 
-Phase 2 : Backfill bridge_transaction_id via pennylane_id
-  - UPDATE transactions SET bridge_transaction_id = CAST(REPLACE(pennylane_id, 'bridge_', '') AS BIGINT)
-    WHERE bridge_transaction_id IS NULL AND pennylane_id LIKE 'bridge_%'
-
-Phase 4 : Trigger anti-doublon
-  - CREATE FUNCTION prevent_duplicate_transaction() RETURNS TRIGGER
-  - Verifie l'unicite par signature (description, date, amount, type, company_id)
-  - Ignore les lignes soft-deleted
+Apres :
+  GROUPE TRADEFLIX (abonnement A)         VAPECLUB (abonnement B)
+    ├── Holding                              └── Vapeclub SAS
+    └── Autre societe
 ```
 
-### Modification Edge Function (Phase 3)
+Tu restes proprietaire des deux organisations. Tu bascules de l'une a l'autre via un selecteur dans l'interface. Chaque organisation a :
+- Son propre abonnement Stripe (factures separees)
+- Son adresse de facturation propre
+- Ses propres societes, comptes bancaires, transactions, etc.
 
-```text
-bridge-sync/index.ts :
-  - Ajout d'une recherche par signature (description + date + amount + company_id)
-    en complement des lookups par bridge_transaction_id et pennylane_id
-  - Si match par signature : update + backfill bridge_transaction_id
-  - Si aucun match : insert normal
-```
+## Ce qui change pour toi au quotidien
+
+- Un **selecteur d'organisation** apparait dans la barre laterale (en plus du selecteur de societe existant)
+- Quand tu es sur "GROUPE TRADEFLIX", tu vois tes societes du groupe
+- Quand tu bascules sur "VAPECLUB", tu vois uniquement cette entite
+- Les factures Stripe de chaque organisation sont completement independantes
+
+## Plan technique
+
+### 1. Ajouter les infos de facturation sur l'organisation
+
+Ajouter des colonnes a la table `organizations` :
+- `billing_name` : raison sociale pour la facturation
+- `billing_email` : email de facturation
+- `billing_address_line1`, `billing_address_line2`, `billing_city`, `billing_postal_code`, `billing_country` : adresse de facturation
+
+### 2. Migrer l'abonnement de "par utilisateur" a "par organisation"
+
+Modifier les edge functions Stripe pour utiliser l'organisation comme unite de facturation :
+- **create-checkout** : recevoir un `organization_id`, creer le customer Stripe avec les infos de facturation de l'organisation, stocker le `stripe_customer_id` sur l'organisation
+- **check-subscription** : recevoir un `organization_id`, verifier l'abonnement de cette organisation (pas de l'email utilisateur)
+- **customer-portal** : recevoir un `organization_id`, ouvrir le portail Stripe du customer de cette organisation
+
+### 3. Ajouter un selecteur d'organisation dans l'interface
+
+- Modifier la sidebar pour afficher un selecteur d'organisation quand l'utilisateur est membre de plusieurs organisations
+- Au changement d'organisation, mettre a jour le contexte et recharger les societes correspondantes
+- Le selecteur de societe existant se filtre automatiquement sur l'organisation selectionnee
+
+### 4. Formulaire de facturation dans les parametres
+
+- Ajouter un onglet ou une section "Facturation" dans les parametres
+- Formulaire pour renseigner la raison sociale, l'email de facturation et l'adresse
+- Bouton pour acceder au portail Stripe de l'organisation courante
+- Bouton pour s'abonner si l'organisation n'a pas encore d'abonnement
+
+### 5. Permettre la creation d'une nouvelle organisation
+
+- Ajouter un bouton "Creer une organisation" dans le selecteur d'organisation
+- Dialogue simple : nom de l'organisation + infos de facturation
+- L'utilisateur est automatiquement proprietaire de la nouvelle organisation
+- Les societes peuvent etre deplacees d'une organisation a l'autre (optionnel, phase 2)
 
 ## Fichiers concernes
 
-- `supabase/functions/bridge-sync/index.ts` -- ajout fallback deduplication
-- 1 migration SQL -- nettoyage + backfill + trigger
+- Migration SQL : ajout colonnes facturation sur `organizations`
+- `supabase/functions/create-checkout/index.ts` : passer a la facturation par organisation
+- `supabase/functions/check-subscription/index.ts` : verifier par organisation
+- `supabase/functions/customer-portal/index.ts` : portail par organisation
+- `src/hooks/useSubscription.ts` : passer l'organisation courante
+- `src/hooks/useOrganization.tsx` : selecteur multi-organisation
+- `src/hooks/useCompany.tsx` : filtrer les societes par organisation
+- `src/components/layout/Sidebar.tsx` : selecteur d'organisation
+- `src/pages/Settings.tsx` : section facturation
 
-## Resultat attendu
+## Ce qui ne change PAS
 
-- 0 doublons dans la base apres nettoyage
-- Protection a 3 niveaux contre les futurs doublons : code sync, index unique, trigger SQL
-- Aucune perte de categorisation
+- L'isolation des donnees par societe reste identique
+- Le selecteur de societe existant fonctionne comme avant (filtre par l'organisation selectionnee)
+- Les fonctionnalites treasury et business plan ne sont pas impactees
+- Les membres invites peuvent etre dans une seule ou plusieurs organisations selon les invitations
+
