@@ -192,6 +192,7 @@ export function EmployeeDialog({ open, onOpenChange, employee, onSave }: Employe
       if (data.error) throw new Error(data.error);
 
       const payslipData = data as PayslipImportData;
+      console.log('Payslip data received:', JSON.stringify(payslipData));
       setImportedData(payslipData);
 
       // Pre-fill form fields
@@ -200,6 +201,7 @@ export function EmployeeDialog({ open, onOpenChange, employee, onSave }: Employe
         setGrossSalary(Math.round(payslipData.gross_salary_monthly * 12).toString());
       }
       if (payslipData.start_date) {
+        console.log('Setting start date to:', payslipData.start_date);
         setStartDate(payslipData.start_date);
       }
       setIsExecutive(payslipData.is_executive);
