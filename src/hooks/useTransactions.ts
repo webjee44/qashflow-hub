@@ -26,6 +26,7 @@ export function useTransactions(options: UseTransactionsOptions = {}) {
       let q = supabase
         .from('transactions')
         .select('*')
+        .is('deleted_at', null)
         .order('date', { ascending: false });
 
       if (currentCompany?.id) {
