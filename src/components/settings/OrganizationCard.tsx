@@ -14,9 +14,8 @@ import { toast } from 'sonner';
 
 export const OrganizationCard = () => {
   const { currentOrganization, loading, updateOrganization, isOwner } = useOrganization();
-  const { subscribed, subscription_end, checkoutLoading, createCheckout, openCustomerPortal } = useSubscription();
+  const { subscribed, subscription_end, plan, checkoutLoading, createCheckout, openCustomerPortal } = useSubscription();
   const [isEditing, setIsEditing] = useState(false);
-  const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'annual'>('annual');
   const [name, setName] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -27,7 +26,6 @@ export const OrganizationCard = () => {
 
   const handleSave = async () => {
     if (!currentOrganization || !name.trim()) return;
-    
     setSaving(true);
     try {
       await updateOrganization(currentOrganization.id, { name: name.trim() });
@@ -43,14 +41,10 @@ export const OrganizationCard = () => {
   };
 
   const handleStartSubscription = async () => {
-    const planConfig = PLANS.pro;
-    const priceId = billingPeriod === 'annual' ? planConfig.priceIdAnnual : planConfig.priceId;
-    if (!priceId) return;
-    
     try {
-      await createCheckout(priceId);
+      await createCheckout(PLANS.pro.priceId);
       toast.success('Redirection vers la page de paiement...');
-    } catch (error) {
+    } catch {
       toast.error('Erreur lors de la création du checkout');
     }
   };
@@ -59,7 +53,7 @@ export const OrganizationCard = () => {
     try {
       await openCustomerPortal();
       toast.success('Redirection vers le portail client...');
-    } catch (error) {
+    } catch {
       toast.error('Erreur lors de l\'ouverture du portail');
     }
   };
@@ -120,6 +114,7 @@ export const OrganizationCard = () => {
   }
 
   const trialDaysRemaining = getTrialDaysRemaining();
+  const planLabel = plan === 'lifetime' ? 'LIFETIME' : 'PRO';
 
   return (
     <Card>
@@ -130,12 +125,12 @@ export const OrganizationCard = () => {
             <CardTitle>Organisation</CardTitle>
           </div>
           <div className="flex items-center gap-2">
-            <Badge variant="secondary">PRO</Badge>
+            <Badge variant="secondary">{planLabel}</Badge>
             {getStatusBadge()}
           </div>
         </div>
         <CardDescription>
-          Gérez les paramètres de votre organisation et votre abonnement
+          Gérez les paramètres de votre organisation et votre licence
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -199,55 +194,18 @@ export const OrganizationCard = () => {
 
         {/* Plan Card */}
         <div className="rounded-xl border-2 border-primary/20 bg-gradient-to-b from-primary/5 to-transparent overflow-hidden">
-          {/* Billing period toggle */}
-          {!subscribed && (
-            <div className="flex justify-center gap-1 p-3 bg-muted/50">
-              <button
-                onClick={() => setBillingPeriod('monthly')}
-                className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${
-                  billingPeriod === 'monthly' 
-                    ? 'bg-primary text-primary-foreground shadow-sm' 
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                Mensuel
-              </button>
-              <button
-                onClick={() => setBillingPeriod('annual')}
-                className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all flex items-center gap-1.5 ${
-                  billingPeriod === 'annual' 
-                    ? 'bg-primary text-primary-foreground shadow-sm' 
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                Annuel
-                <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-destructive text-destructive-foreground">
-                  -50%
-                </Badge>
-              </button>
-            </div>
-          )}
-
           <div className="p-5">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h3 className="font-semibold text-lg">Plan Pro</h3>
+                <h3 className="font-semibold text-lg">Licence Lifetime</h3>
                 <p className="text-muted-foreground text-sm">Accès complet à toutes les fonctionnalités</p>
               </div>
               <div className="text-right">
-                {billingPeriod === 'annual' && !subscribed ? (
-                  <>
-                    <div className="text-sm text-muted-foreground line-through">{PLANS.pro.price}€</div>
-                    <div className="text-3xl font-bold text-primary">{PLANS.pro.annualMonthlyEquivalent}€</div>
-                    <div className="text-sm text-muted-foreground">/mois</div>
-                    <div className="text-xs text-muted-foreground">facturé {PLANS.pro.annualPrice}€/an</div>
-                  </>
-                ) : (
-                  <>
-                    <div className="text-3xl font-bold">{PLANS.pro.price}€</div>
-                    <div className="text-sm text-muted-foreground">/mois</div>
-                  </>
+                {!subscribed && (
+                  <div className="text-sm text-muted-foreground line-through">{PLANS.pro.originalPrice}€</div>
                 )}
+                <div className="text-3xl font-bold text-primary">{PLANS.pro.lifetimePrice}€</div>
+                <div className="text-sm text-muted-foreground">paiement unique</div>
               </div>
             </div>
             
@@ -272,20 +230,20 @@ export const OrganizationCard = () => {
                   ) : (
                     <Zap className="h-5 w-5" />
                   )}
-                  {isInTrial ? 'Passer au plan payant' : 'S\'abonner maintenant'}
+                  {isInTrial ? 'Acheter la licence' : 'Acheter la licence'}
                 </Button>
                 
                 {/* Scarcity */}
                 <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
-                  <Flame className="h-3.5 w-3.5 text-orange-500" />
-                  <span>Offre annuelle -50% — <strong className="text-foreground">plus que 12 places</strong> à ce tarif</span>
+                  <Flame className="h-3.5 w-3.5 text-destructive" />
+                  <span>Offre -{PLANS.pro.discount}% — <strong className="text-foreground">plus que 12 places</strong> à ce tarif</span>
                 </div>
               </div>
             ) : (
               <div className="space-y-3">
-                {subscription_end && (
+                {plan === 'lifetime' && (
                   <p className="text-sm text-muted-foreground text-center">
-                    Prochain renouvellement : {format(new Date(subscription_end), 'dd MMMM yyyy', { locale: fr })}
+                    Licence à vie — Accès permanent
                   </p>
                 )}
                 <Button 
@@ -299,7 +257,7 @@ export const OrganizationCard = () => {
                   ) : (
                     <ExternalLink className="h-4 w-4 mr-2" />
                   )}
-                  Gérer mon abonnement
+                  Voir mes factures
                 </Button>
               </div>
             )}

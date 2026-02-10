@@ -39,7 +39,7 @@ export const TrialExpiredBlocker = () => {
     try {
       await createCheckout(PLANS.pro.priceId);
       toast.success('Redirection vers la page de paiement...');
-    } catch (error) {
+    } catch {
       toast.error('Erreur lors de la création du checkout');
     }
   };
@@ -58,19 +58,20 @@ export const TrialExpiredBlocker = () => {
           <DialogTitle className="text-2xl">Votre essai gratuit est terminé</DialogTitle>
           <DialogDescription className="text-base">
             Votre période d'essai de 30 jours est arrivée à son terme. 
-            Pour continuer à utiliser qashflow, ajoutez un moyen de paiement.
+            Pour continuer à utiliser qashflow, achetez votre licence à vie.
           </DialogDescription>
         </DialogHeader>
 
         <div className="mt-6 p-4 rounded-lg border bg-muted/30">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="font-semibold text-lg">Plan Pro</h3>
-              <p className="text-muted-foreground text-sm">Accès complet</p>
+              <h3 className="font-semibold text-lg">Licence Lifetime</h3>
+              <p className="text-muted-foreground text-sm">Accès complet à vie</p>
             </div>
             <div className="text-right">
-              <div className="text-2xl font-bold">{PLANS.pro.price}€</div>
-              <div className="text-sm text-muted-foreground">/mois</div>
+              <div className="text-sm text-muted-foreground line-through">{PLANS.pro.originalPrice}€</div>
+              <div className="text-2xl font-bold">{PLANS.pro.lifetimePrice}€</div>
+              <div className="text-sm text-muted-foreground">paiement unique</div>
             </div>
           </div>
           
@@ -94,12 +95,12 @@ export const TrialExpiredBlocker = () => {
             ) : (
               <CreditCard className="h-5 w-5 mr-2" />
             )}
-            Ajouter un moyen de paiement
+            Acheter la licence — {PLANS.pro.lifetimePrice}€
           </Button>
         </div>
 
         <p className="text-center text-sm text-muted-foreground mt-4">
-          Sans engagement • Annulable à tout moment
+          Paiement unique • Accès à vie • Satisfait ou remboursé 30 jours
         </p>
       </DialogContent>
     </Dialog>

@@ -5,23 +5,22 @@ import { useOrganization } from './useOrganization';
 
 interface SubscriptionStatus {
   subscribed: boolean;
-  plan: 'none' | 'pro';
+  plan: 'none' | 'pro' | 'lifetime';
   product_id: string | null;
   subscription_end: string | null;
   is_trialing: boolean;
   trial_end: string | null;
 }
 
-// Plan configuration with Stripe IDs - Pro plan at 99€/month with annual -50% offer
+// Plan configuration with Stripe IDs - Lifetime license at 499€ (one-time payment)
 export const PLANS = {
   pro: {
-    name: 'Pro',
-    price: 99,
-    annualPrice: 594,
-    annualMonthlyEquivalent: 49.50,
-    priceId: 'price_1Sz063Itjz0ztyfFABi0I3xD',
-    priceIdAnnual: 'price_1Sz06aItjz0ztyfFKePWR6BC',
-    productId: 'prod_TwttzOOTErLyXG',
+    name: 'Licence Lifetime',
+    lifetimePrice: 499,
+    originalPrice: 1000,
+    discount: 50,
+    priceId: 'price_1SzN92Itjz0ztyfFAwU5xdOD',
+    productId: 'prod_TxHiDrkeAaBxbk',
     trialDays: 30,
     features: [
       'Sociétés illimitées',

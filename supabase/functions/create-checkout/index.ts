@@ -7,6 +7,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const LIFETIME_PRICE_ID = "price_1SzN92Itjz0ztyfFAwU5xdOD";
+
 const logStep = (step: string, details?: any) => {
   const detailsStr = details ? ` - ${JSON.stringify(details)}` : '';
   console.log(`[CREATE-CHECKOUT] ${step}${detailsStr}`);
@@ -33,9 +35,12 @@ serve(async (req) => {
     if (!user?.email) throw new Error("User not authenticated or email not available");
     logStep("User authenticated", { userId: user.id, email: user.email });
 
-    const { priceId, organization_id } = await req.json();
-    if (!priceId) throw new Error("Price ID is required");
-    logStep("Params received", { priceId, organization_id });
+    let organization_id: string | null = null;
+    try {
+      const body = await req.json();
+      organization_id = body.organization_id || null;
+    } catch { /* no body */ }
+    logStep("Params received", { organization_id });
 
     const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
       apiVersion: "2025-08-27.basil",
@@ -44,7 +49,6 @@ serve(async (req) => {
     let customerId: string | undefined;
     let customerEmail: string = user.email;
 
-    // If organization_id provided, use org billing info
     if (organization_id) {
       const { data: org } = await supabaseClient
         .from('organizations')
@@ -56,7 +60,6 @@ serve(async (req) => {
         customerId = org.stripe_customer_id;
         logStep("Using existing org Stripe customer", { customerId });
       } else {
-        // Create a new Stripe customer for this org
         const billingEmail = org?.billing_email || user.email;
         const newCustomer = await stripe.customers.create({
           email: billingEmail,
@@ -71,7 +74,6 @@ serve(async (req) => {
         });
         customerId = newCustomer.id;
 
-        // Store stripe_customer_id on org
         await supabaseClient
           .from('organizations')
           .update({ stripe_customer_id: customerId })
@@ -79,7 +81,6 @@ serve(async (req) => {
         logStep("Created & stored new Stripe customer for org", { customerId });
       }
     } else {
-      // Legacy: lookup by user email
       const customers = await stripe.customers.list({ email: user.email, limit: 1 });
       if (customers.data.length > 0) {
         customerId = customers.data[0].id;
@@ -90,8 +91,8 @@ serve(async (req) => {
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       customer_email: customerId ? undefined : customerEmail,
-      line_items: [{ price: priceId, quantity: 1 }],
-      mode: "subscription",
+      line_items: [{ price: LIFETIME_PRICE_ID, quantity: 1 }],
+      mode: "payment",
       success_url: `${req.headers.get("origin")}/parametres?subscription=success`,
       cancel_url: `${req.headers.get("origin")}/parametres?subscription=canceled`,
     });

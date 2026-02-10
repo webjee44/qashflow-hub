@@ -60,6 +60,8 @@ export function BillingCard() {
 
   if (!currentOrganization) return null;
 
+  const planLabel = plan === 'lifetime' ? 'Licence Lifetime' : plan === 'pro' ? 'Plan PRO' : '';
+
   return (
     <div className="space-y-6">
       {/* Subscription Status */}
@@ -83,7 +85,7 @@ export function BillingCard() {
             <div className="space-y-3">
               <div className="flex items-center gap-3">
                 <Badge variant="default" className="bg-primary">
-                  {is_trialing ? 'Essai gratuit' : `Plan ${plan?.toUpperCase()}`}
+                  {is_trialing ? 'Essai gratuit' : planLabel}
                 </Badge>
                 {is_trialing && trial_end && (
                   <span className="text-sm text-muted-foreground">
@@ -91,11 +93,6 @@ export function BillingCard() {
                   </span>
                 )}
               </div>
-              {subscription_end && !is_trialing && (
-                <p className="text-sm text-muted-foreground">
-                  Prochain renouvellement : {formatDate(subscription_end)}
-                </p>
-              )}
               <Button
                 variant="outline"
                 onClick={openCustomerPortal}
@@ -103,33 +100,22 @@ export function BillingCard() {
                 className="gap-2"
               >
                 {checkoutLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
-                Gérer l'abonnement
+                Voir mes factures
               </Button>
             </div>
           ) : (
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Cette organisation n'a pas d'abonnement actif.
+                Cette organisation n'a pas de licence active.
               </p>
-              <div className="flex gap-3">
-                <Button
-                  onClick={() => createCheckout(PLANS.pro.priceId)}
-                  disabled={checkoutLoading}
-                  className="gap-2"
-                >
-                  {checkoutLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
-                  S'abonner — {PLANS.pro.price}€/mois
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => createCheckout(PLANS.pro.priceIdAnnual)}
-                  disabled={checkoutLoading}
-                  className="gap-2"
-                >
-                  {checkoutLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                  Annuel — {PLANS.pro.annualMonthlyEquivalent}€/mois
-                </Button>
-              </div>
+              <Button
+                onClick={() => createCheckout(PLANS.pro.priceId)}
+                disabled={checkoutLoading}
+                className="gap-2"
+              >
+                {checkoutLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
+                Acheter la licence — {PLANS.pro.lifetimePrice}€
+              </Button>
             </div>
           )}
         </CardContent>
@@ -143,7 +129,7 @@ export function BillingCard() {
             Coordonnées de facturation
           </CardTitle>
           <CardDescription>
-            Ces informations apparaîtront sur vos factures Stripe.
+            Ces informations apparaîtront sur vos factures.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

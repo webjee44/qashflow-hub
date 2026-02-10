@@ -12,9 +12,7 @@ const logStep = (step: string, details?: any) => {
   console.log(`[CHECK-SUBSCRIPTION] ${step}${detailsStr}`);
 };
 
-const PLAN_MAPPING: Record<string, string> = {
-  "prod_ToH9Su89hO20pL": "pro",
-};
+const LIFETIME_PRODUCT_ID = "prod_TxHiDrkeAaBxbk";
 
 const UNSUBSCRIBED = {
   subscribed: false,
@@ -59,13 +57,12 @@ serve(async (req) => {
     const user = userData.user;
     logStep("User authenticated", { userId: user.id, email: user.email });
 
-    // Get organization_id from request body (optional, for backward compat)
     let organizationId: string | null = null;
     try {
       const body = await req.json();
       organizationId = body.organization_id || null;
     } catch {
-      // No body or invalid JSON — use legacy email-based lookup
+      // No body or invalid JSON
     }
 
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
@@ -83,11 +80,9 @@ serve(async (req) => {
         customerId = org.stripe_customer_id;
         logStep("Using org stripe_customer_id", { customerId, organizationId });
       } else if (org?.billing_email) {
-        // Fallback: search by billing_email
         const customers = await stripe.customers.list({ email: org.billing_email, limit: 1 });
         if (customers.data.length > 0) {
           customerId = customers.data[0].id;
-          // Store for future lookups
           await supabaseClient
             .from('organizations')
             .update({ stripe_customer_id: customerId })
@@ -114,6 +109,32 @@ serve(async (req) => {
       });
     }
 
+    // 1. Check for lifetime payment (one-time checkout sessions)
+    const checkoutSessions = await stripe.checkout.sessions.list({
+      customer: customerId,
+      limit: 100,
+    });
+
+    const lifetimePayment = checkoutSessions.data.find(
+      (session) => session.mode === "payment" && session.payment_status === "paid"
+    );
+
+    if (lifetimePayment) {
+      logStep("Lifetime payment found", { sessionId: lifetimePayment.id });
+      return new Response(JSON.stringify({
+        subscribed: true,
+        plan: "lifetime",
+        product_id: LIFETIME_PRODUCT_ID,
+        subscription_end: null,
+        is_trialing: false,
+        trial_end: null,
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      });
+    }
+
+    // 2. Check for active subscriptions (legacy/backward compat)
     const subscriptions = await stripe.subscriptions.list({
       customer: customerId,
       status: "all",
@@ -125,7 +146,7 @@ serve(async (req) => {
     );
 
     if (!activeSubscription) {
-      logStep("No active subscription found");
+      logStep("No active subscription or lifetime payment found");
       return new Response(JSON.stringify(UNSUBSCRIBED), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 200,
@@ -138,13 +159,12 @@ serve(async (req) => {
       ? new Date(activeSubscription.trial_end * 1000).toISOString()
       : null;
     const productId = activeSubscription.items.data[0].price.product as string;
-    const plan = PLAN_MAPPING[productId] || "pro";
 
-    logStep("Subscription found", { status: activeSubscription.status, plan, productId });
+    logStep("Subscription found", { status: activeSubscription.status, productId });
 
     return new Response(JSON.stringify({
       subscribed: true,
-      plan,
+      plan: "pro",
       product_id: productId,
       subscription_end: subscriptionEnd,
       is_trialing: isTrialing,
