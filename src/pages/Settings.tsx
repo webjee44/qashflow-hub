@@ -131,26 +131,26 @@ export default function Settings() {
         transition={{ delay: 0.1 }}
       >
         <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
-          <TabsList className="bg-card border border-border">
+          <TabsList className="bg-card border border-border w-full flex flex-wrap h-auto gap-1 p-1">
             <TabsTrigger value="organization" className="gap-2">
               <Building2 className="w-4 h-4" />
-              Organisation
+              <span className="hidden sm:inline">Organisation</span>
             </TabsTrigger>
             <TabsTrigger value="companies" className="gap-2">
               <Building2 className="w-4 h-4" />
-              Sociétés
+              <span className="hidden sm:inline">Sociétés</span>
             </TabsTrigger>
             <TabsTrigger value="accounts" className="gap-2">
               <Landmark className="w-4 h-4" />
-              Comptes bancaires
+              <span className="hidden sm:inline">Comptes bancaires</span>
             </TabsTrigger>
             <TabsTrigger value="billing" className="gap-2">
               <CreditCard className="w-4 h-4" />
-              Facturation
+              <span className="hidden sm:inline">Facturation</span>
             </TabsTrigger>
             <TabsTrigger value="profile" className="gap-2">
               <User className="w-4 h-4" />
-              Profil
+              <span className="hidden sm:inline">Profil</span>
             </TabsTrigger>
           </TabsList>
 
