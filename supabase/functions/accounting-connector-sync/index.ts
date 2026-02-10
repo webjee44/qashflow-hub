@@ -274,12 +274,14 @@ async function fetchPennylaneInvoices(apiKey: string, endpoint: string): Promise
     });
 
     if (!response.ok) {
-      console.error(`[accounting-connector-sync] Pennylane API error: ${response.status}`);
+      const errorText = await response.text();
+      console.error(`[accounting-connector-sync] Pennylane API error for ${endpoint}: ${response.status} - ${errorText}`);
       return [];
     }
 
     const data = await response.json();
-    return data.invoices || data.data || [];
+    // Pennylane v2 returns data under "items" key with cursor pagination
+    return data.items || data[endpoint] || data.invoices || data.data || [];
   } catch (err: any) {
     console.error(`[accounting-connector-sync] Pennylane fetch error:`, err);
     return [];
