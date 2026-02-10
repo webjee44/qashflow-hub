@@ -52,11 +52,15 @@ export function VariableExpenseDialog({ open, onOpenChange, expense }: VariableE
     unit_cost: 0,
     vat_rate: 0.20,
     is_vat_deductible: true,
-    is_cogs: true, // Par défaut = Coût des ventes (impacte la marge brute)
+    is_cogs: true,
     start_date: '',
     end_date: '' as string,
     notes: '',
   });
+
+  // Raw string states for decimal inputs to allow intermediate typing (e.g. "2,")
+  const [percentageRaw, setPercentageRaw] = useState('');
+  const [unitCostRaw, setUnitCostRaw] = useState('');
 
   useEffect(() => {
     if (expense) {
@@ -74,6 +78,8 @@ export function VariableExpenseDialog({ open, onOpenChange, expense }: VariableE
         end_date: expense.end_date || '',
         notes: expense.notes || '',
       });
+      setPercentageRaw(expense.percentage ? expense.percentage.toString().replace('.', ',') : '');
+      setUnitCostRaw(expense.unit_cost ? expense.unit_cost.toString().replace('.', ',') : '');
     } else {
       setFormData({
         name: '',
@@ -89,6 +95,8 @@ export function VariableExpenseDialog({ open, onOpenChange, expense }: VariableE
         end_date: '',
         notes: '',
       });
+      setPercentageRaw('');
+      setUnitCostRaw('');
     }
   }, [expense, open, settings]);
 
@@ -209,14 +217,18 @@ export function VariableExpenseDialog({ open, onOpenChange, expense }: VariableE
                   id="percentage"
                   type="text"
                   inputMode="decimal"
-                  value={formData.percentage.toString().replace('.', ',')}
+                  value={percentageRaw}
                   onChange={(e) => {
-                    const value = e.target.value.replace(',', '.');
-                    const parsed = parseFloat(value);
-                    if (!isNaN(parsed) && parsed >= 0 && parsed <= 100) {
-                      setFormData({ ...formData, percentage: parsed });
-                    } else if (e.target.value === '' || e.target.value === '0' || e.target.value === '0,') {
-                      setFormData({ ...formData, percentage: 0 });
+                    const raw = e.target.value;
+                    if (raw === '' || /^[0-9]*[.,]?[0-9]*$/.test(raw)) {
+                      setPercentageRaw(raw);
+                      const normalized = raw.replace(',', '.');
+                      const parsed = parseFloat(normalized);
+                      if (!isNaN(parsed) && parsed >= 0 && parsed <= 100) {
+                        setFormData(prev => ({ ...prev, percentage: parsed }));
+                      } else if (raw === '') {
+                        setFormData(prev => ({ ...prev, percentage: 0 }));
+                      }
                     }
                   }}
                   placeholder="Ex: 2,5"
@@ -229,14 +241,18 @@ export function VariableExpenseDialog({ open, onOpenChange, expense }: VariableE
                   id="unit_cost"
                   type="text"
                   inputMode="decimal"
-                  value={formData.unit_cost.toString().replace('.', ',')}
+                  value={unitCostRaw}
                   onChange={(e) => {
-                    const value = e.target.value.replace(',', '.');
-                    const parsed = parseFloat(value);
-                    if (!isNaN(parsed) && parsed >= 0) {
-                      setFormData({ ...formData, unit_cost: parsed });
-                    } else if (e.target.value === '' || e.target.value === '0' || e.target.value === '0,') {
-                      setFormData({ ...formData, unit_cost: 0 });
+                    const raw = e.target.value;
+                    if (raw === '' || /^[0-9]*[.,]?[0-9]*$/.test(raw)) {
+                      setUnitCostRaw(raw);
+                      const normalized = raw.replace(',', '.');
+                      const parsed = parseFloat(normalized);
+                      if (!isNaN(parsed) && parsed >= 0) {
+                        setFormData(prev => ({ ...prev, unit_cost: parsed }));
+                      } else if (raw === '') {
+                        setFormData(prev => ({ ...prev, unit_cost: 0 }));
+                      }
                     }
                   }}
                   placeholder="Ex: 1,50"
