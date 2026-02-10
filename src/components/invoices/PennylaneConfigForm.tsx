@@ -46,6 +46,17 @@ export function PennylaneConfigForm({
 
   return (
     <div className="space-y-4">
+      <div className="rounded-md border border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/30 p-3 text-sm text-muted-foreground space-y-2">
+        <p className="font-medium text-foreground">Comment obtenir votre clé API ?</p>
+        <ol className="list-decimal list-inside space-y-1 text-xs">
+          <li>Connectez-vous à <span className="font-medium">app.pennylane.com</span></li>
+          <li>Allez dans <span className="font-medium">Paramètres → Intégrations → API</span></li>
+          <li>Cliquez sur <span className="font-medium">Générer un Token API</span></li>
+          <li>Cochez en <span className="font-medium">Lecture seule</span> : <span className="font-medium">Factures client</span> et <span className="font-medium">Factures fournisseurs</span></li>
+          <li>Validez et copiez le token généré</li>
+        </ol>
+      </div>
+
       <div className="space-y-2">
         <Label htmlFor="pennylane-apikey">Clé API Pennylane</Label>
         <Input
@@ -55,9 +66,6 @@ export function PennylaneConfigForm({
           value={credentials.apiKey}
           onChange={handleChange}
         />
-        <p className="text-xs text-muted-foreground">
-          Générez votre clé API dans Pennylane : Paramètres → Intégrations → API
-        </p>
       </div>
 
       <div className="flex gap-2 pt-4">
