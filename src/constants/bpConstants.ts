@@ -17,6 +17,7 @@ export const FIXED_EXPENSE_CATEGORIES = {
   travel: { label: 'Déplacements & Transport', icon: 'Car' },
   office: { label: 'Fournitures de bureau', icon: 'Pencil' },
   taxes: { label: 'Impôts & Taxes', icon: 'Receipt' },
+  services: { label: 'Prestation de service', icon: 'Handshake' },
   other: { label: 'Autres charges fixes', icon: 'MoreHorizontal' },
 } as const;
 
@@ -303,6 +304,13 @@ export const PCG_SUBCATEGORIES: Record<FixedExpenseCategory, { code: string; lab
     { code: '6352', label: 'CVAE - Cotisation Valeur Ajoutée' },
     { code: '6354', label: 'Taxes foncières' },
     { code: '6358', label: 'Autres impôts et taxes' },
+  ],
+  services: [
+    { code: '6041', label: 'Achats de prestations de services' },
+    { code: '6111', label: 'Sous-traitance générale' },
+    { code: '6112', label: 'Sous-traitance en cours de production' },
+    { code: '6221', label: 'Commissions et courtages' },
+    { code: '6222', label: 'Rémunération d\'intermédiaires' },
   ],
   other: [
     { code: '6238', label: 'Publications diverses' },
