@@ -24,6 +24,7 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { z } from 'zod';
+import { PublicNavbar } from '@/components/layout/PublicNavbar';
 import logo from '@/assets/logo.png';
 import screenshotPnl from '@/assets/screenshot-pnl.png';
 
@@ -144,49 +145,10 @@ export default function Landing() {
       <h1 className="sr-only">Qashflow - Logiciel de gestion financière, trésorerie et business plan pour PME et startups</h1>
       
       {/* Navbar */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-lg border-b border-border" aria-label="Navigation principale">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center">
-              <img src={logo} alt="Qashflow - Gestion de trésorerie" className="h-9" />
-            </div>
-            <div className="hidden md:flex items-center gap-8">
-              <Link to="/fonctionnalites" className="text-muted-foreground hover:text-foreground transition-colors">
-                Fonctionnalités
-              </Link>
-              <Link to="/tarifs" className="text-muted-foreground hover:text-foreground transition-colors">
-                Tarifs
-              </Link>
-              <Link to="/a-propos" className="text-muted-foreground hover:text-foreground transition-colors">
-                À propos
-              </Link>
-              <Link to="/contact" className="text-muted-foreground hover:text-foreground transition-colors">
-                Contact
-              </Link>
-            </div>
-            <div className="flex items-center gap-4">
-              {user ? (
-                <Button onClick={() => navigate('/dashboard')}>
-                  Accéder à l'app
-                  <ArrowRight className="w-4 h-4 ml-2" />
-                </Button>
-              ) : (
-                <>
-                  <Button variant="ghost" onClick={() => navigate('/sign-in')}>
-                    Connexion
-                  </Button>
-                  <Button onClick={() => navigate('/sign-up')}>
-                    Essai gratuit
-                  </Button>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      </nav>
+      <PublicNavbar className="top-0" />
 
       {/* Hero Section */}
-      <section className="pt-32 pb-20 px-4 sm:px-6 lg:px-8">
+      <section className="pt-24 sm:pt-32 pb-12 sm:pb-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -226,8 +188,10 @@ export default function Landing() {
               </Button>
             </div>
             
-            <p className="text-sm text-muted-foreground mt-4">
-              ✓ Gratuit 30 jours &nbsp; ✓ Sans carte bancaire &nbsp; ✓ Annulation facile
+            <p className="text-xs sm:text-sm text-muted-foreground mt-4 flex flex-wrap justify-center gap-x-3 gap-y-1">
+              <span>✓ Gratuit 30 jours</span>
+              <span>✓ Sans carte bancaire</span>
+              <span>✓ Annulation facile</span>
             </p>
           </motion.div>
 

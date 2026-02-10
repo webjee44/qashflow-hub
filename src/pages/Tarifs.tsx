@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -8,28 +8,9 @@ import { Check, Sparkles, Calendar, Shield, Zap, HeadphonesIcon, Clock, Flame, U
 import { SEOHead, generateBreadcrumbSchema, generateFAQSchema } from '@/components/seo/SEOHead';
 import { useSubscription, PLANS } from '@/hooks/useSubscription';
 import { useAuth } from '@/hooks/useAuth';
+import { PublicNavbar } from '@/components/layout/PublicNavbar';
 import { toast } from 'sonner';
 import logo from '@/assets/logo.png';
-
-/* ───── countdown helpers ───── */
-function get24hFromNow() {
-  const now = new Date();
-  return new Date(now.getTime() + 24 * 60 * 60 * 1000);
-}
-
-function useCountdown(target: Date) {
-  const [now, setNow] = useState(new Date());
-  useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(id);
-  }, []);
-  const diff = Math.max(0, target.getTime() - now.getTime());
-  const d = Math.floor(diff / 86400000);
-  const h = Math.floor((diff % 86400000) / 3600000);
-  const m = Math.floor((diff % 3600000) / 60000);
-  const s = Math.floor((diff % 60000) / 1000);
-  return { d, h, m, s };
-}
 
 /* ───── FAQ ───── */
 const faqs = [
@@ -66,8 +47,6 @@ export default function Tarifs() {
   const { plan: currentPlan, subscribed, is_trialing, createCheckout, checkoutLoading } = useSubscription();
   const [isAnnual, setIsAnnual] = useState(true);
 
-  const target24h = useMemo(get24hFromNow, []);
-  const countdown = useCountdown(target24h);
 
   const handleStartTrial = () => {
     if (!user) { navigate('/sign-up'); return; }
@@ -107,35 +86,17 @@ export default function Tarifs() {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }} />
 
       {/* ── Flash Banner ── */}
-      <div className="fixed top-0 left-0 right-0 z-[60] bg-gradient-to-r from-destructive to-destructive/80 text-destructive-foreground py-2.5 px-4 text-center text-sm font-semibold flex items-center justify-center gap-2">
-        <Flame className="w-4 h-4 animate-pulse" />
-        <span>OFFRE FLASH — Économisez {savings}€ avec l'abonnement annuel</span>
-        <Flame className="w-4 h-4 animate-pulse" />
+      <div className="fixed top-0 left-0 right-0 z-[60] bg-gradient-to-r from-destructive to-destructive/80 text-destructive-foreground py-2 px-4 text-center text-xs sm:text-sm font-semibold flex items-center justify-center gap-2">
+        <Flame className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-pulse flex-shrink-0" />
+        <span>OFFRE FLASH — Économisez {savings}€/an</span>
+        <Flame className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-pulse flex-shrink-0" />
       </div>
 
       {/* ── Navbar ── */}
-      <nav className="fixed top-10 left-0 right-0 z-50 bg-background/80 backdrop-blur-lg border-b border-border">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <Link to="/" className="flex items-center">
-              <img src={logo} alt="Qashflow" className="h-9" />
-            </Link>
-            <div className="hidden md:flex items-center gap-8">
-              <Link to="/fonctionnalites" className="text-muted-foreground hover:text-foreground transition-colors">Fonctionnalités</Link>
-              <Link to="/tarifs" className="text-foreground font-medium">Tarifs</Link>
-              <Link to="/a-propos" className="text-muted-foreground hover:text-foreground transition-colors">À propos</Link>
-              <Link to="/contact" className="text-muted-foreground hover:text-foreground transition-colors">Contact</Link>
-            </div>
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" onClick={() => navigate('/sign-in')}>Connexion</Button>
-              <Button onClick={() => navigate('/sign-up')}>Essai gratuit</Button>
-            </div>
-          </div>
-        </div>
-      </nav>
+      <PublicNavbar activePage="tarifs" className="top-9 sm:top-10" />
 
       {/* ── Hero ── */}
-      <section className="pt-40 pb-10 px-4 sm:px-6 lg:px-8">
+      <section className="pt-28 sm:pt-40 pb-10 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto text-center">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
             <Badge variant="secondary" className="mb-6 px-4 py-2">
@@ -161,27 +122,7 @@ export default function Tarifs() {
         </div>
       </section>
 
-      {/* ── Countdown ── */}
-      <section className="pb-8 px-4">
-        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.3 }} className="max-w-lg mx-auto text-center">
-          <p className="text-sm font-semibold text-destructive mb-3 flex items-center justify-center gap-2">
-            <Clock className="w-4 h-4" />
-            Offre flash se termine dans
-          </p>
-          <div className="flex justify-center gap-3">
-            {[
-              { val: countdown.h, label: 'Heures' },
-              { val: countdown.m, label: 'Min' },
-              { val: countdown.s, label: 'Sec' },
-            ].map((item) => (
-              <div key={item.label} className="bg-card border border-border rounded-xl px-4 py-3 min-w-[70px] shadow-sm">
-                <div className="text-2xl font-bold tabular-nums">{String(item.val).padStart(2, '0')}</div>
-                <div className="text-xs text-muted-foreground">{item.label}</div>
-              </div>
-            ))}
-          </div>
-        </motion.div>
-      </section>
+
 
       {/* ── Toggle mensuel / annuel ── */}
       <section className="pb-4 px-4">

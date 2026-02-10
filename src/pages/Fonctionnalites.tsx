@@ -27,6 +27,7 @@ import {
   Trash2
 } from 'lucide-react';
 import { SEOHead, generateBreadcrumbSchema } from '@/components/seo/SEOHead';
+import { PublicNavbar } from '@/components/layout/PublicNavbar';
 import logo from '@/assets/logo.png';
 
 const featureCategories = [
@@ -313,40 +314,10 @@ export default function Fonctionnalites() {
       />
 
       {/* Navbar */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-lg border-b border-border">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <Link to="/" className="flex items-center">
-              <img src={logo} alt="Qashflow" className="h-9" />
-            </Link>
-            <div className="hidden md:flex items-center gap-8">
-              <Link to="/fonctionnalites" className="text-foreground font-medium">
-                Fonctionnalités
-              </Link>
-              <Link to="/tarifs" className="text-muted-foreground hover:text-foreground transition-colors">
-                Tarifs
-              </Link>
-              <Link to="/a-propos" className="text-muted-foreground hover:text-foreground transition-colors">
-                À propos
-              </Link>
-              <Link to="/contact" className="text-muted-foreground hover:text-foreground transition-colors">
-                Contact
-              </Link>
-            </div>
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" onClick={() => navigate('/sign-in')}>
-                Connexion
-              </Button>
-              <Button onClick={() => navigate('/sign-up')}>
-                Essai gratuit
-              </Button>
-            </div>
-          </div>
-        </div>
-      </nav>
+      <PublicNavbar activePage="fonctionnalites" className="top-0" />
 
       {/* Hero */}
-      <section className="pt-32 pb-16 px-4 sm:px-6 lg:px-8">
+      <section className="pt-24 sm:pt-32 pb-16 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto text-center">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
