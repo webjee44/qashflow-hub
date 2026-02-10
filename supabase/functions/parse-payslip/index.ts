@@ -102,6 +102,13 @@ Comment trouver la date d'embauche:
 - La date est souvent en haut du bulletin, près des informations du salarié
 - Convertis au format YYYY-MM-DD (ex: "01/09/2025" → "2025-09-01")
 
+Comment trouver la mutuelle employeur:
+- Cherche la ligne "Complémentaire - Santé" ou "Complémentaire Santé" ou "Mutuelle" dans la colonne des CHARGES PATRONALES (côté droit du tableau)
+- ATTENTION: ne confonds pas la part salariale (colonne "à déduire") avec la part patronale (colonne "charges patronales")
+- Le montant est souvent entre 15€ et 80€ par mois pour un salarié
+- Si tu trouves un montant dans la colonne charges patronales pour cette ligne, c'est la mutuelle_employer
+- Ne mets PAS un montant forfaitaire de 150€, mets uniquement ce qui est réellement sur la fiche
+
 Comment identifier le statut cadre:
 - Présence de cotisations AGIRC-ARRCO Tranche 2
 - Présence cotisation APEC

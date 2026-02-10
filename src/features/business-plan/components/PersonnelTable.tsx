@@ -54,7 +54,7 @@ export function PersonnelTable({ onEdit, bonuses = [], onEditBonus, onDeleteBonu
   // Charges proportionnelles (sans mutuelle)
   const totalProportionalCharges = employees.reduce((sum, p) => sum + (Number(p.gross_salary) * Number(p.employer_charges_rate)), 0);
   // Mutuelle forfaitaire par salarié
-  const totalMutuelle = employees.reduce((sum, p) => sum + (p.mutuelle_employer_amount ?? MUTUELLE_FORFAIT), 0);
+  const totalMutuelle = employees.reduce((sum, p) => sum + (p.mutuelle_employer_amount ?? (p.payslip_imported ? 0 : MUTUELLE_FORFAIT)), 0);
   // Total des charges = proportionnelles + mutuelle
   const totalCharges = totalProportionalCharges + totalMutuelle;
   const totalBonuses = bonuses.reduce((sum, b) => sum + b.amount, 0);

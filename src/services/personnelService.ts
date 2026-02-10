@@ -160,7 +160,7 @@ export const personnelService = {
   getEmployeeMonthlyCost(person: BPPersonnel): number {
     const salary = Number(person.gross_salary);
     const chargesWithoutMutuelle = salary * Number(person.employer_charges_rate);
-    const mutuelle = person.mutuelle_employer_amount ?? 150; // Forfait moyen si non spécifié
+    const mutuelle = person.mutuelle_employer_amount ?? (person.payslip_imported ? 0 : 150); // Si importé depuis fiche de paie, utiliser la valeur réelle
     return salary + chargesWithoutMutuelle + mutuelle;
   },
 
