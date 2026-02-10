@@ -247,13 +247,54 @@ export function useForecasts() {
     },
   });
 
+  // Helper to check if a percent_of_revenue category has a manual override for a given month
+  const isManualOverride = useCallback((categoryId: string, month: Date): boolean => {
+    const category = categories.find(c => c.id === categoryId);
+    if (category?.forecast_mode !== 'percent_of_revenue') return false;
+    const monthStr = format(month, 'yyyy-MM-01');
+    return forecasts.some(f => f.category_id === categoryId && f.month === monthStr);
+  }, [forecasts, categories]);
+
+  // Helper to clear a manual override (delete the forecast entry) to revert to auto calculation
+  const clearForecastOverride = useMutation({
+    mutationFn: async ({ categoryId, month }: { categoryId: string; month: Date }) => {
+      if (!user?.id || !currentCompany) throw new Error('Non authentifié');
+      const monthStr = format(month, 'yyyy-MM-01');
+      const dataOwnerId = currentCompany.user_id;
+      
+      const { error } = await supabase
+        .from('category_forecasts')
+        .delete()
+        .eq('user_id', dataOwnerId)
+        .eq('category_id', categoryId)
+        .eq('month', monthStr);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['category-forecasts'] });
+      toast.success('Calcul automatique rétabli');
+    },
+    onError: (error) => {
+      toast.error('Erreur: ' + error.message);
+    },
+  });
+
   // Helper to get forecast for a specific category and month
   const getForecast = useCallback((categoryId: string, month: Date): number => {
     const category = categories.find(c => c.id === categoryId);
     
-    // For percent_of_revenue categories: calculate from total income HT forecast
+    // For percent_of_revenue categories: check manual override first, then auto-calculate
     if (category?.forecast_mode === 'percent_of_revenue' && (category.forecast_percent ?? 0) > 0) {
       const monthStr = format(month, 'yyyy-MM-01');
+      
+      // Check for manual override
+      const manualForecast = forecasts.find(f => f.category_id === categoryId && f.month === monthStr);
+      if (manualForecast) {
+        return manualForecast.expected_amount;
+      }
+      
+      // Auto-calculate from income
       const incomeTotal = categories
         .filter(c => c.type === 'income')
         .reduce((sum, c) => {
@@ -523,6 +564,8 @@ export function useForecasts() {
     upsertForecast,
     getForecast,
     getForecastSource,
+    isManualOverride,
+    clearForecastOverride,
     getActual,
     getVatForecast,
     getVatActual,
