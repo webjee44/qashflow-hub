@@ -49,6 +49,7 @@ export const CONTRACT_TYPES = {
   cdi: { label: 'CDI', workerType: 'employee' },
   cdd: { label: 'CDD', workerType: 'employee' },
   apprentissage: { label: 'Apprentissage', workerType: 'employee' },
+  apprentice: { label: 'Apprentissage', workerType: 'employee' }, // legacy fallback
   stage: { label: 'Stage', workerType: 'intern' },
   freelance: { label: 'Freelance / Prestation', workerType: 'freelance' },
 };
