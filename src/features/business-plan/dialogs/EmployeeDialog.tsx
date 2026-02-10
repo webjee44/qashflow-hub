@@ -195,7 +195,11 @@ export function EmployeeDialog({ open, onOpenChange, employee, onSave }: Employe
       console.log('Payslip data received:', JSON.stringify(payslipData));
       setImportedData(payslipData);
 
-      if (payslipData.employee_name) setName(payslipData.employee_name);
+      // Pre-fill name and start date from payslip
+      if (payslipData.employee_name) {
+        console.log('Setting name to:', payslipData.employee_name);
+        setName(payslipData.employee_name);
+      }
       if (payslipData.position) setPosition(payslipData.position);
       if (payslipData.gross_salary_monthly) {
         setGrossSalary(Math.round(payslipData.gross_salary_monthly * 12).toString());
