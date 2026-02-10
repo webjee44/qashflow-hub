@@ -95,7 +95,7 @@ export function EmployeeDialog({ open, onOpenChange, employee, onSave }: Employe
         setStep('form');
         setName(employee.name || '');
         setPosition(employee.position);
-        setGrossSalary((employee.gross_salary * 12).toString());
+        setGrossSalary(Math.round(employee.gross_salary * 12).toString());
         setStartDate(employee.start_date);
         setEndDate(employee.end_date || '');
         setNotes(employee.notes || '');
