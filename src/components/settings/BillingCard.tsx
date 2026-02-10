@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { motion } from 'framer-motion';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,7 +7,6 @@ import { Badge } from '@/components/ui/badge';
 import { CreditCard, ExternalLink, Building2, Loader2 } from 'lucide-react';
 import { useOrganization } from '@/hooks/useOrganization';
 import { useSubscription, PLANS } from '@/hooks/useSubscription';
-import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 export function BillingCard() {
@@ -16,30 +14,31 @@ export function BillingCard() {
   const { subscribed, plan, subscription_end, is_trialing, trial_end, checkoutLoading, createCheckout, openCustomerPortal, loading } = useSubscription();
   
   const [billingForm, setBillingForm] = useState({
-    billing_name: currentOrganization?.billing_name || '',
-    billing_email: currentOrganization?.billing_email || '',
-    billing_address_line1: currentOrganization?.billing_address_line1 || '',
-    billing_address_line2: currentOrganization?.billing_address_line2 || '',
-    billing_city: currentOrganization?.billing_city || '',
-    billing_postal_code: currentOrganization?.billing_postal_code || '',
-    billing_country: currentOrganization?.billing_country || 'FR',
+    billing_name: '',
+    billing_email: '',
+    billing_address_line1: '',
+    billing_address_line2: '',
+    billing_city: '',
+    billing_postal_code: '',
+    billing_country: 'FR',
   });
   const [saving, setSaving] = useState(false);
 
   // Sync form when org changes
-  useState(() => {
+  useEffect(() => {
     if (currentOrganization) {
+      const org = currentOrganization as any;
       setBillingForm({
-        billing_name: currentOrganization.billing_name || '',
-        billing_email: currentOrganization.billing_email || '',
-        billing_address_line1: currentOrganization.billing_address_line1 || '',
-        billing_address_line2: currentOrganization.billing_address_line2 || '',
-        billing_city: currentOrganization.billing_city || '',
-        billing_postal_code: currentOrganization.billing_postal_code || '',
-        billing_country: currentOrganization.billing_country || 'FR',
+        billing_name: org.billing_name || '',
+        billing_email: org.billing_email || '',
+        billing_address_line1: org.billing_address_line1 || '',
+        billing_address_line2: org.billing_address_line2 || '',
+        billing_city: org.billing_city || '',
+        billing_postal_code: org.billing_postal_code || '',
+        billing_country: org.billing_country || 'FR',
       });
     }
-  });
+  }, [currentOrganization]);
 
   const handleSaveBilling = async () => {
     if (!currentOrganization) return;

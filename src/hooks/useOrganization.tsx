@@ -161,7 +161,7 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
     try {
       const { error } = await supabase
         .from('organizations')
-        .update(updates)
+        .update(updates as any)
         .eq('id', id);
 
       if (error) throw error;
