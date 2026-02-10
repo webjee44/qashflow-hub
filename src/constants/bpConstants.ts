@@ -153,6 +153,31 @@ export const VARIABLE_EXPENSE_CATEGORIES = {
 
 export type VariableExpenseCategory = keyof typeof VARIABLE_EXPENSE_CATEGORIES;
 
+// Sous-comptes PCG pour les charges variables
+export const PCG_VARIABLE_SUBCATEGORIES: Record<VariableExpenseCategory, { code: string; label: string }[]> = {
+  cogs: [
+    { code: '6071', label: 'Achats de marchandises' },
+    { code: '6011', label: 'Achats de matières premières' },
+    { code: '6017', label: 'Achats de fournitures' },
+  ],
+  commission: [
+    { code: '6222', label: 'Commissions sur ventes' },
+    { code: '6221', label: 'Commissions et courtages' },
+  ],
+  shipping: [
+    { code: '6241', label: 'Transports sur achats' },
+    { code: '6242', label: 'Transports sur ventes' },
+    { code: '6248', label: 'Transports divers' },
+  ],
+  payment_fees: [
+    { code: '6275', label: 'Commissions cartes bancaires' },
+    { code: '6278', label: 'Autres frais de paiement' },
+  ],
+  other: [
+    { code: '6288', label: 'Charges variables diverses' },
+  ],
+};
+
 // Types de calcul des charges variables
 export const VARIABLE_CALCULATION_TYPES = {
   percentage: { label: '% du CA', description: 'Pourcentage du chiffre d\'affaires' },

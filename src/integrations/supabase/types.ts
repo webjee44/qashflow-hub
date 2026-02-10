@@ -1074,6 +1074,7 @@ export type Database = {
           linked_revenue_stream_id: string | null
           name: string
           notes: string | null
+          pcg_subcategory: string | null
           percentage: number | null
           start_date: string
           unit_cost: number | null
@@ -1094,6 +1095,7 @@ export type Database = {
           linked_revenue_stream_id?: string | null
           name: string
           notes?: string | null
+          pcg_subcategory?: string | null
           percentage?: number | null
           start_date?: string
           unit_cost?: number | null
@@ -1114,6 +1116,7 @@ export type Database = {
           linked_revenue_stream_id?: string | null
           name?: string
           notes?: string | null
+          pcg_subcategory?: string | null
           percentage?: number | null
           start_date?: string
           unit_cost?: number | null
