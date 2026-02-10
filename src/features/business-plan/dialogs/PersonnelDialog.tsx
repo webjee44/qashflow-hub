@@ -83,7 +83,7 @@ export function PersonnelDialog({ open, onOpenChange, personnel, onSave, default
     if (personnel) {
       setWorkerType(personnel.worker_type || 'employee');
       setPosition(personnel.position);
-      setGrossSalary((personnel.gross_salary * 12).toString());
+      setGrossSalary(Math.round(personnel.gross_salary * 12).toString());
       setDailyRate(personnel.daily_rate?.toString() || '');
       setEstimatedDays(personnel.estimated_days_per_month?.toString() || '');
       setStartDate(personnel.start_date);
