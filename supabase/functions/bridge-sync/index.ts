@@ -245,16 +245,37 @@ async function syncCompanyTransactions(
       const transactionType = bridgeClient.getTransactionType(transaction);
       const accountName = accountNameMap[transaction.account_id] || null;
       const description = bridgeClient.getTransactionDescription(transaction);
+      const absAmount = Math.abs(transaction.amount);
 
       // Check if already exists by bridge_transaction_id OR legacy pennylane_id
-      const existingId = existingByBridgeId.get(transaction.id) 
+      let existingId = existingByBridgeId.get(transaction.id) 
         || existingByPennylaneId.get(`bridge_${transaction.id}`);
+
+      // Phase 3: Fallback by signature if no ID match found
+      if (!existingId) {
+        const { data: signatureMatch } = await supabaseAdmin
+          .from('transactions')
+          .select('id')
+          .eq('company_id', correctCompanyId)
+          .eq('description', description)
+          .eq('date', transaction.date)
+          .eq('amount', absAmount)
+          .eq('type', transactionType)
+          .is('deleted_at', null)
+          .limit(1)
+          .maybeSingle();
+
+        if (signatureMatch) {
+          existingId = signatureMatch.id;
+          console.info(`[bridge-sync] Signature match found for bridge_tx ${transaction.id}`);
+        }
+      }
 
       if (existingId) {
         const { error } = await supabaseAdmin
           .from('transactions')
           .update({
-            amount: Math.abs(transaction.amount),
+            amount: absAmount,
             description: description,
             date: transaction.date,
             type: transactionType,
@@ -275,7 +296,7 @@ async function syncCompanyTransactions(
             company_id: correctCompanyId,
             bridge_transaction_id: transaction.id,
             pennylane_id: `bridge_${transaction.id}`,
-            amount: Math.abs(transaction.amount),
+            amount: absAmount,
             description: description,
             date: transaction.date,
             type: transactionType,
@@ -285,6 +306,7 @@ async function syncCompanyTransactions(
           });
 
         if (!error) insertedCount++;
+        else console.warn(`[bridge-sync] Insert failed (likely duplicate trigger):`, error.message);
       }
     }
   }
