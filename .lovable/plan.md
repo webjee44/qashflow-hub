@@ -1,60 +1,78 @@
 
-## Permettre l'edition manuelle sur les cellules "% du CA"
+## Passer de l'abonnement au Lifetime License 499€
 
-### Principe
+### Contexte
+Changement de modele commercial : au lieu d'un abonnement mensuel/annuel, on passe a une licence a vie (one-time payment) a **499€** au lieu de 1 000€ (soit -50%). L'essai gratuit de 30 jours est conserve.
 
-Actuellement, les cellules en mode `percent_of_revenue` sont en lecture seule et calculees automatiquement. L'idee est de permettre a l'utilisateur de cliquer sur une cellule pour saisir un montant en dur, avec :
+### Produit Stripe cree
+- **Product ID** : `prod_TxHiDrkeAaBxbk`
+- **Price ID** : `price_1SzN92Itjz0ztyfFAwU5xdOD`
+- **Montant** : 499€ (paiement unique)
 
-1. Une **sauvegarde manuelle** dans la table `category_forecasts` (qui existe deja)
-2. Un **indicateur visuel** (icone crayon / badge) signalant que la cellule est en override manuel
-3. La possibilite de **revenir au calcul auto** (supprimer l'override)
+---
 
-### Fonctionnement
+### Modifications
 
-```text
-Cellule % du CA
-   |
-   +-- Pas d'override en base --> calcul auto (% x CA HT)
-   |                               fond violet, tooltip explicatif
-   |
-   +-- Override present en base --> montant saisi en dur
-                                    fond violet + icone crayon
-                                    tooltip "Valeur manuelle - clic droit pour revenir en auto"
-```
+#### 1. `src/hooks/useSubscription.ts` — Configuration du plan
+- Remplacer les champs `price`, `annualPrice`, `annualMonthlyEquivalent`, `priceId`, `priceIdAnnual` par un seul `lifetimePrice: 499`, `originalPrice: 1000`, `priceId` lifetime
+- Mettre a jour `productId` vers `prod_TxHiDrkeAaBxbk`
+- Ajouter `discount: 50` (pourcentage de reduction)
+- La logique `check-subscription` reste compatible (verifie aussi les paiements one-time)
 
-### Modifications techniques
+#### 2. `supabase/functions/create-checkout/index.ts` — Mode payment
+- Changer `mode: "subscription"` en `mode: "payment"`
+- Retirer la logique `priceId` dynamique (un seul prix)
+- Hardcoder le price ID `price_1SzN92Itjz0ztyfFAwU5xdOD`
 
-**1. `src/hooks/useForecasts.ts` - getForecast()**
+#### 3. `supabase/functions/check-subscription/index.ts` — Verifier les paiements one-time
+- En plus de chercher les subscriptions actives, chercher aussi les `checkout.sessions` completed avec `mode: "payment"` pour le client
+- Ou chercher les `payment_intents` succeeded pour le customer
+- Si un paiement lifetime est trouve, retourner `subscribed: true, plan: "lifetime"`
 
-Dans la logique `percent_of_revenue`, verifier d'abord si un forecast manuel existe dans `category_forecasts` pour cette cellule. Si oui, retourner ce montant au lieu du calcul automatique.
+#### 4. `src/pages/Tarifs.tsx` — Refonte de la page pricing
+- Supprimer le toggle mensuel/annuel
+- Afficher le prix barre **1 000€** et le prix actuel **499€**
+- Remplacer "/mois" par "paiement unique"
+- Adapter le badge "OFFRE FLASH — Economisez 501€"
+- Adapter la FAQ (supprimer les questions sur abonnement mensuel/annuel, ajouter questions sur licence a vie)
+- Garder le CTA "Commencer l'essai gratuit" (30 jours) puis bouton "Acheter la licence"
+- Adapter le texte CTA final en bas de page
 
-Ajouter un helper `isManualOverride(categoryId, month)` qui retourne `true` si une entree existe en base pour une categorie en mode `percent_of_revenue`.
+#### 5. `src/components/layout/TrialExpiredBlocker.tsx` — Adapter le blocker
+- Remplacer "99€/mois" par "499€ — Licence a vie"
+- Adapter le bouton "Ajouter un moyen de paiement" vers "Acheter la licence"
 
-Ajouter une fonction `clearForecastOverride(categoryId, month)` pour supprimer l'entree manuelle et revenir au calcul auto.
+#### 6. `src/components/settings/BillingCard.tsx` — Adapter la facturation
+- Remplacer les boutons "S'abonner 99€/mois" et "Annuel" par un seul bouton "Acheter la licence — 499€"
+- Adapter l'affichage du statut : "Licence Lifetime" au lieu de "Plan PRO"
+- Supprimer "Prochain renouvellement" (pas de renouvellement en lifetime)
 
-**2. `src/components/forecasts/ForecastTable.tsx` - renderCell()**
+#### 7. `src/components/settings/OrganizationCard.tsx` — Adapter la carte org
+- Supprimer le toggle billing period (mensuel/annuel)
+- Afficher "499€ — Paiement unique" au lieu des prix mensuels/annuels
+- Afficher le prix barre 1 000€
+- Adapter le badge et le CTA
 
-Pour les cellules `isVariable` (bloc actuel lignes 391-443) :
-- Rendre la cellule **cliquable** pour entrer en mode edition (reutiliser la meme logique que les cellules manuelles)
-- Afficher un **petit icone crayon** quand la cellule a un override manuel
-- Ajouter un **menu contextuel** (clic droit ou bouton) pour "Revenir au calcul automatique"
-- Conserver le fond violet mais ajouter un indicateur subtil (bordure ou icone) pour distinguer auto vs manuel
-- Afficher un **toast d'avertissement** au premier clic : "Le calcul automatique sera desactive pour cette cellule"
+#### 8. `supabase/functions/customer-portal/index.ts` — Adapter le portail
+- Le portail Stripe reste utile pour consulter les factures, meme sans abonnement recurrent
 
-**3. Base de donnees**
+---
 
-Aucune migration necessaire. La table `category_forecasts` gere deja les montants par categorie/mois. La presence d'une ligne pour une categorie `percent_of_revenue` signifie "override manuel".
+### Details techniques
 
-### Details UX
+**Verification du paiement lifetime (check-subscription)** : on cherchera les `checkout.sessions` en mode `payment` avec `payment_status: "paid"` pour le customer. Si trouve, on retourne `subscribed: true, plan: "lifetime"`. Cela evite d'avoir besoin de webhooks.
 
-- **Cellule auto** : fond violet, tooltip avec la formule (% x CA), cliquable pour editer
-- **Cellule overridee** : fond violet + petit icone Edit3, tooltip "Valeur manuelle", menu contextuel pour reset
-- **Premier clic d'edition** : popover de confirmation "Le calcul auto sera desactive pour cette cellule. Continuer ?"
-- **Reset** : via menu contextuel (DropdownMenu) sur la cellule, option "Revenir au calcul auto" qui supprime la ligne en base
+**Essai gratuit** : conserve tel quel via le champ `trial_ends_at` sur l'organisation. L'essai ne passe plus par Stripe (pas de trial sur un one-time payment), il reste gere en interne.
 
 ### Fichiers concernes
 
 | Fichier | Modification |
 |---------|-------------|
-| `src/hooks/useForecasts.ts` | Priorite au forecast manuel, helpers `isManualOverride` et `clearForecastOverride` |
-| `src/components/forecasts/ForecastTable.tsx` | Cellules variables editables, indicateur visuel, menu contextuel reset |
+| `src/hooks/useSubscription.ts` | Config plan lifetime, prix, IDs Stripe |
+| `supabase/functions/create-checkout/index.ts` | mode: "payment", price ID unique |
+| `supabase/functions/check-subscription/index.ts` | Verifier paiements one-time |
+| `src/pages/Tarifs.tsx` | Refonte page tarifs lifetime |
+| `src/components/layout/TrialExpiredBlocker.tsx` | Texte et prix lifetime |
+| `src/components/settings/BillingCard.tsx` | Bouton et affichage lifetime |
+| `src/components/settings/OrganizationCard.tsx` | Carte org sans toggle billing |
+| `supabase/functions/customer-portal/index.ts` | Ajustements mineurs |
