@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useOrganization } from '@/hooks/useOrganization';
 import { useSubscription, PLANS } from '@/hooks/useSubscription';
-import { Building2, Crown, Calendar, CreditCard, Edit2, Save, X, Loader2, ExternalLink, Check, Sparkles } from 'lucide-react';
+import { Building2, Crown, CreditCard, Edit2, Save, X, Loader2, ExternalLink, Check, Sparkles, Zap, Users, Flame } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { toast } from 'sonner';
@@ -16,6 +16,7 @@ export const OrganizationCard = () => {
   const { currentOrganization, loading, updateOrganization, isOwner } = useOrganization();
   const { subscribed, subscription_end, checkoutLoading, createCheckout, openCustomerPortal } = useSubscription();
   const [isEditing, setIsEditing] = useState(false);
+  const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'annual'>('annual');
   const [name, setName] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -43,10 +44,11 @@ export const OrganizationCard = () => {
 
   const handleStartSubscription = async () => {
     const planConfig = PLANS.pro;
-    if (!planConfig.priceId) return;
+    const priceId = billingPeriod === 'annual' ? planConfig.priceIdAnnual : planConfig.priceId;
+    if (!priceId) return;
     
     try {
-      await createCheckout(planConfig.priceId);
+      await createCheckout(priceId);
       toast.success('Redirection vers la page de paiement...');
     } catch (error) {
       toast.error('Erreur lors de la création du checkout');
@@ -187,63 +189,121 @@ export const OrganizationCard = () => {
           </div>
         )}
 
-        {/* Plan Card */}
-        <div className="p-4 rounded-lg border bg-muted/30">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="font-semibold text-lg">Plan Pro</h3>
-              <p className="text-muted-foreground text-sm">Accès complet à toutes les fonctionnalités</p>
-            </div>
-            <div className="text-right">
-              <div className="text-2xl font-bold">{PLANS.pro.price}€</div>
-              <div className="text-sm text-muted-foreground">/mois</div>
-            </div>
+        {/* Social Proof */}
+        {!subscribed && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Users className="h-4 w-4 text-primary" />
+            <span><strong className="text-foreground">127 dirigeants</strong> utilisent Qashflow pour piloter leur trésorerie</span>
           </div>
-          
-          <ul className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-4">
-            {PLANS.pro.features.slice(0, 6).map((feature, i) => (
-              <li key={i} className="flex items-center gap-2 text-sm">
-                <Check className="w-4 h-4 text-primary flex-shrink-0" />
-                {feature}
-              </li>
-            ))}
-          </ul>
+        )}
 
-          {!subscribed ? (
-            <Button 
-              className="w-full" 
-              onClick={handleStartSubscription}
-              disabled={checkoutLoading}
-            >
-              {checkoutLoading ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <CreditCard className="h-4 w-4 mr-2" />
-              )}
-              {isInTrial ? 'Passer au plan payant' : 'S\'abonner maintenant'}
-            </Button>
-          ) : (
-            <div className="space-y-3">
-              {subscription_end && (
-                <p className="text-sm text-muted-foreground text-center">
-                  Prochain renouvellement : {format(new Date(subscription_end), 'dd MMMM yyyy', { locale: fr })}
-                </p>
-              )}
-              <Button 
-                variant="outline" 
-                className="w-full"
-                onClick={handleManageSubscription}
-                disabled={checkoutLoading}
+        {/* Plan Card */}
+        <div className="rounded-xl border-2 border-primary/20 bg-gradient-to-b from-primary/5 to-transparent overflow-hidden">
+          {/* Billing period toggle */}
+          {!subscribed && (
+            <div className="flex justify-center gap-1 p-3 bg-muted/50">
+              <button
+                onClick={() => setBillingPeriod('monthly')}
+                className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${
+                  billingPeriod === 'monthly' 
+                    ? 'bg-primary text-primary-foreground shadow-sm' 
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
               >
-                {checkoutLoading ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <ExternalLink className="h-4 w-4 mr-2" />
-                )}
-                Gérer mon abonnement
-              </Button>
+                Mensuel
+              </button>
+              <button
+                onClick={() => setBillingPeriod('annual')}
+                className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all flex items-center gap-1.5 ${
+                  billingPeriod === 'annual' 
+                    ? 'bg-primary text-primary-foreground shadow-sm' 
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Annuel
+                <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-destructive text-destructive-foreground">
+                  -50%
+                </Badge>
+              </button>
             </div>
           )}
+
+          <div className="p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="font-semibold text-lg">Plan Pro</h3>
+                <p className="text-muted-foreground text-sm">Accès complet à toutes les fonctionnalités</p>
+              </div>
+              <div className="text-right">
+                {billingPeriod === 'annual' && !subscribed ? (
+                  <>
+                    <div className="text-sm text-muted-foreground line-through">{PLANS.pro.price}€</div>
+                    <div className="text-3xl font-bold text-primary">{PLANS.pro.annualMonthlyEquivalent}€</div>
+                    <div className="text-sm text-muted-foreground">/mois</div>
+                    <div className="text-xs text-muted-foreground">facturé {PLANS.pro.annualPrice}€/an</div>
+                  </>
+                ) : (
+                  <>
+                    <div className="text-3xl font-bold">{PLANS.pro.price}€</div>
+                    <div className="text-sm text-muted-foreground">/mois</div>
+                  </>
+                )}
+              </div>
+            </div>
+            
+            <ul className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-5">
+              {PLANS.pro.features.slice(0, 6).map((feature, i) => (
+                <li key={i} className="flex items-center gap-2 text-sm">
+                  <Check className="w-4 h-4 text-primary flex-shrink-0" />
+                  {feature}
+                </li>
+              ))}
+            </ul>
+
+            {!subscribed ? (
+              <div className="space-y-3">
+                <Button 
+                  className="w-full h-12 text-base font-semibold gap-2" 
+                  onClick={handleStartSubscription}
+                  disabled={checkoutLoading}
+                >
+                  {checkoutLoading ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <Zap className="h-5 w-5" />
+                  )}
+                  {isInTrial ? 'Passer au plan payant' : 'S\'abonner maintenant'}
+                </Button>
+                
+                {/* Scarcity */}
+                <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
+                  <Flame className="h-3.5 w-3.5 text-orange-500" />
+                  <span>Offre annuelle -50% — <strong className="text-foreground">plus que 12 places</strong> à ce tarif</span>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {subscription_end && (
+                  <p className="text-sm text-muted-foreground text-center">
+                    Prochain renouvellement : {format(new Date(subscription_end), 'dd MMMM yyyy', { locale: fr })}
+                  </p>
+                )}
+                <Button 
+                  variant="outline" 
+                  className="w-full"
+                  onClick={handleManageSubscription}
+                  disabled={checkoutLoading}
+                >
+                  {checkoutLoading ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                  )}
+                  Gérer mon abonnement
+                </Button>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Organization Stats */}
