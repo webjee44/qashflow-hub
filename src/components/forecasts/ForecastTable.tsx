@@ -60,6 +60,8 @@ export function ForecastTable() {
     months, 
     getForecast, 
     getForecastSource,
+    isManualOverride,
+    clearForecastOverride,
     getActual, 
     getVatForecast, 
     getVatActual,
@@ -76,6 +78,10 @@ export function ForecastTable() {
     extendBefore,
     extendAfter,
   } = useForecasts();
+  
+  // Track if user has been warned about override (per session)
+  const [overrideWarningShown, setOverrideWarningShown] = useState(false);
+  const [pendingOverrideCell, setPendingOverrideCell] = useState<{ categoryId: string; monthIndex: number; currentValue: number } | null>(null);
   const [editingCell, setEditingCell] = useState<string | null>(null);
   const [editValue, setEditValue] = useState<string>('');
   const [showCopyOption, setShowCopyOption] = useState(false);
@@ -392,27 +398,108 @@ export function ForecastTable() {
     if (isVariable) {
       const incomeForecastTotal = getIncomeForecastTotal(months[monthIndex]);
       const forecastPercent = category.forecast_percent ?? 0;
+      const hasOverride = isManualOverride(categoryId, months[monthIndex]);
+      
+      const handleVariableCellClick = () => {
+        if (pendingSave || showCopyOption || isSaving) return;
+        if (!hasOverride && !overrideWarningShown) {
+          setPendingOverrideCell({ categoryId, monthIndex, currentValue: forecast });
+          return;
+        }
+        handleCellClick(categoryId, monthIndex, forecast);
+      };
+
+      const handleResetToAuto = () => {
+        clearForecastOverride.mutate({ categoryId, month: months[monthIndex] });
+      };
+
+      const variableTooltip = hasOverride
+        ? "Valeur manuelle — clic droit pour revenir en auto"
+        : `${forecastPercent}% × ${formatValue(incomeForecastTotal)} (CA prévu HT) = ${formatValue(forecast)}`;
       
       if (periodType === 'future') {
         return (
           <td key={cellKey} className="p-0 border-r border-border min-w-[90px]">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="px-3 py-2 text-right bg-violet-500/10 cursor-default">
-                  <span className={totalForecast > 0 ? "text-foreground" : "text-muted-foreground"}>
-                    {totalForecast > 0 ? formatValue(totalForecast) : '—'}
-                  </span>
-                </div>
-              </TooltipTrigger>
-              <TooltipContent side="top" className="text-xs max-w-[280px]">
-                {forecastPercent}% × {formatValue(incomeForecastTotal)} (CA prévu HT) = {formatValue(forecast)}
-              </TooltipContent>
-            </Tooltip>
+            <DropdownMenu>
+              <Popover open={showingCopyForThis} onOpenChange={(open) => {
+                if (!open && showingCopyForThis && !isSaving) {
+                  handleSave(categoryId, monthIndex, 'single');
+                }
+              }}>
+                <PopoverTrigger asChild>
+                  <DropdownMenuTrigger asChild>
+                    <div 
+                      className={cn(
+                        "px-3 py-2 text-right cursor-pointer hover:bg-violet-500/20 transition-colors relative",
+                        hasOverride ? "bg-violet-500/15 border-l-2 border-violet-500" : "bg-violet-500/10"
+                      )}
+                      onClick={(e) => {
+                        // Left click = edit
+                        if (e.button === 0 && !e.ctrlKey) {
+                          e.preventDefault();
+                          handleVariableCellClick();
+                        }
+                      }}
+                      onContextMenu={(e) => {
+                        if (hasOverride) {
+                          // Allow context menu to open
+                        } else {
+                          e.preventDefault();
+                        }
+                      }}
+                    >
+                      {hasOverride && !isEditing && (
+                        <Edit3 className="w-3 h-3 text-violet-500 absolute top-1 left-1 opacity-70" />
+                      )}
+                      {isEditing ? (
+                        <input
+                          ref={inputRef}
+                          type="number"
+                          value={editValue}
+                          onChange={(e) => setEditValue(e.target.value)}
+                          onBlur={() => handleInputBlur(categoryId, monthIndex, type)}
+                          onKeyDown={(e) => handleKeyDown(e, categoryId, monthIndex, type)}
+                          className="w-full bg-background border border-primary rounded px-2 py-0.5 text-right text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                        />
+                      ) : (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className={totalForecast > 0 ? "text-foreground" : "text-muted-foreground"}>
+                              {totalForecast > 0 ? formatValue(totalForecast) : '—'}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="text-xs max-w-[280px]">
+                            {variableTooltip}
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
+                    </div>
+                  </DropdownMenuTrigger>
+                </PopoverTrigger>
+                <PopoverContent className="w-64 p-2" side="bottom" align="end">
+                  <div className="flex flex-col gap-1">
+                    <Button variant="ghost" size="sm" className="justify-start gap-2" onClick={() => handleSave(categoryId, monthIndex, 'single')}>
+                      <Check className="w-4 h-4" /> Ce mois uniquement
+                    </Button>
+                    <Button variant="ghost" size="sm" className="justify-start gap-2 text-primary" onClick={() => handleSave(categoryId, monthIndex, 'copy')}>
+                      <Copy className="w-4 h-4" /> Copier sur les mois suivants
+                    </Button>
+                  </div>
+                </PopoverContent>
+              </Popover>
+              {hasOverride && (
+                <DropdownMenuContent className="bg-popover" align="end">
+                  <DropdownMenuItem onClick={handleResetToAuto} className="gap-2 text-violet-600">
+                    <TrendingUp className="w-4 h-4" /> Revenir au calcul automatique
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              )}
+            </DropdownMenu>
           </td>
         );
       }
       
-      // Current month: actual + non-editable forecast
+      // Current month: actual + editable forecast for variable
       return (
         <td key={cellKey} className="p-0 border-r border-border min-w-[160px]">
           <div className="flex">
@@ -426,18 +513,76 @@ export function ForecastTable() {
             >
               {hasActual ? formatValue(Math.abs(actual)) : '—'}
             </div>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="flex-1 px-3 py-2 text-right bg-violet-500/10 cursor-default">
-                  <span className={totalForecast > 0 ? "text-foreground" : "text-muted-foreground"}>
-                    {totalForecast > 0 ? formatValue(totalForecast) : '—'}
-                  </span>
-                </div>
-              </TooltipTrigger>
-              <TooltipContent side="top" className="text-xs max-w-[280px]">
-                {forecastPercent}% × {formatValue(incomeForecastTotal)} (CA prévu HT) = {formatValue(forecast)}
-              </TooltipContent>
-            </Tooltip>
+            <DropdownMenu>
+              <Popover open={showingCopyForThis} onOpenChange={(open) => {
+                if (!open && showingCopyForThis && !isSaving) {
+                  handleSave(categoryId, monthIndex, 'single');
+                }
+              }}>
+                <PopoverTrigger asChild>
+                  <DropdownMenuTrigger asChild>
+                    <div 
+                      className={cn(
+                        "flex-1 px-3 py-2 text-right cursor-pointer hover:bg-violet-500/20 transition-colors relative",
+                        hasOverride ? "bg-violet-500/15 border-l-2 border-violet-500" : "bg-violet-500/10"
+                      )}
+                      onClick={(e) => {
+                        if (e.button === 0 && !e.ctrlKey) {
+                          e.preventDefault();
+                          handleVariableCellClick();
+                        }
+                      }}
+                      onContextMenu={(e) => {
+                        if (!hasOverride) e.preventDefault();
+                      }}
+                    >
+                      {hasOverride && !isEditing && (
+                        <Edit3 className="w-3 h-3 text-violet-500 absolute top-1 left-1 opacity-70" />
+                      )}
+                      {isEditing ? (
+                        <input
+                          ref={inputRef}
+                          type="number"
+                          value={editValue}
+                          onChange={(e) => setEditValue(e.target.value)}
+                          onBlur={() => handleInputBlur(categoryId, monthIndex, type)}
+                          onKeyDown={(e) => handleKeyDown(e, categoryId, monthIndex, type)}
+                          className="w-full bg-background border border-primary rounded px-2 py-0.5 text-right text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                        />
+                      ) : (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className={totalForecast > 0 ? "text-foreground" : "text-muted-foreground"}>
+                              {totalForecast > 0 ? formatValue(totalForecast) : '—'}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="text-xs max-w-[280px]">
+                            {variableTooltip}
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
+                    </div>
+                  </DropdownMenuTrigger>
+                </PopoverTrigger>
+                <PopoverContent className="w-64 p-2" side="bottom" align="end">
+                  <div className="flex flex-col gap-1">
+                    <Button variant="ghost" size="sm" className="justify-start gap-2" onClick={() => handleSave(categoryId, monthIndex, 'single')}>
+                      <Check className="w-4 h-4" /> Ce mois uniquement
+                    </Button>
+                    <Button variant="ghost" size="sm" className="justify-start gap-2 text-primary" onClick={() => handleSave(categoryId, monthIndex, 'copy')}>
+                      <Copy className="w-4 h-4" /> Copier sur les mois suivants
+                    </Button>
+                  </div>
+                </PopoverContent>
+              </Popover>
+              {hasOverride && (
+                <DropdownMenuContent className="bg-popover" align="end">
+                  <DropdownMenuItem onClick={handleResetToAuto} className="gap-2 text-violet-600">
+                    <TrendingUp className="w-4 h-4" /> Revenir au calcul automatique
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              )}
+            </DropdownMenu>
           </div>
         </td>
       );
@@ -1710,6 +1855,32 @@ export function ForecastTable() {
           forecastAmount={transactionDetailData.forecast}
         />
       )}
+
+      {/* Override confirmation dialog */}
+      <AlertDialog open={!!pendingOverrideCell} onOpenChange={(open) => {
+        if (!open) setPendingOverrideCell(null);
+      }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Désactiver le calcul automatique ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cette cellule est calculée automatiquement (% du CA). En saisissant une valeur manuellement, le calcul auto sera désactivé pour cette cellule. Vous pourrez revenir au calcul auto via un clic droit.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              if (pendingOverrideCell) {
+                setOverrideWarningShown(true);
+                handleCellClick(pendingOverrideCell.categoryId, pendingOverrideCell.monthIndex, pendingOverrideCell.currentValue);
+                setPendingOverrideCell(null);
+              }
+            }}>
+              Continuer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
