@@ -261,25 +261,45 @@ export function PersonnelTable({ onEdit, bonuses = [], onEditBonus, onDeleteBonu
         </TableBody>
       </Table>
 
-      {/* Summary */}
-      <div className="flex justify-end gap-6 p-4 bg-muted/50 rounded-lg">
-        <div className="text-right">
-          <p className="text-sm text-muted-foreground">Salaires bruts</p>
-          <p className="text-lg font-semibold">{formatCurrency(totalGrossSalaries)}</p>
-        </div>
-        <div className="text-right">
-          <p className="text-sm text-muted-foreground">Charges patronales</p>
-          <p className="text-lg font-semibold">{formatCurrency(totalCharges)}</p>
-        </div>
-        {totalBonuses > 0 && (
-          <div className="text-right">
-            <p className="text-sm text-muted-foreground">Primes annuelles</p>
-            <p className="text-lg font-semibold text-emerald-600 dark:text-emerald-400">{formatCurrency(totalBonuses)}</p>
+      {/* Récap détaillé */}
+      <div className="border rounded-lg overflow-hidden">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 divide-x divide-y bg-muted/30">
+          <div className="p-4 text-center">
+            <p className="text-xs text-muted-foreground mb-1">Salaires bruts</p>
+            <p className="text-lg font-semibold">{formatCurrency(totalGrossSalaries)}</p>
           </div>
-        )}
-        <div className="text-right">
-          <p className="text-sm text-muted-foreground">Coût total mensuel</p>
-          <p className="text-xl font-bold text-destructive">{formatCurrency(totalEmployeeCost)}</p>
+          <div className="p-4 text-center">
+            <p className="text-xs text-muted-foreground mb-1">Charges proportionnelles</p>
+            <p className="text-lg font-semibold">{formatCurrency(totalProportionalCharges)}</p>
+            <p className="text-xs text-muted-foreground">
+              {totalGrossSalaries > 0 ? `${((totalProportionalCharges / totalGrossSalaries) * 100).toFixed(1)}% du brut` : '–'}
+            </p>
+          </div>
+          <div className="p-4 text-center">
+            <p className="text-xs text-muted-foreground mb-1">Mutuelle employeur</p>
+            <p className="text-lg font-semibold">{formatCurrency(totalMutuelle)}</p>
+            <p className="text-xs text-muted-foreground">{employees.length} salarié{employees.length > 1 ? 's' : ''}</p>
+          </div>
+          <div className="p-4 text-center">
+            <p className="text-xs text-muted-foreground mb-1">Total charges</p>
+            <p className="text-lg font-semibold">{formatCurrency(totalCharges)}</p>
+            <p className="text-xs text-muted-foreground">
+              {totalGrossSalaries > 0 ? `${((totalCharges / totalGrossSalaries) * 100).toFixed(1)}% du brut` : '–'}
+            </p>
+          </div>
+          {totalBonuses > 0 && (
+            <div className="p-4 text-center">
+              <p className="text-xs text-muted-foreground mb-1">Primes annuelles</p>
+              <p className="text-lg font-semibold text-emerald-600 dark:text-emerald-400">{formatCurrency(totalBonuses)}</p>
+            </div>
+          )}
+          <div className="p-4 text-center bg-muted/50">
+            <p className="text-xs text-muted-foreground mb-1">Coût total mensuel</p>
+            <p className="text-xl font-bold text-destructive">{formatCurrency(totalEmployeeCost)}</p>
+            <p className="text-xs text-muted-foreground">
+              {formatCurrency(totalEmployeeCost * 12)} / an
+            </p>
+          </div>
         </div>
       </div>
     </div>
