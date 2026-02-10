@@ -1,90 +1,60 @@
 
+## Permettre l'edition manuelle sur les cellules "% du CA"
 
-# Facturation isolee par organisation
+### Principe
 
-## Concept
+Actuellement, les cellules en mode `percent_of_revenue` sont en lecture seule et calculees automatiquement. L'idee est de permettre a l'utilisateur de cliquer sur une cellule pour saisir un montant en dur, avec :
 
-Aujourd'hui, tu as une seule organisation "GROUPE TRADEFLIX" avec toutes tes societes dedans. L'abonnement est lie a ton compte utilisateur, pas a l'organisation.
+1. Une **sauvegarde manuelle** dans la table `category_forecasts` (qui existe deja)
+2. Un **indicateur visuel** (icone crayon / badge) signalant que la cellule est en override manuel
+3. La possibilite de **revenir au calcul auto** (supprimer l'override)
 
-Pour isoler Vapeclub sur la facturation, la solution la plus simple est de **creer une seconde organisation dediee a Vapeclub**, avec son propre abonnement Stripe et ses propres coordonnees de facturation.
+### Fonctionnement
 
 ```text
-Avant :
-  GROUPE TRADEFLIX (1 abonnement sur ton email)
-    ├── Holding
-    ├── Vapeclub
-    └── Autre societe
-
-Apres :
-  GROUPE TRADEFLIX (abonnement A)         VAPECLUB (abonnement B)
-    ├── Holding                              └── Vapeclub SAS
-    └── Autre societe
+Cellule % du CA
+   |
+   +-- Pas d'override en base --> calcul auto (% x CA HT)
+   |                               fond violet, tooltip explicatif
+   |
+   +-- Override present en base --> montant saisi en dur
+                                    fond violet + icone crayon
+                                    tooltip "Valeur manuelle - clic droit pour revenir en auto"
 ```
 
-Tu restes proprietaire des deux organisations. Tu bascules de l'une a l'autre via un selecteur dans l'interface. Chaque organisation a :
-- Son propre abonnement Stripe (factures separees)
-- Son adresse de facturation propre
-- Ses propres societes, comptes bancaires, transactions, etc.
+### Modifications techniques
 
-## Ce qui change pour toi au quotidien
+**1. `src/hooks/useForecasts.ts` - getForecast()**
 
-- Un **selecteur d'organisation** apparait dans la barre laterale (en plus du selecteur de societe existant)
-- Quand tu es sur "GROUPE TRADEFLIX", tu vois tes societes du groupe
-- Quand tu bascules sur "VAPECLUB", tu vois uniquement cette entite
-- Les factures Stripe de chaque organisation sont completement independantes
+Dans la logique `percent_of_revenue`, verifier d'abord si un forecast manuel existe dans `category_forecasts` pour cette cellule. Si oui, retourner ce montant au lieu du calcul automatique.
 
-## Plan technique
+Ajouter un helper `isManualOverride(categoryId, month)` qui retourne `true` si une entree existe en base pour une categorie en mode `percent_of_revenue`.
 
-### 1. Ajouter les infos de facturation sur l'organisation
+Ajouter une fonction `clearForecastOverride(categoryId, month)` pour supprimer l'entree manuelle et revenir au calcul auto.
 
-Ajouter des colonnes a la table `organizations` :
-- `billing_name` : raison sociale pour la facturation
-- `billing_email` : email de facturation
-- `billing_address_line1`, `billing_address_line2`, `billing_city`, `billing_postal_code`, `billing_country` : adresse de facturation
+**2. `src/components/forecasts/ForecastTable.tsx` - renderCell()**
 
-### 2. Migrer l'abonnement de "par utilisateur" a "par organisation"
+Pour les cellules `isVariable` (bloc actuel lignes 391-443) :
+- Rendre la cellule **cliquable** pour entrer en mode edition (reutiliser la meme logique que les cellules manuelles)
+- Afficher un **petit icone crayon** quand la cellule a un override manuel
+- Ajouter un **menu contextuel** (clic droit ou bouton) pour "Revenir au calcul automatique"
+- Conserver le fond violet mais ajouter un indicateur subtil (bordure ou icone) pour distinguer auto vs manuel
+- Afficher un **toast d'avertissement** au premier clic : "Le calcul automatique sera desactive pour cette cellule"
 
-Modifier les edge functions Stripe pour utiliser l'organisation comme unite de facturation :
-- **create-checkout** : recevoir un `organization_id`, creer le customer Stripe avec les infos de facturation de l'organisation, stocker le `stripe_customer_id` sur l'organisation
-- **check-subscription** : recevoir un `organization_id`, verifier l'abonnement de cette organisation (pas de l'email utilisateur)
-- **customer-portal** : recevoir un `organization_id`, ouvrir le portail Stripe du customer de cette organisation
+**3. Base de donnees**
 
-### 3. Ajouter un selecteur d'organisation dans l'interface
+Aucune migration necessaire. La table `category_forecasts` gere deja les montants par categorie/mois. La presence d'une ligne pour une categorie `percent_of_revenue` signifie "override manuel".
 
-- Modifier la sidebar pour afficher un selecteur d'organisation quand l'utilisateur est membre de plusieurs organisations
-- Au changement d'organisation, mettre a jour le contexte et recharger les societes correspondantes
-- Le selecteur de societe existant se filtre automatiquement sur l'organisation selectionnee
+### Details UX
 
-### 4. Formulaire de facturation dans les parametres
+- **Cellule auto** : fond violet, tooltip avec la formule (% x CA), cliquable pour editer
+- **Cellule overridee** : fond violet + petit icone Edit3, tooltip "Valeur manuelle", menu contextuel pour reset
+- **Premier clic d'edition** : popover de confirmation "Le calcul auto sera desactive pour cette cellule. Continuer ?"
+- **Reset** : via menu contextuel (DropdownMenu) sur la cellule, option "Revenir au calcul auto" qui supprime la ligne en base
 
-- Ajouter un onglet ou une section "Facturation" dans les parametres
-- Formulaire pour renseigner la raison sociale, l'email de facturation et l'adresse
-- Bouton pour acceder au portail Stripe de l'organisation courante
-- Bouton pour s'abonner si l'organisation n'a pas encore d'abonnement
+### Fichiers concernes
 
-### 5. Permettre la creation d'une nouvelle organisation
-
-- Ajouter un bouton "Creer une organisation" dans le selecteur d'organisation
-- Dialogue simple : nom de l'organisation + infos de facturation
-- L'utilisateur est automatiquement proprietaire de la nouvelle organisation
-- Les societes peuvent etre deplacees d'une organisation a l'autre (optionnel, phase 2)
-
-## Fichiers concernes
-
-- Migration SQL : ajout colonnes facturation sur `organizations`
-- `supabase/functions/create-checkout/index.ts` : passer a la facturation par organisation
-- `supabase/functions/check-subscription/index.ts` : verifier par organisation
-- `supabase/functions/customer-portal/index.ts` : portail par organisation
-- `src/hooks/useSubscription.ts` : passer l'organisation courante
-- `src/hooks/useOrganization.tsx` : selecteur multi-organisation
-- `src/hooks/useCompany.tsx` : filtrer les societes par organisation
-- `src/components/layout/Sidebar.tsx` : selecteur d'organisation
-- `src/pages/Settings.tsx` : section facturation
-
-## Ce qui ne change PAS
-
-- L'isolation des donnees par societe reste identique
-- Le selecteur de societe existant fonctionne comme avant (filtre par l'organisation selectionnee)
-- Les fonctionnalites treasury et business plan ne sont pas impactees
-- Les membres invites peuvent etre dans une seule ou plusieurs organisations selon les invitations
-
+| Fichier | Modification |
+|---------|-------------|
+| `src/hooks/useForecasts.ts` | Priorite au forecast manuel, helpers `isManualOverride` et `clearForecastOverride` |
+| `src/components/forecasts/ForecastTable.tsx` | Cellules variables editables, indicateur visuel, menu contextuel reset |
