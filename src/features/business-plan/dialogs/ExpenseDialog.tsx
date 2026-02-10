@@ -114,7 +114,7 @@ export function ExpenseDialog({
         setAmount(expense.monthly_amount.toString());
         setPaymentFrequency(expense.payment_frequency || 'monthly');
         setPaymentMonths(expense.payment_months || DEFAULT_PAYMENT_MONTHS[expense.payment_frequency || 'monthly']);
-        setPcgSubcategory(expense.pcg_subcategory || 'none');
+        setPcgSubcategory(expense.pcg_subcategory || '');
         setVatRate(expense.vat_rate ?? 0.20);
         setIsVatDeductible(expense.is_vat_deductible ?? true);
       } else {
@@ -157,10 +157,13 @@ export function ExpenseDialog({
     }
   }, [expense, open, settings.bp_start_date]);
 
-  // Reset PCG subcategory when category changes
+  // Auto-select first PCG subcategory when category changes
   useEffect(() => {
-    if (!expense) {
-      setPcgSubcategory('none');
+    const subs = PCG_SUBCATEGORIES[fixedCategory] || [];
+    if (!expense && subs.length > 0) {
+      setPcgSubcategory(subs[0].code);
+    } else if (!expense) {
+      setPcgSubcategory('');
     }
   }, [fixedCategory, expense]);
 
@@ -181,6 +184,10 @@ export function ExpenseDialog({
 
   const handleSave = () => {
     if (expenseType === 'fixed') {
+      const subs = PCG_SUBCATEGORIES[fixedCategory] || [];
+      if (subs.length > 0 && (!pcgSubcategory || pcgSubcategory === 'none')) {
+        return;
+      }
       const amountValue = parseFloat(amount) || 0;
       onSaveFixed({
         id: expense?.expenseType === 'fixed' ? expense.id : undefined,
@@ -313,14 +320,13 @@ export function ExpenseDialog({
                 <div className="grid gap-2">
                   <Label className="flex items-center gap-2">
                     Compte PCG
-                    <span className="text-xs text-muted-foreground font-normal">(optionnel)</span>
+                    <span className="text-xs text-destructive font-normal">*</span>
                   </Label>
                   <Select value={pcgSubcategory} onValueChange={setPcgSubcategory}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Non précisé" />
+                    <SelectTrigger className={!pcgSubcategory || pcgSubcategory === 'none' ? 'border-destructive' : ''}>
+                      <SelectValue placeholder="Sélectionner un compte" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">Non précisé</SelectItem>
                       {availablePcgSubcategories.map(({ code, label }) => (
                         <SelectItem key={code} value={code}>
                           {code} - {label}
@@ -328,6 +334,9 @@ export function ExpenseDialog({
                       ))}
                     </SelectContent>
                   </Select>
+                  {(!pcgSubcategory || pcgSubcategory === 'none') && (
+                    <p className="text-xs text-destructive">Le compte PCG est obligatoire</p>
+                  )}
                 </div>
               )}
 
