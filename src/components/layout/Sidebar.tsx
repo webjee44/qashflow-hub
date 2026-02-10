@@ -208,8 +208,8 @@ export function Sidebar() {
         </button>
       </div>
 
-      {/* Organization Selector */}
-      {organizations.length > 1 && (
+      {/* Organization Selector - always show to display current org name */}
+      {organizations.length >= 1 && (
         <div className={cn("border-b border-border", isCollapsed ? "px-2 py-2" : "px-4 py-3")}>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
