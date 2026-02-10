@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Edit, Trash2, Building2, Shield, Laptop, Megaphone, Zap, MoreHorizontal, Briefcase, CalendarClock, Copy, Filter, Phone, Landmark, Plane, Building, X, Percent, Hash, Loader2 } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -8,7 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useBPFixedExpenses, BPFixedExpense, FIXED_EXPENSE_CATEGORIES, PAYMENT_FREQUENCIES } from '@/hooks/useBPFixedExpenses';
 import { useVariableExpenses, VariableExpense, VARIABLE_EXPENSE_CATEGORIES } from '@/hooks/useVariableExpenses';
-import { useRevenueStreams } from '@/hooks/useRevenueStreams';
+import { useRevenueStreams } from '../hooks/useRevenueStreams';
+import { useBPSettings } from '@/hooks/useBPSettings';
 import { getPCGSubcategoryLabel } from '@/constants/bpConstants';
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -53,10 +54,44 @@ export function ExpenseTable({ onEdit }: ExpenseTableProps) {
   const { 
     expenses: variableExpenses, 
     deleteExpense: deleteVariable, 
-    isLoading: isLoadingVariable 
+    isLoading: isLoadingVariable,
+    calculateVariableExpenseForMonth,
   } = useVariableExpenses();
 
-  const { streams } = useRevenueStreams();
+  const { streams, forecasts } = useRevenueStreams();
+  const { settings } = useBPSettings();
+
+  // Compute annual estimated € for each variable expense (Year 1)
+  const variableEstimates = useMemo(() => {
+    const estimates = new Map<string, number>();
+    if (!settings.bp_start_date || !streams.length) return estimates;
+
+    const startDate = new Date(settings.bp_start_date);
+    const startMonth = settings.fiscal_year_start_month || (startDate.getMonth() + 1);
+    const startYear = startDate.getFullYear();
+
+    variableExpenses.forEach(expense => {
+      let annualTotal = 0;
+      for (let m = 0; m < 12; m++) {
+        const monthDate = new Date(startYear, startMonth - 1 + m, 1);
+        const monthKey = `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, '0')}`;
+        
+        const revenueByStream = new Map<string | null, { amount: number; units: number }>();
+        streams.forEach(stream => {
+          const forecast = forecasts.find(f => f.stream_id === stream.id && f.month === monthKey);
+          revenueByStream.set(stream.id, {
+            amount: forecast?.amount || 0,
+            units: forecast?.units || 0,
+          });
+        });
+
+        annualTotal += calculateVariableExpenseForMonth(expense, monthDate, revenueByStream);
+      }
+      estimates.set(expense.id, annualTotal);
+    });
+
+    return estimates;
+  }, [variableExpenses, streams, forecasts, settings, calculateVariableExpenseForMonth]);
 
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [deleteId, setDeleteId] = useState<{ id: string; type: 'fixed' | 'variable' } | null>(null);
@@ -222,17 +257,26 @@ export function ExpenseTable({ onEdit }: ExpenseTableProps) {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-2">
-                        {varExpense.calculation_type === 'percentage' ? (
-                          <span className="font-mono text-destructive">{varExpense.percentage}%</span>
-                        ) : (
-                          <span className="font-mono text-destructive">{formatCurrency(varExpense.unit_cost)}/u</span>
-                        )}
-                        {varExpense.calculation_type === 'percentage' ? (
-                          <Percent className="h-3 w-3 text-muted-foreground" />
-                        ) : (
-                          <Hash className="h-3 w-3 text-muted-foreground" />
-                        )}
+                      <div className="flex flex-col">
+                        <div className="flex items-center gap-2">
+                          {varExpense.calculation_type === 'percentage' ? (
+                            <span className="font-mono text-destructive">{varExpense.percentage}% du CA</span>
+                          ) : (
+                            <span className="font-mono text-destructive">{formatCurrency(varExpense.unit_cost)}/unité</span>
+                          )}
+                        </div>
+                        {(() => {
+                          const estimate = variableEstimates.get(varExpense.id);
+                          return estimate != null && estimate > 0 ? (
+                            <span className="text-xs text-muted-foreground">
+                              ≈ {formatCurrency(estimate)}/an
+                            </span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground italic">
+                              Aucun CA prévu
+                            </span>
+                          );
+                        })()}
                       </div>
                     </TableCell>
                     <TableCell>
