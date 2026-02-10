@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
+import { useOrganization } from './useOrganization';
 import { toast } from 'sonner';
 
 export interface Company {
@@ -37,20 +38,24 @@ const STORAGE_KEY = 'selected_company_id';
 
 export function CompanyProvider({ children }: { children: ReactNode }) {
   const { user, loading: authLoading } = useAuth();
+  const { currentOrganization } = useOrganization();
   const queryClient = useQueryClient();
   const [currentCompany, setCurrentCompanyState] = useState<Company | null>(null);
   const [hasInitialized, setHasInitialized] = useState(false);
 
-  // Fetch companies
+  const orgId = currentOrganization?.id;
+
+  // Fetch companies filtered by current organization
   const { data: companies = [], isLoading, refetch } = useQuery({
-    queryKey: ['companies', user?.id],
+    queryKey: ['companies', user?.id, orgId],
     queryFn: async () => {
-      if (!user?.id) return [];
+      if (!user?.id || !orgId) return [];
       
       const { data, error } = await supabase
         .from('companies')
         .select('*')
-        .is('deleted_at', null) // Filter out soft-deleted companies
+        .eq('organization_id', orgId)
+        .is('deleted_at', null)
         .order('is_default', { ascending: false })
         .order('created_at', { ascending: true });
       
@@ -58,7 +63,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
 
       return (data || []) as Company[];
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && !!orgId,
   });
 
   // Set current company from localStorage or default - runs once when companies are loaded
@@ -100,6 +105,12 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
       localStorage.removeItem(STORAGE_KEY);
     }
   }, [user, authLoading]);
+
+  // Reset initialization when organization changes
+  useEffect(() => {
+    setHasInitialized(false);
+    setCurrentCompanyState(null);
+  }, [orgId]);
 
   const setCurrentCompany = (company: Company | null) => {
     const previousCompanyId = currentCompany?.id;
@@ -143,14 +154,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
   // Create company
   const createCompany = async (data: { name: string; initial_balance?: number; is_default?: boolean }): Promise<Company> => {
     if (!user?.id) throw new Error('Non authentifié');
-
-    // Récupérer l'organization_id de l'utilisateur
-    const { data: membership } = await supabase
-      .from('organization_members')
-      .select('organization_id')
-      .eq('user_id', user.id)
-      .limit(1)
-      .single();
+    if (!orgId) throw new Error('Aucune organisation sélectionnée');
 
     // If this is the first company or is_default is true, make it default
     const isDefault = data.is_default || companies.length === 0;
@@ -167,7 +171,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
       .from('companies')
       .insert({
         user_id: user.id,
-        organization_id: membership?.organization_id || null,
+        organization_id: orgId,
         name: data.name,
         initial_balance: data.initial_balance || 0,
         is_default: isDefault,
