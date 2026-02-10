@@ -581,8 +581,10 @@ export function useProfitLoss() {
 
     // B. Services extérieurs (61/62) - Inclut le crédit-bail (612)
     const externalServicesValues = calculateYearlyValues(month => {
-      // Fixed expenses that are services
-      const serviceCategories = ['rent', 'insurance', 'software', 'telecom', 'marketing', 'professional_fees', 'banking', 'travel'];
+      // Fixed expenses that are services (61/62)
+      // rent (613), insurance (616), telecom (626), marketing (623), 
+      // professional_fees (622), banking (627), travel (625), utilities (606)
+      const serviceCategories = ['rent', 'insurance', 'telecom', 'marketing', 'professional_fees', 'banking', 'travel', 'utilities'];
       const servicesTotal = fixedExpenses
         .filter(e => serviceCategories.includes(e.category || ''))
         .reduce((sum, e) => sum + getFixedExpenseForMonth(e, month), 0);
@@ -668,17 +670,27 @@ export function useProfitLoss() {
       rows.push({ label: 'Total rémunération dirigeants', type: 'subtotal', values: directorTotalValues, isExpense: true, sectionType: 'expense' });
     }
 
-    // E. Autres charges de gestion courante (65)
+    // E. Fournitures de bureau et consommables (606)
+    const officeSuppliesValues = calculateYearlyValues(month => 
+      fixedExpenses
+        .filter(e => e.category === 'office')
+        .reduce((sum, e) => sum + getFixedExpenseForMonth(e, month), 0)
+    );
+    if (officeSuppliesValues.some(v => v > 0)) {
+      rows.push({ label: 'Fournitures de bureau (606)', type: 'item', values: officeSuppliesValues, isExpense: true, indent: 1, sectionType: 'expense', pcgCode: '606' });
+    }
+
+    // F. Autres charges de gestion courante (65)
     const otherExpensesValues = calculateYearlyValues(month => 
       fixedExpenses
-        .filter(e => ['software', 'office', 'other'].includes(e.category || ''))
+        .filter(e => ['software', 'other'].includes(e.category || ''))
         .reduce((sum, e) => sum + getFixedExpenseForMonth(e, month), 0)
     );
     if (otherExpensesValues.some(v => v > 0)) {
       rows.push({ label: 'Autres charges de gestion courante (65)', type: 'item', values: otherExpensesValues, isExpense: true, indent: 1, sectionType: 'expense', pcgCode: '65' });
     }
 
-    // F. Dotations aux amortissements (68)
+    // G. Dotations aux amortissements (68)
     const depreciationValues = calculateYearlyValues(month => getDepreciationForMonth(month));
     if (depreciationValues.some(v => v > 0)) {
       rows.push({ label: 'Dotations aux amortissements (68)', type: 'item', values: depreciationValues, isExpense: true, indent: 1, sectionType: 'expense', pcgCode: '68' });
@@ -701,8 +713,9 @@ export function useProfitLoss() {
     const productionValues = productionSoldValues;
 
     // Valeur Ajoutée = Marge commerciale + Production - Consommations en provenance des tiers (60/61/62)
+    // Consommations = Achats (60) + Services extérieurs (61/62) + Fournitures (606)
     const externalConsumptionValues = years.map((_, i) => 
-      totalPurchasesFromProduction[i] + externalServicesValues[i]
+      totalPurchasesFromProduction[i] + externalServicesValues[i] + officeSuppliesValues[i]
     );
     
     const valueAddedValues = years.map((_, i) => 
@@ -719,7 +732,7 @@ export function useProfitLoss() {
     // Total charges d'exploitation (pour référence)
     const totalExpenseValues = years.map((_, i) => 
       merchandisePurchasesValues[i] + stockVariationValues[i] + totalPurchasesFromProduction[i] + 
-      externalServicesValues[i] + taxesValues[i] + totalPersonnelWithSeverance[i] + directorTotalValues[i] + 
+      externalServicesValues[i] + officeSuppliesValues[i] + taxesValues[i] + totalPersonnelWithSeverance[i] + directorTotalValues[i] + 
       otherExpensesValues[i] + depreciationValues[i]
     );
     rows.push({ label: 'TOTAL CHARGES D\'EXPLOITATION (II)', type: 'subtotal', values: totalExpenseValues, isExpense: true, sectionType: 'expense' });
