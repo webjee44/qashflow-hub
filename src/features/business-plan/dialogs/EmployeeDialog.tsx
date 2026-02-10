@@ -216,7 +216,8 @@ export function EmployeeDialog({ open, onOpenChange, employee, onSave }: Employe
 
       if (payslipData.mutuelle_employer) setCustomMutuelle(payslipData.mutuelle_employer);
       if (payslipData.at_mp_rate) setCustomAtMpRate(payslipData.at_mp_rate);
-      if (payslipData.employer_charges_rate) setCustomChargesRate(payslipData.employer_charges_rate);
+      // Ne PAS utiliser employer_charges_rate extrait par l'IA (souvent partiel/faux)
+      // Le taux sera recalculé automatiquement via getGlobalChargesRate()
 
       toast.success('Fiche de paie importée ! Vérifiez les valeurs.');
       setStep('form');
