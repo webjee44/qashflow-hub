@@ -20,6 +20,7 @@ export interface VariableExpense {
   start_date: string;
   end_date: string | null;
   notes: string | null;
+  pcg_subcategory: string | null;
   created_at: string;
   updated_at: string;
 }

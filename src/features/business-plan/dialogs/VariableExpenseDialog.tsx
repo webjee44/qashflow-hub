@@ -116,6 +116,7 @@ export function VariableExpenseDialog({ open, onOpenChange, expense }: VariableE
       start_date: formData.start_date,
       end_date: formData.end_date || null,
       notes: formData.notes || null,
+      pcg_subcategory: null,
     };
 
     if (expense) {

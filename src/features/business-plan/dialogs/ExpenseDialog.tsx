@@ -17,6 +17,7 @@ import {
   type PaymentFrequency,
   type VariableExpenseCategory,
   PCG_SUBCATEGORIES,
+  PCG_VARIABLE_SUBCATEGORIES,
 } from '@/constants/bpConstants';
 import { useBPSettings } from '@/features/business-plan/hooks';
 import { useRevenueStreams } from '@/hooks/useRevenueStreams';
@@ -129,6 +130,7 @@ export function ExpenseDialog({
         setVatRate(expense.vat_rate);
         setIsVatDeductible(expense.is_vat_deductible);
         setIsCogs(expense.is_cogs ?? true);
+        setPcgSubcategory((expense as any).pcg_subcategory || '');
       }
     } else {
       // Reset form
@@ -157,15 +159,28 @@ export function ExpenseDialog({
     }
   }, [expense, open, settings.bp_start_date]);
 
-  // Auto-select first PCG subcategory when category changes
+  // Auto-select first PCG subcategory when category changes (fixed or variable)
   useEffect(() => {
-    const subs = PCG_SUBCATEGORIES[fixedCategory] || [];
-    if (!expense && subs.length > 0) {
-      setPcgSubcategory(subs[0].code);
-    } else if (!expense) {
-      setPcgSubcategory('');
+    if (expenseType === 'fixed') {
+      const subs = PCG_SUBCATEGORIES[fixedCategory] || [];
+      if (!expense && subs.length > 0) {
+        setPcgSubcategory(subs[0].code);
+      } else if (!expense) {
+        setPcgSubcategory('');
+      }
     }
-  }, [fixedCategory, expense]);
+  }, [fixedCategory, expense, expenseType]);
+
+  useEffect(() => {
+    if (expenseType === 'variable') {
+      const subs = PCG_VARIABLE_SUBCATEGORIES[variableCategory] || [];
+      if (!expense && subs.length > 0) {
+        setPcgSubcategory(subs[0].code);
+      } else if (!expense) {
+        setPcgSubcategory('');
+      }
+    }
+  }, [variableCategory, expense, expenseType]);
 
   // Update payment months when frequency changes
   useEffect(() => {
@@ -204,6 +219,10 @@ export function ExpenseDialog({
         is_vat_deductible: isVatDeductible,
       });
     } else {
+      const varSubs = PCG_VARIABLE_SUBCATEGORIES[variableCategory] || [];
+      if (varSubs.length > 0 && (!pcgSubcategory || pcgSubcategory === 'none')) {
+        return;
+      }
       onSaveVariable({
         id: expense?.expenseType === 'variable' ? expense.id : undefined,
         name,
@@ -218,6 +237,7 @@ export function ExpenseDialog({
         start_date: startDate,
         end_date: endDate || null,
         notes: notes || null,
+        pcg_subcategory: pcgSubcategory && pcgSubcategory !== 'none' ? pcgSubcategory : null,
       });
     }
     onOpenChange(false);
@@ -421,6 +441,31 @@ export function ExpenseDialog({
                   </Select>
                 </div>
               </div>
+
+              {/* PCG Subcategory for variable expenses */}
+              {(PCG_VARIABLE_SUBCATEGORIES[variableCategory] || []).length > 0 && (
+                <div className="grid gap-2">
+                  <Label className="flex items-center gap-2">
+                    Compte PCG
+                    <span className="text-xs text-destructive font-normal">*</span>
+                  </Label>
+                  <Select value={pcgSubcategory} onValueChange={setPcgSubcategory}>
+                    <SelectTrigger className={!pcgSubcategory || pcgSubcategory === 'none' ? 'border-destructive' : ''}>
+                      <SelectValue placeholder="Sélectionner un compte" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(PCG_VARIABLE_SUBCATEGORIES[variableCategory] || []).map(({ code, label }) => (
+                        <SelectItem key={code} value={code}>
+                          {code} - {label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {(!pcgSubcategory || pcgSubcategory === 'none') && (
+                    <p className="text-xs text-destructive">Le compte PCG est obligatoire</p>
+                  )}
+                </div>
+              )}
 
               <div className="grid gap-2">
                 <Label>Type de calcul</Label>
