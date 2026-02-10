@@ -185,6 +185,7 @@ export function PersonnelDialog({ open, onOpenChange, personnel, onSave, default
       setImportedData(payslipData);
 
       // Pre-fill form fields
+      // Note: PersonnelDialog doesn't have a name field, name is stored via position
       if (payslipData.position) setPosition(payslipData.position);
       if (payslipData.gross_salary_monthly) {
         setGrossSalary(Math.round(payslipData.gross_salary_monthly * 12).toString());
