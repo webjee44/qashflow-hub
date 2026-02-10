@@ -20,7 +20,8 @@ import {
   SlidersHorizontal,
   Users,
   Sparkles,
-  Receipt
+  Receipt,
+  ChevronsUpDown
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState, useMemo, useCallback } from 'react';
@@ -30,9 +31,11 @@ import { useBPSettings } from '@/hooks/useBPSettings';
 import { useOnboarding } from '@/hooks/useOnboarding';
 import { useBPOnboarding } from '@/hooks/useBPOnboarding';
 import { useCompany } from '@/hooks/useCompany';
+import { useOrganization } from '@/hooks/useOrganization';
 import { BPSettingsDialog } from '@/features/business-plan/dialogs';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Separator } from '@/components/ui/separator';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { supabase } from '@/integrations/supabase/client';
 import logo from '@/assets/logo.png';
 
@@ -104,6 +107,7 @@ export function Sidebar() {
   const { bpEnabled, isCompleted: onboardingCompleted } = useOnboarding();
   const { isCompleted: bpTourCompleted } = useBPOnboarding();
   const { currentCompany } = useCompany();
+  const { currentOrganization, organizations, setCurrentOrganization } = useOrganization();
   const location = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -203,6 +207,43 @@ export function Sidebar() {
           {isCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
         </button>
       </div>
+
+      {/* Organization Selector */}
+      {organizations.length > 1 && (
+        <div className={cn("border-b border-border", isCollapsed ? "px-2 py-2" : "px-4 py-3")}>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className={cn(
+                "w-full flex items-center gap-2 rounded-lg transition-colors hover:bg-muted px-3 py-2 text-left",
+                isCollapsed && "justify-center px-2"
+              )}>
+                <Building2 size={16} className="shrink-0 text-primary" />
+                {!isCollapsed && (
+                  <>
+                    <span className="text-sm font-medium truncate flex-1">{currentOrganization?.name}</span>
+                    <ChevronsUpDown size={14} className="shrink-0 text-muted-foreground" />
+                  </>
+                )}
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent side="right" align="start" className="w-56">
+              {organizations.map((org) => (
+                <DropdownMenuItem
+                  key={org.id}
+                  onClick={() => setCurrentOrganization(org)}
+                  className={cn(
+                    "cursor-pointer",
+                    org.id === currentOrganization?.id && "bg-primary/10 font-medium"
+                  )}
+                >
+                  <Building2 size={14} className="mr-2 shrink-0" />
+                  <span className="truncate">{org.name}</span>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
 
       {/* Mode indicator + BP Settings (collapsed shows current mode icon) */}
       {isCollapsed && (

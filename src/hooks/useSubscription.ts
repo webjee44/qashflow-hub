@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
+import { useOrganization } from './useOrganization';
 
 interface SubscriptionStatus {
   subscribed: boolean;
@@ -38,6 +39,7 @@ export type PlanKey = keyof typeof PLANS;
 
 export const useSubscription = () => {
   const { user } = useAuth();
+  const { currentOrganization } = useOrganization();
   const [subscriptionStatus, setSubscriptionStatus] = useState<SubscriptionStatus>({
     subscribed: false,
     plan: 'none',
@@ -48,6 +50,8 @@ export const useSubscription = () => {
   });
   const [loading, setLoading] = useState(true);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
+
+  const organizationId = currentOrganization?.id || null;
 
   const checkSubscription = useCallback(async () => {
     if (!user) {
@@ -64,7 +68,9 @@ export const useSubscription = () => {
     }
 
     try {
-      const { data, error } = await supabase.functions.invoke('check-subscription');
+      const { data, error } = await supabase.functions.invoke('check-subscription', {
+        body: { organization_id: organizationId },
+      });
       
       if (error) {
         console.error('Error checking subscription:', error);
@@ -85,35 +91,30 @@ export const useSubscription = () => {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, organizationId]);
 
   useEffect(() => {
     checkSubscription();
   }, [checkSubscription]);
 
-  // Check subscription periodically (every 60 seconds)
   useEffect(() => {
     if (!user) return;
-    
     const interval = setInterval(checkSubscription, 60000);
     return () => clearInterval(interval);
   }, [user, checkSubscription]);
 
   const createCheckout = async (priceId: string) => {
-    if (!user) {
-      throw new Error('User must be authenticated');
-    }
+    if (!user) throw new Error('User must be authenticated');
 
     setCheckoutLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke('create-checkout', {
-        body: { priceId },
+        body: { priceId, organization_id: organizationId },
       });
 
       if (error) throw error;
       if (!data?.url) throw new Error('No checkout URL returned');
 
-      // Open in new tab
       window.open(data.url, '_blank');
       return data.url;
     } catch (error) {
@@ -125,18 +126,17 @@ export const useSubscription = () => {
   };
 
   const openCustomerPortal = async () => {
-    if (!user) {
-      throw new Error('User must be authenticated');
-    }
+    if (!user) throw new Error('User must be authenticated');
 
     setCheckoutLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('customer-portal');
+      const { data, error } = await supabase.functions.invoke('customer-portal', {
+        body: { organization_id: organizationId },
+      });
 
       if (error) throw error;
       if (!data?.url) throw new Error('No portal URL returned');
 
-      // Open in new tab
       window.open(data.url, '_blank');
       return data.url;
     } catch (error) {

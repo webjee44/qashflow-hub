@@ -8,14 +8,15 @@ import { BankAccountsCard } from '@/components/settings/BankAccountsCard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { Building2, User, Play, Landmark } from 'lucide-react';
+import { Building2, User, Play, Landmark, CreditCard } from 'lucide-react';
+import { BillingCard } from '@/components/settings/BillingCard';
 import { useAuth } from '@/hooks/useAuth';
 import { useOnboarding } from '@/hooks/useOnboarding';
 import { useCompany } from '@/hooks/useCompany';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
-const VALID_TABS = ['organization', 'companies', 'accounts', 'profile'] as const;
+const VALID_TABS = ['organization', 'companies', 'accounts', 'billing', 'profile'] as const;
 type TabValue = typeof VALID_TABS[number];
 
 export default function Settings() {
@@ -143,6 +144,10 @@ export default function Settings() {
               <Landmark className="w-4 h-4" />
               Comptes bancaires
             </TabsTrigger>
+            <TabsTrigger value="billing" className="gap-2">
+              <CreditCard className="w-4 h-4" />
+              Facturation
+            </TabsTrigger>
             <TabsTrigger value="profile" className="gap-2">
               <User className="w-4 h-4" />
               Profil
@@ -159,6 +164,10 @@ export default function Settings() {
 
           <TabsContent value="accounts">
             <BankAccountsCard />
+          </TabsContent>
+
+          <TabsContent value="billing">
+            <BillingCard />
           </TabsContent>
 
           <TabsContent value="profile">
