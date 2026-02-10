@@ -16,19 +16,19 @@ import logo from '@/assets/logo.png';
 const faqs = [
   {
     question: "Comment fonctionne l'essai gratuit de 30 jours ?",
-    answer: "Vous pouvez utiliser toutes les fonctionnalités Pro pendant 30 jours sans engagement. Aucune carte bancaire n'est requise pour commencer. À la fin de l'essai, vous pouvez choisir de continuer avec l'abonnement Pro.",
+    answer: "Vous pouvez utiliser toutes les fonctionnalités pendant 30 jours sans engagement. Aucune carte bancaire n'est requise pour commencer. À la fin de l'essai, vous pouvez acheter la licence à vie.",
   },
   {
-    question: 'Quelle est la différence entre mensuel et annuel ?',
-    answer: "L'offre annuelle vous fait économiser 50% : vous payez 594€/an (soit 49,50€/mois) au lieu de 99€/mois. C'est notre meilleure offre, disponible pour une durée limitée.",
+    question: "Qu'est-ce que la licence à vie ?",
+    answer: "Un seul paiement de 499€ et vous accédez à qashflow pour toujours, sans abonnement ni frais récurrents. Toutes les mises à jour futures sont incluses.",
   },
   {
-    question: 'Puis-je annuler mon abonnement à tout moment ?',
-    answer: "Oui, vous pouvez annuler votre abonnement à tout moment depuis votre espace client. Pas de frais cachés ni de période d'engagement.",
+    question: "Pourquoi 499€ au lieu de 1 000€ ?",
+    answer: "Nous proposons une offre de lancement à -50% pour les premiers utilisateurs. Ce tarif passera à 1 000€ une fois l'offre terminée.",
   },
   {
     question: 'Y a-t-il une limite sur le nombre de transactions ?',
-    answer: 'Non, le plan Pro inclut des transactions illimitées. Vous pouvez synchroniser autant de comptes bancaires que nécessaire.',
+    answer: 'Non, la licence inclut des transactions illimitées. Vous pouvez synchroniser autant de comptes bancaires que nécessaire.',
   },
   {
     question: 'Les données sont-elles sécurisées ?',
@@ -36,17 +36,17 @@ const faqs = [
   },
   {
     question: "Que se passe-t-il à la fin de l'essai gratuit ?",
-    answer: "À la fin des 30 jours d'essai, vous pourrez choisir entre l'abonnement mensuel à 99€/mois ou l'offre annuelle à 594€/an (-50%). Vous recevrez un rappel avant la fin de l'essai.",
+    answer: "À la fin des 30 jours d'essai, vous pourrez acheter la licence à vie à 499€ (au lieu de 1 000€). Vous recevrez un rappel avant la fin de l'essai.",
   },
 ];
+
+const savings = PLANS.pro.originalPrice - PLANS.pro.lifetimePrice;
 
 /* ───── component ───── */
 export default function Tarifs() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { plan: currentPlan, subscribed, is_trialing, createCheckout, checkoutLoading } = useSubscription();
-  const [isAnnual, setIsAnnual] = useState(true);
-
 
   const handleStartTrial = () => {
     if (!user) { navigate('/sign-up'); return; }
@@ -57,8 +57,7 @@ export default function Tarifs() {
   const handleSubscribe = async () => {
     if (!user) { navigate('/sign-up'); return; }
     try {
-      const priceId = isAnnual ? PLANS.pro.priceIdAnnual : PLANS.pro.priceId;
-      await createCheckout(priceId);
+      await createCheckout(PLANS.pro.priceId);
     } catch {
       toast.error("Erreur lors de la création du paiement");
     }
@@ -71,16 +70,12 @@ export default function Tarifs() {
   const faqSchema = generateFAQSchema(faqs);
   const isCurrentlySubscribed = subscribed || is_trialing;
 
-  const displayPrice = isAnnual ? PLANS.pro.annualMonthlyEquivalent : PLANS.pro.price;
-  const displaySuffix = isAnnual ? '/mois facturé annuellement' : '/mois';
-  const savings = PLANS.pro.price * 12 - PLANS.pro.annualPrice;
-
   return (
     <div className="min-h-screen bg-background">
       <SEOHead
-        title="Tarifs - Plan Pro à 99€/mois | Offre Flash -50% annuel"
-        description="Essayez qashflow gratuitement pendant 30 jours. Plan Pro à 99€/mois ou 49,50€/mois en annuel (-50%). Sociétés illimitées, Business Plan complet, catégorisation IA."
-        keywords="tarifs gestion trésorerie, prix logiciel comptabilité, abonnement business plan, PME startup, essai gratuit"
+        title="Tarifs - Licence à vie 499€ | Offre -50%"
+        description="Essayez qashflow gratuitement pendant 30 jours. Licence à vie à 499€ au lieu de 1 000€. Sociétés illimitées, Business Plan complet, catégorisation IA."
+        keywords="tarifs gestion trésorerie, prix logiciel comptabilité, licence lifetime business plan, PME startup, essai gratuit"
       />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }} />
@@ -88,7 +83,7 @@ export default function Tarifs() {
       {/* ── Flash Banner ── */}
       <div className="fixed top-0 left-0 right-0 z-[60] bg-gradient-to-r from-destructive to-destructive/80 text-destructive-foreground py-2 px-4 text-center text-xs sm:text-sm font-semibold flex items-center justify-center gap-2">
         <Flame className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-pulse flex-shrink-0" />
-        <span>OFFRE FLASH — Économisez {savings}€/an</span>
+        <span>OFFRE FLASH — Économisez {savings}€</span>
         <Flame className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-pulse flex-shrink-0" />
       </div>
 
@@ -104,14 +99,14 @@ export default function Tarifs() {
               30 jours d'essai gratuit • Sans carte bancaire
             </Badge>
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6">
-              Un seul plan,
+              Un seul paiement,
               <br />
               <span className="bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-                toutes les fonctionnalités
+                un accès à vie
               </span>
             </h1>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-4">
-              Pas de plans complexes ni de fonctionnalités cachées. Accédez à tout ce dont vous avez besoin pour gérer votre trésorerie.
+              Pas d'abonnement, pas de frais récurrents. Payez une seule fois et accédez à toutes les fonctionnalités pour toujours.
             </p>
             {/* Social proof */}
             <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground mb-8">
@@ -119,25 +114,6 @@ export default function Tarifs() {
               <span>Rejoint par <strong className="text-foreground">+150 entrepreneurs</strong> ce mois-ci</span>
             </div>
           </motion.div>
-        </div>
-      </section>
-
-
-
-      {/* ── Toggle mensuel / annuel ── */}
-      <section className="pb-4 px-4">
-        <div className="flex items-center justify-center gap-4">
-          <span className={`text-sm font-medium ${!isAnnual ? 'text-foreground' : 'text-muted-foreground'}`}>Mensuel</span>
-          <button
-            onClick={() => setIsAnnual(!isAnnual)}
-            className={`relative w-14 h-7 rounded-full transition-colors ${isAnnual ? 'bg-primary' : 'bg-muted-foreground/30'}`}
-          >
-            <span className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-background shadow-md transition-transform ${isAnnual ? 'translate-x-7' : 'translate-x-0'}`} />
-          </button>
-          <span className={`text-sm font-medium ${isAnnual ? 'text-foreground' : 'text-muted-foreground'}`}>
-            Annuel
-          </span>
-          <Badge className="bg-destructive text-destructive-foreground text-xs animate-pulse">-50%</Badge>
         </div>
       </section>
 
@@ -149,13 +125,11 @@ export default function Tarifs() {
               <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary to-primary/60" />
 
               {/* Best offer badge */}
-              {isAnnual && (
-                <div className="absolute -top-0 -right-0">
-                  <div className="bg-destructive text-destructive-foreground text-xs font-bold px-4 py-1.5 rounded-bl-xl">
-                    MEILLEURE OFFRE
-                  </div>
+              <div className="absolute -top-0 -right-0">
+                <div className="bg-destructive text-destructive-foreground text-xs font-bold px-4 py-1.5 rounded-bl-xl">
+                  -{PLANS.pro.discount}%
                 </div>
-              )}
+              </div>
 
               <CardHeader className="text-center pb-4 pt-8">
                 <div className="flex justify-center mb-4">
@@ -164,29 +138,20 @@ export default function Tarifs() {
                     30 jours gratuits
                   </Badge>
                 </div>
-                <CardTitle className="text-3xl">Plan Pro</CardTitle>
+                <CardTitle className="text-3xl">Licence Lifetime</CardTitle>
                 <CardDescription className="text-base">
-                  Tout ce dont vous avez besoin pour votre entreprise
+                  Tout ce dont vous avez besoin — pour toujours
                 </CardDescription>
                 <div className="mt-6">
-                  {isAnnual && (
-                    <div className="mb-1">
-                      <span className="text-2xl text-muted-foreground line-through">{PLANS.pro.price}€</span>
-                    </div>
-                  )}
-                  <span className="text-5xl font-bold">{displayPrice.toFixed(displayPrice % 1 === 0 ? 0 : 2).replace('.', ',')}€</span>
-                  <span className="text-muted-foreground text-lg">{displaySuffix}</span>
+                  <div className="mb-1">
+                    <span className="text-2xl text-muted-foreground line-through">{PLANS.pro.originalPrice}€</span>
+                  </div>
+                  <span className="text-5xl font-bold">{PLANS.pro.lifetimePrice}€</span>
+                  <span className="text-muted-foreground text-lg ml-2">paiement unique</span>
                 </div>
-                {isAnnual && (
-                  <p className="text-sm text-destructive font-semibold mt-2">
-                    Soit {PLANS.pro.annualPrice}€/an au lieu de {PLANS.pro.price * 12}€ — Vous économisez {savings}€
-                  </p>
-                )}
-                {!isAnnual && (
-                  <p className="text-sm text-muted-foreground mt-2">
-                    après la période d'essai de 30 jours
-                  </p>
-                )}
+                <p className="text-sm text-destructive font-semibold mt-2">
+                  Vous économisez {savings}€ — Offre de lancement
+                </p>
               </CardHeader>
 
               <CardContent className="space-y-6 pb-8">
@@ -216,7 +181,7 @@ export default function Tarifs() {
                   disabled={isCurrentlySubscribed || checkoutLoading}
                 >
                   {isCurrentlySubscribed
-                    ? 'Vous êtes déjà abonné'
+                    ? 'Vous avez déjà accès'
                     : "Commencer l'essai gratuit"}
                 </Button>
 
@@ -227,7 +192,7 @@ export default function Tarifs() {
                 </div>
 
                 <p className="text-center text-sm text-muted-foreground">
-                  Sans engagement • Annulable à tout moment
+                  Paiement unique • Accès à vie • Mises à jour incluses
                 </p>
               </CardContent>
             </Card>
@@ -292,7 +257,7 @@ export default function Tarifs() {
               Commencer l'essai gratuit
             </Button>
             <p className="text-sm text-muted-foreground mt-4">
-              Puis {isAnnual ? `${PLANS.pro.annualMonthlyEquivalent.toFixed(2).replace('.', ',')}€/mois (annuel)` : `${PLANS.pro.price}€/mois`} • Annulable à tout moment
+              Puis {PLANS.pro.lifetimePrice}€ — Paiement unique • Accès à vie
             </p>
           </motion.div>
         </div>

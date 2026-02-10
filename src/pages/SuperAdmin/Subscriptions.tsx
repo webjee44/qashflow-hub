@@ -32,7 +32,7 @@ export default function SuperAdminSubscriptions() {
   };
 
   // Get Pro plan price from PLANS
-  const proPlanPrice = PLANS.pro?.price || 49;
+  const proPlanPrice = PLANS.pro?.lifetimePrice || 499;
 
   // Calculate stats
   const stats = {
@@ -154,8 +154,8 @@ export default function SuperAdminSubscriptions() {
                     <Badge className={planColors[key]}>{key.toUpperCase()}</Badge>
                   </div>
                   <div className="text-3xl font-bold mb-4">
-                    {plan.price}€
-                    <span className="text-sm font-normal text-muted-foreground">/mois</span>
+                    {plan.lifetimePrice}€
+                    <span className="text-sm font-normal text-muted-foreground"> paiement unique</span>
                   </div>
                   <ul className="space-y-2 text-sm text-muted-foreground">
                     {plan.features.map((feature, i) => (
