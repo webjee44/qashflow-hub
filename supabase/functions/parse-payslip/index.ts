@@ -18,6 +18,7 @@ interface PayslipData {
   at_mp_rate?: number;
   period?: string;
   employee_name?: string;
+  start_date?: string;
   confidence_score: number;
 }
 
@@ -92,8 +93,14 @@ Informations à extraire:
   "at_mp_rate": <taux AT/MP en % décimal si visible, ex: 0.0093>,
   "period": "<mois et année de la fiche, ex: Décembre 2025>",
   "employee_name": "<nom du salarié si visible>",
+  "start_date": "<date d'embauche au format YYYY-MM-DD si visible>",
   "confidence_score": <score de confiance de 0 à 1>
 }
+
+Comment trouver la date d'embauche:
+- Cherche les mentions "Entrée", "Date d'entrée", "Date d'embauche", "Embauché le", "Ancienneté depuis"
+- La date est souvent en haut du bulletin, près des informations du salarié
+- Convertis au format YYYY-MM-DD (ex: "01/09/2025" → "2025-09-01")
 
 Comment identifier le statut cadre:
 - Présence de cotisations AGIRC-ARRCO Tranche 2
@@ -195,6 +202,7 @@ Si une information n'est pas trouvée, utilise null pour les valeurs optionnelle
       at_mp_rate: payslipData.at_mp_rate ? Number(payslipData.at_mp_rate) : undefined,
       period: payslipData.period || undefined,
       employee_name: payslipData.employee_name || undefined,
+      start_date: payslipData.start_date || undefined,
       confidence_score: Math.min(1, Math.max(0, Number(payslipData.confidence_score) || 0.5)),
     };
 

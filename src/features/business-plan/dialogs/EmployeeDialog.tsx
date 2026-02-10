@@ -34,6 +34,7 @@ interface PayslipImportData {
   at_mp_rate?: number;
   period?: string;
   employee_name?: string;
+  start_date?: string;
   confidence_score: number;
 }
 
@@ -196,7 +197,10 @@ export function EmployeeDialog({ open, onOpenChange, employee, onSave }: Employe
       // Pre-fill form fields
       if (payslipData.position) setPosition(payslipData.position);
       if (payslipData.gross_salary_monthly) {
-        setGrossSalary((payslipData.gross_salary_monthly * 12).toString());
+        setGrossSalary(Math.round(payslipData.gross_salary_monthly * 12).toString());
+      }
+      if (payslipData.start_date) {
+        setStartDate(payslipData.start_date);
       }
       setIsExecutive(payslipData.is_executive);
       if (payslipData.contract_type) {
