@@ -20,6 +20,14 @@ interface Organization {
   is_demo: boolean;
   created_at: string;
   updated_at: string;
+  stripe_customer_id: string | null;
+  billing_name: string | null;
+  billing_email: string | null;
+  billing_address_line1: string | null;
+  billing_address_line2: string | null;
+  billing_city: string | null;
+  billing_postal_code: string | null;
+  billing_country: string | null;
 }
 
 interface OrganizationMember {

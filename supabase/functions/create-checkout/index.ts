@@ -19,7 +19,8 @@ serve(async (req) => {
 
   const supabaseClient = createClient(
     Deno.env.get("SUPABASE_URL") ?? "",
-    Deno.env.get("SUPABASE_ANON_KEY") ?? ""
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+    { auth: { persistSession: false } }
   );
 
   try {
@@ -32,40 +33,70 @@ serve(async (req) => {
     if (!user?.email) throw new Error("User not authenticated or email not available");
     logStep("User authenticated", { userId: user.id, email: user.email });
 
-    const { priceId } = await req.json();
+    const { priceId, organization_id } = await req.json();
     if (!priceId) throw new Error("Price ID is required");
-    logStep("Price ID received", { priceId });
+    logStep("Params received", { priceId, organization_id });
 
     const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
       apiVersion: "2025-08-27.basil",
     });
 
-    // Check if a Stripe customer record exists for this user
-    const customers = await stripe.customers.list({ email: user.email, limit: 1 });
-    let customerId;
-    if (customers.data.length > 0) {
-      customerId = customers.data[0].id;
-      logStep("Existing customer found", { customerId });
+    let customerId: string | undefined;
+    let customerEmail: string = user.email;
+
+    // If organization_id provided, use org billing info
+    if (organization_id) {
+      const { data: org } = await supabaseClient
+        .from('organizations')
+        .select('stripe_customer_id, billing_email, billing_name, billing_address_line1, billing_city, billing_postal_code, billing_country')
+        .eq('id', organization_id)
+        .single();
+
+      if (org?.stripe_customer_id) {
+        customerId = org.stripe_customer_id;
+        logStep("Using existing org Stripe customer", { customerId });
+      } else {
+        // Create a new Stripe customer for this org
+        const billingEmail = org?.billing_email || user.email;
+        const newCustomer = await stripe.customers.create({
+          email: billingEmail,
+          name: org?.billing_name || undefined,
+          address: org?.billing_address_line1 ? {
+            line1: org.billing_address_line1,
+            city: org.billing_city || undefined,
+            postal_code: org.billing_postal_code || undefined,
+            country: org.billing_country || 'FR',
+          } : undefined,
+          metadata: { organization_id, supabase_user_id: user.id },
+        });
+        customerId = newCustomer.id;
+
+        // Store stripe_customer_id on org
+        await supabaseClient
+          .from('organizations')
+          .update({ stripe_customer_id: customerId })
+          .eq('id', organization_id);
+        logStep("Created & stored new Stripe customer for org", { customerId });
+      }
     } else {
-      logStep("No existing customer found");
+      // Legacy: lookup by user email
+      const customers = await stripe.customers.list({ email: user.email, limit: 1 });
+      if (customers.data.length > 0) {
+        customerId = customers.data[0].id;
+        logStep("Existing customer found (legacy)", { customerId });
+      }
     }
 
-    // No trial period - user already had 30 days free, now they pay immediately
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
-      customer_email: customerId ? undefined : user.email,
-      line_items: [
-        {
-          price: priceId,
-          quantity: 1,
-        },
-      ],
+      customer_email: customerId ? undefined : customerEmail,
+      line_items: [{ price: priceId, quantity: 1 }],
       mode: "subscription",
-      success_url: `${req.headers.get("origin")}/settings?subscription=success`,
-      cancel_url: `${req.headers.get("origin")}/settings?subscription=canceled`,
+      success_url: `${req.headers.get("origin")}/parametres?subscription=success`,
+      cancel_url: `${req.headers.get("origin")}/parametres?subscription=canceled`,
     });
 
-    logStep("Checkout session created", { sessionId: session.id, url: session.url });
+    logStep("Checkout session created", { sessionId: session.id });
 
     return new Response(JSON.stringify({ url: session.url }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

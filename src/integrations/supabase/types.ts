@@ -1838,6 +1838,13 @@ export type Database = {
       }
       organizations: {
         Row: {
+          billing_address_line1: string | null
+          billing_address_line2: string | null
+          billing_city: string | null
+          billing_country: string | null
+          billing_email: string | null
+          billing_name: string | null
+          billing_postal_code: string | null
           created_at: string
           deleted_at: string | null
           id: string
@@ -1856,6 +1863,13 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          billing_address_line1?: string | null
+          billing_address_line2?: string | null
+          billing_city?: string | null
+          billing_country?: string | null
+          billing_email?: string | null
+          billing_name?: string | null
+          billing_postal_code?: string | null
           created_at?: string
           deleted_at?: string | null
           id?: string
@@ -1874,6 +1888,13 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          billing_address_line1?: string | null
+          billing_address_line2?: string | null
+          billing_city?: string | null
+          billing_country?: string | null
+          billing_email?: string | null
+          billing_name?: string | null
+          billing_postal_code?: string | null
           created_at?: string
           deleted_at?: string | null
           id?: string
