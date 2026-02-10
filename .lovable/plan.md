@@ -1,58 +1,75 @@
 
-# Correctif : Fiabilité 100% de l'export PDF du Business Plan
+# Plan anti-doublons : transactions bancaires
 
-## Probleme identifie
+## Le probleme
 
-Le PDF exporte des chiffres differents de la vue web car il utilise **deux sources de donnees independantes** :
-- Le hook `useProfitLoss` (calculs complexes, corrects) pour la section P&L
-- Les donnees brutes (personnel, fixedExpenses, etc.) avec des calculs simplifies pour les sections detail (charges, personnel, investissements)
+Il y a **2 911 doublons** dans la base. Cause : les anciennes transactions (2 880) ont ete importees **sans `bridge_transaction_id`**. Quand la synchronisation s'execute a nouveau, elle ne les retrouve pas et en cree de nouvelles avec le bon identifiant.
 
-Les calculs simplifies du PDF ignorent : les dates de debut/fin, les frequences de paiement, les taux de charges detailles, les indemnites de depart, etc.
+## Plan en 3 phases
 
-## Solution : Source unique de verite
+### Phase 1 -- Nettoyage des doublons existants (migration SQL)
 
-Faire en sorte que **TOUTES les valeurs financieres du PDF proviennent exclusivement de `plData`** (le meme objet que la vue web). Les donnees brutes ne seront utilisees que pour les informations descriptives (noms, dates, categories).
+1. **Identifier les doublons** : transactions avec meme `description`, `date`, `amount`, `type`, `company_id` ou l'une a `bridge_transaction_id = NULL` et l'autre non.
+2. **Transferer les categories** : si l'ancienne ligne (sans bridge_id) avait une `category_id`, la reporter sur la nouvelle (avec bridge_id) pour ne pas perdre le travail de categorisation.
+3. **Soft-delete les anciennes lignes** : mettre `deleted_at = now()` sur les lignes sans `bridge_transaction_id` qui ont un doublon.
 
-## Modifications techniques
+### Phase 2 -- Backfill des orphelins (migration SQL)
 
-### 1. BPDocument.tsx - Refonte des sections detail
+Pour les ~2 880 transactions sans `bridge_transaction_id` qui n'ont **pas** de doublon (cas rare mais possible) :
+1. Tenter un matching par `pennylane_id` (format `bridge_XXXX`) pour remplir le `bridge_transaction_id`.
+2. Les lignes restantes sans correspondance conservent leur etat actuel -- elles seront protegees par la phase 3.
 
-**Section Charges Previsionnelles** :
-- Les charges fixes : garder le listing descriptif (nom, categorie, montant/mois) mais le total annuel utilisera `plData.totals.fixedExpenses[yearIndex]` au lieu de `monthly_amount * 12`
-- Les charges variables : listing descriptif uniquement (nom, type, pourcentage), pas de totaux recalcules
+### Phase 3 -- Protection anti-doublons dans le code de sync
 
-**Section Personnel** :
-- Salaries : listing descriptif (poste, date embauche, brut mensuel, taux charges) mais le total "Cout annuel" utilisera `plData.totals.personnelCosts[yearIndex]`
-- Dirigeants : idem avec `plData.totals.directorsCosts[yearIndex]`
+Modifier `supabase/functions/bridge-sync/index.ts` pour ajouter une **troisieme couche de deduplication** :
 
-**Section Investissements** :
-- Listing descriptif inchange (nom, categorie, montant, duree amortissement)
-- Total utilisant `plData.totals.depreciation` pour la dotation annuelle
+1. Apres la recherche par `bridge_transaction_id` et `pennylane_id`, faire un **fallback par signature** : `(description, date, amount, type, company_id)`.
+2. Si une transaction existante correspond a cette signature, la mettre a jour (et backfill son `bridge_transaction_id`) au lieu d'en creer une nouvelle.
+3. Utiliser `upsert` avec `onConflict: 'idx_transactions_bridge_id_company'` pour que la base de donnees bloque tout doublon residuel.
 
-**Section Resume Executif** :
-- Deja correct (utilise `plData.totals`) - aucun changement
+### Phase 4 -- Contrainte de securite en base (migration SQL)
 
-**Section Revenue** :
-- Deja correct (utilise `plData.totals.revenue`) - aucun changement
+Ajouter un **trigger de validation** sur la table `transactions` :
+- Avant INSERT, verifier qu'il n'existe pas deja une transaction avec les memes `(description, date, amount, type, company_id)` non supprimee.
+- Si doublon detecte, rejeter l'insertion avec un message d'erreur clair.
+- Cela constitue le dernier filet de securite, independant du code applicatif.
 
-### 2. Section P&L (PnlSection) - Aucun changement
-Cette section rend deja `plData.rows` directement, c'est un miroir fidele de la vue web.
+## Detail technique
 
-### 3. Sections Cash Flow, Bilan, Plan de Financement
-- Deja alimentees par les hooks dedies (cashFlowData, bsData, fpData) - aucun changement
+### Migration SQL (Phases 1, 2, 4)
 
-### 4. Suppression des props raw data inutiles de BPDocument
-- Retirer `revenueStreams`, `fixedExpenses`, `variableExpenses`, `personnel`, `directors`, `investments` des props de BPDocument
-- Ajouter a la place les totaux pre-calcules necessaires depuis `plData.totals`
-- Simplifier BPExportDialog en retirant les 6 requetes Supabase dediees aux donnees brutes
+```text
+Phase 1 : UPDATE + soft-delete des doublons
+  - UPDATE new SET category_id = old.category_id FROM old WHERE match AND old.category_id IS NOT NULL
+  - UPDATE old SET deleted_at = now() WHERE has_duplicate_with_bridge_id
 
-## Fichiers impactes
+Phase 2 : Backfill bridge_transaction_id via pennylane_id
+  - UPDATE transactions SET bridge_transaction_id = CAST(REPLACE(pennylane_id, 'bridge_', '') AS BIGINT)
+    WHERE bridge_transaction_id IS NULL AND pennylane_id LIKE 'bridge_%'
 
-1. **src/features/business-plan/pdf/BPDocument.tsx** - Refonte majeure : toutes les valeurs financieres depuis plData
-2. **src/features/business-plan/dialogs/BPExportDialog.tsx** - Suppression des requetes raw data, passage de plData uniquement
+Phase 4 : Trigger anti-doublon
+  - CREATE FUNCTION prevent_duplicate_transaction() RETURNS TRIGGER
+  - Verifie l'unicite par signature (description, date, amount, type, company_id)
+  - Ignore les lignes soft-deleted
+```
+
+### Modification Edge Function (Phase 3)
+
+```text
+bridge-sync/index.ts :
+  - Ajout d'une recherche par signature (description + date + amount + company_id)
+    en complement des lookups par bridge_transaction_id et pennylane_id
+  - Si match par signature : update + backfill bridge_transaction_id
+  - Si aucun match : insert normal
+```
+
+## Fichiers concernes
+
+- `supabase/functions/bridge-sync/index.ts` -- ajout fallback deduplication
+- 1 migration SQL -- nettoyage + backfill + trigger
 
 ## Resultat attendu
 
-- Zero ecart possible entre la vue web et le PDF : meme hook, meme objet de donnees
-- Les sections detail restent informatives (noms, parametres) sans recalculer de totaux
-- Le P&L du PDF est un miroir exact de la table interactive
+- 0 doublons dans la base apres nettoyage
+- Protection a 3 niveaux contre les futurs doublons : code sync, index unique, trigger SQL
+- Aucune perte de categorisation
