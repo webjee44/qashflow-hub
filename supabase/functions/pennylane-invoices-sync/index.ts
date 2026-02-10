@@ -227,7 +227,8 @@ async function fetchPennylaneInvoices(
     }
 
     const data = await response.json();
-    return data.invoices || data.data || [];
+    // Pennylane v2 returns data under "items" key with cursor pagination
+    return data.items || data[endpoint] || data.invoices || data.data || [];
   } catch (err: unknown) {
     const error = err as Error;
     console.error(`[pennylane-invoices-sync] Fetch error for ${endpoint}:`, error);
