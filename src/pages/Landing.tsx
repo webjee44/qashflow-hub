@@ -67,7 +67,8 @@ const plans = [
   {
     name: 'Essai gratuit',
     price: '0',
-    description: 'Testez pendant 30 jours',
+    suffix: ' pendant 30 jours',
+    description: 'Testez toutes les fonctionnalités',
     features: [
       '1 société incluse',
       'Comptes bancaires illimités',
@@ -79,10 +80,13 @@ const plans = [
     popular: false,
   },
   {
-    name: 'Pro',
-    price: '99',
-    description: 'Tout inclus, sans limite',
+    name: 'Licence Lifetime',
+    price: '499',
+    originalPrice: '1 000',
+    suffix: ' paiement unique',
+    description: 'Accès à vie, sans abonnement',
     features: [
+      'Sociétés illimitées',
       'Comptes bancaires illimités',
       'Transactions illimitées',
       'Business Plan complet',
@@ -90,8 +94,9 @@ const plans = [
       'Export PDF professionnel',
       'Multi-utilisateurs',
       'Support prioritaire',
+      'Mises à jour incluses à vie',
     ],
-    cta: 'Démarrer maintenant',
+    cta: 'Acheter la licence',
     popular: true,
   },
 ];
@@ -287,12 +292,12 @@ export default function Landing() {
             viewport={{ once: true }}
             className="text-center mb-16"
           >
-            <h2 className="text-3xl sm:text-4xl font-bold mb-4">
-              Un tarif unique et transparent
-            </h2>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              À partir de 49,50€/mois avec l'offre annuelle. Sans engagement.
-            </p>
+             <h2 className="text-3xl sm:text-4xl font-bold mb-4">
+               Un tarif unique et transparent
+             </h2>
+             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+               Essai gratuit 30 jours, puis licence à vie à 499€ au lieu de 1 000€.
+             </p>
           </motion.div>
 
           <div className="grid md:grid-cols-2 gap-6 max-w-3xl mx-auto">
@@ -313,14 +318,17 @@ export default function Landing() {
                     </div>
                   )}
                   <CardHeader className="text-center pb-2">
-                    <CardTitle className="text-xl">{plan.name}</CardTitle>
-                    <CardDescription>{plan.description}</CardDescription>
-                    <div className="mt-4">
-                      <span className="text-4xl font-bold">{plan.price}€</span>
-                      <span className="text-muted-foreground">
-                        {plan.price === '0' ? ' pendant 30 jours' : '/mois/société'}
-                      </span>
-                    </div>
+                     <CardTitle className="text-xl">{plan.name}</CardTitle>
+                     <CardDescription>{plan.description}</CardDescription>
+                     <div className="mt-4">
+                       {plan.originalPrice && (
+                         <div className="mb-1">
+                           <span className="text-lg text-muted-foreground line-through">{plan.originalPrice}€</span>
+                         </div>
+                       )}
+                       <span className="text-4xl font-bold">{plan.price}€</span>
+                       <span className="text-muted-foreground">{plan.suffix}</span>
+                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <ul className="space-y-3">
