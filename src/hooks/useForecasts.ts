@@ -511,26 +511,50 @@ export function useForecasts() {
   }, [categories, getForecast, getPayableOutflowByCategory, getPayableOutflowUncategorized, getNetVatForecast]);
 
   // Calculate the opening balance for a given month
+  // Anchored on the current Bridge bank balance (most reliable reference point)
+  // Past months: walk backwards by subtracting transactions between target and now
+  // Future months: walk forwards by adding net forecasts
   const getOpeningBalance = useCallback((month: Date): { balance: number; isActual: boolean } => {
     const currentBankBalance = currentCompany?.bank_balance ?? 0;
+    const hasBankBalance = currentCompany?.bank_balance != null;
     const initialBalance = currentCompany?.initial_balance ?? 0;
     const todayMonth = startOfMonth(new Date());
     const targetMonth = startOfMonth(month);
     
+    // If no Bridge connection, fall back to initial_balance + cumulative transactions
+    if (!hasBankBalance) {
+      if (isBefore(targetMonth, addMonths(todayMonth, 1))) {
+        // Past or current: initial_balance + transactions before target
+        const transactionsBeforeTarget = allTransactions.filter(tx => {
+          const txDate = new Date(tx.date);
+          return txDate < targetMonth;
+        });
+        const netBefore = transactionsBeforeTarget.reduce((sum, tx) => sum + Number(tx.amount), 0);
+        return { balance: initialBalance + netBefore, isActual: !isBefore(todayMonth, targetMonth) };
+      }
+      // Future: initial_balance + all past transactions + forecasts
+      const allPastNet = allTransactions.reduce((sum, tx) => sum + Number(tx.amount), 0);
+      let projected = initialBalance + allPastNet;
+      for (let m = addMonths(todayMonth, 1); isBefore(m, targetMonth); m = addMonths(m, 1)) {
+        projected += getMonthNetForecast(m);
+      }
+      return { balance: projected, isActual: false };
+    }
+    
     if (isSameMonth(month, new Date())) {
-      // Current month: return the current bank balance
+      // Current month: return the current bank balance (anchor point)
       return { balance: currentBankBalance, isActual: true };
     }
     
     if (isBefore(targetMonth, todayMonth)) {
-      // Past month: reconstruct balance at the 1st of that month
-      // = initial_balance + all transactions BEFORE target month
-      const transactionsBeforeTarget = allTransactions.filter(tx => {
+      // Past month: walk backwards from current balance
+      // Balance at 1st of target month = currentBalance - sum(transactions from targetMonth to today)
+      const transactionsBetween = allTransactions.filter(tx => {
         const txDate = new Date(tx.date);
-        return txDate < targetMonth;
+        return txDate >= targetMonth && txDate < todayMonth;
       });
-      const netBefore = transactionsBeforeTarget.reduce((sum, tx) => sum + Number(tx.amount), 0);
-      return { balance: initialBalance + netBefore, isActual: true };
+      const netBetween = transactionsBetween.reduce((sum, tx) => sum + Number(tx.amount), 0);
+      return { balance: currentBankBalance - netBetween, isActual: true };
     }
     
     // Future month: calculate projected balance
