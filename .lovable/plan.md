@@ -1,78 +1,79 @@
 
-## Passer de l'abonnement au Lifetime License 499€
+## Refonte des regles d'automatisation de categories
 
-### Contexte
-Changement de modele commercial : au lieu d'un abonnement mensuel/annuel, on passe a une licence a vie (one-time payment) a **499€** au lieu de 1 000€ (soit -50%). L'essai gratuit de 30 jours est conserve.
+### Diagnostic des 3 bugs
 
-### Produit Stripe cree
-- **Product ID** : `prod_TxHiDrkeAaBxbk`
-- **Price ID** : `price_1SzN92Itjz0ztyfFAwU5xdOD`
-- **Montant** : 499€ (paiement unique)
+**Bug 1 : Transactions non classees chaque matin**
+Le CRON quotidien (`apply-all-automation-rules`) ne s'execute jamais. Aucun log n'apparait pour cette fonction. Le CRON est probablement configure dans le dashboard mais la fonction n'est pas declenchee. De plus, la sync bancaire (`bridge-sync`) ne declenche pas l'application des regles apres l'insertion de nouvelles transactions.
 
----
+**Bug 2 : Proposition de regles deja existantes**
+Quand vous categorisez une transaction, le dialog `SuggestAutomationDialog` s'ouvre systematiquement sans verifier si une regle existe deja pour ce pattern. Il n'y a aucune verification de doublon avant de proposer la creation.
 
-### Modifications
+**Bug 3 : Doublons de regles entre societes et au sein d'une meme societe**
+Donnees constatees en base :
+- "CURIEUX LIQUIDES" : 3 regles identiques pour la meme societe (creees a quelques secondes d'intervalle)
+- "FUMEUR VANNES", "PETIT VAPOTEUR" : regles dupliquees sur 2 societes differentes
 
-#### 1. `src/hooks/useSubscription.ts` — Configuration du plan
-- Remplacer les champs `price`, `annualPrice`, `annualMonthlyEquivalent`, `priceId`, `priceIdAnnual` par un seul `lifetimePrice: 499`, `originalPrice: 1000`, `priceId` lifetime
-- Mettre a jour `productId` vers `prod_TxHiDrkeAaBxbk`
-- Ajouter `discount: 50` (pourcentage de reduction)
-- La logique `check-subscription` reste compatible (verifie aussi les paiements one-time)
-
-#### 2. `supabase/functions/create-checkout/index.ts` — Mode payment
-- Changer `mode: "subscription"` en `mode: "payment"`
-- Retirer la logique `priceId` dynamique (un seul prix)
-- Hardcoder le price ID `price_1SzN92Itjz0ztyfFAwU5xdOD`
-
-#### 3. `supabase/functions/check-subscription/index.ts` — Verifier les paiements one-time
-- En plus de chercher les subscriptions actives, chercher aussi les `checkout.sessions` completed avec `mode: "payment"` pour le client
-- Ou chercher les `payment_intents` succeeded pour le customer
-- Si un paiement lifetime est trouve, retourner `subscribed: true, plan: "lifetime"`
-
-#### 4. `src/pages/Tarifs.tsx` — Refonte de la page pricing
-- Supprimer le toggle mensuel/annuel
-- Afficher le prix barre **1 000€** et le prix actuel **499€**
-- Remplacer "/mois" par "paiement unique"
-- Adapter le badge "OFFRE FLASH — Economisez 501€"
-- Adapter la FAQ (supprimer les questions sur abonnement mensuel/annuel, ajouter questions sur licence a vie)
-- Garder le CTA "Commencer l'essai gratuit" (30 jours) puis bouton "Acheter la licence"
-- Adapter le texte CTA final en bas de page
-
-#### 5. `src/components/layout/TrialExpiredBlocker.tsx` — Adapter le blocker
-- Remplacer "99€/mois" par "499€ — Licence a vie"
-- Adapter le bouton "Ajouter un moyen de paiement" vers "Acheter la licence"
-
-#### 6. `src/components/settings/BillingCard.tsx` — Adapter la facturation
-- Remplacer les boutons "S'abonner 99€/mois" et "Annuel" par un seul bouton "Acheter la licence — 499€"
-- Adapter l'affichage du statut : "Licence Lifetime" au lieu de "Plan PRO"
-- Supprimer "Prochain renouvellement" (pas de renouvellement en lifetime)
-
-#### 7. `src/components/settings/OrganizationCard.tsx` — Adapter la carte org
-- Supprimer le toggle billing period (mensuel/annuel)
-- Afficher "499€ — Paiement unique" au lieu des prix mensuels/annuels
-- Afficher le prix barre 1 000€
-- Adapter le badge et le CTA
-
-#### 8. `supabase/functions/customer-portal/index.ts` — Adapter le portail
-- Le portail Stripe reste utile pour consulter les factures, meme sans abonnement recurrent
+Cause : aucune contrainte d'unicite en base, et aucune verification cote code avant insertion. Le dialog de suggestion ne verifie pas les regles existantes, donc chaque categorisation manuelle repropose la creation.
 
 ---
 
-### Details techniques
+### Corrections prevues
 
-**Verification du paiement lifetime (check-subscription)** : on cherchera les `checkout.sessions` en mode `payment` avec `payment_status: "paid"` pour le customer. Si trouve, on retourne `subscribed: true, plan: "lifetime"`. Cela evite d'avoir besoin de webhooks.
+#### 1. Contrainte d'unicite en base de donnees
 
-**Essai gratuit** : conserve tel quel via le champ `trial_ends_at` sur l'organisation. L'essai ne passe plus par Stripe (pas de trial sur un one-time payment), il reste gere en interne.
+Ajouter un index unique sur `automation_rules(company_id, condition_value, condition_operator, target_category_id)` avec une condition `WHERE is_active = true`. Cela empeche physiquement la creation de doublons pour une meme societe.
+
+Avant de creer l'index, supprimer les doublons existants (garder la plus ancienne regle de chaque groupe).
+
+#### 2. Nettoyage des doublons cross-company
+
+Supprimer les regles qui sont des copies sur une autre societe. Les regles "FUMEUR VANNES" et "PETIT VAPOTEUR" presentes sur la societe `12ea5853` qui sont des doublons de celles de `c6ce7d8e` seront supprimees si les categories cibles sont coherentes.
+
+#### 3. Verification anti-doublon dans `SuggestAutomationDialog`
+
+Avant d'ouvrir le dialog de suggestion, verifier si une regle active existe deja pour ce pattern (condition_value contenu dans la description de la transaction) sur la company courante. Si oui, ne pas afficher le dialog.
+
+Fichier : `src/components/transactions/TransactionsView.tsx`
+- Dans `handleUpdateCategory`, apres avoir determine le pattern potentiel, requeter les `automation_rules` de la company pour voir si une regle `contains` matche deja cette description
+- Si match trouve : ne pas ouvrir le dialog
+
+#### 4. Verification anti-doublon dans `createRule`
+
+Fichier : `src/hooks/useAutomationRules.ts`
+- Dans `createRule`, avant l'INSERT, verifier en base s'il existe une regle avec le meme `condition_value` + `condition_operator` + `target_category_id` pour la meme `company_id`
+- Si doublon detecte, afficher un toast d'avertissement et retourner sans creer
+
+#### 5. Application automatique des regles apres la sync bancaire
+
+Fichier : `supabase/functions/bridge-sync/index.ts`
+- Apres l'insertion/mise a jour des transactions, appeler en interne la logique d'application des regles pour la company concernee
+- Cela garantit que les nouvelles transactions sont classees immediatement, sans dependre du CRON
+
+Alternative plus legere : creer un trigger SQL `AFTER INSERT ON transactions` qui applique les regles en arriere-plan. Mais cela risque d'etre lourd. On preferera l'appel direct depuis bridge-sync.
+
+#### 6. Fiabiliser le CRON quotidien
+
+Fichier : `supabase/functions/apply-all-automation-rules/index.ts`
+- Ajouter un log en tout debut pour confirmer que la fonction demarre
+- S'assurer que le CRON `pg_cron` est bien enregistre (verifier via SQL)
+- Comme fallback, ajouter l'appel des regles directement dans bridge-sync (point 5) pour ne plus dependre du CRON
+
+---
 
 ### Fichiers concernes
 
 | Fichier | Modification |
 |---------|-------------|
-| `src/hooks/useSubscription.ts` | Config plan lifetime, prix, IDs Stripe |
-| `supabase/functions/create-checkout/index.ts` | mode: "payment", price ID unique |
-| `supabase/functions/check-subscription/index.ts` | Verifier paiements one-time |
-| `src/pages/Tarifs.tsx` | Refonte page tarifs lifetime |
-| `src/components/layout/TrialExpiredBlocker.tsx` | Texte et prix lifetime |
-| `src/components/settings/BillingCard.tsx` | Bouton et affichage lifetime |
-| `src/components/settings/OrganizationCard.tsx` | Carte org sans toggle billing |
-| `supabase/functions/customer-portal/index.ts` | Ajustements mineurs |
+| Migration SQL | Index unique, nettoyage doublons |
+| `src/components/transactions/TransactionsView.tsx` | Verification anti-doublon avant ouverture du dialog |
+| `src/hooks/useAutomationRules.ts` | Verification anti-doublon dans `createRule` |
+| `supabase/functions/bridge-sync/index.ts` | Application des regles apres sync |
+| `supabase/functions/apply-all-automation-rules/index.ts` | Logs ameliores |
+
+### Ordre d'execution
+
+1. Migration : nettoyage doublons + index unique
+2. Code frontend : anti-doublon dialog + createRule
+3. Edge function bridge-sync : appel des regles apres insertion
+4. Deploiement edge functions
