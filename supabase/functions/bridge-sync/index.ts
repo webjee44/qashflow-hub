@@ -441,6 +441,28 @@ Deno.serve(async (req) => {
           syncedCount++;
           totalTransactions += inserted + updated;
           console.info(`[bridge-sync] Company ${company.id} synced: ${allAccounts.length} accounts, ${inserted} new, ${updated} updated`);
+
+          // Apply automation rules to newly synced uncategorized transactions
+          if (inserted > 0) {
+            try {
+              console.info(`[bridge-sync] Applying automation rules for company ${company.id}...`);
+              const applyRes = await fetch(
+                `${supabaseUrl}/functions/v1/apply-all-automation-rules`,
+                {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${supabaseServiceKey}`,
+                  },
+                  body: JSON.stringify({ company_id: company.id }),
+                }
+              );
+              const applyData = await applyRes.json();
+              console.info(`[bridge-sync] Auto-categorized ${applyData.updated || 0} transactions for company ${company.id}`);
+            } catch (autoErr) {
+              console.error(`[bridge-sync] Failed to apply automation rules for company ${company.id}:`, autoErr);
+            }
+          }
         } catch (err) {
           console.error(`[bridge-sync] Error syncing company ${company.id}:`, err);
         }
@@ -553,6 +575,28 @@ Deno.serve(async (req) => {
       );
 
       console.info(`[bridge-sync] Full sync complete: ${allAccounts.length} accounts, ${inserted} new, ${updated} updated transactions`);
+
+      // Apply automation rules after full-sync if new transactions were inserted
+      if (inserted > 0) {
+        try {
+          console.info(`[bridge-sync] Applying automation rules after full-sync for company ${company_id}...`);
+          const applyRes = await fetch(
+            `${supabaseUrl}/functions/v1/apply-all-automation-rules`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${supabaseServiceKey}`,
+              },
+              body: JSON.stringify({ company_id }),
+            }
+          );
+          const applyData = await applyRes.json();
+          console.info(`[bridge-sync] Auto-categorized ${applyData.updated || 0} transactions`);
+        } catch (autoErr) {
+          console.error(`[bridge-sync] Failed to apply automation rules:`, autoErr);
+        }
+      }
 
       return successResponse({ 
         accounts: allAccounts.length,

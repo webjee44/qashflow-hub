@@ -174,7 +174,23 @@ export function useAutomationRules() {
     const dataOwnerId = currentCompany.user_id;
 
     try {
-      // Create the rule first
+      // Anti-duplicate check before insert
+      const { data: existing } = await supabase
+        .from('automation_rules')
+        .select('id')
+        .eq('company_id', currentCompany.id)
+        .eq('condition_value', rule.condition_value)
+        .eq('condition_operator', rule.condition_operator)
+        .eq('target_category_id', rule.target_category_id || '')
+        .eq('is_active', true)
+        .limit(1);
+
+      if (existing && existing.length > 0) {
+        toast.info('Cette règle existe déjà');
+        return null;
+      }
+
+      // Create the rule
       const { data, error } = await supabase
         .from('automation_rules')
         .insert({
