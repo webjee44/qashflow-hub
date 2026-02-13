@@ -243,10 +243,22 @@ export function TransactionsView() {
       // Suggest automation if assigning a new category
       if (categoryId && !previousCategoryId && transaction) {
         const category = categoryMap.get(categoryId);
-        if (category) {
-          setLastCategorizedTransaction({ ...transaction, category_id: categoryId });
-          setLastSelectedCategory(category);
-          setShowSuggestDialog(true);
+        if (category && currentCompany) {
+          // Check if a matching rule already exists for this pattern
+          const { data: existingRules } = await supabase
+            .from('automation_rules')
+            .select('id')
+            .eq('company_id', currentCompany.id)
+            .eq('is_active', true)
+            .ilike('condition_value', `%${transaction.description.substring(0, 10)}%`)
+            .limit(1);
+
+          // Only suggest if no existing rule matches this description
+          if (!existingRules || existingRules.length === 0) {
+            setLastCategorizedTransaction({ ...transaction, category_id: categoryId });
+            setLastSelectedCategory(category);
+            setShowSuggestDialog(true);
+          }
         }
       }
     } catch {
@@ -256,7 +268,7 @@ export function TransactionsView() {
         variant: 'destructive',
       });
     }
-  }, [transactions, updateCategory, categoryMap, toast]);
+  }, [transactions, updateCategory, categoryMap, toast, currentCompany]);
 
   const handleBulkUpdateCategory = useCallback(async (categoryId: string | null) => {
     if (selectedTransactionIds.size === 0) return;
