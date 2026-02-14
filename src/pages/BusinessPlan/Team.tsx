@@ -14,6 +14,7 @@ import { useBPBonuses } from '@/features/business-plan/hooks/useBPBonuses';
 import { BPBonus } from '@/services/bonusService';
 import { useCurrentBusinessPlan } from '@/hooks/useCurrentBusinessPlan';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { DemoDataBanner } from '@/components/onboarding/DemoDataBanner';
 import { toast } from 'sonner';
 
 interface BulkRow {
@@ -226,6 +227,7 @@ export default function Team() {
 
   return (
     <div className="space-y-6">
+      <DemoDataBanner />
       <PageHeader
         title="Équipe"
         subtitle="Gérez vos salariés et prestataires externes"

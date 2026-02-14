@@ -8,6 +8,7 @@ import { useCurrentBusinessPlan } from '@/hooks/useCurrentBusinessPlan';
 import { RevenueTable, RevenueSummaryCard, SectionNotes } from '@/features/business-plan/components';
 import { RevenueStreamDialog, BPExportDialog } from '@/features/business-plan/dialogs';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { DemoDataBanner } from '@/components/onboarding/DemoDataBanner';
 
 export default function RevenueAssumptions() {
   const { currentPlan, isLoading: isLoadingBP } = useCurrentBusinessPlan();
@@ -43,6 +44,7 @@ export default function RevenueAssumptions() {
 
   return (
     <div className="space-y-6">
+      <DemoDataBanner />
       <PageHeader
         title="Hypothèses de Revenus"
         subtitle="Définissez vos flux de revenus et projections"

@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useBusinessPlans, BusinessPlan } from './useBusinessPlans';
 import { useCompany } from '@/hooks/useCompany';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 
 /**
  * Hook that ensures a Business Plan always exists for the current company.
@@ -50,7 +51,22 @@ export function useCurrentBusinessPlan() {
         is_pme: true,
         finalized_at: null,
       }, {
-        onSettled: () => {
+        onSuccess: (newBp) => {
+          isCreatingRef.current = false;
+          // Seed demo data for new BP if not already seeded/cleared
+          if (companyId && newBp?.id) {
+            const seedKey = `bp-demo-seeded-${companyId}`;
+            if (!localStorage.getItem(seedKey)) {
+              localStorage.setItem(seedKey, 'seeded');
+              supabase.functions.invoke('seed-bp-demo-data', {
+                body: { business_plan_id: newBp.id, company_id: companyId },
+              }).catch(() => {
+                // Silent fail - demo data is non-critical
+              });
+            }
+          }
+        },
+        onError: () => {
           isCreatingRef.current = false;
         }
       });
