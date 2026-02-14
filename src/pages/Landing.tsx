@@ -133,15 +133,8 @@ export default function Landing() {
               Pour une vision claire de toutes vos sociétés, sans ouvrir un seul Excel.
             </p>
 
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 max-w-lg mx-auto">
-              <Input
-                type="email"
-                placeholder="votre@email.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="h-12"
-              />
-              <Button size="lg" className="w-full sm:w-auto whitespace-nowrap" onClick={handleGetStarted}>
+            <div className="flex items-center justify-center">
+              <Button size="lg" onClick={() => navigate(user ? '/dashboard' : '/sign-up')}>
                 Démarrer mon essai gratuit (30j)
                 <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
