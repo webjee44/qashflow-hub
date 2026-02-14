@@ -9,59 +9,26 @@ import {
   ArrowRight, 
   Check, 
   TrendingUp, 
-  Wallet, 
-  BarChart3, 
-  Zap,
-  Shield,
-  Users,
-  Building2,
-  Sparkles,
   ChevronRight,
   Bot,
-  LineChart,
-  PiggyBank
+  Building2,
+  Sparkles,
+  Eye,
+  Clock,
+  AlertTriangle,
+  Shield,
+  Lock,
+  Globe,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { PublicNavbar } from '@/components/layout/PublicNavbar';
 import logo from '@/assets/logo.png';
+import screenshotDashboard from '@/assets/screenshot-dashboard.png';
 import screenshotPnl from '@/assets/screenshot-pnl.png';
 
 const emailSchema = z.string().email('Email invalide');
-
-const features = [
-  {
-    icon: Wallet,
-    title: 'Trésorerie en temps réel',
-    description: 'Synchronisez vos comptes bancaires et suivez votre cash en temps réel avec Bridge API.',
-  },
-  {
-    icon: TrendingUp,
-    title: 'Business Plan intégré',
-    description: 'Créez des projections financières professionnelles avec scénarios multiples.',
-  },
-  {
-    icon: Bot,
-    title: 'Catégorisation IA',
-    description: 'Laissez l\'IA catégoriser automatiquement vos transactions avec précision.',
-  },
-  {
-    icon: LineChart,
-    title: 'Prévisions cash-flow',
-    description: 'Anticipez vos besoins de trésorerie sur 12 mois avec nos algorithmes.',
-  },
-  {
-    icon: Shield,
-    title: 'Sécurité bancaire',
-    description: 'Vos données sont chiffrées et sécurisées avec les standards bancaires.',
-  },
-  {
-    icon: Users,
-    title: 'Multi-utilisateurs',
-    description: 'Invitez votre équipe et gérez les accès avec des rôles granulaires.',
-  },
-];
 
 const plans = [
   {
@@ -101,41 +68,26 @@ const plans = [
   },
 ];
 
-const testimonials = [
-  {
-    quote: "qashflow a transformé notre gestion de trésorerie. On gagne 10h par semaine !",
-    author: "Marie L.",
-    role: "DAF, Startup SaaS",
-  },
-  {
-    quote: "Le business plan intégré nous a permis de lever 2M€ avec des projections solides.",
-    author: "Thomas B.",
-    role: "CEO, E-commerce",
-  },
-  {
-    quote: "La catégorisation IA est bluffante. Plus besoin de saisie manuelle.",
-    author: "Sophie M.",
-    role: "Comptable, Cabinet",
-  },
-];
+const fadeUp = {
+  initial: { opacity: 0, y: 20 },
+  whileInView: { opacity: 1, y: 0 },
+  viewport: { once: true },
+};
 
 export default function Landing() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [email, setEmail] = useState('');
-  const [loading, setLoading] = useState(false);
 
   const handleGetStarted = async () => {
     if (user) {
       navigate('/dashboard');
       return;
     }
-
     if (!email) {
       navigate('/sign-up');
       return;
     }
-
     try {
       emailSchema.parse(email);
       navigate(`/sign-up?email=${encodeURIComponent(email)}`);
@@ -146,14 +98,16 @@ export default function Landing() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* SEO - Hidden H1 for crawlers */}
-      <h1 className="sr-only">Qashflow - Logiciel de gestion financière, trésorerie et business plan pour PME et startups</h1>
-      
-      {/* Navbar */}
+      <h1 className="sr-only">Qashflow - Direction Financière augmentée par l'IA pour PME et startups</h1>
       <PublicNavbar className="top-0" />
 
-      {/* Hero Section */}
-      <section className="pt-24 sm:pt-32 pb-12 sm:pb-20 px-4 sm:px-6 lg:px-8">
+      {/* ─── Section 1 : Hero ─── */}
+      <section className="relative pt-24 sm:pt-32 pb-16 sm:pb-24 px-4 sm:px-6 lg:px-8 overflow-hidden">
+        {/* Radial gradient background */}
+        <div className="absolute inset-0 -z-10" style={{
+          background: 'radial-gradient(ellipse 80% 60% at 50% 0%, hsl(241 86% 58% / 0.15), transparent 70%), radial-gradient(ellipse 60% 50% at 80% 20%, hsl(270 60% 55% / 0.08), transparent 60%)',
+        }} />
+
         <div className="max-w-7xl mx-auto">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -161,25 +115,25 @@ export default function Landing() {
             transition={{ duration: 0.6 }}
             className="text-center"
           >
-            <Badge variant="secondary" className="mb-6">
-              <Sparkles className="w-3 h-3 mr-1" />
-              Qashflow : Catégorisation IA incluse
+            <Badge variant="secondary" className="mb-6 gap-1.5">
+              <Sparkles className="w-3.5 h-3.5" />
+              Direction Financière augmentée par l'IA
             </Badge>
-            
-            <h2 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6">
-              Pilotez vos finances
-              <br />
-              <span className="bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-                avec intelligence
+
+            <h2 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6 text-balance">
+              Pilotez votre rentabilité{' '}
+              <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+                en temps réel
               </span>
+              , pas votre comptabilité.
             </h2>
-            
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-8">
-              <strong>Qashflow</strong> synchronise vos banques, anticipe votre cash-flow et crée des business plans 
-              professionnels. Le logiciel de gestion de trésorerie conçu pour les PME et startups françaises.
+
+            <p className="text-lg sm:text-xl text-muted-foreground max-w-3xl mx-auto mb-8">
+              L'IA qui centralise vos banques, anticipe votre cash-flow et décomplexifie la finance.
+              Pour une vision claire de toutes vos sociétés, sans ouvrir un seul Excel.
             </p>
 
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 max-w-md mx-auto">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 max-w-lg mx-auto">
               <Input
                 type="email"
                 placeholder="votre@email.com"
@@ -187,94 +141,71 @@ export default function Landing() {
                 onChange={(e) => setEmail(e.target.value)}
                 className="h-12"
               />
-              <Button size="lg" className="w-full sm:w-auto" onClick={handleGetStarted}>
-                Démarrer gratuitement
+              <Button size="lg" className="w-full sm:w-auto whitespace-nowrap" onClick={handleGetStarted}>
+                Démarrer mon essai gratuit (30j)
                 <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             </div>
-            
-            <p className="text-xs sm:text-sm text-muted-foreground mt-4 flex flex-wrap justify-center gap-x-3 gap-y-1">
+
+            <p className="text-xs sm:text-sm text-muted-foreground mt-4 flex flex-wrap justify-center gap-x-4 gap-y-1">
               <span>✓ Gratuit 30 jours</span>
               <span>✓ Sans carte bancaire</span>
               <span>✓ Annulation facile</span>
             </p>
           </motion.div>
 
-          {/* App Screenshots Gallery */}
+          {/* Dashboard screenshot in browser frame */}
           <motion.div
             initial={{ opacity: 0, y: 40 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.2 }}
             className="mt-16 relative"
           >
-            <div className="bg-gradient-to-b from-primary/20 to-transparent absolute inset-0 rounded-2xl blur-3xl -z-10" />
-            
-            {/* Main Screenshot - P&L with Browser Frame */}
-            <div className="bg-card border border-border rounded-2xl shadow-2xl overflow-hidden">
-              {/* Browser Chrome */}
+            <div className="absolute inset-0 bg-gradient-to-b from-primary/20 to-transparent rounded-2xl blur-3xl -z-10" />
+            <div className="glass-card rounded-2xl overflow-hidden shadow-2xl">
               <div className="bg-muted/50 px-4 py-3 border-b border-border flex items-center gap-3">
                 <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-red-500" />
-                  <div className="w-3 h-3 rounded-full bg-yellow-500" />
-                  <div className="w-3 h-3 rounded-full bg-green-500" />
+                  <div className="w-3 h-3 rounded-full bg-destructive/80" />
+                  <div className="w-3 h-3 rounded-full bg-warning/80" />
+                  <div className="w-3 h-3 rounded-full bg-success/80" />
                 </div>
                 <div className="flex-1 flex justify-center">
                   <div className="bg-background/80 px-4 py-1.5 rounded-lg text-sm text-muted-foreground flex items-center gap-2 border border-border/50">
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                    </svg>
+                    <Lock className="w-3.5 h-3.5" />
                     app.qashflow.fr
                   </div>
                 </div>
-                <div className="w-[52px]" /> {/* Spacer to balance the traffic lights */}
+                <div className="w-[52px]" />
               </div>
-              <img 
-                src={screenshotPnl} 
-                alt="Compte de résultat qashflow - Business Plan" 
-                className="w-full h-auto"
-              />
+              <img src={screenshotDashboard} alt="Dashboard Qashflow - Vue trésorerie multi-sociétés" className="w-full h-auto" />
             </div>
           </motion.div>
         </div>
       </section>
 
-      {/* Features Section */}
-      <section id="features" className="py-20 px-4 sm:px-6 lg:px-8 bg-muted/30">
+      {/* ─── Section 2 : Pain Points ─── */}
+      <section className="py-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-center mb-16"
-          >
-            <h2 className="text-3xl sm:text-4xl font-bold mb-4">
-              Tout ce dont vous avez besoin
-            </h2>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Une suite complète pour gérer votre trésorerie et planifier votre croissance.
-            </p>
+          <motion.div {...fadeUp} className="text-center mb-14">
+            <h2 className="text-3xl sm:text-4xl font-bold mb-4">Vous reconnaissez-vous ?</h2>
           </motion.div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {features.map((feature, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.1 }}
-              >
-                <Card className="h-full bg-card hover:shadow-lg transition-shadow">
-                  <CardHeader>
-                    <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
-                      <feature.icon className="w-6 h-6 text-primary" />
+          <div className="grid md:grid-cols-3 gap-6 lg:gap-8">
+            {[
+              { icon: Eye, title: 'Le Brouillard', text: 'Je ne sais jamais combien il me reste vraiment à la fin du mois.' },
+              { icon: Clock, title: 'La Corvée', text: 'Je perds des heures à consolider les données de mes 3 sociétés.' },
+              { icon: AlertTriangle, title: 'Le Stress', text: 'Mon bilan arrive 6 mois trop tard pour prendre des décisions.' },
+            ].map((pain, i) => (
+              <motion.div key={i} {...fadeUp} transition={{ delay: i * 0.1 }}>
+                <Card className="h-full glass-card hover:shadow-xl transition-shadow">
+                  <CardHeader className="pb-3">
+                    <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-3">
+                      <pain.icon className="w-6 h-6 text-primary" />
                     </div>
-                    <CardTitle>{feature.title}</CardTitle>
+                    <CardTitle className="text-lg">{pain.title}</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <CardDescription className="text-base">
-                      {feature.description}
-                    </CardDescription>
+                    <p className="text-muted-foreground italic">"{pain.text}"</p>
                   </CardContent>
                 </Card>
               </motion.div>
@@ -283,52 +214,197 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* Pricing Section */}
+      {/* ─── Section 3 : Les 3 Piliers ─── */}
+      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-muted/30">
+        <div className="max-w-7xl mx-auto">
+          <motion.div {...fadeUp} className="text-center mb-14">
+            <h2 className="text-3xl sm:text-4xl font-bold mb-4">La visibilité financière absolue</h2>
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+              Trois piliers pour reprendre le contrôle de vos finances, sans effort.
+            </p>
+          </motion.div>
+
+          <div className="grid md:grid-cols-3 gap-6 lg:gap-8">
+            {/* Pilier 1 */}
+            <motion.div {...fadeUp} transition={{ delay: 0 }}>
+              <Card className="h-full glass-card hover:shadow-xl transition-shadow">
+                <CardHeader className="pb-3">
+                  <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-3">
+                    <Building2 className="w-6 h-6 text-primary" />
+                  </div>
+                  <CardTitle className="text-lg">Visibilité Multi-Entités</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-muted-foreground">
+                    Consolidation instantanée de toutes vos structures. Un seul écran pour votre groupe.
+                  </p>
+                </CardContent>
+              </Card>
+            </motion.div>
+
+            {/* Pilier 2 - with AI progress bar */}
+            <motion.div {...fadeUp} transition={{ delay: 0.1 }}>
+              <Card className="h-full glass-card hover:shadow-xl transition-shadow">
+                <CardHeader className="pb-3">
+                  <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-3">
+                    <Bot className="w-6 h-6 text-primary" />
+                  </div>
+                  <CardTitle className="text-lg">Intelligence de Catégorisation</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-muted-foreground">
+                    L'IA apprend de vos flux pour classer vos dépenses. Zéro erreur, zéro oubli.
+                  </p>
+                  {/* AI progress bar */}
+                  <div>
+                    <div className="flex items-center justify-between text-sm mb-1.5">
+                      <span className="text-muted-foreground">Flux automatisés</span>
+                      <span className="font-semibold text-primary">98 %</span>
+                    </div>
+                    <div className="h-2.5 rounded-full bg-muted overflow-hidden">
+                      <motion.div
+                        className="h-full rounded-full bg-gradient-to-r from-primary to-accent"
+                        initial={{ width: 0 }}
+                        whileInView={{ width: '98%' }}
+                        viewport={{ once: true }}
+                        transition={{ duration: 1.2, ease: 'easeOut' }}
+                      />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+
+            {/* Pilier 3 */}
+            <motion.div {...fadeUp} transition={{ delay: 0.2 }}>
+              <Card className="h-full glass-card hover:shadow-xl transition-shadow">
+                <CardHeader className="pb-3">
+                  <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-3">
+                    <TrendingUp className="w-6 h-6 text-primary" />
+                  </div>
+                  <CardTitle className="text-lg">Prédictif & Scénarios</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-muted-foreground">
+                    Projetez votre trésorerie à 6 ou 12 mois pour valider vos investissements ou vos recrutements.
+                  </p>
+                </CardContent>
+              </Card>
+            </motion.div>
+          </div>
+        </div>
+      </section>
+
+      {/* ─── Section 4 : Humain + IA ─── */}
+      <section className="py-20 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+            <motion.div {...fadeUp}>
+              <Badge variant="secondary" className="mb-4 gap-1.5">
+                <Sparkles className="w-3.5 h-3.5" />
+                Humain + IA
+              </Badge>
+              <h2 className="text-3xl sm:text-4xl font-bold mb-6">
+                L'outil qui libère votre équipe des tâches ingrates
+              </h2>
+              <p className="text-lg text-muted-foreground mb-4">
+                Qashflow ne remplace pas votre expertise, il automatise la saisie manuelle.
+                Redonnez à votre gestionnaire le temps d'analyser plutôt que de copier-coller.
+              </p>
+              <p className="text-lg font-medium text-foreground">
+                Moins de stress administratif, plus de conseil stratégique.
+              </p>
+            </motion.div>
+
+            <motion.div {...fadeUp} transition={{ delay: 0.15 }}>
+              <div className="glass-card rounded-2xl overflow-hidden shadow-xl">
+                <div className="bg-muted/50 px-4 py-3 border-b border-border flex items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-destructive/80" />
+                    <div className="w-3 h-3 rounded-full bg-warning/80" />
+                    <div className="w-3 h-3 rounded-full bg-success/80" />
+                  </div>
+                  <div className="flex-1 flex justify-center">
+                    <div className="bg-background/80 px-4 py-1.5 rounded-lg text-sm text-muted-foreground flex items-center gap-2 border border-border/50">
+                      <Lock className="w-3.5 h-3.5" />
+                      app.qashflow.fr
+                    </div>
+                  </div>
+                  <div className="w-[52px]" />
+                </div>
+                <img src={screenshotPnl} alt="Compte de résultat Qashflow - Business Plan" className="w-full h-auto" />
+              </div>
+            </motion.div>
+          </div>
+        </div>
+      </section>
+
+      {/* ─── Section 5 : Réassurance & Sécurité ─── */}
+      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-muted/30">
+        <div className="max-w-7xl mx-auto">
+          <motion.div {...fadeUp} className="text-center mb-14">
+            <h2 className="text-3xl sm:text-4xl font-bold mb-4">Vos données en sécurité absolue</h2>
+          </motion.div>
+
+          <div className="grid md:grid-cols-3 gap-6 lg:gap-8 mb-8">
+            {[
+              { icon: Shield, title: 'DSP2', text: 'Synchronisation bancaire sécurisée via la directive européenne DSP2.' },
+              { icon: Lock, title: 'Chiffrement AES-256', text: 'Vos données sont cryptées avec le standard de chiffrement le plus élevé.' },
+              { icon: Globe, title: 'Hébergement UE', text: 'Serveurs hébergés en Union Européenne, conformes au RGPD.' },
+            ].map((item, i) => (
+              <motion.div key={i} {...fadeUp} transition={{ delay: i * 0.1 }}>
+                <Card className="h-full text-center glass-card">
+                  <CardContent className="pt-8 pb-6">
+                    <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                      <item.icon className="w-7 h-7 text-primary" />
+                    </div>
+                    <h3 className="font-semibold text-lg mb-2">{item.title}</h3>
+                    <p className="text-sm text-muted-foreground">{item.text}</p>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            ))}
+          </div>
+
+          <motion.div {...fadeUp} className="text-center">
+            <Badge variant="outline" className="text-sm px-4 py-1.5">
+              Compatible avec toutes les banques françaises
+            </Badge>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* ─── Section 6 : Pricing ─── */}
       <section id="pricing" className="py-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-center mb-16"
-          >
-             <h2 className="text-3xl sm:text-4xl font-bold mb-4">
-               Un tarif unique et transparent
-             </h2>
-             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-               Essai gratuit 30 jours, puis licence à vie à 499€ au lieu de 1 000€.
-             </p>
+          <motion.div {...fadeUp} className="text-center mb-16">
+            <h2 className="text-3xl sm:text-4xl font-bold mb-4">Un tarif unique et transparent</h2>
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+              Essai gratuit 30 jours, puis licence à vie à 499 € au lieu de 1 000 €.
+            </p>
           </motion.div>
 
           <div className="grid md:grid-cols-2 gap-6 max-w-3xl mx-auto">
             {plans.map((plan, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.1 }}
-              >
-                <Card className={`h-full relative ${plan.popular ? 'border-primary shadow-lg shadow-primary/20' : ''}`}>
+              <motion.div key={i} {...fadeUp} transition={{ delay: i * 0.1 }}>
+                <Card className={`h-full relative ${plan.popular ? 'glass-card border-primary shadow-lg shadow-primary/20' : ''}`}>
                   {plan.popular && (
                     <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                      <Badge className="bg-primary text-primary-foreground">
-                        Plus populaire
-                      </Badge>
+                      <Badge className="bg-primary text-primary-foreground">Plus populaire</Badge>
                     </div>
                   )}
                   <CardHeader className="text-center pb-2">
-                     <CardTitle className="text-xl">{plan.name}</CardTitle>
-                     <CardDescription>{plan.description}</CardDescription>
-                     <div className="mt-4">
-                       {plan.originalPrice && (
-                         <div className="mb-1">
-                           <span className="text-lg text-muted-foreground line-through">{plan.originalPrice}€</span>
-                         </div>
-                       )}
-                       <span className="text-4xl font-bold">{plan.price}€</span>
-                       <span className="text-muted-foreground">{plan.suffix}</span>
-                     </div>
+                    <CardTitle className="text-xl">{plan.name}</CardTitle>
+                    <CardDescription>{plan.description}</CardDescription>
+                    <div className="mt-4">
+                      {plan.originalPrice && (
+                        <div className="mb-1">
+                          <span className="text-lg text-muted-foreground line-through">{plan.originalPrice} €</span>
+                        </div>
+                      )}
+                      <span className="text-4xl font-bold">{plan.price} €</span>
+                      <span className="text-muted-foreground">{plan.suffix}</span>
+                    </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <ul className="space-y-3">
@@ -339,8 +415,8 @@ export default function Landing() {
                         </li>
                       ))}
                     </ul>
-                    <Button 
-                      className="w-full" 
+                    <Button
+                      className="w-full"
                       variant={plan.popular ? 'default' : 'outline'}
                       onClick={() => navigate('/sign-up')}
                     >
@@ -354,85 +430,30 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* Testimonials Section */}
-      <section id="testimonials" className="py-20 px-4 sm:px-6 lg:px-8 bg-muted/30">
-        <div className="max-w-7xl mx-auto">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-center mb-16"
-          >
-            <h2 className="text-3xl sm:text-4xl font-bold mb-4">
-              Ils nous font confiance
-            </h2>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Découvrez ce que nos clients disent de qashflow.
-            </p>
-          </motion.div>
-
-          <div className="grid md:grid-cols-3 gap-8">
-            {testimonials.map((testimonial, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.1 }}
-              >
-                <Card className="h-full">
-                  <CardContent className="pt-6">
-                    <p className="text-lg mb-6 italic">"{testimonial.quote}"</p>
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                        <span className="font-semibold text-primary">
-                          {testimonial.author[0]}
-                        </span>
-                      </div>
-                      <div>
-                        <p className="font-semibold">{testimonial.author}</p>
-                        <p className="text-sm text-muted-foreground">{testimonial.role}</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* CTA Section */}
+      {/* ─── Section 7 : CTA Final ─── */}
       <section className="py-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-4xl mx-auto">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-          >
+          <motion.div {...fadeUp}>
             <Card className="bg-gradient-to-br from-primary to-primary/80 text-primary-foreground border-0">
               <CardContent className="py-12 text-center">
                 <h2 className="text-3xl sm:text-4xl font-bold mb-4">
-                  Prêt à reprendre le contrôle de votre trésorerie ?
+                  Prêt à piloter votre rentabilité en temps réel ?
                 </h2>
                 <p className="text-xl opacity-90 mb-8 max-w-2xl mx-auto">
-                  Rejoignez des centaines d'entreprises qui utilisent qashflow pour piloter leur cash.
+                  Rejoignez les dirigeants qui utilisent Qashflow comme direction financière augmentée.
                 </p>
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                  <Button 
-                    size="lg" 
-                    variant="secondary"
-                    onClick={() => navigate('/sign-up')}
-                  >
-                    Démarrer gratuitement
+                  <Button size="lg" variant="secondary" onClick={() => navigate('/sign-up')}>
+                    Démarrer mon essai gratuit
                     <ArrowRight className="w-4 h-4 ml-2" />
                   </Button>
-                  <Button 
-                    size="lg" 
-                    variant="ghost" 
+                  <Button
+                    size="lg"
+                    variant="ghost"
                     className="text-primary-foreground hover:text-primary-foreground hover:bg-primary-foreground/10"
+                    onClick={() => navigate('/contact')}
                   >
-                    Voir une démo
+                    Nous contacter
                     <ChevronRight className="w-4 h-4 ml-2" />
                   </Button>
                 </div>
@@ -442,16 +463,16 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* Footer */}
+      {/* ─── Footer ─── */}
       <footer className="border-t border-border py-12 px-4 sm:px-6 lg:px-8" role="contentinfo">
         <div className="max-w-7xl mx-auto">
           <div className="grid md:grid-cols-4 gap-8">
             <div>
               <div className="flex items-center mb-4">
-                <img src={logo} alt="Qashflow - Logiciel de gestion de trésorerie" className="h-8" />
+                <img src={logo} alt="Qashflow - Direction Financière augmentée" className="h-8" />
               </div>
               <p className="text-muted-foreground text-sm">
-                Qashflow, la solution tout-en-un pour piloter votre trésorerie et planifier votre croissance.
+                Qashflow, la direction financière augmentée par l'IA pour piloter votre trésorerie et planifier votre croissance.
               </p>
             </div>
             <div>
@@ -480,7 +501,7 @@ export default function Landing() {
             </div>
           </div>
           <div className="border-t border-border mt-12 pt-8 text-center text-sm text-muted-foreground">
-            © {new Date().getFullYear()} Qashflow - Logiciel de gestion de trésorerie. Tous droits réservés.
+            © {new Date().getFullYear()} Qashflow - Direction Financière augmentée par l'IA. Tous droits réservés.
           </div>
         </div>
       </footer>

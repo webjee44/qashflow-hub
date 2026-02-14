@@ -157,6 +157,10 @@
     text-wrap: balance;
   }
   
+  .glass-card {
+    @apply bg-card/60 backdrop-blur-xl border border-white/10 shadow-lg;
+  }
+
   /* Modern hidden scrollbar */
   .scrollbar-none {
     -ms-overflow-style: none;
