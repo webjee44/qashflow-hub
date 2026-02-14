@@ -383,7 +383,7 @@ export default function Landing() {
                 <Card className={`h-full relative ${plan.popular ? 'glass-card border-primary shadow-lg shadow-primary/20' : ''}`}>
                   {plan.popular && (
                     <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                      <Badge className="bg-primary text-primary-foreground">Plus populaire</Badge>
+                      <Badge className="bg-primary text-primary-foreground">Prix de lancement</Badge>
                     </div>
                   )}
                   <CardHeader className="text-center pb-2">
