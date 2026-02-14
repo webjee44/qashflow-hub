@@ -74,7 +74,11 @@ export function useBusinessPlans() {
       queryClient.invalidateQueries({ queryKey: ['business_plans'] });
       toast({ title: 'Business Plan créé' });
     },
-    onError: (error) => {
+    onError: (error: any) => {
+      if (error?.code === '23505') {
+        queryClient.invalidateQueries({ queryKey: ['business_plans'] });
+        return;
+      }
       toast({ title: 'Erreur', description: error.message, variant: 'destructive' });
     },
   });
