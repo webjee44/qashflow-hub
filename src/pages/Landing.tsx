@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
@@ -63,7 +63,7 @@ const plans = [
       'Support prioritaire',
       'Mises à jour incluses à vie',
     ],
-    cta: 'Acheter la licence',
+    cta: 'J\'en profite maintenant 🚀',
     popular: true,
   },
 ];
@@ -78,6 +78,27 @@ export default function Landing() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [email, setEmail] = useState('');
+  const [countdown, setCountdown] = useState({ minutes: 15, seconds: 0 });
+
+  useEffect(() => {
+    const DURATION = 15 * 60; // 15 minutes in seconds
+    const KEY = 'pricing-countdown-start';
+    let stored = sessionStorage.getItem(KEY);
+    if (!stored) {
+      stored = String(Date.now());
+      sessionStorage.setItem(KEY, stored);
+    }
+    const startTime = Number(stored);
+
+    const tick = () => {
+      const elapsed = Math.floor((Date.now() - startTime) / 1000);
+      const remaining = Math.max(0, DURATION - elapsed);
+      setCountdown({ minutes: Math.floor(remaining / 60), seconds: remaining % 60 });
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, []);
 
   const handleGetStarted = async () => {
     if (user) {
@@ -408,13 +429,25 @@ export default function Landing() {
                         </li>
                       ))}
                     </ul>
+                    {plan.popular && (countdown.minutes > 0 || countdown.seconds > 0) && (
+                      <div className="flex items-center justify-center gap-2 text-destructive text-sm font-semibold animate-pulse">
+                        <Clock className="w-4 h-4" />
+                        <span>Offre valable encore {String(countdown.minutes).padStart(2, '0')}:{String(countdown.seconds).padStart(2, '0')}</span>
+                      </div>
+                    )}
                     <Button
                       className="w-full"
+                      size="lg"
                       variant={plan.popular ? 'default' : 'outline'}
                       onClick={() => navigate('/sign-up')}
                     >
                       {plan.cta}
                     </Button>
+                    {plan.popular && (
+                      <p className="text-xs text-center text-muted-foreground">
+                        Offre de lancement — prix amené à augmenter
+                      </p>
+                    )}
                   </CardContent>
                 </Card>
               </motion.div>
