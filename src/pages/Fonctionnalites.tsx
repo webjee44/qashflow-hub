@@ -24,7 +24,12 @@ import {
   Briefcase,
   Download,
   History,
-  Trash2
+  Trash2,
+  Sparkles,
+  RefreshCcw,
+  Globe,
+  Link2,
+  CreditCard,
 } from 'lucide-react';
 import { SEOHead, generateBreadcrumbSchema } from '@/components/seo/SEOHead';
 import { PublicNavbar } from '@/components/layout/PublicNavbar';
@@ -60,15 +65,51 @@ const featureCategories = [
         ],
       },
       {
+        icon: Sparkles,
+        title: 'Automatisations IA',
+        slug: 'automatisations',
+        description: 'Créez des règles intelligentes pour automatiser la gestion de vos flux.',
+        details: [
+          'Règles conditionnelles multi-critères',
+          'Catégorisation automatique par règle',
+          'Statistiques d\'application en temps réel',
+          'Application rétroactive sur l\'historique',
+        ],
+      },
+      {
         icon: LineChart,
         title: 'Prévisions cash-flow',
         slug: 'previsions-tresorerie',
-        description: 'Anticipez vos besoins de trésorerie sur 12 mois.',
+        description: 'Anticipez vos besoins de trésorerie sur 12 mois avec réconciliation bancaire.',
         details: [
           'Projections basées sur l\'historique',
-          'Alertes de trésorerie basse',
+          'Réconciliation automatique sur solde bancaire réel',
           'Comparaison budget vs réel',
           'Export des prévisions',
+        ],
+      },
+      {
+        icon: Receipt,
+        title: 'Engagements & Créances',
+        slug: 'engagements',
+        description: 'Suivez vos factures clients et fournisseurs en un seul endroit.',
+        details: [
+          'Import automatique depuis Pennylane ou Odoo',
+          'Suivi des échéances et relances',
+          'Statistiques par statut (payé, en attente, en retard)',
+          'Connecteurs comptables configurables',
+        ],
+      },
+      {
+        icon: Building2,
+        title: 'Multi-sociétés & Organisations',
+        slug: 'multi-societes',
+        description: 'Gérez toutes vos structures depuis un seul compte.',
+        details: [
+          'Consolidation instantanée multi-entités',
+          'Basculement rapide entre sociétés',
+          'Organisations multi-membres',
+          'Données cloisonnées par structure',
         ],
       },
     ],
@@ -90,7 +131,7 @@ const featureCategories = [
         ],
       },
       {
-        icon: Receipt,
+        icon: CreditCard,
         title: 'Gestion des charges',
         slug: 'charges',
         description: 'Charges fixes et variables liées à vos revenus.',
@@ -98,7 +139,7 @@ const featureCategories = [
           'Charges fixes avec fréquence de paiement',
           'Charges variables liées aux revenus',
           'Gestion TVA déductible',
-          'Catégorisation par type',
+          'Catégorisation PCG',
         ],
       },
       {
@@ -114,7 +155,7 @@ const featureCategories = [
         ],
       },
       {
-        icon: Building2,
+        icon: Layers,
         title: 'Investissements & Amortissements',
         slug: 'investissements',
         description: 'Planifiez vos investissements et leur amortissement.',
@@ -192,6 +233,18 @@ const featureCategories = [
         ],
       },
       {
+        icon: Wallet,
+        title: 'Plan de financement',
+        slug: 'plan-financement',
+        description: 'Vue consolidée des besoins et ressources de financement.',
+        details: [
+          'Besoins durables vs ressources durables',
+          'Capacité d\'autofinancement',
+          'Variation du BFR',
+          'Trésorerie nette prévisionnelle',
+        ],
+      },
+      {
         icon: Target,
         title: 'Ratios & Indicateurs',
         slug: 'ratios',
@@ -210,7 +263,7 @@ const featureCategories = [
     description: "Comparez et travaillez en équipe",
     features: [
       {
-        icon: Layers,
+        icon: RefreshCcw,
         title: 'Scénarios multiples',
         slug: 'scenarios',
         description: 'Créez des scénarios optimiste, réaliste et pessimiste.',
@@ -270,9 +323,21 @@ const featureCategories = [
         description: 'Chiffrement et protection de niveau bancaire.',
         details: [
           'Chiffrement AES-256',
-          'Authentification sécurisée',
-          'Secrets API chiffrés',
+          'Synchronisation DSP2',
+          'Serveurs hébergés en Union Européenne',
           'Audit de sécurité régulier',
+        ],
+      },
+      {
+        icon: Link2,
+        title: 'Connecteurs comptables',
+        slug: 'connecteurs',
+        description: 'Synchronisez vos données avec votre logiciel comptable.',
+        details: [
+          'Connecteur Pennylane',
+          'Connecteur Odoo',
+          'Import automatique des factures',
+          'Architecture extensible',
         ],
       },
       {
@@ -291,6 +356,12 @@ const featureCategories = [
   },
 ];
 
+const fadeUp = {
+  initial: { opacity: 0, y: 20 },
+  whileInView: { opacity: 1, y: 0 },
+  viewport: { once: true },
+};
+
 export default function Fonctionnalites() {
   const navigate = useNavigate();
 
@@ -303,43 +374,43 @@ export default function Fonctionnalites() {
     <div className="min-h-screen bg-background">
       <SEOHead
         title="Fonctionnalités"
-        description="Découvrez toutes les fonctionnalités de qashflow : synchronisation bancaire, business plan, catégorisation IA, prévisions cash-flow et plus."
-        keywords="gestion trésorerie, business plan, synchronisation bancaire, catégorisation IA, prévisions cash-flow, PME, startup"
+        description="Découvrez toutes les fonctionnalités de Qashflow : synchronisation bancaire, business plan, catégorisation IA, automatisations, multi-sociétés et plus."
+        keywords="gestion trésorerie, business plan, synchronisation bancaire, catégorisation IA, automatisations, multi-sociétés, PME, startup"
       />
       
-      {/* JSON-LD */}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
       />
 
-      {/* Navbar */}
       <PublicNavbar activePage="fonctionnalites" className="top-0" />
 
       {/* Hero */}
-      <section className="pt-24 sm:pt-32 pb-16 px-4 sm:px-6 lg:px-8">
+      <section className="relative pt-24 sm:pt-32 pb-16 px-4 sm:px-6 lg:px-8 overflow-hidden">
+        <div className="absolute inset-0 -z-10" style={{
+          background: 'radial-gradient(ellipse 80% 60% at 50% 0%, hsl(241 86% 58% / 0.1), transparent 70%)',
+        }} />
         <div className="max-w-7xl mx-auto text-center">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
           >
-            <Badge variant="secondary" className="mb-6">
-              <Zap className="w-3 h-3 mr-1" />
-              Suite complète de gestion financière
+            <Badge variant="secondary" className="mb-6 gap-1.5">
+              <Sparkles className="w-3.5 h-3.5" />
+              Direction Financière augmentée par l'IA
             </Badge>
             
             <h1 className="text-4xl sm:text-5xl font-bold tracking-tight mb-6">
               Toutes les fonctionnalités pour
               <br />
-              <span className="bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
                 piloter vos finances
               </span>
             </h1>
             
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Trésorerie en temps réel, business plan professionnel, scénarios multiples et export PDF.
-              Tout ce dont vous avez besoin pour gérer vos finances.
+              Trésorerie en temps réel, business plan professionnel, automatisations IA, multi-sociétés et connecteurs comptables.
             </p>
           </motion.div>
         </div>
@@ -351,29 +422,23 @@ export default function Fonctionnalites() {
           {featureCategories.map((category, categoryIndex) => (
             <motion.div
               key={category.title}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
+              {...fadeUp}
               transition={{ delay: categoryIndex * 0.1 }}
             >
-              {/* Category Header */}
               <div className="text-center mb-10">
                 <Badge variant="outline" className="mb-4">{category.title}</Badge>
                 <h2 className="text-2xl sm:text-3xl font-bold mb-2">{category.title}</h2>
                 <p className="text-muted-foreground">{category.description}</p>
               </div>
 
-              {/* Features Grid */}
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {category.features.map((feature, i) => (
                   <motion.div
                     key={feature.slug}
-                    initial={{ opacity: 0, y: 20 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true }}
+                    {...fadeUp}
                     transition={{ delay: i * 0.05 }}
                   >
-                    <Card className="h-full hover:shadow-lg hover:border-primary/20 transition-all" id={feature.slug}>
+                    <Card className="h-full glass-card hover:shadow-xl hover:border-primary/20 transition-all" id={feature.slug}>
                       <CardHeader className="pb-3">
                         <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center mb-3">
                           <feature.icon className="w-5 h-5 text-primary" />
@@ -406,14 +471,14 @@ export default function Fonctionnalites() {
       <section className="py-20 px-4 sm:px-6 lg:px-8 bg-muted/30">
         <div className="max-w-3xl mx-auto text-center">
           <h2 className="text-3xl font-bold mb-4">
-            Prêt à optimiser votre gestion financière ?
+            Prêt à piloter votre rentabilité en temps réel ?
           </h2>
           <p className="text-xl text-muted-foreground mb-8">
-            Essayez qashflow gratuitement pendant 30 jours, sans carte bancaire.
+            Essayez Qashflow gratuitement pendant 30 jours, sans carte bancaire.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Button size="lg" onClick={() => navigate('/sign-up')}>
-              Démarrer gratuitement
+              Démarrer mon essai gratuit
               <ArrowRight className="w-4 h-4 ml-2" />
             </Button>
             <Button size="lg" variant="outline" asChild>
@@ -440,7 +505,6 @@ export default function Fonctionnalites() {
               <ul className="space-y-2 text-sm text-muted-foreground">
                 <li><Link to="/a-propos" className="hover:text-foreground">À propos</Link></li>
                 <li><Link to="/contact" className="hover:text-foreground">Contact</Link></li>
-                <li><Link to="/blog" className="hover:text-foreground">Blog</Link></li>
               </ul>
             </div>
             <div>
@@ -448,7 +512,6 @@ export default function Fonctionnalites() {
               <ul className="space-y-2 text-sm text-muted-foreground">
                 <li><Link to="/mentions-legales" className="hover:text-foreground">Mentions légales</Link></li>
                 <li><Link to="/confidentialite" className="hover:text-foreground">Confidentialité</Link></li>
-                <li><Link to="/cgv" className="hover:text-foreground">CGV</Link></li>
               </ul>
             </div>
             <div>
@@ -459,7 +522,7 @@ export default function Fonctionnalites() {
             </div>
           </div>
           <div className="mt-12 pt-8 border-t border-border text-center text-sm text-muted-foreground">
-            © {new Date().getFullYear()} qashflow. Tous droits réservés.
+            © {new Date().getFullYear()} Qashflow - Direction Financière augmentée par l'IA. Tous droits réservés.
           </div>
         </div>
       </footer>
