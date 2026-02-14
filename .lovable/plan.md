@@ -1,83 +1,99 @@
 
 
-## Refonte Landing Page Qashflow - "Direction Financiere Augmentee"
+## Remplissage complet des donnees demo - Treasury + IA
 
-Rewrite complet de `src/pages/Landing.tsx` suivant le brief "One-Page" fourni, en conservant le `PublicNavbar`, le footer, et la logique existante (email capture, navigation).
+### Constat actuel
 
----
+Le Business Plan est bien rempli pour les 3 societes (revenue streams, charges fixes, personnel, investissements, scenarios, financings). En revanche, le module tresorerie est **completement vide** :
 
-### Nouvelle structure de la page (7 sections)
+| Donnee | ChaussuresPro | CloudSoft | StrategiaConseil |
+|--------|:---:|:---:|:---:|
+| Categories | 0 | 0 | 0 |
+| Transactions | 0 | 0 | 0 |
+| Regles IA | 0 | 0 | 0 |
+| Previsions (category_forecasts) | 0 | 0 | 0 |
+| Factures | 0 | 0 | 0 |
 
-#### Section 1 - Hero
-- **H1** : "Pilotez votre rentabilite en temps reel, pas votre comptabilite."
-- **Sous-titre** : "L'IA qui centralise vos banques, anticipe votre cash-flow et decomplexifie la finance. Pour une vision claire de toutes vos societes, sans ouvrir un seul Excel."
-- **CTA** : Input email + bouton "Demarrer mon essai gratuit (30j)"
-- **Reassurance** : Gratuit 30 jours / Sans carte bancaire / Annulation facile
-- **Visuel** : Screenshot du dashboard (`screenshot-dashboard.png`) dans un cadre navigateur avec effet glassmorphism
-- **Style** : Fond avec radial gradient subtil bleu-violet, badge "Direction Financiere augmentee par l'IA"
+### Plan d'action
 
-#### Section 2 - Pain Points
-- Titre : "Vous reconnaissez-vous ?"
-- 3 cartes avec effet glassmorphism (`bg-card/60 backdrop-blur-xl border border-white/10`) :
-  - Le Brouillard (icone `Eye`) : "Je ne sais jamais combien il me reste vraiment a la fin du mois."
-  - La Corvee (icone `Clock`) : "Je perds des heures a consolider les donnees de mes 3 societes."
-  - Le Stress (icone `AlertTriangle`) : "Mon bilan arrive 6 mois trop tard pour prendre des decisions."
-
-#### Section 3 - Les 3 Piliers (Proposition de valeur)
-- Titre : "La visibilite financiere absolue"
-- 3 cartes glassmorphism avec icones aerees :
-  - **Visibilite Multi-Entites** (icone `Building2`) : "Consolidation instantanee de toutes vos structures. Un seul ecran pour votre groupe."
-  - **Intelligence de Categorisation** (icone `Bot`) : "L'IA apprend de vos flux pour classer vos depenses. Zero erreur, zero oubli." + Barre de progression animee "98% des flux automatises"
-  - **Predictif & Scenarios** (icone `TrendingUp`) : "Projetez votre tresorerie a 6 ou 12 mois pour valider vos investissements ou vos recrutements."
-
-#### Section 4 - Humain + IA
-- Titre : "L'outil qui libere votre equipe des taches ingrates"
-- Layout 2 colonnes (texte + visuel illustratif) :
-  - Texte : "Qashflow ne remplace pas votre expertise, il automatise la saisie manuelle. Redonnez a votre gestionnaire le temps d'analyser plutot que de copier-coller."
-  - Benefice mis en avant : "Moins de stress administratif, plus de conseil strategique."
-  - Visuel : Screenshot P&L (`screenshot-pnl.png`) dans un cadre avec glassmorphism
-
-#### Section 5 - Reassurance & Securite
-- Titre : "Vos donnees en securite absolue"
-- 3 elements horizontaux avec icones :
-  - DSP2 : "Synchronisation bancaire securisee (DSP2)"
-  - Chiffrement : "Donnees cryptees AES-256"
-  - UE : "Serveurs heberges en Union Europeenne"
-- Badge : "Compatible avec toutes les banques francaises"
-
-#### Section 6 - Pricing (conserve tel quel)
-- Meme structure 2 colonnes Essai gratuit / Licence Lifetime 499 EUR
-- Glassmorphism sur la carte populaire
-
-#### Section 7 - CTA final + Footer (conserves)
-- CTA gradient existant, texte adapte au nouveau positionnement
-- Footer identique
+Creer une nouvelle fonction SQL `seed_demo_treasury` qui remplit toutes les donnees treasury pour les 3 societes demo. Cette fonction sera appelee via une migration SQL.
 
 ---
 
-### Style et design tokens
+### Donnees a inserer par societe
 
-- **Glassmorphism** : nouvelle classe utilitaire CSS `.glass-card` dans `index.css` :
-  ```css
-  .glass-card {
-    @apply bg-card/60 backdrop-blur-xl border border-white/10 shadow-lg;
-  }
-  ```
-- **Gradient Hero** : fond radial bleu profond vers violet subtil via classes Tailwind inline
-- **Barre de progression IA** : composant inline avec animation `shimmer` (deja definie dans tailwind config)
-- **Animations** : framer-motion `whileInView` conservees pour les scroll reveals
+#### 1. Categories (8-10 par societe)
 
-### Fichiers modifies
+Categories adaptees au profil metier de chaque societe :
 
-| Fichier | Action |
-|---------|--------|
-| `src/pages/Landing.tsx` | Rewrite complet du contenu (sections, textes, layout) |
-| `src/index.css` | Ajout de la classe `.glass-card` |
+- **ChaussuresPro** (Retail) : Ventes boutique, Ventes en ligne, Fournisseurs chaussures, Loyer boutique, Salaires, Marketing, Logiciels, Assurances, Frais bancaires
+- **CloudSoft** (SaaS) : Abonnements SaaS, Services professionnels, Hebergement cloud, Salaires, Marketing digital, Loyer coworking, Logiciels, Frais bancaires
+- **StrategiaConseil** (Conseil) : Missions conseil, Formations, Sous-traitance, Salaires, Deplacements, Loyer bureau, Logiciels, Frais bancaires
 
-### Ce qui ne change PAS
-- `PublicNavbar` : inchange
-- Footer : structure conservee, texte legerement adapte
-- Logique email/navigation : conservee
-- Screenshots existants : reutilises (`screenshot-dashboard.png`, `screenshot-pnl.png`)
-- Palette de couleurs CSS variables : inchangee (le bleu-violet est deja en place via `--primary: 241 86% 58%`)
+#### 2. Transactions (40-60 par societe, sur 6 mois : Sep 2025 - Fev 2026)
+
+Transactions realistes avec descriptions detaillees, montants coherents, certaines categorisees (80%), d'autres non (20% pour montrer l'IA). Mix income/expense.
+
+Exemples pour CloudSoft :
+- "Abonnement mensuel - TechCorp SAS" +4 950 EUR (income)
+- "AWS Hosting - Janvier" -1 180 EUR (expense)  
+- "Virement salaires Janvier" -28 500 EUR (expense)
+
+#### 3. Regles d'automatisation (4-6 par societe)
+
+Regles actives avec `match_count > 0` pour montrer qu'elles fonctionnent :
+
+- "Salaires mensuels" : description contient "salaire" -> Salaires (match_count: 12)
+- "Abonnements SaaS" : description contient "abonnement" -> Logiciels (match_count: 8)
+- "Loyer" : description contient "loyer" -> Loyer (match_count: 6)
+
+#### 4. Previsions par categorie (category_forecasts, 6 mois futurs : Mar-Aout 2026)
+
+Montants mensuels par categorie pour alimenter le tableau de previsions.
+
+#### 5. Factures (8-12 par societe)
+
+Mix factures clients (type: 'client') et fournisseurs (type: 'supplier'), statuts varies (pending, paid, overdue).
+
+---
+
+### Implementation technique
+
+**Fichier** : Migration SQL unique
+
+La migration executera directement les INSERT statements pour les 3 company_id connus :
+- ChaussuresPro : `b73a714c-ed37-47fb-a811-85937f4174d2`
+- CloudSoft : `da766438-35f4-496a-aba5-4f372ad9e391`
+- StrategiaConseil : `95c8c816-3954-4181-af68-c8cda7fd2dba`
+
+User ID demo : `2ab6f6c5-7efb-47ba-aede-b6c2b950b679`
+
+La migration :
+1. Verifie que les categories n'existent pas deja (idempotent)
+2. Insere les categories et stocke leurs IDs dans des variables
+3. Insere les transactions avec references aux categories
+4. Insere les regles d'automatisation
+5. Insere les previsions par categorie
+6. Insere les factures
+
+### Volume total estime
+
+| Element | Par societe | Total |
+|---------|:-----------:|:-----:|
+| Categories | ~10 | ~30 |
+| Transactions | ~50 | ~150 |
+| Regles IA | ~5 | ~15 |
+| Previsions | ~60 (10 cat x 6 mois) | ~180 |
+| Factures | ~10 | ~30 |
+
+### Resultat attendu
+
+En se connectant au tenant demo, l'utilisateur verra :
+- Un dashboard avec des vrais chiffres (solde, encaissements, decaissements)
+- Une courbe de tresorerie avec historique et projection
+- Des transactions categorisees avec confiance IA
+- Des regles d'automatisation actives avec compteurs
+- Un tableau de previsions rempli par categorie
+- Des factures clients et fournisseurs avec statuts varies
+- Le tout coherent entre les 3 societes
 
