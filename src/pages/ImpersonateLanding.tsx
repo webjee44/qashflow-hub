@@ -19,27 +19,39 @@ export default function ImpersonateLanding() {
     const handleSession = async () => {
       try {
         const email = searchParams.get('email');
-        const token = searchParams.get('token');
-        const type = searchParams.get('type') || 'magiclink';
+        const tokenHash = searchParams.get('token_hash');
+        const emailOtp = searchParams.get('email_otp');
 
-        if (!email || !token) {
+        if (!email || (!tokenHash && !emailOtp)) {
           setErrorMsg('Paramètres manquants (email/token)');
           setStatus('error');
           return;
         }
 
-        console.log('[Impersonate] Verifying OTP for:', email);
+        console.log('[Impersonate] Verifying for:', email, 'token_hash:', !!tokenHash, 'email_otp:', !!emailOtp);
 
         // Sign out existing session first
         await supabase.auth.signOut({ scope: 'local' });
         await new Promise(resolve => setTimeout(resolve, 200));
 
-        // Verify the OTP directly — no redirect needed
-        const { data, error } = await supabase.auth.verifyOtp({
-          email,
-          token,
-          type: type as 'magiclink',
-        });
+        let result;
+
+        if (tokenHash) {
+          // Use token_hash approach
+          result = await supabase.auth.verifyOtp({
+            token_hash: tokenHash,
+            type: 'magiclink',
+          });
+        } else {
+          // Fallback to email_otp
+          result = await supabase.auth.verifyOtp({
+            email,
+            token: emailOtp!,
+            type: 'magiclink',
+          });
+        }
+
+        const { data, error } = result;
 
         if (error) {
           console.error('[Impersonate] verifyOtp error:', error);
