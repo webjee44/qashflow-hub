@@ -16,6 +16,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { CompanyMembersManager } from '@/components/superadmin/CompanyMembersManager';
 import { OrganizationMembersSection } from '@/components/superadmin/OrganizationMembersSection';
+import { EngagementCard } from '@/components/superadmin/EngagementCard';
 
 const planColors: Record<string, string> = {
   free: 'bg-muted text-muted-foreground',
@@ -353,6 +354,9 @@ export default function SuperAdminOrganizationDetail() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Engagement Stats */}
+        <EngagementCard organizationId={id!} />
 
         {/* Organization Members Section */}
         <OrganizationMembersSection organizationId={id!} organizationName={organization.name} />
