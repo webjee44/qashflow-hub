@@ -14,23 +14,27 @@ export function useCurrentBusinessPlan() {
   const { currentCompany } = useCompany();
   const { user } = useAuth();
   const isCreatingRef = useRef(false);
+  const createRef = useRef(createBusinessPlan);
+  createRef.current = createBusinessPlan;
 
   const currentPlan = businessPlans[0] as BusinessPlan | undefined;
   
   // Only company owners can auto-create BPs
   const isCompanyOwner = currentCompany?.user_id === user?.id;
+  const companyId = currentCompany?.id;
 
   // Auto-create BP if none exists - ONLY for company owners
   useEffect(() => {
     if (
       !isLoading && 
       businessPlans.length === 0 && 
-      isCompanyOwner &&  // ← Only owners can create
+      isCompanyOwner &&
+      companyId &&
       !isCreatingRef.current && 
-      !createBusinessPlan.isPending
+      !createRef.current.isPending
     ) {
       isCreatingRef.current = true;
-      createBusinessPlan.mutate({
+      createRef.current.mutate({
         name: 'Mon Business Plan',
         company_id: null,
         status: 'draft',
@@ -51,11 +55,10 @@ export function useCurrentBusinessPlan() {
         }
       });
     }
-  }, [isLoading, businessPlans.length, isCompanyOwner, createBusinessPlan]);
+  }, [isLoading, businessPlans.length, isCompanyOwner, companyId]);
 
   return {
     currentPlan,
-    // Only show loading for auto-creation if user is an owner
     isLoading: isLoading || createBusinessPlan.isPending || (!currentPlan && isCompanyOwner && businessPlans.length === 0),
     businessPlanId: currentPlan?.id,
   };
