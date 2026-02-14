@@ -357,6 +357,7 @@ export type Database = {
           created_at: string | null
           end_date: string | null
           id: string
+          is_demo: boolean | null
           is_vat_deductible: boolean | null
           monthly_amount: number | null
           name: string
@@ -376,6 +377,7 @@ export type Database = {
           created_at?: string | null
           end_date?: string | null
           id?: string
+          is_demo?: boolean | null
           is_vat_deductible?: boolean | null
           monthly_amount?: number | null
           name: string
@@ -395,6 +397,7 @@ export type Database = {
           created_at?: string | null
           end_date?: string | null
           id?: string
+          is_demo?: boolean | null
           is_vat_deductible?: boolean | null
           monthly_amount?: number | null
           name?: string
@@ -433,6 +436,7 @@ export type Database = {
           depreciation_method: string | null
           depreciation_years: number | null
           id: string
+          is_demo: boolean | null
           name: string
           notes: string | null
           purchase_amount: number
@@ -448,6 +452,7 @@ export type Database = {
           depreciation_method?: string | null
           depreciation_years?: number | null
           id?: string
+          is_demo?: boolean | null
           name: string
           notes?: string | null
           purchase_amount?: number
@@ -463,6 +468,7 @@ export type Database = {
           depreciation_method?: string | null
           depreciation_years?: number | null
           id?: string
+          is_demo?: boolean | null
           name?: string
           notes?: string | null
           purchase_amount?: number
@@ -550,6 +556,7 @@ export type Database = {
           estimated_days_per_month: number | null
           gross_salary: number | null
           id: string
+          is_demo: boolean | null
           is_executive: boolean | null
           mutuelle_employer_amount: number | null
           name: string | null
@@ -576,6 +583,7 @@ export type Database = {
           estimated_days_per_month?: number | null
           gross_salary?: number | null
           id?: string
+          is_demo?: boolean | null
           is_executive?: boolean | null
           mutuelle_employer_amount?: number | null
           name?: string | null
@@ -602,6 +610,7 @@ export type Database = {
           estimated_days_per_month?: number | null
           gross_salary?: number | null
           id?: string
+          is_demo?: boolean | null
           is_executive?: boolean | null
           mutuelle_employer_amount?: number | null
           name?: string | null
@@ -638,6 +647,7 @@ export type Database = {
           company_id: string | null
           created_at: string | null
           id: string
+          is_demo: boolean | null
           month: string
           notes: string | null
           stream_id: string
@@ -652,6 +662,7 @@ export type Database = {
           company_id?: string | null
           created_at?: string | null
           id?: string
+          is_demo?: boolean | null
           month: string
           notes?: string | null
           stream_id: string
@@ -666,6 +677,7 @@ export type Database = {
           company_id?: string | null
           created_at?: string | null
           id?: string
+          is_demo?: boolean | null
           month?: string
           notes?: string | null
           stream_id?: string
@@ -716,6 +728,7 @@ export type Database = {
           id: string
           initial_subscribers: number | null
           is_active: boolean | null
+          is_demo: boolean | null
           model: string | null
           monthly_price: number | null
           name: string
@@ -742,6 +755,7 @@ export type Database = {
           id?: string
           initial_subscribers?: number | null
           is_active?: boolean | null
+          is_demo?: boolean | null
           model?: string | null
           monthly_price?: number | null
           name: string
@@ -768,6 +782,7 @@ export type Database = {
           id?: string
           initial_subscribers?: number | null
           is_active?: boolean | null
+          is_demo?: boolean | null
           model?: string | null
           monthly_price?: number | null
           name?: string
