@@ -1,0 +1,1 @@
+ALTER TABLE public.category_forecasts ADD COLUMN IF NOT EXISTS is_demo boolean DEFAULT false;
