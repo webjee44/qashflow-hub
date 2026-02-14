@@ -10,6 +10,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { useOnboarding } from '@/hooks/useOnboarding';
 import { PageLoader } from '@/components/ui/page-loader';
+import { useActivityTracker } from '@/hooks/useActivityTracker';
 
 // Widget de support - clé API publishable
 const SUPPORT_WIDGET_API_KEY = '6304a129-c64a-42eb-b298-c04f46b23363';
@@ -23,6 +24,7 @@ export function AppLayout() {
   
   // Auto-sync mode with current route
   useAppModeSync();
+  useActivityTracker();
 
   // If the account is configured as "BP-only", prevent landing on Treasury routes.
   // IMPORTANT: Only redirect AFTER the profile has loaded from the server to avoid

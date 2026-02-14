@@ -2127,6 +2127,36 @@ export type Database = {
           },
         ]
       }
+      user_activity_logs: {
+        Row: {
+          created_at: string
+          duration_seconds: number | null
+          event_type: string
+          id: string
+          organization_id: string | null
+          session_id: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          duration_seconds?: number | null
+          event_type?: string
+          id?: string
+          organization_id?: string | null
+          session_id?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          duration_seconds?: number | null
+          event_type?: string
+          id?: string
+          organization_id?: string | null
+          session_id?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -2248,6 +2278,17 @@ export type Database = {
           organization_id: string
           organization_name: string
           role: Database["public"]["Enums"]["app_role"]
+        }[]
+      }
+      get_org_engagement_stats: {
+        Args: { _org_id: string }
+        Returns: {
+          email: string
+          full_name: string
+          last_active_at: string
+          total_logins: number
+          total_time_seconds: number
+          user_id: string
         }[]
       }
       get_org_members_with_company_access: {
