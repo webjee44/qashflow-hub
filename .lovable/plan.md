@@ -1,99 +1,44 @@
 
+# Empêcher la creation de Business Plans en doublon
 
-## Remplissage complet des donnees demo - Treasury + IA
+## Probleme identifie
 
-### Constat actuel
+Le hook `useCurrentBusinessPlan` auto-cree un BP quand il n'en trouve pas. En React StrictMode (ou lors de re-renders rapides), l'effet peut se declencher deux fois avant que le `isCreatingRef` ne soit verifie, causant des doublons.
 
-Le Business Plan est bien rempli pour les 3 societes (revenue streams, charges fixes, personnel, investissements, scenarios, financings). En revanche, le module tresorerie est **completement vide** :
+Deux causes racines :
+1. **Cote client** : `createBusinessPlan` est dans le tableau de dependances du `useEffect`, ce qui peut relancer l'effet inutilement.
+2. **Cote base de donnees** : Aucune contrainte d'unicite n'empeche d'inserer 2 BP pour la meme company.
 
-| Donnee | ChaussuresPro | CloudSoft | StrategiaConseil |
-|--------|:---:|:---:|:---:|
-| Categories | 0 | 0 | 0 |
-| Transactions | 0 | 0 | 0 |
-| Regles IA | 0 | 0 | 0 |
-| Previsions (category_forecasts) | 0 | 0 | 0 |
-| Factures | 0 | 0 | 0 |
+## Plan de correction
 
-### Plan d'action
+### 1. Contrainte unique en base de donnees (filet de securite)
 
-Creer une nouvelle fonction SQL `seed_demo_treasury` qui remplit toutes les donnees treasury pour les 3 societes demo. Cette fonction sera appelee via une migration SQL.
+Ajouter une contrainte unique partielle sur `business_plans(company_id)` pour qu'une company ne puisse avoir qu'un seul BP actif :
 
----
+```sql
+CREATE UNIQUE INDEX unique_bp_per_company 
+ON business_plans (company_id) 
+WHERE company_id IS NOT NULL;
+```
 
-### Donnees a inserer par societe
+Cela empechera tout doublon au niveau base, peu importe ce que fait le client.
 
-#### 1. Categories (8-10 par societe)
+### 2. Correction du hook useCurrentBusinessPlan
 
-Categories adaptees au profil metier de chaque societe :
+- Retirer `createBusinessPlan` du tableau de dependances (il change a chaque render).
+- Utiliser une ref stable pour la mutation.
+- Ajouter une verification supplementaire avec `currentCompany?.id` pour ne creer que quand la company est chargee.
 
-- **ChaussuresPro** (Retail) : Ventes boutique, Ventes en ligne, Fournisseurs chaussures, Loyer boutique, Salaires, Marketing, Logiciels, Assurances, Frais bancaires
-- **CloudSoft** (SaaS) : Abonnements SaaS, Services professionnels, Hebergement cloud, Salaires, Marketing digital, Loyer coworking, Logiciels, Frais bancaires
-- **StrategiaConseil** (Conseil) : Missions conseil, Formations, Sous-traitance, Salaires, Deplacements, Loyer bureau, Logiciels, Frais bancaires
+### 3. Gestion de l'erreur de conflit
 
-#### 2. Transactions (40-60 par societe, sur 6 mois : Sep 2025 - Fev 2026)
-
-Transactions realistes avec descriptions detaillees, montants coherents, certaines categorisees (80%), d'autres non (20% pour montrer l'IA). Mix income/expense.
-
-Exemples pour CloudSoft :
-- "Abonnement mensuel - TechCorp SAS" +4 950 EUR (income)
-- "AWS Hosting - Janvier" -1 180 EUR (expense)  
-- "Virement salaires Janvier" -28 500 EUR (expense)
-
-#### 3. Regles d'automatisation (4-6 par societe)
-
-Regles actives avec `match_count > 0` pour montrer qu'elles fonctionnent :
-
-- "Salaires mensuels" : description contient "salaire" -> Salaires (match_count: 12)
-- "Abonnements SaaS" : description contient "abonnement" -> Logiciels (match_count: 8)
-- "Loyer" : description contient "loyer" -> Loyer (match_count: 6)
-
-#### 4. Previsions par categorie (category_forecasts, 6 mois futurs : Mar-Aout 2026)
-
-Montants mensuels par categorie pour alimenter le tableau de previsions.
-
-#### 5. Factures (8-12 par societe)
-
-Mix factures clients (type: 'client') et fournisseurs (type: 'supplier'), statuts varies (pending, paid, overdue).
+Dans le `onError` de la mutation, ignorer silencieusement l'erreur de contrainte unique (code `23505`) car cela signifie simplement qu'un autre render a deja cree le BP.
 
 ---
 
-### Implementation technique
+## Details techniques
 
-**Fichier** : Migration SQL unique
+**Fichiers modifies :**
+- `supabase/migrations/` -- nouvelle migration pour l'index unique
+- `src/features/business-plan/hooks/useCurrentBusinessPlan.ts` -- correction du hook
 
-La migration executera directement les INSERT statements pour les 3 company_id connus :
-- ChaussuresPro : `b73a714c-ed37-47fb-a811-85937f4174d2`
-- CloudSoft : `da766438-35f4-496a-aba5-4f372ad9e391`
-- StrategiaConseil : `95c8c816-3954-4181-af68-c8cda7fd2dba`
-
-User ID demo : `2ab6f6c5-7efb-47ba-aede-b6c2b950b679`
-
-La migration :
-1. Verifie que les categories n'existent pas deja (idempotent)
-2. Insere les categories et stocke leurs IDs dans des variables
-3. Insere les transactions avec references aux categories
-4. Insere les regles d'automatisation
-5. Insere les previsions par categorie
-6. Insere les factures
-
-### Volume total estime
-
-| Element | Par societe | Total |
-|---------|:-----------:|:-----:|
-| Categories | ~10 | ~30 |
-| Transactions | ~50 | ~150 |
-| Regles IA | ~5 | ~15 |
-| Previsions | ~60 (10 cat x 6 mois) | ~180 |
-| Factures | ~10 | ~30 |
-
-### Resultat attendu
-
-En se connectant au tenant demo, l'utilisateur verra :
-- Un dashboard avec des vrais chiffres (solde, encaissements, decaissements)
-- Une courbe de tresorerie avec historique et projection
-- Des transactions categorisees avec confiance IA
-- Des regles d'automatisation actives avec compteurs
-- Un tableau de previsions rempli par categorie
-- Des factures clients et fournisseurs avec statuts varies
-- Le tout coherent entre les 3 societes
-
+**Impact :** Aucun impact sur les donnees existantes (le doublon a deja ete supprime). La contrainte empechera toute recurrence.
