@@ -145,12 +145,12 @@ export default function SuperAdminOrganizationDetail() {
         return;
       }
 
-      if (data?.impersonationUrl) {
-        toast.success(`Ouverture de la session de ${data.targetEmail}...`);
-        // Open in new tab to preserve superadmin session
-        window.open(data.impersonationUrl, '_blank');
+      if (data?.success && data.email && data.token) {
+        toast.success(`Ouverture de la session de ${data.email}...`);
+        const params = new URLSearchParams({ email: data.email, token: data.token, type: data.type || 'magiclink' });
+        window.open(`/impersonate-landing?${params.toString()}`, '_blank');
       } else {
-        toast.error("Aucun lien d'impersonation reçu");
+        toast.error("Aucun token d'impersonation reçu");
       }
     } catch (err) {
       console.error('Unexpected error:', err);

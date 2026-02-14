@@ -1,15 +1,16 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Loader2, CheckCircle } from 'lucide-react';
 
 /**
  * Landing page for impersonation flow.
- * This page handles the session switch after a magic link is clicked.
- * Supabase Auth redirects here with tokens in the URL hash.
+ * Receives OTP token + email via query params and calls verifyOtp directly.
+ * No redirect-based magic link flow — everything happens client-side.
  */
 export default function ImpersonateLanding() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -17,72 +18,48 @@ export default function ImpersonateLanding() {
   useEffect(() => {
     const handleSession = async () => {
       try {
-        // Check if there are tokens in the URL hash (from magic link redirect)
-        const hashParams = new URLSearchParams(window.location.hash.substring(1));
-        const accessToken = hashParams.get('access_token');
-        const refreshToken = hashParams.get('refresh_token');
-        
-        console.log('[Impersonate] Hash contains tokens:', !!accessToken);
-        
-        if (accessToken && refreshToken) {
-          // CRITICAL: Sign out existing session first to avoid loading data
-          // from the superadmin's tenant. This clears localStorage auth keys
-          // without triggering a redirect since we're on the landing page.
-          console.log('[Impersonate] Clearing existing session before setting new one...');
-          await supabase.auth.signOut({ scope: 'local' });
-          
-          // Small delay to ensure auth state listeners process the sign-out
-          await new Promise(resolve => setTimeout(resolve, 100));
-          
-          // Set the session using the tokens from the URL
-          const { data, error } = await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken,
-          });
-          
-          if (error) {
-            console.error('[Impersonate] setSession error:', error);
-            setErrorMsg(error.message);
-            setStatus('error');
-            return;
-          }
-          
-          if (data.session?.user) {
-            setUserEmail(data.session.user.email || null);
-            setStatus('success');
-            console.log('[Impersonate] Session established for:', data.session.user.email);
-            
-            // Clean the URL hash and redirect
-            window.history.replaceState(null, '', window.location.pathname);
-            
-            setTimeout(() => {
-              navigate('/dashboard', { replace: true });
-            }, 1500);
-            return;
-          }
-        }
-        
-        // If no tokens in hash, check for existing session (fallback)
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        
-        if (sessionError) {
-          console.error('[Impersonate] getSession error:', sessionError);
-          setErrorMsg(sessionError.message);
+        const email = searchParams.get('email');
+        const token = searchParams.get('token');
+        const type = searchParams.get('type') || 'magiclink';
+
+        if (!email || !token) {
+          setErrorMsg('Paramètres manquants (email/token)');
           setStatus('error');
           return;
         }
-        
-        if (session?.user) {
-          setUserEmail(session.user.email || null);
+
+        console.log('[Impersonate] Verifying OTP for:', email);
+
+        // Sign out existing session first
+        await supabase.auth.signOut({ scope: 'local' });
+        await new Promise(resolve => setTimeout(resolve, 200));
+
+        // Verify the OTP directly — no redirect needed
+        const { data, error } = await supabase.auth.verifyOtp({
+          email,
+          token,
+          type: type as 'magiclink',
+        });
+
+        if (error) {
+          console.error('[Impersonate] verifyOtp error:', error);
+          setErrorMsg(error.message);
+          setStatus('error');
+          return;
+        }
+
+        if (data.session?.user) {
+          setUserEmail(data.session.user.email || null);
           setStatus('success');
-          console.log('[Impersonate] Existing session found for:', session.user.email);
-          
+          console.log('[Impersonate] Session established for:', data.session.user.email);
+
+          // Clean URL and redirect
+          window.history.replaceState(null, '', '/impersonate-landing');
           setTimeout(() => {
             navigate('/dashboard', { replace: true });
-          }, 1500);
+          }, 1200);
         } else {
-          console.error('[Impersonate] No session found and no tokens in URL');
-          setErrorMsg('Aucun token trouvé dans l\'URL');
+          setErrorMsg('Session non créée');
           setStatus('error');
         }
       } catch (err: any) {
@@ -93,7 +70,7 @@ export default function ImpersonateLanding() {
     };
 
     handleSession();
-  }, [navigate]);
+  }, [navigate, searchParams]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
@@ -103,7 +80,7 @@ export default function ImpersonateLanding() {
             <Loader2 className="w-12 h-12 text-primary animate-spin mx-auto mb-4" />
             <h1 className="text-xl font-semibold mb-2">Connexion en cours...</h1>
             <p className="text-muted-foreground">
-              Établissement de la session d'usurpation
+              Établissement de la session
             </p>
           </>
         )}
