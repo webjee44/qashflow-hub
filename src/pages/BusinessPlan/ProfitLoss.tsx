@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Settings, ChevronDown, TrendingUp } from 'lucide-react';
+import { Settings, ChevronDown, TrendingUp, RefreshCw } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,6 +13,7 @@ import { useProfitLoss } from '@/hooks/useProfitLoss';
 import { useBPSettings } from '@/hooks/useBPSettings';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Link } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
@@ -20,6 +21,23 @@ export default function ProfitLoss() {
   const { data } = useProfitLoss();
   const { settings } = useBPSettings();
   const [selectedYear, setSelectedYear] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const queryClient = useQueryClient();
+
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    await queryClient.invalidateQueries({ queryKey: ['bp_revenue_streams'] });
+    await queryClient.invalidateQueries({ queryKey: ['bp_fixed_expenses'] });
+    await queryClient.invalidateQueries({ queryKey: ['bp_variable_expenses'] });
+    await queryClient.invalidateQueries({ queryKey: ['bp_personnel'] });
+    await queryClient.invalidateQueries({ queryKey: ['bp_directors'] });
+    await queryClient.invalidateQueries({ queryKey: ['bp_investments'] });
+    await queryClient.invalidateQueries({ queryKey: ['bp_financings'] });
+    await queryClient.invalidateQueries({ queryKey: ['bp_revenue_forecasts_by_streams'] });
+    await queryClient.invalidateQueries({ queryKey: ['bp_stocks'] });
+    await queryClient.invalidateQueries({ queryKey: ['bp_settings'] });
+    setTimeout(() => setIsRefreshing(false), 600);
+  }, [queryClient]);
 
   const formatCurrency = (value: number) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(value);
 
@@ -38,6 +56,16 @@ export default function ProfitLoss() {
         subtitle={`P&L prévisionnel sur ${settings.bp_years} ans • ${fiscalYearLabel()}`}
         actions={
           <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="gap-2"
+            >
+              <RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin")} />
+              Actualiser
+            </Button>
             <Link to="/settings">
               <Button variant="ghost" size="icon" title="Configurer les dates">
                 <Settings className="h-4 w-4" />
