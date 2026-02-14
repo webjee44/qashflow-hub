@@ -1,74 +1,60 @@
 
 
-# Donnees de demonstration pour le Business Plan
+# Donnees de demonstration pour les Previsions de tresorerie
 
 ## Objectif
 
-Reduire le churn a l'onboarding en pre-remplissant le Business Plan avec des donnees de demonstration realistes. L'utilisateur voit immediatement un BP "vivant" (graphiques, P&L, cash flow) au lieu d'un ecran vide. Un bouton "Supprimer les donnees de demo" permet de nettoyer en un clic.
+Meme logique que le Business Plan : pre-remplir le tableau de previsions avec des montants realistes par categorie pour que l'utilisateur voie immediatement un tableau "vivant" au lieu de lignes vides. Un bouton "Supprimer les donnees de demo" nettoie tout en un clic.
 
-## Approche
+## Donnees a seeder
 
-### 1. Edge function `seed-bp-demo-data`
+Pour les categories par defaut qui existent deja (creees automatiquement par `useCategories`), on insere 6 mois de previsions (mois courant + 5 suivants) :
 
-Creer une edge function qui insere des donnees de demo pour un BP donne. Elle sera appelee automatiquement apres la creation du premier BP. Les donnees inserees :
+**Encaissements :**
+- Ventes : 8 000, 8 500, 9 000, 9 500, 10 000, 10 500 EUR/mois (croissance)
+- Prestations : 5 000, 5 200, 5 400, 5 600, 5 800, 6 000 EUR/mois
 
-- **2 flux de revenus** avec forecasts mensuels (12 mois) :
-  - "Prestations de services" (variable, montants progressifs de 5 000 a 12 000 EUR/mois)
-  - "Abonnements SaaS" (subscription, 50 abonnes a 49 EUR/mois, +8% croissance)
-- **5 charges fixes** (template "conseil" simplifie) :
-  - Loyer bureau (800 EUR), Assurance RC Pro (150 EUR), Outils SaaS (100 EUR), Comptabilite (180 EUR), Marketing (300 EUR)
-- **1 salarie** : "Developpeur Full-Stack", salaire brut 3 500 EUR
-- **1 investissement** : "Materiel informatique", 5 000 EUR, amorti sur 3 ans
+**Decaissements :**
+- Salaires : 4 500 EUR/mois (stable)
+- Loyer : 1 200 EUR/mois (stable)
+- Fournisseurs : 2 000, 2 100, 2 200, 2 300, 2 400, 2 500 EUR/mois
+- Marketing : 800, 900, 1 000, 1 100, 1 200, 1 300 EUR/mois
+- Logiciels : 350 EUR/mois (stable)
 
-Toutes les lignes creees auront un champ metadata `is_demo: true` pour les identifier (via une colonne `is_demo` ajoutee aux tables concernees).
+## Approche technique
 
-### 2. Colonne `is_demo` sur les tables BP
+### 1. Colonne `is_demo` sur `category_forecasts`
 
-Ajouter une colonne `is_demo boolean DEFAULT false` sur :
-- `bp_revenue_streams`
-- `bp_revenue_forecasts`
-- `bp_fixed_expenses`
-- `bp_personnel`
-- `bp_investments`
+Ajouter `is_demo boolean DEFAULT false` pour identifier les lignes de demo.
 
-### 3. Appel automatique apres creation du BP
+### 2. Edge function `seed-forecast-demo-data`
 
-Dans `useCurrentBusinessPlan`, apres la creation reussie du BP, appeler l'edge function `seed-bp-demo-data` avec le `business_plan_id` et `company_id`.
+Recoit `company_id` en parametre. Elle :
+- Recupere les categories existantes de la company
+- Mappe chaque categorie par nom aux montants predefinis
+- Insere 6 mois de `category_forecasts` avec `is_demo = true`
 
-Un flag localStorage `bp-demo-seeded-{companyId}` empechera de re-seeder si l'utilisateur a deja supprime les donnees demo.
+### 3. Declenchement automatique
 
-### 4. Banniere "Donnees de demonstration" + bouton supprimer
+Dans la page `Forecasts.tsx`, verifier au montage si des forecasts existent. Si aucune et pas de flag localStorage `forecast-demo-seeded-{companyId}`, appeler la fonction de seed.
 
-Ajouter un composant `DemoDataBanner` affiche en haut des pages BP quand des donnees `is_demo = true` existent. Il affichera :
+### 4. Banniere + suppression
 
-```
-Donnees de demonstration chargees pour vous aider a demarrer.
-[Supprimer les donnees de demo]
-```
-
-Le bouton supprime toutes les lignes `is_demo = true` de la company en une seule action (via un appel RPC ou des deletes cascades). Une fois supprimees, la banniere disparait.
-
-### 5. Composant `DemoDataBanner`
-
-Place dans les pages BP (RevenueAssumptions, Expenses, Team, Investments) ou dans le layout BP commun. Il utilise un hook `useDemoData` qui :
-- Verifie si des lignes `is_demo = true` existent pour la company
-- Fournit une fonction `clearDemoData()` qui supprime toutes ces lignes
-- Retourne `hasDemoData: boolean`
+Reutiliser le meme pattern que `DemoDataBanner` du BP :
+- Hook `useForecastDemoData` qui detecte les lignes `is_demo = true` dans `category_forecasts`
+- Composant `ForecastDemoBanner` avec bouton de suppression
+- Affiche en haut de la page Previsions
 
 ## Details techniques
 
 **Fichiers crees :**
-- `supabase/functions/seed-bp-demo-data/index.ts` -- edge function d'insertion
-- `src/hooks/useBPDemoData.ts` -- hook pour detecter/supprimer les donnees demo
-- `src/components/onboarding/DemoDataBanner.tsx` -- banniere UI
+- `supabase/functions/seed-forecast-demo-data/index.ts`
+- `src/hooks/useForecastDemoData.ts`
+- `src/components/forecasts/ForecastDemoBanner.tsx`
 
 **Fichiers modifies :**
-- `supabase/migrations/` -- ajout colonne `is_demo` sur 5 tables
-- `src/features/business-plan/hooks/useCurrentBusinessPlan.ts` -- appel seed apres creation
-- `src/pages/BusinessPlan/RevenueAssumptions.tsx` -- ajout `DemoDataBanner`
-- `src/pages/BusinessPlan/Expenses.tsx` -- ajout `DemoDataBanner`
-- `src/pages/BusinessPlan/Team.tsx` -- ajout `DemoDataBanner`
-- `src/pages/BusinessPlan/Investments.tsx` -- ajout `DemoDataBanner`
+- `supabase/migrations/` -- ajout colonne `is_demo` sur `category_forecasts`
+- `src/pages/Forecasts.tsx` -- ajout banniere + appel seed automatique
 
-**Impact :** Les utilisateurs existants ne sont pas affectes (colonne `is_demo` default `false`). Seuls les nouveaux BP auto-crees recevront les donnees de demo.
+**Impact :** Aucun impact sur les utilisateurs existants (colonne default `false`). Seules les nouvelles companies sans previsions recevront les donnees de demo.
 
