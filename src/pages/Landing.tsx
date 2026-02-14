@@ -53,7 +53,7 @@ const plans = [
     suffix: ' paiement unique',
     description: 'Accès à vie, sans abonnement',
     features: [
-      'Sociétés illimitées',
+      '3 sociétés incluses',
       'Comptes bancaires illimités',
       'Transactions illimitées',
       'Business Plan complet',
