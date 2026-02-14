@@ -25,7 +25,7 @@ import { toast } from 'sonner';
 import { z } from 'zod';
 import { PublicNavbar } from '@/components/layout/PublicNavbar';
 import logo from '@/assets/logo.png';
-import screenshotDashboard from '@/assets/screenshot-dashboard.png';
+import screenshotDashboard from '@/assets/screenshot-previsions.png';
 import screenshotPnl from '@/assets/screenshot-pnl.png';
 
 const emailSchema = z.string().email('Email invalide');
