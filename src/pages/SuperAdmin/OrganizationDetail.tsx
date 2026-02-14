@@ -148,7 +148,7 @@ export default function SuperAdminOrganizationDetail() {
 
       if (data?.success && data.email && data.token) {
         toast.success(`Ouverture de la session de ${data.email}...`);
-        const params = new URLSearchParams({ email: data.email, token: data.token, type: data.type || 'magiclink' });
+        const params = new URLSearchParams({ email: data.email, token_hash: data.token_hash || '', email_otp: data.email_otp || '' });
         window.open(`/impersonate-landing?${params.toString()}`, '_blank');
       } else {
         toast.error("Aucun token d'impersonation reçu");

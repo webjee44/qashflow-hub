@@ -74,7 +74,7 @@ Deno.serve(async (req) => {
 
     const targetEmail = targetUser.user.email!;
 
-    // Generate a magic link to get the OTP token
+    // Generate a magic link
     const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
       type: "magiclink",
       email: targetEmail,
@@ -88,6 +88,14 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Extract token_hash from the action_link URL
+    const actionLink = linkData.properties.action_link;
+    const url = new URL(actionLink);
+    const tokenHash = url.searchParams.get("token") || url.hash?.match(/token=([^&]+)/)?.[1];
+
+    console.log("[Impersonate] action_link:", actionLink);
+    console.log("[Impersonate] tokenHash extracted:", tokenHash ? "yes" : "no");
+
     // Log the impersonation
     await supabaseAdmin.from("audit_logs").insert({
       action: "impersonate",
@@ -100,13 +108,13 @@ Deno.serve(async (req) => {
       },
     });
 
-    // Return the raw OTP token and email — client will call verifyOtp directly
+    // Return token_hash for client-side verifyOtp
     return new Response(
       JSON.stringify({
         success: true,
         email: targetEmail,
-        token: linkData.properties.email_otp,
-        type: linkData.properties.verification_type,
+        token_hash: tokenHash,
+        email_otp: linkData.properties.email_otp,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

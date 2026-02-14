@@ -92,8 +92,8 @@ export default function SuperAdminMembers() {
 
       if (error) throw error;
 
-      if (data?.success && data.email && data.token) {
-        const params = new URLSearchParams({ email: data.email, token: data.token, type: data.type || 'magiclink' });
+      if (data?.success && data.email && (data.token_hash || data.email_otp)) {
+        const params = new URLSearchParams({ email: data.email, token_hash: data.token_hash || '', email_otp: data.email_otp || '' });
         window.open(`/impersonate-landing?${params.toString()}`, '_blank');
         toast.success('Session d\'usurpation ouverte dans un nouvel onglet');
       }
