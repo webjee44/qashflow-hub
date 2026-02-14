@@ -100,12 +100,12 @@ Deno.serve(async (req) => {
       },
     });
 
-    // Return the OTP token and email — client will call verifyOtp directly
+    // Return the raw OTP token and email — client will call verifyOtp directly
     return new Response(
       JSON.stringify({
         success: true,
         email: targetEmail,
-        token: linkData.properties.hashed_token,
+        token: linkData.properties.email_otp,
         type: linkData.properties.verification_type,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
