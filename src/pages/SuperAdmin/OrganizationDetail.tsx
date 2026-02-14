@@ -146,7 +146,7 @@ export default function SuperAdminOrganizationDetail() {
         return;
       }
 
-      if (data?.success && data.email && data.token) {
+      if (data?.success && data.email && (data.token_hash || data.email_otp)) {
         toast.success(`Ouverture de la session de ${data.email}...`);
         const params = new URLSearchParams({ email: data.email, token_hash: data.token_hash || '', email_otp: data.email_otp || '' });
         window.open(`/impersonate-landing?${params.toString()}`, '_blank');
