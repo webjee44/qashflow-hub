@@ -1,44 +1,74 @@
 
-# Empêcher la creation de Business Plans en doublon
 
-## Probleme identifie
+# Donnees de demonstration pour le Business Plan
 
-Le hook `useCurrentBusinessPlan` auto-cree un BP quand il n'en trouve pas. En React StrictMode (ou lors de re-renders rapides), l'effet peut se declencher deux fois avant que le `isCreatingRef` ne soit verifie, causant des doublons.
+## Objectif
 
-Deux causes racines :
-1. **Cote client** : `createBusinessPlan` est dans le tableau de dependances du `useEffect`, ce qui peut relancer l'effet inutilement.
-2. **Cote base de donnees** : Aucune contrainte d'unicite n'empeche d'inserer 2 BP pour la meme company.
+Reduire le churn a l'onboarding en pre-remplissant le Business Plan avec des donnees de demonstration realistes. L'utilisateur voit immediatement un BP "vivant" (graphiques, P&L, cash flow) au lieu d'un ecran vide. Un bouton "Supprimer les donnees de demo" permet de nettoyer en un clic.
 
-## Plan de correction
+## Approche
 
-### 1. Contrainte unique en base de donnees (filet de securite)
+### 1. Edge function `seed-bp-demo-data`
 
-Ajouter une contrainte unique partielle sur `business_plans(company_id)` pour qu'une company ne puisse avoir qu'un seul BP actif :
+Creer une edge function qui insere des donnees de demo pour un BP donne. Elle sera appelee automatiquement apres la creation du premier BP. Les donnees inserees :
 
-```sql
-CREATE UNIQUE INDEX unique_bp_per_company 
-ON business_plans (company_id) 
-WHERE company_id IS NOT NULL;
+- **2 flux de revenus** avec forecasts mensuels (12 mois) :
+  - "Prestations de services" (variable, montants progressifs de 5 000 a 12 000 EUR/mois)
+  - "Abonnements SaaS" (subscription, 50 abonnes a 49 EUR/mois, +8% croissance)
+- **5 charges fixes** (template "conseil" simplifie) :
+  - Loyer bureau (800 EUR), Assurance RC Pro (150 EUR), Outils SaaS (100 EUR), Comptabilite (180 EUR), Marketing (300 EUR)
+- **1 salarie** : "Developpeur Full-Stack", salaire brut 3 500 EUR
+- **1 investissement** : "Materiel informatique", 5 000 EUR, amorti sur 3 ans
+
+Toutes les lignes creees auront un champ metadata `is_demo: true` pour les identifier (via une colonne `is_demo` ajoutee aux tables concernees).
+
+### 2. Colonne `is_demo` sur les tables BP
+
+Ajouter une colonne `is_demo boolean DEFAULT false` sur :
+- `bp_revenue_streams`
+- `bp_revenue_forecasts`
+- `bp_fixed_expenses`
+- `bp_personnel`
+- `bp_investments`
+
+### 3. Appel automatique apres creation du BP
+
+Dans `useCurrentBusinessPlan`, apres la creation reussie du BP, appeler l'edge function `seed-bp-demo-data` avec le `business_plan_id` et `company_id`.
+
+Un flag localStorage `bp-demo-seeded-{companyId}` empechera de re-seeder si l'utilisateur a deja supprime les donnees demo.
+
+### 4. Banniere "Donnees de demonstration" + bouton supprimer
+
+Ajouter un composant `DemoDataBanner` affiche en haut des pages BP quand des donnees `is_demo = true` existent. Il affichera :
+
+```
+Donnees de demonstration chargees pour vous aider a demarrer.
+[Supprimer les donnees de demo]
 ```
 
-Cela empechera tout doublon au niveau base, peu importe ce que fait le client.
+Le bouton supprime toutes les lignes `is_demo = true` de la company en une seule action (via un appel RPC ou des deletes cascades). Une fois supprimees, la banniere disparait.
 
-### 2. Correction du hook useCurrentBusinessPlan
+### 5. Composant `DemoDataBanner`
 
-- Retirer `createBusinessPlan` du tableau de dependances (il change a chaque render).
-- Utiliser une ref stable pour la mutation.
-- Ajouter une verification supplementaire avec `currentCompany?.id` pour ne creer que quand la company est chargee.
-
-### 3. Gestion de l'erreur de conflit
-
-Dans le `onError` de la mutation, ignorer silencieusement l'erreur de contrainte unique (code `23505`) car cela signifie simplement qu'un autre render a deja cree le BP.
-
----
+Place dans les pages BP (RevenueAssumptions, Expenses, Team, Investments) ou dans le layout BP commun. Il utilise un hook `useDemoData` qui :
+- Verifie si des lignes `is_demo = true` existent pour la company
+- Fournit une fonction `clearDemoData()` qui supprime toutes ces lignes
+- Retourne `hasDemoData: boolean`
 
 ## Details techniques
 
-**Fichiers modifies :**
-- `supabase/migrations/` -- nouvelle migration pour l'index unique
-- `src/features/business-plan/hooks/useCurrentBusinessPlan.ts` -- correction du hook
+**Fichiers crees :**
+- `supabase/functions/seed-bp-demo-data/index.ts` -- edge function d'insertion
+- `src/hooks/useBPDemoData.ts` -- hook pour detecter/supprimer les donnees demo
+- `src/components/onboarding/DemoDataBanner.tsx` -- banniere UI
 
-**Impact :** Aucun impact sur les donnees existantes (le doublon a deja ete supprime). La contrainte empechera toute recurrence.
+**Fichiers modifies :**
+- `supabase/migrations/` -- ajout colonne `is_demo` sur 5 tables
+- `src/features/business-plan/hooks/useCurrentBusinessPlan.ts` -- appel seed apres creation
+- `src/pages/BusinessPlan/RevenueAssumptions.tsx` -- ajout `DemoDataBanner`
+- `src/pages/BusinessPlan/Expenses.tsx` -- ajout `DemoDataBanner`
+- `src/pages/BusinessPlan/Team.tsx` -- ajout `DemoDataBanner`
+- `src/pages/BusinessPlan/Investments.tsx` -- ajout `DemoDataBanner`
+
+**Impact :** Les utilisateurs existants ne sont pas affectes (colonne `is_demo` default `false`). Seuls les nouveaux BP auto-crees recevront les donnees de demo.
+
