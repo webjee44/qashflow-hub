@@ -1405,6 +1405,7 @@ export type Database = {
           created_at: string
           expected_amount: number
           id: string
+          is_demo: boolean | null
           month: string
           notes: string | null
           source: string | null
@@ -1419,6 +1420,7 @@ export type Database = {
           created_at?: string
           expected_amount?: number
           id?: string
+          is_demo?: boolean | null
           month: string
           notes?: string | null
           source?: string | null
@@ -1433,6 +1435,7 @@ export type Database = {
           created_at?: string
           expected_amount?: number
           id?: string
+          is_demo?: boolean | null
           month?: string
           notes?: string | null
           source?: string | null

@@ -77,3 +77,6 @@ verify_jwt = false
 
 [functions.accounting-connector-sync]
 verify_jwt = false
+
+[functions.seed-forecast-demo-data]
+verify_jwt = false
