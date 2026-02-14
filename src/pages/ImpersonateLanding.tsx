@@ -25,6 +25,15 @@ export default function ImpersonateLanding() {
         console.log('[Impersonate] Hash contains tokens:', !!accessToken);
         
         if (accessToken && refreshToken) {
+          // CRITICAL: Sign out existing session first to avoid loading data
+          // from the superadmin's tenant. This clears localStorage auth keys
+          // without triggering a redirect since we're on the landing page.
+          console.log('[Impersonate] Clearing existing session before setting new one...');
+          await supabase.auth.signOut({ scope: 'local' });
+          
+          // Small delay to ensure auth state listeners process the sign-out
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
           // Set the session using the tokens from the URL
           const { data, error } = await supabase.auth.setSession({
             access_token: accessToken,
