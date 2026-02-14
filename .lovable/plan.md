@@ -1,79 +1,83 @@
 
-## Refonte des regles d'automatisation de categories
 
-### Diagnostic des 3 bugs
+## Refonte Landing Page Qashflow - "Direction Financiere Augmentee"
 
-**Bug 1 : Transactions non classees chaque matin**
-Le CRON quotidien (`apply-all-automation-rules`) ne s'execute jamais. Aucun log n'apparait pour cette fonction. Le CRON est probablement configure dans le dashboard mais la fonction n'est pas declenchee. De plus, la sync bancaire (`bridge-sync`) ne declenche pas l'application des regles apres l'insertion de nouvelles transactions.
-
-**Bug 2 : Proposition de regles deja existantes**
-Quand vous categorisez une transaction, le dialog `SuggestAutomationDialog` s'ouvre systematiquement sans verifier si une regle existe deja pour ce pattern. Il n'y a aucune verification de doublon avant de proposer la creation.
-
-**Bug 3 : Doublons de regles entre societes et au sein d'une meme societe**
-Donnees constatees en base :
-- "CURIEUX LIQUIDES" : 3 regles identiques pour la meme societe (creees a quelques secondes d'intervalle)
-- "FUMEUR VANNES", "PETIT VAPOTEUR" : regles dupliquees sur 2 societes differentes
-
-Cause : aucune contrainte d'unicite en base, et aucune verification cote code avant insertion. Le dialog de suggestion ne verifie pas les regles existantes, donc chaque categorisation manuelle repropose la creation.
+Rewrite complet de `src/pages/Landing.tsx` suivant le brief "One-Page" fourni, en conservant le `PublicNavbar`, le footer, et la logique existante (email capture, navigation).
 
 ---
 
-### Corrections prevues
+### Nouvelle structure de la page (7 sections)
 
-#### 1. Contrainte d'unicite en base de donnees
+#### Section 1 - Hero
+- **H1** : "Pilotez votre rentabilite en temps reel, pas votre comptabilite."
+- **Sous-titre** : "L'IA qui centralise vos banques, anticipe votre cash-flow et decomplexifie la finance. Pour une vision claire de toutes vos societes, sans ouvrir un seul Excel."
+- **CTA** : Input email + bouton "Demarrer mon essai gratuit (30j)"
+- **Reassurance** : Gratuit 30 jours / Sans carte bancaire / Annulation facile
+- **Visuel** : Screenshot du dashboard (`screenshot-dashboard.png`) dans un cadre navigateur avec effet glassmorphism
+- **Style** : Fond avec radial gradient subtil bleu-violet, badge "Direction Financiere augmentee par l'IA"
 
-Ajouter un index unique sur `automation_rules(company_id, condition_value, condition_operator, target_category_id)` avec une condition `WHERE is_active = true`. Cela empeche physiquement la creation de doublons pour une meme societe.
+#### Section 2 - Pain Points
+- Titre : "Vous reconnaissez-vous ?"
+- 3 cartes avec effet glassmorphism (`bg-card/60 backdrop-blur-xl border border-white/10`) :
+  - Le Brouillard (icone `Eye`) : "Je ne sais jamais combien il me reste vraiment a la fin du mois."
+  - La Corvee (icone `Clock`) : "Je perds des heures a consolider les donnees de mes 3 societes."
+  - Le Stress (icone `AlertTriangle`) : "Mon bilan arrive 6 mois trop tard pour prendre des decisions."
 
-Avant de creer l'index, supprimer les doublons existants (garder la plus ancienne regle de chaque groupe).
+#### Section 3 - Les 3 Piliers (Proposition de valeur)
+- Titre : "La visibilite financiere absolue"
+- 3 cartes glassmorphism avec icones aerees :
+  - **Visibilite Multi-Entites** (icone `Building2`) : "Consolidation instantanee de toutes vos structures. Un seul ecran pour votre groupe."
+  - **Intelligence de Categorisation** (icone `Bot`) : "L'IA apprend de vos flux pour classer vos depenses. Zero erreur, zero oubli." + Barre de progression animee "98% des flux automatises"
+  - **Predictif & Scenarios** (icone `TrendingUp`) : "Projetez votre tresorerie a 6 ou 12 mois pour valider vos investissements ou vos recrutements."
 
-#### 2. Nettoyage des doublons cross-company
+#### Section 4 - Humain + IA
+- Titre : "L'outil qui libere votre equipe des taches ingrates"
+- Layout 2 colonnes (texte + visuel illustratif) :
+  - Texte : "Qashflow ne remplace pas votre expertise, il automatise la saisie manuelle. Redonnez a votre gestionnaire le temps d'analyser plutot que de copier-coller."
+  - Benefice mis en avant : "Moins de stress administratif, plus de conseil strategique."
+  - Visuel : Screenshot P&L (`screenshot-pnl.png`) dans un cadre avec glassmorphism
 
-Supprimer les regles qui sont des copies sur une autre societe. Les regles "FUMEUR VANNES" et "PETIT VAPOTEUR" presentes sur la societe `12ea5853` qui sont des doublons de celles de `c6ce7d8e` seront supprimees si les categories cibles sont coherentes.
+#### Section 5 - Reassurance & Securite
+- Titre : "Vos donnees en securite absolue"
+- 3 elements horizontaux avec icones :
+  - DSP2 : "Synchronisation bancaire securisee (DSP2)"
+  - Chiffrement : "Donnees cryptees AES-256"
+  - UE : "Serveurs heberges en Union Europeenne"
+- Badge : "Compatible avec toutes les banques francaises"
 
-#### 3. Verification anti-doublon dans `SuggestAutomationDialog`
+#### Section 6 - Pricing (conserve tel quel)
+- Meme structure 2 colonnes Essai gratuit / Licence Lifetime 499 EUR
+- Glassmorphism sur la carte populaire
 
-Avant d'ouvrir le dialog de suggestion, verifier si une regle active existe deja pour ce pattern (condition_value contenu dans la description de la transaction) sur la company courante. Si oui, ne pas afficher le dialog.
-
-Fichier : `src/components/transactions/TransactionsView.tsx`
-- Dans `handleUpdateCategory`, apres avoir determine le pattern potentiel, requeter les `automation_rules` de la company pour voir si une regle `contains` matche deja cette description
-- Si match trouve : ne pas ouvrir le dialog
-
-#### 4. Verification anti-doublon dans `createRule`
-
-Fichier : `src/hooks/useAutomationRules.ts`
-- Dans `createRule`, avant l'INSERT, verifier en base s'il existe une regle avec le meme `condition_value` + `condition_operator` + `target_category_id` pour la meme `company_id`
-- Si doublon detecte, afficher un toast d'avertissement et retourner sans creer
-
-#### 5. Application automatique des regles apres la sync bancaire
-
-Fichier : `supabase/functions/bridge-sync/index.ts`
-- Apres l'insertion/mise a jour des transactions, appeler en interne la logique d'application des regles pour la company concernee
-- Cela garantit que les nouvelles transactions sont classees immediatement, sans dependre du CRON
-
-Alternative plus legere : creer un trigger SQL `AFTER INSERT ON transactions` qui applique les regles en arriere-plan. Mais cela risque d'etre lourd. On preferera l'appel direct depuis bridge-sync.
-
-#### 6. Fiabiliser le CRON quotidien
-
-Fichier : `supabase/functions/apply-all-automation-rules/index.ts`
-- Ajouter un log en tout debut pour confirmer que la fonction demarre
-- S'assurer que le CRON `pg_cron` est bien enregistre (verifier via SQL)
-- Comme fallback, ajouter l'appel des regles directement dans bridge-sync (point 5) pour ne plus dependre du CRON
+#### Section 7 - CTA final + Footer (conserves)
+- CTA gradient existant, texte adapte au nouveau positionnement
+- Footer identique
 
 ---
 
-### Fichiers concernes
+### Style et design tokens
 
-| Fichier | Modification |
-|---------|-------------|
-| Migration SQL | Index unique, nettoyage doublons |
-| `src/components/transactions/TransactionsView.tsx` | Verification anti-doublon avant ouverture du dialog |
-| `src/hooks/useAutomationRules.ts` | Verification anti-doublon dans `createRule` |
-| `supabase/functions/bridge-sync/index.ts` | Application des regles apres sync |
-| `supabase/functions/apply-all-automation-rules/index.ts` | Logs ameliores |
+- **Glassmorphism** : nouvelle classe utilitaire CSS `.glass-card` dans `index.css` :
+  ```css
+  .glass-card {
+    @apply bg-card/60 backdrop-blur-xl border border-white/10 shadow-lg;
+  }
+  ```
+- **Gradient Hero** : fond radial bleu profond vers violet subtil via classes Tailwind inline
+- **Barre de progression IA** : composant inline avec animation `shimmer` (deja definie dans tailwind config)
+- **Animations** : framer-motion `whileInView` conservees pour les scroll reveals
 
-### Ordre d'execution
+### Fichiers modifies
 
-1. Migration : nettoyage doublons + index unique
-2. Code frontend : anti-doublon dialog + createRule
-3. Edge function bridge-sync : appel des regles apres insertion
-4. Deploiement edge functions
+| Fichier | Action |
+|---------|--------|
+| `src/pages/Landing.tsx` | Rewrite complet du contenu (sections, textes, layout) |
+| `src/index.css` | Ajout de la classe `.glass-card` |
+
+### Ce qui ne change PAS
+- `PublicNavbar` : inchange
+- Footer : structure conservee, texte legerement adapte
+- Logique email/navigation : conservee
+- Screenshots existants : reutilises (`screenshot-dashboard.png`, `screenshot-pnl.png`)
+- Palette de couleurs CSS variables : inchangee (le bleu-violet est deja en place via `--primary: 241 86% 58%`)
+
