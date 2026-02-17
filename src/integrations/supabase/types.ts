@@ -2274,6 +2274,7 @@ export type Database = {
         Returns: undefined
       }
       generate_org_slug: { Args: { org_name: string }; Returns: string }
+      get_auth_email: { Args: never; Returns: string }
       get_company_members_with_email: {
         Args: { _company_id: string }
         Returns: {
