@@ -1,32 +1,82 @@
 
-# Optimisation CRO de la section Pricing
+# Fix: "permission denied for table users" blocking all access
 
-## Objectif
-Augmenter le taux de conversion sur la carte "Licence Lifetime" avec des techniques d'urgence et de copywriting plus engageant.
+## Root Cause
 
-## Changements prevus
+The problem is a **cascading RLS permission failure** across 3 tables:
 
-### 1. CTA plus engageant
-Remplacer "Acheter la licence" par **"J'en profite maintenant"** -- plus emotionnel, moins transactionnel.
+```text
+organizations (SELECT)
+  -> "Authenticated users can read org for valid invitation" policy
+    -> checks organization_invitations table
+      -> "Invited user or org admins can read invitations" policy
+        -> SELECT email FROM auth.users WHERE id = auth.uid()
+          -> FAILS: authenticated role cannot read auth.users
+            -> 403 error propagates up
+              -> ALL organizations SELECT blocked
+                -> No organizations loaded
+                  -> No companies loaded
+                    -> Empty dropdowns
+```
 
-### 2. Compte a rebours de session
-Ajouter un timer degressif (ex: 15 minutes) qui demarre a l'ouverture de la page et persiste en `sessionStorage`. Affiche sous le prix un texte du type : **"Offre valable encore 14:32"** avec un compte a rebours en temps reel.
+The `organization_invitations` SELECT policy contains a direct reference to `auth.users` to compare emails. The `authenticated` role does not have permission to query `auth.users`, which causes a `42501` error that cascades up and blocks all organization access.
 
-- Le timer demarre a 15 minutes a la premiere visite de la session
-- Se sauvegarde en `sessionStorage` pour persister entre navigations sur le site
-- Se reinitialise a chaque nouvelle session navigateur
-- Affiche en rouge/orange sous le prix avec une icone horloge
+## Solution
 
-### 3. Texte d'urgence supplementaire
-Ajouter sous le CTA une ligne du type : **"Offre de lancement -- prix amene a augmenter"** pour renforcer l'urgence.
+Replace the direct `auth.users` reference in the `organization_invitations` policy with a `SECURITY DEFINER` function that safely retrieves the current user's email.
 
-## Details techniques
+### Step 1: Create a SECURITY DEFINER function to get current user email
 
-**Fichier modifie : `src/pages/Landing.tsx`**
+```sql
+CREATE OR REPLACE FUNCTION public.get_auth_email()
+RETURNS text
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+  SELECT email::text FROM auth.users WHERE id = auth.uid();
+$$;
+```
 
-- Ajout d'un hook `useState` + `useEffect` pour le countdown (sessionStorage key: `pricing-countdown-start`)
-- Le CTA du plan populaire passe de "Acheter la licence" a "J'en profite maintenant"
-- Ajout d'un bloc countdown anime entre le prix et les features (ou juste au-dessus du CTA)
-- Ajout d'une ligne de micro-copy sous le bouton CTA
+This function runs with elevated privileges (SECURITY DEFINER), so it can read `auth.users` even though the `authenticated` role cannot.
 
-Aucun nouveau fichier necessaire, tout tient dans le composant Landing.
+### Step 2: Update the organization_invitations SELECT policy
+
+Drop the problematic policy and recreate it using the new function:
+
+```sql
+DROP POLICY "Invited user or org admins can read invitations" 
+  ON public.organization_invitations;
+
+CREATE POLICY "Invited user or org admins can read invitations"
+  ON public.organization_invitations FOR SELECT
+  TO authenticated
+  USING (
+    is_org_admin(auth.uid(), organization_id) 
+    OR (
+      auth.uid() IS NOT NULL 
+      AND lower(email) = lower(public.get_auth_email())
+    )
+  );
+```
+
+### Step 3: Force PostgREST schema cache reload
+
+```sql
+NOTIFY pgrst, 'reload schema';
+```
+
+## Why this fixes everything
+
+- The `organization_invitations` policy no longer directly queries `auth.users`
+- The `organizations` SELECT policies can now evaluate without permission errors
+- Organizations load correctly, which means companies load correctly
+- Both dropdowns (group and company) will reappear and work for all users
+
+## Technical Details
+
+- No frontend code changes needed
+- No data changes needed
+- Only 1 migration file with the function + policy update + cache reload
+- The fix is backward-compatible with all existing policies
