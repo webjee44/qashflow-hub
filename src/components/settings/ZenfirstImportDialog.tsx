@@ -33,6 +33,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useCompany } from '@/hooks/useCompany';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
+import { logError } from '@/lib/logger';
 
 interface ZenfirstImportDialogProps {
   open: boolean;
@@ -115,7 +116,7 @@ export function ZenfirstImportDialog({ open, onOpenChange }: ZenfirstImportDialo
       
       toast.success(`${result.items.length} éléments détectés`);
     } catch (error) {
-      console.error('Error parsing file:', error);
+      logError('Error parsing file:', error);
       toast.error('Erreur lors de la lecture du fichier');
     }
   }, [findExistingCategory]);
@@ -218,7 +219,7 @@ export function ZenfirstImportDialog({ open, onOpenChange }: ZenfirstImportDialo
                   .update({ parent_id: parentId })
                   .eq('id', result.id);
               } catch (error) {
-                console.error('Error linking category to parent:', error);
+                logError('Error linking category to parent:', error);
               }
             }
           }
@@ -233,7 +234,7 @@ export function ZenfirstImportDialog({ open, onOpenChange }: ZenfirstImportDialo
                 .update({ parent_id: parentId })
                 .eq('id', cat.existingCategory.id);
             } catch (error) {
-              console.error('Error updating category parent:', error);
+              logError('Error updating category parent:', error);
             }
           }
         }
@@ -268,10 +269,10 @@ export function ZenfirstImportDialog({ open, onOpenChange }: ZenfirstImportDialo
                   if (!error) {
                     createdForecasts++;
                   } else {
-                    console.error('Error creating forecast:', error);
+                    logError('Error creating forecast:', error);
                   }
                 } catch (error) {
-                  console.error('Error creating forecast:', error);
+                  logError('Error creating forecast:', error);
                 }
               }
             }
@@ -291,7 +292,7 @@ export function ZenfirstImportDialog({ open, onOpenChange }: ZenfirstImportDialo
       setStep('done');
       toast.success('Import terminé avec succès !');
     } catch (error) {
-      console.error('Import error:', error);
+      logError('Import error:', error);
       toast.error('Erreur lors de l\'import');
       setStep('mapping');
     } finally {

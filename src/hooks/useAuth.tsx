@@ -1,6 +1,7 @@
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { logError, logInfo } from '@/lib/logger';
 
 interface AuthContextType {
   user: User | null;
@@ -23,7 +24,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, currentSession) => {
-        console.info('[Auth] Event:', event);
+        logInfo('[Auth] Event:', event);
         
         // Update state synchronously
         setSession(currentSession);
@@ -32,11 +33,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         // Handle specific events
         if (event === 'TOKEN_REFRESHED') {
-          console.info('[Auth] Token refreshed successfully');
+          logInfo('[Auth] Token refreshed successfully');
         }
         
         if (event === 'SIGNED_OUT') {
-          console.info('[Auth] User signed out');
+          logInfo('[Auth] User signed out');
           setSession(null);
           setUser(null);
         }
@@ -49,13 +50,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const { data: { session: existingSession }, error } = await supabase.auth.getSession();
         
         if (error) {
-          console.error('[Auth] Error getting session:', error);
+          logError('[Auth] Error getting session:', error);
           // Try to refresh the session if there's an error
           const { data: refreshData } = await supabase.auth.refreshSession();
           if (refreshData.session) {
             setSession(refreshData.session);
             setUser(refreshData.session.user);
-            console.info('[Auth] Session refreshed after error');
+            logInfo('[Auth] Session refreshed after error');
           }
           setLoading(false);
           return;
@@ -64,12 +65,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (existingSession) {
           setSession(existingSession);
           setUser(existingSession.user);
-          console.info('[Auth] Session restored');
+          logInfo('[Auth] Session restored');
         }
         
         setLoading(false);
       } catch (err) {
-        console.error('[Auth] Init error:', err);
+        logError('[Auth] Init error:', err);
         setLoading(false);
       }
     };
@@ -82,7 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (currentSession) {
         const { data: refreshData, error } = await supabase.auth.refreshSession();
         if (!error && refreshData.session) {
-          console.info('[Auth] Proactive session refresh');
+          logInfo('[Auth] Proactive session refresh');
         }
       }
     }, 10 * 60 * 1000); // 10 minutes
