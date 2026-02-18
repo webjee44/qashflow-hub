@@ -13,6 +13,7 @@ import { Landmark, FileText, FileUp, Loader2, CheckCircle2, AlertTriangle } from
 import { useBPSettings } from '@/features/business-plan/hooks/useBPSettings';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { logError } from '@/lib/logger';
 
 interface AmortizationData {
   loan_name: string | null;
@@ -183,7 +184,7 @@ export function FinancingDialog({ open, onOpenChange, financing, onSave }: Finan
       setParsedData(data);
       toast.success('Tableau d\'amortissement analysé avec succès');
     } catch (err: any) {
-      console.error('PDF parsing error:', err);
+      logError('PDF parsing error:', err);
       setParseError(err.message || 'Erreur lors de l\'analyse du PDF');
       toast.error('Erreur lors de l\'analyse du PDF');
     } finally {

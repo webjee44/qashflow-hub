@@ -407,7 +407,7 @@ export function useAutomationRules() {
       setRules(prev => prev.filter(r => r.id !== id));
       toast.success('Règle supprimée');
     } catch (error) {
-      console.error('Error deleting rule:', error);
+      logError('Error deleting rule:', error);
       toast.error('Erreur lors de la suppression');
     }
   };

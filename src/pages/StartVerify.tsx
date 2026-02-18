@@ -7,6 +7,7 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import logo from '@/assets/logo.png';
+import { logError } from '@/lib/logger';
 
 export default function StartVerify() {
   const navigate = useNavigate();
@@ -90,7 +91,7 @@ export default function StartVerify() {
 
       navigate('/start/welcome');
     } catch (error: any) {
-      console.error('Error verifying OTP:', error);
+      logError('Error verifying OTP:', error);
       setCode('');
       toast({
         title: "Code invalide",

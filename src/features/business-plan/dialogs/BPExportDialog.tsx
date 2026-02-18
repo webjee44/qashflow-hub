@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { logError } from '@/lib/logger';
 import { Download, FileText, Loader2, Building2, Palette, FileCheck } from 'lucide-react';
 import { useScenarios } from '@/hooks/useScenarios';
 import { useCompany } from '@/hooks/useCompany';
@@ -116,7 +117,7 @@ export function BPExportDialog({ trigger }: BPExportDialogProps) {
       toast.success('Business Plan exporté avec succès');
       setOpen(false);
     } catch (error: any) {
-      console.error('Export error:', error);
+      logError('Export error:', error);
       toast.error(error.message || "Erreur lors de l'export");
     } finally {
       setIsExporting(false);

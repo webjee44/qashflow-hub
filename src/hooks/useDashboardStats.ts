@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useCompany } from '@/hooks/useCompany';
 import { startOfMonth, endOfMonth, subMonths, format, addMonths, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { logError } from '@/lib/logger';
+import { logError, logDebug } from '@/lib/logger';
 
 interface DashboardStats {
   currentBalance: number;
@@ -102,7 +102,7 @@ export function useDashboardStats() {
         if (currentCompany?.bank_balance !== null && currentCompany?.bank_balance !== undefined) {
           // Use real bank balance from Bridge
           currentBalance = Number(currentCompany.bank_balance);
-          console.log('Using real bank balance from Bridge:', currentBalance);
+          logDebug('Using real bank balance from Bridge:', currentBalance);
         } else {
           // Fallback: calculate from initial balance + transactions
           const initialBalance = currentCompany?.initial_balance || 0;
@@ -114,7 +114,7 @@ export function useDashboardStats() {
             }
           }, 0) || 0;
           currentBalance = initialBalance + transactionsBalance;
-          console.log('Using calculated balance (initial + transactions):', currentBalance);
+          logDebug('Using calculated balance (initial + transactions):', currentBalance);
         }
 
         // 90-day forecast - use forecasts table

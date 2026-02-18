@@ -14,6 +14,7 @@ import { Label } from '@/components/ui/label';
 import { Company } from '@/hooks/useCompany';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { logError } from '@/lib/logger';
 
 interface LinkBridgeDialogProps {
   open: boolean;
@@ -63,7 +64,7 @@ export function LinkBridgeDialog({
         });
 
         if (syncError || !data?.success) {
-          console.error('Sync error:', data?.error || syncError);
+          logError('Sync error:', data?.error || syncError);
           toast.warning('Connexion liée, mais la synchronisation a échoué. Réessayez manuellement.');
         } else {
           const balance = data.totalBalance?.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' }) || '0 €';
@@ -74,7 +75,7 @@ export function LinkBridgeDialog({
       onSuccess();
       onOpenChange(false);
     } catch (error) {
-      console.error('Link error:', error);
+      logError('Link error:', error);
       toast.error('Erreur lors de la liaison Bridge');
     } finally {
       setIsLinking(false);

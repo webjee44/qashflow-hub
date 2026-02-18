@@ -19,6 +19,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useCompany } from '@/hooks/useCompany';
 import { useOrganization } from '@/hooks/useOrganization';
 import { toast } from 'sonner';
+import { logError, logDebug } from '@/lib/logger';
 
 type ItemStatus = 'ok' | 'needs_action' | 'error' | 'deleted';
 
@@ -234,7 +235,7 @@ export function BankAccountsCard() {
         });
         setAssignments(assignmentMap);
       } catch (error) {
-        console.error('Failed to load accounts:', error);
+        logError('Failed to load accounts:', error);
         toast.error('Erreur lors du chargement des comptes');
       } finally {
         setIsLoading(false);
@@ -309,7 +310,7 @@ export function BankAccountsCard() {
       // Reload to refresh the accounts list
       window.location.reload();
     } catch (error) {
-      console.error('Auto sync error:', error);
+      logError('Auto sync error:', error);
       toast.error('Erreur lors de la synchronisation automatique');
     } finally {
       setIsSyncing(false);
@@ -346,7 +347,7 @@ export function BankAccountsCard() {
 
   const handleBankNameUpdate = async (bridgeItemId: number, newName: string) => {
     try {
-      console.log('Updating bank name:', { bridgeItemId, newName });
+      logDebug('Updating bank name:', { bridgeItemId, newName });
       
       const { data, error } = await supabase
         .from('bridge_accounts')
@@ -355,11 +356,11 @@ export function BankAccountsCard() {
         .select();
 
       if (error) {
-        console.error('Supabase error:', error);
+        logError('Supabase error:', error);
         throw error;
       }
 
-      console.log('Update result:', data);
+      logDebug('Update result:', data);
 
       // Update local state - ensure we're creating new array reference
       setAccounts(prevAccounts => {
@@ -368,13 +369,13 @@ export function BankAccountsCard() {
             ? { ...account, bank_name: newName }
             : account
         );
-        console.log('Updated accounts state:', updatedAccounts.filter(a => a.bridge_item_id === bridgeItemId));
+        logDebug('Updated accounts state:', updatedAccounts.filter(a => a.bridge_item_id === bridgeItemId));
         return updatedAccounts;
       });
 
       toast.success('Nom de banque mis à jour');
     } catch (error) {
-      console.error('Error updating bank name:', error);
+      logError('Error updating bank name:', error);
       toast.error('Erreur lors de la mise à jour');
     }
   };
@@ -429,7 +430,7 @@ export function BankAccountsCard() {
       setHasChanges(false);
       refetchCompanies();
     } catch (error) {
-      console.error('Save error:', error);
+      logError('Save error:', error);
       toast.error('Erreur lors de la sauvegarde');
     } finally {
     setIsSaving(false);
@@ -484,7 +485,7 @@ export function BankAccountsCard() {
       // Using a different origin (like published URL) would lose the user's session
       const currentOrigin = window.location.origin;
       const redirectUrl = `${currentOrigin}/parametres?tab=accounts&bridge_callback=success`;
-      console.log('[Bridge] Redirect URL:', redirectUrl);
+      logDebug('[Bridge] Redirect URL:', redirectUrl);
 
       // Create Connect session
       const { data: connectData, error: connectError } = await supabase.functions.invoke('bridge-connect', {
@@ -517,7 +518,7 @@ export function BankAccountsCard() {
         window.location.assign(connectData.connect_url);
       }
     } catch (error) {
-      console.error('Bridge connect error:', error);
+      logError('Bridge connect error:', error);
       toast.error('Erreur lors de la connexion Bridge');
     } finally {
       setIsConnecting(false);
@@ -570,7 +571,7 @@ export function BankAccountsCard() {
         window.location.assign(connectData.connect_url);
       }
     } catch (error) {
-      console.error('Reconnect error:', error);
+      logError('Reconnect error:', error);
       toast.error('Erreur lors de la reconnexion');
     } finally {
       setIsConnecting(false);
@@ -610,7 +611,7 @@ export function BankAccountsCard() {
         });
 
         if (error) {
-          console.error(`Sync error for ${company.name}:`, error);
+          logError(`Sync error for ${company.name}:`, error);
         } else if (data?.success) {
           totalInserted += data.inserted || 0;
           totalUpdated += data.updated || 0;
@@ -623,7 +624,7 @@ export function BankAccountsCard() {
       // Reload the page to refresh accounts list
       window.location.reload();
     } catch (error) {
-      console.error('Full sync error:', error);
+      logError('Full sync error:', error);
       toast.error('Erreur lors de la synchronisation');
     } finally {
       setIsSyncing(false);

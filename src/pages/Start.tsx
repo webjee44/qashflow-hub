@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import logo from '@/assets/logo.png';
+import { logError } from '@/lib/logger';
 
 export default function Start() {
   const navigate = useNavigate();
@@ -76,7 +77,7 @@ export default function Start() {
 
       navigate('/start/verify');
     } catch (error: any) {
-      console.error('Error sending OTP:', error);
+      logError('Error sending OTP:', error);
       toast({
         title: "Erreur",
         description: error.message || "Impossible d'envoyer le code SMS",

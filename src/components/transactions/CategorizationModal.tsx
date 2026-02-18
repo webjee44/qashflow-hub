@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
+import { logError } from '@/lib/logger';
 import { Tables } from '@/integrations/supabase/types';
 import { Category, CategoryGroup } from '@/hooks/useCategories';
 
@@ -161,7 +162,7 @@ export function CategorizationModal({
       });
 
       if (error) {
-        console.error('AI suggestion error:', error);
+        logError('AI suggestion error:', error);
         setAiError('Suggestion IA indisponible');
         return;
       }
@@ -174,7 +175,7 @@ export function CategorizationModal({
         });
       }
     } catch (err) {
-      console.error('AI suggestion error:', err);
+      logError('AI suggestion error:', err);
       setAiError('Erreur de suggestion');
     } finally {
       setLoadingAI(false);

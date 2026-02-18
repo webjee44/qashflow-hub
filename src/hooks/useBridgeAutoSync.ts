@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useCompany } from './useCompany';
 import { toast } from 'sonner';
+import { logError, logInfo } from '@/lib/logger';
 
 const SYNC_STORAGE_KEY = 'bridge_last_auto_sync';
 const SYNC_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes cooldown
@@ -21,7 +22,7 @@ export function useBridgeAutoSync() {
     if (lastSync) {
       const lastSyncTime = parseInt(lastSync, 10);
       if (Date.now() - lastSyncTime < SYNC_COOLDOWN_MS) {
-        console.info('Bridge auto-sync skipped: cooldown active');
+        logInfo('Bridge auto-sync skipped: cooldown active');
         return;
       }
     }
@@ -33,7 +34,7 @@ export function useBridgeAutoSync() {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) return;
 
-        console.info('Starting Bridge auto-sync...');
+        logInfo('Starting Bridge auto-sync...');
 
         const { data, error } = await supabase.functions.invoke('bridge-sync', {
           headers: { Authorization: `Bearer ${session.access_token}` },
@@ -45,7 +46,7 @@ export function useBridgeAutoSync() {
         });
 
         if (error || !data?.success) {
-          console.error('Bridge auto-sync failed:', data?.error || error);
+          logError('Bridge auto-sync failed:', data?.error || error);
           return;
         }
 
@@ -63,7 +64,7 @@ export function useBridgeAutoSync() {
 
         await refetch();
       } catch (err) {
-        console.error('Bridge auto-sync error:', err);
+        logError('Bridge auto-sync error:', err);
       }
     };
 

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useCompany } from './useCompany';
 import { useToast } from './use-toast';
+import { logError } from '@/lib/logger';
 
 export type ConnectorProvider = 'odoo' | 'pennylane' | null;
 
@@ -82,7 +83,7 @@ export function useAccountingConnector() {
       // No connector configured
       setConfig({ provider: null, isConfigured: false, lastSyncAt: null });
     } catch (error) {
-      console.error('Error detecting connector:', error);
+      logError('Error detecting connector:', error);
       setConfig({ provider: null, isConfigured: false, lastSyncAt: null });
     } finally {
       setIsLoading(false);
@@ -139,7 +140,7 @@ export function useAccountingConnector() {
 
       return true;
     } catch (error) {
-      console.error('Error saving Odoo credentials:', error);
+      logError('Error saving Odoo credentials:', error);
       toast({
         title: 'Erreur',
         description: 'Impossible de sauvegarder les identifiants.',
@@ -185,7 +186,7 @@ export function useAccountingConnector() {
 
       return true;
     } catch (error) {
-      console.error('Error saving Pennylane credentials:', error);
+      logError('Error saving Pennylane credentials:', error);
       toast({
         title: 'Erreur',
         description: 'Impossible de sauvegarder la clé API.',
@@ -221,7 +222,7 @@ export function useAccountingConnector() {
         throw new Error(data.error || 'Connexion échouée');
       }
     } catch (error: any) {
-      console.error('Odoo test error:', error);
+      logError('Odoo test error:', error);
       toast({
         title: 'Échec de connexion',
         description: error.message || 'Impossible de se connecter à Odoo. Vérifiez vos identifiants.',
@@ -257,7 +258,7 @@ export function useAccountingConnector() {
         throw new Error(data.error || 'Connexion échouée');
       }
     } catch (error: any) {
-      console.error('Pennylane test error:', error);
+      logError('Pennylane test error:', error);
       toast({
         title: 'Échec de connexion',
         description: error.message || 'Impossible de se connecter à Pennylane.',
@@ -294,7 +295,7 @@ export function useAccountingConnector() {
         throw new Error(data.error || 'Synchronisation échouée');
       }
     } catch (error: any) {
-      console.error('Sync error:', error);
+      logError('Sync error:', error);
       toast({
         title: 'Erreur de synchronisation',
         description: error.message || 'Impossible de synchroniser les factures.',
@@ -334,7 +335,7 @@ export function useAccountingConnector() {
 
       return true;
     } catch (error) {
-      console.error('Error disconnecting connector:', error);
+      logError('Error disconnecting connector:', error);
       toast({
         title: 'Erreur',
         description: 'Impossible de déconnecter le connecteur.',

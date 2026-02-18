@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useCompany } from '@/hooks/useCompany';
 import { toast } from 'sonner';
+import { logError } from '@/lib/logger';
 import { calculateLoanPayment, getLoanScheduleEntry } from '@/lib/french-rates';
 import { parseISO, differenceInMonths, isBefore, isAfter, startOfMonth, endOfMonth, addMonths } from 'date-fns';
 import { useCallback, useMemo } from 'react';
@@ -84,7 +85,7 @@ export function useFinancings() {
     },
     onError: (error) => {
       toast.error('Erreur lors de la création');
-      console.error(error);
+      logError('Financing creation error:', error);
     },
   });
 
@@ -105,7 +106,7 @@ export function useFinancings() {
     },
     onError: (error) => {
       toast.error('Erreur lors de la mise à jour');
-      console.error(error);
+      logError('Financing update error:', error);
     },
   });
 
@@ -120,7 +121,7 @@ export function useFinancings() {
     },
     onError: (error) => {
       toast.error('Erreur lors de la suppression');
-      console.error(error);
+      logError('Financing deletion error:', error);
     },
   });
 

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Settings2, Loader2, Check } from 'lucide-react';
+import { logError } from '@/lib/logger';
 import {
   Dialog,
   DialogContent,
@@ -74,7 +75,7 @@ export function ManageAccountsDialog({
           setSelectedAccountIds(new Set(assignments.map(a => a.bridge_account_id)));
         }
       } catch (error) {
-        console.error('Failed to load accounts:', error);
+        logError('Failed to load accounts:', error);
         toast.error('Erreur lors du chargement des comptes');
       } finally {
         setIsLoading(false);
@@ -140,7 +141,7 @@ export function ManageAccountsDialog({
       onSuccess();
       onOpenChange(false);
     } catch (error) {
-      console.error('Save error:', error);
+      logError('Save error:', error);
       toast.error('Erreur lors de la sauvegarde');
     } finally {
       setIsSaving(false);

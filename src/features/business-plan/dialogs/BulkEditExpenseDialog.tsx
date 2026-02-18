@@ -35,6 +35,7 @@ import { parseExpenseExcel, type ImportDiff } from '@/lib/excelExpenseParser';
 import type { BPFixedExpense } from '@/hooks/useBPFixedExpenses';
 import { useBPFixedExpenses } from '@/features/business-plan/hooks/useBPFixedExpenses';
 import { cn } from '@/lib/utils';
+import { logError } from '@/lib/logger';
 
 interface BulkEditExpenseDialogProps {
   open: boolean;
@@ -82,7 +83,7 @@ export function BulkEditExpenseDialog({
       setStep('upload');
     } catch (error) {
       toast.error('Erreur lors du téléchargement');
-      console.error(error);
+      logError('Download error:', error);
     } finally {
       setIsDownloading(false);
     }
@@ -101,7 +102,7 @@ export function BulkEditExpenseDialog({
       setStep('preview');
     } catch (error) {
       toast.error('Erreur lors de la lecture du fichier');
-      console.error(error);
+      logError('File parse error:', error);
     } finally {
       setIsParsing(false);
     }
@@ -181,7 +182,7 @@ export function BulkEditExpenseDialog({
       handleOpenChange(false);
     } catch (error) {
       toast.error("Erreur lors de l'application des modifications");
-      console.error(error);
+      logError('Bulk apply error:', error);
     } finally {
       setIsApplying(false);
     }

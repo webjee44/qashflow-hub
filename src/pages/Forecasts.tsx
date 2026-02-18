@@ -8,6 +8,7 @@ import { FileDown } from 'lucide-react';
 import { useCompany } from '@/hooks/useCompany';
 import { PageLoader } from '@/components/ui/page-loader';
 import { supabase } from '@/integrations/supabase/client';
+import { logError } from '@/lib/logger';
 
 export default function Forecasts() {
   const [importOpen, setImportOpen] = useState(false);
@@ -47,7 +48,7 @@ export default function Forecasts() {
         // Force reload to show new data
         window.location.reload();
       } catch (err) {
-        console.error('Failed to seed forecast demo data:', err);
+        logError('Failed to seed forecast demo data:', err);
       }
     })();
   }, [currentCompany?.id]);

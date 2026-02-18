@@ -10,6 +10,7 @@ import {
   LogOut,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { logError } from '@/lib/logger';
 
 const navItems = [
   { to: '/superadmin', icon: LayoutDashboard, label: 'Dashboard', exact: true },
@@ -28,7 +29,7 @@ export function SuperAdminSidebar() {
       // Force navigation after signOut completes
       window.location.href = '/auth';
     } catch (error) {
-      console.error('Error signing out:', error);
+      logError('Error signing out:', error);
     }
   };
 

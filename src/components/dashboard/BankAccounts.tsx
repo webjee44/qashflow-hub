@@ -8,6 +8,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useCompany } from '@/hooks/useCompany';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { logError } from '@/lib/logger';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Link } from 'react-router-dom';
@@ -63,7 +64,7 @@ export function BankAccounts() {
       });
 
       if (error || !data?.success) {
-        console.error('Error fetching accounts:', data?.error || error);
+        logError('Error fetching accounts:', data?.error || error);
         return;
       }
 
@@ -80,7 +81,7 @@ export function BankAccounts() {
       
       await refetch();
     } catch (error) {
-      console.error('Error fetching Bridge accounts:', error);
+      logError('Error fetching Bridge accounts:', error);
     } finally {
       setLoading(false);
     }
@@ -123,7 +124,7 @@ export function BankAccounts() {
 
       toast.success(`${data.inserted} nouvelles transactions importées, ${data.updated} mises à jour`);
     } catch (error) {
-      console.error('Error syncing transactions:', error);
+      logError('Error syncing transactions:', error);
       toast.error('Erreur de synchronisation des transactions');
     } finally {
       setSyncingTransactions(false);

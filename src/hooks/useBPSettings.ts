@@ -4,6 +4,7 @@ import { useCompany } from '@/hooks/useCompany';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { useEffect } from 'react';
+import { logError } from '@/lib/logger';
 
 export interface BPSettings {
   id: string;
@@ -93,7 +94,7 @@ export function useBPSettings() {
           refetch();
         }
       } catch (err) {
-        console.error('Error initializing BP settings:', err);
+        logError('Error initializing BP settings:', err);
       }
     };
 

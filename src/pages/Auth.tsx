@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Eye, EyeOff, Mail, Lock, User, ArrowRight, Loader2, ArrowLeft } from 'lucide-react';
 import { z } from 'zod';
+import { logDebug } from '@/lib/logger';
 import { supabase } from '@/integrations/supabase/client';
 import { lovable } from '@/integrations/lovable/index';
 import { Separator } from '@/components/ui/separator';
@@ -40,7 +41,7 @@ export default function Auth() {
       
       // Listen for the PASSWORD_RECOVERY event from the URL hash
       const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-        console.log('Auth event:', event, 'Session:', !!session);
+        logDebug('Auth event:', event, 'Session:', !!session);
         
         if (event === 'PASSWORD_RECOVERY') {
           // User clicked the reset link - show reset form

@@ -7,6 +7,7 @@ import { useRevenueStreams } from '@/features/business-plan/hooks/useRevenueStre
 import { useForecasts } from '@/hooks/useForecasts';
 import { useCategories } from '@/hooks/useCategories';
 import { toast } from 'sonner';
+import { logError } from '@/lib/logger';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { ArrowRight, Check, FileDown, Loader2 } from 'lucide-react';
@@ -122,7 +123,7 @@ export function BPImportDialog({ open, onOpenChange }: BPImportDialogProps) {
       handleClose();
     } catch (error) {
       toast.error('Erreur lors de l\'import');
-      console.error(error);
+      logError('BP import error:', error);
     } finally {
       setIsImporting(false);
     }

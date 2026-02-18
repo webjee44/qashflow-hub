@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { useOrganization } from './useOrganization';
+import { logError } from '@/lib/logger';
 
 interface SubscriptionStatus {
   subscribed: boolean;
@@ -72,7 +73,7 @@ export const useSubscription = () => {
       });
       
       if (error) {
-        console.error('Error checking subscription:', error);
+        logError('Error checking subscription:', error);
         setLoading(false);
         return;
       }
@@ -86,7 +87,7 @@ export const useSubscription = () => {
         trial_end: data.trial_end || null,
       });
     } catch (error) {
-      console.error('Error checking subscription:', error);
+      logError('Error checking subscription:', error);
     } finally {
       setLoading(false);
     }
@@ -117,7 +118,7 @@ export const useSubscription = () => {
       window.open(data.url, '_blank');
       return data.url;
     } catch (error) {
-      console.error('Error creating checkout:', error);
+      logError('Error creating checkout:', error);
       throw error;
     } finally {
       setCheckoutLoading(false);
@@ -139,7 +140,7 @@ export const useSubscription = () => {
       window.open(data.url, '_blank');
       return data.url;
     } catch (error) {
-      console.error('Error opening customer portal:', error);
+      logError('Error opening customer portal:', error);
       throw error;
     } finally {
       setCheckoutLoading(false);
