@@ -1,68 +1,115 @@
 
 
-# Refactoring Clean Architecture : Pattern Repository
+# Renforcement Qualite : Tests Unitaires + Hygiene Git
 
-## Etat actuel
+## 1. Correction `.gitignore` (Hygiene)
 
-Le projet mélange actuellement 3 responsabilités dans les hooks React :
-- Accès aux données (appels `supabase.from()`)
-- Logique métier (transformations, calculs)
-- Gestion UI (toasts, cache React Query)
+Ajouter `.env` au `.gitignore`. Bien que le fichier ne contienne que des cles publiques (`VITE_` = cles anon visibles dans le bundle JS client de toute facon), c'est une bonne pratique.
 
-**Inventaire :**
-- **40+ hooks** dans `src/hooks/` avec des appels Supabase directs
-- **20+ Edge Functions** avec logique inline
-- **7 services** dans `src/services/` qui appliquent deja partiellement le pattern (BP uniquement)
+**Pourquoi pas de panique :** Les vraies cles sensibles (Stripe, Bridge, Service Role) sont stockees dans les secrets backend, inaccessibles depuis le code source. La cle `VITE_SUPABASE_PUBLISHABLE_KEY` est la cle anon -- elle est **conçue** pour etre publique.
 
-## Progression
+## 2. Setup Testing (Vitest)
 
-- [x] **Phase 1 : Transactions** — API layer + hook refactoré + backend Repository
-- [x] **Phase 2 : Categories + Invoices** — API layers + hooks refactorés
-- [x] **Phase 3 : Business Plan** — API layer créé, hooks refactorés, snapshots/notes extraits
-- [x] **Phase 4 : Edge Functions** — Repositories créés, fonctions refactorées
+Installer et configurer Vitest pour le projet :
 
-## Fichiers créés
+- Ajouter les devDependencies : `vitest`, `@testing-library/jest-dom`, `@testing-library/react`, `jsdom`
+- Creer `vitest.config.ts` avec alias `@` et environment `jsdom`
+- Creer `src/test/setup.ts` pour les matchers DOM
+- Mettre a jour `tsconfig.app.json` avec les types Vitest
 
-### Phase 1
-- `src/features/transactions/api/transactionApi.ts`
-- `src/features/transactions/hooks/useTransactions.ts`
-- `src/features/transactions/index.ts`
-- `supabase/functions/_shared/repositories/TransactionRepository.ts`
+## 3. Tests Unitaires -- Fonctions Pures
 
-### Phase 2
-- `src/features/categories/api/categoryApi.ts`
-- `src/features/categories/hooks/useCategories.ts`
-- `src/features/categories/index.ts`
-- `src/features/invoices/api/invoiceApi.ts`
-- `src/features/invoices/hooks/useInvoices.ts`
-- `src/features/invoices/index.ts`
+Creer des tests pour les utilitaires critiques qui ne dependent pas de Supabase :
 
-### Phase 3
-- `src/features/business-plan/api/index.ts` (re-exports all services)
-- `src/features/business-plan/api/snapshotApi.ts` (extrait de useBPSnapshots)
-- `src/features/business-plan/api/noteApi.ts` (extrait de useBPNotes)
+### A. `src/lib/zenfirstParser.test.ts`
+Fonctions testables :
+- `parseZenfirstMonth("Janvier 2026")` doit retourner `"2026-01-01"`
+- `parseZenfirstMonth("février 2025")` doit retourner `"2025-02-01"`
+- `parseZenfirstAmount("30 647")` doit retourner `30647`
+- `parseZenfirstAmount("-24 802")` doit retourner `-24802`
+- `parseZenfirstAmount("1 705,50")` doit retourner `1705.5`
+- `parseZenfirstAmount("")` doit retourner `0`
+- `parseZenfirstCSV(...)` avec un fichier CSV complet
 
-### Fichiers de rétrocompatibilité (re-exports)
-- `src/hooks/useTransactions.ts` → re-export depuis `features/transactions`
-- `src/hooks/useCategories.ts` → re-export depuis `features/categories`
-- `src/hooks/useInvoices.ts` → re-export depuis `features/invoices`
-- `src/services/index.ts` → reste en place, importé par `features/business-plan/api/`
+### B. `src/lib/utils.test.ts`
+- Test des fonctions utilitaires (`cn`, formatage, etc.)
 
-## Regles strictes
+### C. `src/features/transactions/api/transactionApi.test.ts` (optionnel)
+- Tests avec mock Supabase pour valider la couche API
 
-1. **`supabase.from()`** interdit dans les hooks et composants — uniquement dans les fichiers `api/*.ts`
-2. **`toast()`** interdit dans les fichiers `api/` — uniquement dans les hooks
-3. **Logique metier** (calculs, validations) dans des fonctions pures, pas dans les hooks ni dans l'API
-4. Les Edge Functions ne touchent la DB que via les Repositories
+## 4. Fichiers crees/modifies
 
-## Phase 4 : Edge Functions (TERMINÉE)
+| Fichier | Action |
+|---|---|
+| `.gitignore` | Ajouter `.env` |
+| `vitest.config.ts` | Creer |
+| `src/test/setup.ts` | Creer |
+| `tsconfig.app.json` | Ajouter types vitest |
+| `src/lib/zenfirstParser.test.ts` | Creer (~15 tests) |
+| `src/lib/utils.test.ts` | Creer (~5 tests) |
 
-Repositories créés et fonctions refactorées :
-- `supabase/functions/_shared/repositories/TransactionRepository.ts` — enrichi avec `findUncategorized`, `updateWithOwnerCheck`
-- `supabase/functions/_shared/repositories/InvoiceRepository.ts` — créé
-- `supabase/functions/_shared/repositories/AutomationRepository.ts` — créé
-- `apply-automation-rule` → utilise `TransactionRepository` + `AutomationRepository`
-- `apply-all-automation-rules` → utilise `TransactionRepository` + `AutomationRepository`
-- `categorize-transaction` → utilise `TransactionRepository`
-- `pennylane-invoices-sync` → utilise `InvoiceRepository`
-- `bridge-sync` → conservé tel quel (trop complexe/risqué, déjà utilise des helpers spécialisés)
+## Details techniques
+
+### Configuration Vitest
+
+```typescript
+// vitest.config.ts
+import { defineConfig } from "vitest/config";
+import react from "@vitejs/plugin-react-swc";
+import path from "path";
+
+export default defineConfig({
+  plugins: [react()],
+  test: {
+    environment: "jsdom",
+    globals: true,
+    setupFiles: ["./src/test/setup.ts"],
+    include: ["src/**/*.{test,spec}.{ts,tsx}"],
+  },
+  resolve: {
+    alias: { "@": path.resolve(__dirname, "./src") },
+  },
+});
+```
+
+### Exemple de tests zenfirstParser
+
+```typescript
+describe('parseZenfirstMonth', () => {
+  it('parses "Janvier 2026" to ISO format', () => {
+    expect(parseZenfirstMonth('Janvier 2026')).toBe('2026-01-01');
+  });
+  
+  it('handles accented month names', () => {
+    expect(parseZenfirstMonth('février 2025')).toBe('2025-02-01');
+  });
+  
+  it('returns null for invalid input', () => {
+    expect(parseZenfirstMonth('invalid')).toBeNull();
+  });
+});
+
+describe('parseZenfirstAmount', () => {
+  it('parses French number with spaces', () => {
+    expect(parseZenfirstAmount('30 647')).toBe(30647);
+  });
+  
+  it('handles comma decimal separator', () => {
+    expect(parseZenfirstAmount('1 705,50')).toBe(1705.5);
+  });
+  
+  it('handles negative values', () => {
+    expect(parseZenfirstAmount('-24 802')).toBe(-24802);
+  });
+  
+  it('returns 0 for empty string', () => {
+    expect(parseZenfirstAmount('')).toBe(0);
+  });
+});
+```
+
+## Impact
+
+- Zero changement fonctionnel
+- Ajout de ~20 tests unitaires sur les fonctions pures critiques
+- Infrastructure de test prete pour couvrir progressivement le reste du projet
