@@ -1,4 +1,5 @@
-import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createSupabaseServices } from '../_shared/serviceFactory.ts';
 import { InvoiceRepository } from '../_shared/repositories/InvoiceRepository.ts';
 
 const corsHeaders = {
@@ -53,7 +54,6 @@ Deno.serve(async (req) => {
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const pennylaneApiKey = Deno.env.get("PENNYLANE_API_KEY");
 
     if (!pennylaneApiKey) {
@@ -71,8 +71,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    const invoiceRepo = new InvoiceRepository(supabase);
+    const { invoiceRepo } = createSupabaseServices();
 
     const anonClient = createClient(
       supabaseUrl,

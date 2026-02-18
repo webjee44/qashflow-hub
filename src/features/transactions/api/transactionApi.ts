@@ -1,5 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { Tables } from '@/integrations/supabase/types';
+import { z } from 'zod';
+import { transactionSchema } from '@/lib/schemas';
 
 type Transaction = Tables<'transactions'>;
 
@@ -18,7 +20,8 @@ export const transactionApi = {
 
     const { data, error } = await q;
     if (error) throw error;
-    return data || [];
+    z.array(transactionSchema).parse(data || []);
+    return (data || []) as Transaction[];
   },
 
   updateCategory: async (transactionId: string, categoryId: string | null): Promise<void> => {
@@ -76,6 +79,7 @@ export const transactionApi = {
       .limit(limit);
 
     if (error) throw error;
-    return data || [];
+    z.array(transactionSchema).parse(data || []);
+    return (data || []) as Transaction[];
   },
 };

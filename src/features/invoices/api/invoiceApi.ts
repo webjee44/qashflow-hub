@@ -1,4 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
+import { z } from 'zod';
+import { invoiceSchema } from '@/lib/schemas';
 
 export interface InvoiceInsert {
   user_id: string;
@@ -26,6 +28,7 @@ export const invoiceApi = {
       .order('due_date', { ascending: true });
 
     if (error) throw error;
+    z.array(invoiceSchema).parse(data || []);
     return data || [];
   },
 

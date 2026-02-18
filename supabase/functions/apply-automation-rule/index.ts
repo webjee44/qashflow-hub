@@ -1,7 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
-import { TransactionRepository } from '../_shared/repositories/TransactionRepository.ts';
-import { AutomationRepository, type RuleCondition } from '../_shared/repositories/AutomationRepository.ts';
+import { createSupabaseServices } from '../_shared/serviceFactory.ts';
+import { type RuleCondition } from '../_shared/repositories/AutomationRepository.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -147,9 +147,7 @@ Deno.serve(async (req) => {
     const { rule_id } = validation.data;
     console.log(`[apply-automation-rule] Applying rule ${rule_id} for user ${user.id}`);
 
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
-    const automationRepo = new AutomationRepository(supabaseAdmin);
-    const transactionRepo = new TransactionRepository(supabaseAdmin);
+    const { automationRepo, transactionRepo } = createSupabaseServices();
 
     // Fetch the rule
     const rule = await automationRepo.findById(rule_id);
