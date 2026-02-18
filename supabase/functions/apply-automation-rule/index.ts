@@ -1,5 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
+import { TransactionRepository } from '../_shared/repositories/TransactionRepository.ts';
+import { AutomationRepository, type RuleCondition } from '../_shared/repositories/AutomationRepository.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -11,22 +13,14 @@ const automationRuleRequestSchema = z.object({
   rule_id: z.string().uuid('rule_id doit être un UUID valide'),
 });
 
-interface RuleCondition {
-  condition_field: string;
-  condition_operator: string;
-  condition_value: string;
-}
-
-interface AutomationRule {
+interface FullRule {
   id: string;
   target_category_id: string;
   user_id: string;
   match_count: number;
-  // Primary condition from automation_rules table
   condition_field: string;
   condition_operator: string;
   condition_value: string;
-  // Additional conditions
   extra_conditions: RuleCondition[];
 }
 
@@ -48,74 +42,53 @@ function matchCondition(transaction: Transaction, condition: RuleCondition): boo
       const compareValue = condition_value.toLowerCase();
       
       switch (condition_operator) {
-        case 'contains':
-          return fieldValue.includes(compareValue);
-        case 'equals':
-          return fieldValue === compareValue;
-        case 'starts_with':
-          return fieldValue.startsWith(compareValue);
-        case 'ends_with':
-          return fieldValue.endsWith(compareValue);
-        default:
-          return false;
+        case 'contains': return fieldValue.includes(compareValue);
+        case 'equals': return fieldValue === compareValue;
+        case 'starts_with': return fieldValue.startsWith(compareValue);
+        case 'ends_with': return fieldValue.endsWith(compareValue);
+        default: return false;
       }
     }
-    
     case 'amount': {
       const amount = Math.abs(transaction.amount);
       const value = parseFloat(condition_value);
       
       switch (condition_operator) {
-        case 'equals':
-          // Tolerance of 0.01 for rounding
-          return Math.abs(amount - value) < 0.01;
-        case 'greater_than':
-          return amount > value;
-        case 'less_than':
-          return amount < value;
+        case 'equals': return Math.abs(amount - value) < 0.01;
+        case 'greater_than': return amount > value;
+        case 'less_than': return amount < value;
         case 'between': {
           try {
             const { min, max } = JSON.parse(condition_value);
             return amount >= min && amount <= max;
-          } catch {
-            return false;
-          }
+          } catch { return false; }
         }
-        default:
-          return false;
+        default: return false;
       }
     }
-    
     case 'type':
       return transaction.type === condition_value;
-    
     default:
       return false;
   }
 }
 
-// Check if transaction matches ALL conditions (AND logic)
-function matchesRule(transaction: Transaction, rule: AutomationRule): boolean {
-  // First check the primary condition from the rule itself
+function matchesRule(transaction: Transaction, rule: FullRule): boolean {
   const primaryCondition: RuleCondition = {
     condition_field: rule.condition_field,
     condition_operator: rule.condition_operator,
     condition_value: rule.condition_value,
   };
   
-  if (!matchCondition(transaction, primaryCondition)) {
-    return false;
-  }
+  if (!matchCondition(transaction, primaryCondition)) return false;
   
-  // Then check any additional conditions (AND logic)
   if (rule.extra_conditions && rule.extra_conditions.length > 0) {
-    return rule.extra_conditions.every(condition => matchCondition(transaction, condition));
+    return rule.extra_conditions.every(c => matchCondition(transaction, c));
   }
   
   return true;
 }
 
-// Helper to chunk array into smaller batches
 function chunkArray<T>(array: T[], chunkSize: number): T[][] {
   const chunks: T[][] = [];
   for (let i = 0; i < array.length; i += chunkSize) {
@@ -142,12 +115,10 @@ Deno.serve(async (req) => {
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
-    // Client avec le token de l'utilisateur pour vérifier l'auth
     const supabaseUser = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } }
     });
 
-    // Vérifier l'utilisateur
     const { data: { user }, error: authError } = await supabaseUser.auth.getUser();
     if (authError || !user) {
       return new Response(
@@ -156,11 +127,8 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Parse and validate request body
     let rawBody;
-    try {
-      rawBody = await req.json();
-    } catch {
+    try { rawBody = await req.json(); } catch {
       return new Response(
         JSON.stringify({ error: 'Body JSON invalide' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -170,7 +138,6 @@ Deno.serve(async (req) => {
     const validation = automationRuleRequestSchema.safeParse(rawBody);
     if (!validation.success) {
       const errors = validation.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join(', ');
-      console.error('[apply-automation-rule] Validation error:', errors);
       return new Response(
         JSON.stringify({ error: `Validation échouée: ${errors}` }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -180,35 +147,19 @@ Deno.serve(async (req) => {
     const { rule_id } = validation.data;
     console.log(`[apply-automation-rule] Applying rule ${rule_id} for user ${user.id}`);
 
-    // Client admin pour les updates
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+    const automationRepo = new AutomationRepository(supabaseAdmin);
+    const transactionRepo = new TransactionRepository(supabaseAdmin);
 
-    // Récupérer la règle - utiliser company_id pour vérifier l'accès (membres peuvent créer des règles pour une company)
-    const { data: rule, error: ruleError } = await supabaseAdmin
-      .from('automation_rules')
-      .select('*')
-      .eq('id', rule_id)
-      .maybeSingle();
-
-    if (ruleError) {
-      console.error('[apply-automation-rule] Error fetching rule:', ruleError);
-      return new Response(
-        JSON.stringify({ error: 'Failed to fetch rule' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    // Fetch the rule
+    const rule = await automationRepo.findById(rule_id);
 
     if (!rule) {
-      console.error('[apply-automation-rule] Rule not found for id:', rule_id);
       return new Response(
         JSON.stringify({ error: 'Rule not found' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-
-    // Vérifier que l'utilisateur a accès à cette règle (soit propriétaire, soit membre de la company)
-    // Pour l'instant on fait confiance au fait que le frontend a vérifié l'accès via RLS
-    console.log(`[apply-automation-rule] Found rule: user_id=${rule.user_id}, company_id=${rule.company_id}, requesting user=${user.id}`);
 
     if (!rule.target_category_id) {
       return new Response(
@@ -217,28 +168,17 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Check that rule has valid primary condition
     if (!rule.condition_field || !rule.condition_operator || !rule.condition_value) {
-      console.log('[apply-automation-rule] Rule has no valid primary condition');
       return new Response(
         JSON.stringify({ matched: 0, updated: 0 }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Fetch any additional conditions for this rule
-    const { data: extraConditions, error: conditionsError } = await supabaseAdmin
-      .from('automation_rule_conditions')
-      .select('*')
-      .eq('rule_id', rule_id);
+    // Fetch extra conditions
+    const extraConditionsRaw = await automationRepo.findConditionsByRuleIds([rule_id]);
 
-    if (conditionsError) {
-      console.error('[apply-automation-rule] Error fetching conditions:', conditionsError);
-      // Continue anyway - extra conditions are optional
-    }
-
-    // Build the full rule object
-    const fullRule: AutomationRule = {
+    const fullRule: FullRule = {
       id: rule.id,
       target_category_id: rule.target_category_id,
       user_id: rule.user_id,
@@ -246,7 +186,7 @@ Deno.serve(async (req) => {
       condition_field: rule.condition_field,
       condition_operator: rule.condition_operator,
       condition_value: rule.condition_value,
-      extra_conditions: (extraConditions || []).map(c => ({
+      extra_conditions: extraConditionsRaw.map(c => ({
         condition_field: c.condition_field,
         condition_operator: c.condition_operator,
         condition_value: c.condition_value,
@@ -255,55 +195,17 @@ Deno.serve(async (req) => {
 
     console.log(`[apply-automation-rule] Rule: ${fullRule.condition_field} ${fullRule.condition_operator} "${fullRule.condition_value}", plus ${fullRule.extra_conditions.length} extra conditions`);
 
-    // Récupérer TOUTES les transactions NON catégorisées de l'utilisateur (paginé pour dépasser la limite de 1000)
-    let allTransactions: Transaction[] = [];
-    let page = 0;
-    const pageSize = 1000;
-    let hasMore = true;
+    // Fetch uncategorized transactions via repository
+    const filter = rule.company_id
+      ? { companyId: rule.company_id }
+      : { userId: rule.user_id };
 
-    // Utiliser company_id de la règle pour trouver les transactions (pas user_id)
-    const targetCompanyId = rule.company_id;
-    const targetUserId = rule.user_id;
+    const transactions = await transactionRepo.findUncategorized(filter);
+    console.log(`[apply-automation-rule] Found ${transactions.length} uncategorized transactions`);
 
-    while (hasMore) {
-      let query = supabaseAdmin
-        .from('transactions')
-        .select('id, description, amount, type, category_id')
-        .is('category_id', null)
-        .is('deleted_at', null);
-      
-      // Filtrer par company_id si disponible, sinon par user_id
-      if (targetCompanyId) {
-        query = query.eq('company_id', targetCompanyId);
-      } else {
-        query = query.eq('user_id', targetUserId);
-      }
-      
-      const { data: batch, error: txError } = await query.range(page * pageSize, (page + 1) * pageSize - 1);
-
-      if (txError) {
-        console.error('[apply-automation-rule] Error fetching transactions page:', page, txError);
-        return new Response(
-          JSON.stringify({ error: 'Failed to fetch transactions' }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      if (batch && batch.length > 0) {
-        allTransactions = allTransactions.concat(batch as Transaction[]);
-        hasMore = batch.length === pageSize;
-        page++;
-      } else {
-        hasMore = false;
-      }
-    }
-
-    const transactions = allTransactions;
-    console.log(`[apply-automation-rule] Found ${transactions.length} uncategorized transactions (${page} pages)`);
-
-    // Trouver les transactions qui matchent la règle (primary + extra conditions)
-    const matchingTransactions = (transactions || []).filter(tx => 
-      matchesRule(tx as Transaction, fullRule)
+    // Match
+    const matchingTransactions = transactions.filter(tx =>
+      matchesRule(tx as unknown as Transaction, fullRule)
     );
 
     console.log(`[apply-automation-rule] ${matchingTransactions.length} transactions match the rule`);
@@ -315,45 +217,27 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Mettre à jour les transactions par lots de 100 pour éviter les limites d'URL
-    const transactionIds = matchingTransactions.map(tx => tx.id);
+    // Update in batches via repository
+    const transactionIds = matchingTransactions.map(tx => (tx as any).id as string);
     const batches = chunkArray(transactionIds, 100);
     let totalUpdated = 0;
 
-    console.log(`[apply-automation-rule] Updating ${transactionIds.length} transactions in ${batches.length} batches`);
-
     for (const batch of batches) {
-      const { error: updateError } = await supabaseAdmin
-        .from('transactions')
-        .update({ category_id: rule.target_category_id })
-        .in('id', batch);
-
-      if (updateError) {
-        console.error('[apply-automation-rule] Error updating batch:', updateError);
-        // Continue with other batches even if one fails
-      } else {
+      try {
+        await transactionRepo.bulkUpdateCategory(batch, rule.target_category_id);
         totalUpdated += batch.length;
-        console.log(`[apply-automation-rule] Updated batch of ${batch.length} transactions`);
+      } catch (err) {
+        console.error('[apply-automation-rule] Error updating batch:', err);
       }
     }
 
-    // Incrémenter le match_count
-    const { error: countError } = await supabaseAdmin
-      .from('automation_rules')
-      .update({ match_count: (rule.match_count || 0) + totalUpdated })
-      .eq('id', rule_id);
-
-    if (countError) {
-      console.error('[apply-automation-rule] Error updating match count:', countError);
-    }
+    // Update match count
+    await automationRepo.updateMatchCount(rule_id, (rule.match_count || 0) + totalUpdated);
 
     console.log(`[apply-automation-rule] Successfully updated ${totalUpdated} transactions`);
 
     return new Response(
-      JSON.stringify({ 
-        matched: matchingTransactions.length, 
-        updated: totalUpdated 
-      }),
+      JSON.stringify({ matched: matchingTransactions.length, updated: totalUpdated }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 

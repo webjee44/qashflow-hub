@@ -113,4 +113,52 @@ export class TransactionRepository {
 
     if (error) throw error;
   }
+
+  async findUncategorized(
+    filter: { userId?: string; companyId?: string },
+    options?: { pageSize?: number }
+  ) {
+    const pageSize = options?.pageSize || 1000;
+    let allTransactions: Record<string, unknown>[] = [];
+    let page = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      let query = this.client
+        .from('transactions')
+        .select('id, description, amount, type, category_id, user_id, company_id')
+        .is('category_id', null)
+        .is('deleted_at', null)
+        .range(page * pageSize, (page + 1) * pageSize - 1);
+
+      if (filter.companyId) {
+        query = query.eq('company_id', filter.companyId);
+      } else if (filter.userId) {
+        query = query.eq('user_id', filter.userId);
+      }
+
+      const { data: batch, error } = await query;
+      if (error) throw error;
+
+      if (batch && batch.length > 0) {
+        allTransactions = allTransactions.concat(batch);
+        hasMore = batch.length === pageSize;
+        page++;
+      } else {
+        hasMore = false;
+      }
+    }
+
+    return allTransactions;
+  }
+
+  async updateWithOwnerCheck(id: string, userId: string, fields: Record<string, unknown>) {
+    const { error } = await this.client
+      .from('transactions')
+      .update(fields)
+      .eq('id', id)
+      .eq('user_id', userId);
+
+    if (error) throw error;
+  }
 }
