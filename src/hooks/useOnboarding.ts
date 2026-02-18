@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { useCompany } from './useCompany';
+import { logError } from '@/lib/logger';
 
 interface OnboardingStep {
   id: string;
@@ -168,7 +169,7 @@ export function useOnboarding(): UseOnboardingReturn {
         .single();
 
       if (error) {
-        console.error('loadOnboardingState error', error);
+        logError('loadOnboardingState error', error);
         return;
       }
 

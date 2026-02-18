@@ -19,6 +19,7 @@ import {
 } from '@/lib/french-rates';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { logError } from '@/lib/logger';
 import { useBPSettings } from '@/features/business-plan/hooks/useBPSettings';
 
 interface PayslipImportData {
@@ -212,7 +213,7 @@ export function PersonnelDialog({ open, onOpenChange, personnel, onSave, default
 
       toast.success('Fiche de paie importée ! Vérifiez les valeurs pré-remplies.');
     } catch (error) {
-      console.error('Payslip import error:', error);
+      logError('Payslip import error:', error);
       toast.error(error instanceof Error ? error.message : 'Erreur lors de l\'import');
     } finally {
       setIsImporting(false);

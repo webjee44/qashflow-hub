@@ -7,6 +7,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
+import { logError } from '@/lib/logger';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -194,7 +195,7 @@ export function BulkCategorizeDialog({
         });
         
         if (error) {
-          console.error('AI suggestion error:', error);
+          logError('AI suggestion error:', error);
           return;
         }
         
@@ -206,7 +207,7 @@ export function BulkCategorizeDialog({
           });
         }
       } catch (e) {
-        console.error('AI suggestion error:', e);
+        logError('AI suggestion error:', e);
       } finally {
         setIsLoadingAI(false);
       }

@@ -12,6 +12,7 @@ import { Building2, User, Play, Landmark, CreditCard } from 'lucide-react';
 import { BillingCard } from '@/components/settings/BillingCard';
 import { useAuth } from '@/hooks/useAuth';
 import { useOnboarding } from '@/hooks/useOnboarding';
+import { logError } from '@/lib/logger';
 import { useCompany } from '@/hooks/useCompany';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -90,7 +91,7 @@ export default function Settings() {
       // Force page reload to refresh the accounts list
       setTimeout(() => window.location.reload(), 500);
     } catch (error) {
-      console.error('Bridge sync error:', error);
+      logError('Bridge sync error:', error);
       toast.error('Erreur lors de la synchronisation');
       navigate('/parametres#accounts', { replace: true });
     } finally {

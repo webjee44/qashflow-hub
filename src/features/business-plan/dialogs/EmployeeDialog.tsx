@@ -20,6 +20,7 @@ import {
 } from '@/lib/french-rates';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { logError, logDebug } from '@/lib/logger';
 import { useBPSettings } from '@/features/business-plan/hooks/useBPSettings';
 
 interface PayslipImportData {
@@ -192,12 +193,12 @@ export function EmployeeDialog({ open, onOpenChange, employee, onSave }: Employe
       if (data.error) throw new Error(data.error);
 
       const payslipData = data as PayslipImportData;
-      console.log('Payslip data received:', JSON.stringify(payslipData));
+      logDebug('Payslip data received:', JSON.stringify(payslipData));
       setImportedData(payslipData);
 
       // Pre-fill name and start date from payslip
       if (payslipData.employee_name) {
-        console.log('Setting name to:', payslipData.employee_name);
+        logDebug('Setting name to:', payslipData.employee_name);
         setName(payslipData.employee_name);
       }
       if (payslipData.position) setPosition(payslipData.position);
@@ -205,7 +206,7 @@ export function EmployeeDialog({ open, onOpenChange, employee, onSave }: Employe
         setGrossSalary(Math.round(payslipData.gross_salary_monthly * 12).toString());
       }
       if (payslipData.start_date) {
-        console.log('Setting start date to:', payslipData.start_date);
+        logDebug('Setting start date to:', payslipData.start_date);
         setStartDate(payslipData.start_date);
       }
       setIsExecutive(payslipData.is_executive);
@@ -222,7 +223,7 @@ export function EmployeeDialog({ open, onOpenChange, employee, onSave }: Employe
       toast.success('Fiche de paie importée ! Vérifiez les valeurs.');
       setStep('form');
     } catch (error) {
-      console.error('Payslip import error:', error);
+      logError('Payslip import error:', error);
       toast.error(error instanceof Error ? error.message : 'Erreur lors de l\'import');
     } finally {
       setIsImporting(false);

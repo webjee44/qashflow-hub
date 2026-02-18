@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useCompany } from '@/hooks/useCompany';
 import { toast } from 'sonner';
 import { useCallback, useMemo } from 'react';
+import { logError } from '@/lib/logger';
 
 export interface Stock {
   id: string;
@@ -70,7 +71,7 @@ export function useStocks() {
     },
     onError: (error) => {
       toast.error('Erreur lors de la création');
-      console.error(error);
+      logError('Stock creation error:', error);
     },
   });
 
@@ -91,7 +92,7 @@ export function useStocks() {
     },
     onError: (error) => {
       toast.error('Erreur lors de la mise à jour');
-      console.error(error);
+      logError('Stock update error:', error);
     },
   });
 
@@ -106,7 +107,7 @@ export function useStocks() {
     },
     onError: (error) => {
       toast.error('Erreur lors de la suppression');
-      console.error(error);
+      logError('Stock deletion error:', error);
     },
   });
 

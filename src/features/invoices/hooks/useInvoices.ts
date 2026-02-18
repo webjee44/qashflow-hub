@@ -3,6 +3,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useCompany } from '@/hooks/useCompany';
 import { useToast } from '@/hooks/use-toast';
 import { useMemo } from 'react';
+import { logError } from '@/lib/logger';
 import { invoiceApi } from '../api/invoiceApi';
 
 export type InvoiceType = 'receivable' | 'payable';
@@ -123,7 +124,7 @@ export function useInvoices() {
     },
     onError: (error) => {
       toast({ title: 'Erreur', description: 'Impossible de créer la facture.', variant: 'destructive' });
-      console.error('Create invoice error:', error);
+      logError('Create invoice error:', error);
     },
   });
 
@@ -137,7 +138,7 @@ export function useInvoices() {
     },
     onError: (error) => {
       toast({ title: 'Erreur', description: 'Impossible de mettre à jour la facture.', variant: 'destructive' });
-      console.error('Update invoice error:', error);
+      logError('Update invoice error:', error);
     },
   });
 
@@ -149,7 +150,7 @@ export function useInvoices() {
     },
     onError: (error) => {
       toast({ title: 'Erreur', description: 'Impossible de marquer la facture comme payée.', variant: 'destructive' });
-      console.error('Mark as paid error:', error);
+      logError('Mark as paid error:', error);
     },
   });
 

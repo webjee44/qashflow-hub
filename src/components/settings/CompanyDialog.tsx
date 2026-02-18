@@ -23,6 +23,7 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { useCompany, Company } from '@/hooks/useCompany';
 import { Building2, Wallet } from 'lucide-react';
+import { logError } from '@/lib/logger';
 
 const formSchema = z.object({
   name: z.string().min(1, 'Le nom est requis'),
@@ -85,7 +86,7 @@ export function CompanyDialog({ open, onOpenChange, company }: CompanyDialogProp
       onOpenChange(false);
       form.reset();
     } catch (error) {
-      console.error('Error saving company:', error);
+      logError('Error saving company:', error);
     }
   };
 

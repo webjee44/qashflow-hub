@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Loader2, CheckCircle } from 'lucide-react';
+import { logDebug, logError } from '@/lib/logger';
 
 /**
  * Landing page for impersonation flow.
@@ -28,7 +29,7 @@ export default function ImpersonateLanding() {
           return;
         }
 
-        console.log('[Impersonate] Verifying for:', email, 'token_hash:', !!tokenHash, 'email_otp:', !!emailOtp);
+        logDebug('[Impersonate] Verifying for:', email, 'token_hash:', !!tokenHash, 'email_otp:', !!emailOtp);
 
         // Sign out existing session first
         await supabase.auth.signOut({ scope: 'local' });
@@ -54,7 +55,7 @@ export default function ImpersonateLanding() {
         const { data, error } = result;
 
         if (error) {
-          console.error('[Impersonate] verifyOtp error:', error);
+          logError('[Impersonate] verifyOtp error:', error);
           setErrorMsg(error.message);
           setStatus('error');
           return;
@@ -63,7 +64,7 @@ export default function ImpersonateLanding() {
         if (data.session?.user) {
           setUserEmail(data.session.user.email || null);
           setStatus('success');
-          console.log('[Impersonate] Session established for:', data.session.user.email);
+          logDebug('[Impersonate] Session established for:', data.session.user.email);
 
           // Clean URL and redirect
           window.history.replaceState(null, '', '/impersonate-landing');
@@ -75,7 +76,7 @@ export default function ImpersonateLanding() {
           setStatus('error');
         }
       } catch (err: any) {
-        console.error('[Impersonate] Unexpected error:', err);
+        logError('[Impersonate] Unexpected error:', err);
         setErrorMsg(err.message || 'Erreur inattendue');
         setStatus('error');
       }

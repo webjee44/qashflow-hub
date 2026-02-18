@@ -10,6 +10,7 @@ import { fr } from 'date-fns/locale';
 import { History, RefreshCw, Download } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { logError } from '@/lib/logger';
 
 export function AuditLogsCard() {
   const [tableFilter, setTableFilter] = useState<string>('all');
@@ -44,7 +45,7 @@ export function AuditLogsCard() {
 
       toast.success('Export téléchargé avec succès');
     } catch (error) {
-      console.error('Export error:', error);
+      logError('Export error:', error);
       toast.error('Erreur lors de l\'export');
     } finally {
       setIsExporting(false);

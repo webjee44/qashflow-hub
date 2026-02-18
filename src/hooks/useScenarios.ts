@@ -4,6 +4,7 @@ import { useCompany } from '@/hooks/useCompany';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { useEffect } from 'react';
+import { logError } from '@/lib/logger';
 
 export interface Scenario {
   id: string;
@@ -76,7 +77,7 @@ export function useScenarios() {
           refetch();
         }
       } catch (err) {
-        console.error('Error initializing default scenarios:', err);
+        logError('Error initializing default scenarios:', err);
       }
     };
 

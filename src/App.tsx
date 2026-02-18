@@ -15,6 +15,7 @@ import { OnboardingTour } from "@/components/onboarding/OnboardingTour";
 import { BPOnboardingTour } from "@/components/onboarding/BPOnboardingTour";
 import { BPOnboardingWizard } from "@/components/onboarding/BPOnboardingWizard";
 import { PageLoader } from "@/components/ui/page-loader";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 // ============================================
 // Public pages (loaded immediately)
@@ -92,6 +93,7 @@ if (import.meta.hot) {
 }
 
 const App = () => (
+<ErrorBoundary>
 <QueryClientProvider client={queryClient}>
     <AuthProvider>
       <OrganizationProvider>
@@ -198,6 +200,7 @@ const App = () => (
       </OrganizationProvider>
     </AuthProvider>
   </QueryClientProvider>
+</ErrorBoundary>
 );
 
 export default App;

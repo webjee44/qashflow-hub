@@ -10,6 +10,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useCompany } from '@/hooks/useCompany';
 import { useBPPersonnel } from './useBPPersonnel';
 import { toast } from 'sonner';
+import { logError } from '@/lib/logger';
 
 export function useBPBonuses() {
   const queryClient = useQueryClient();
@@ -39,7 +40,7 @@ export function useBPBonuses() {
       toast.success('Prime ajoutée');
     },
     onError: (error) => {
-      console.error('Error creating bonus:', error);
+      logError('Error creating bonus:', error);
       toast.error('Erreur lors de l\'ajout de la prime');
     },
   });
@@ -54,7 +55,7 @@ export function useBPBonuses() {
       toast.success(`${data.length} prime(s) ajoutée(s)`);
     },
     onError: (error) => {
-      console.error('Error creating bonuses:', error);
+      logError('Error creating bonuses:', error);
       toast.error('Erreur lors de l\'ajout des primes');
     },
   });
@@ -67,7 +68,7 @@ export function useBPBonuses() {
       toast.success('Prime modifiée');
     },
     onError: (error) => {
-      console.error('Error updating bonus:', error);
+      logError('Error updating bonus:', error);
       toast.error('Erreur lors de la modification');
     },
   });
@@ -79,7 +80,7 @@ export function useBPBonuses() {
       toast.success('Prime supprimée');
     },
     onError: (error) => {
-      console.error('Error deleting bonus:', error);
+      logError('Error deleting bonus:', error);
       toast.error('Erreur lors de la suppression');
     },
   });
