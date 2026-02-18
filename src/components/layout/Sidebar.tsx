@@ -104,7 +104,7 @@ export function Sidebar() {
   const { user, signOut } = useAuth();
   const { mode, setMode, isBusinessPlan, isTreasury } = useAppMode();
   const { settings } = useBPSettings();
-  const { bpEnabled, isCompleted: onboardingCompleted } = useOnboarding();
+  const { isCompleted: onboardingCompleted } = useOnboarding();
   const { isCompleted: bpTourCompleted } = useBPOnboarding();
   const { currentCompany } = useCompany();
   const { currentOrganization, organizations, setCurrentOrganization } = useOrganization();
@@ -113,9 +113,8 @@ export function Sidebar() {
   const queryClient = useQueryClient();
   const currentPath = location.pathname;
   
-  // bpEnabled = true means ONLY BP is shown (Treasury is disabled)
-  // bpEnabled = false means BOTH BP and Treasury are shown
-  const showTreasuryModule = !bpEnabled;
+  // Both modules are always available — no restriction
+  const showTreasuryModule = true;
 
   const handleSignOut = async () => {
     await signOut();
