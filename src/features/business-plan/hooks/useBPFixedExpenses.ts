@@ -17,7 +17,7 @@ import {
   DEFAULT_PAYMENT_MONTHS,
   type FixedExpenseCategory,
   type PaymentFrequency,
-} from '@/services';
+} from '../api';
 
 // Re-export types and constants for backward compatibility
 export type { BPFixedExpense, FixedExpenseCategory, PaymentFrequency };

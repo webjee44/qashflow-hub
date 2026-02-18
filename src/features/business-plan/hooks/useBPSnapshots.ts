@@ -1,5 +1,9 @@
+// ============================================
+// useBPSnapshots Hook
+// Uses snapshotApi for data operations
+// ============================================
+
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
 import { useCompany } from '@/hooks/useCompany';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
@@ -9,24 +13,9 @@ import { useBPPersonnel } from '@/hooks/useBPPersonnel';
 import { useBPInvestments } from '@/hooks/useBPInvestments';
 import { useBPFinancings } from '@/hooks/useBPFinancings';
 import { useBPSettings } from '@/hooks/useBPSettings';
+import { snapshotApi, type BPSnapshot } from '../api';
 
-export interface BPSnapshot {
-  id: string;
-  user_id: string;
-  company_id: string | null;
-  name: string;
-  description: string | null;
-  snapshot_data: {
-    revenue_streams: any[];
-    fixed_expenses: any[];
-    personnel: any[];
-    investments: any[];
-    financings: any[];
-    settings: any;
-    created_at: string;
-  };
-  created_at: string;
-}
+export type { BPSnapshot };
 
 export function useBPSnapshots() {
   const { currentCompany } = useCompany();
@@ -46,18 +35,10 @@ export function useBPSnapshots() {
   const { data: snapshots = [], isLoading } = useQuery({
     queryKey: ['bp_snapshots', currentCompany?.id],
     queryFn: async () => {
-      let query = supabase
-        .from('bp_snapshots')
-        .select('*')
-        .order('created_at', { ascending: false });
-
       if (currentCompany?.id) {
-        query = query.eq('company_id', currentCompany.id);
+        return snapshotApi.getByCompanyId(currentCompany.id);
       }
-
-      const { data, error } = await query;
-      if (error) throw error;
-      return (data || []) as BPSnapshot[];
+      return snapshotApi.getAll();
     },
     enabled: !!user,
   });
@@ -77,20 +58,13 @@ export function useBPSnapshots() {
         created_at: new Date().toISOString(),
       };
 
-      const { data, error } = await supabase
-        .from('bp_snapshots')
-        .insert([{
-          user_id: user.id,
-          company_id: currentCompany?.id || null,
-          name,
-          description: description || null,
-          snapshot_data: snapshotData as unknown as any,
-        }])
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data;
+      return snapshotApi.create({
+        userId: user.id,
+        companyId: currentCompany?.id || null,
+        name,
+        description: description || null,
+        snapshotData,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bp_snapshots'] });
@@ -104,12 +78,7 @@ export function useBPSnapshots() {
   // Delete snapshot
   const deleteSnapshot = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('bp_snapshots')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
+      await snapshotApi.delete(id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bp_snapshots'] });
@@ -133,7 +102,6 @@ export function useBPSnapshots() {
       created_at: new Date().toISOString(),
     };
 
-    // Calculate totals for comparison
     const calcTotal = (items: any[], field: string) => 
       items.reduce((sum, item) => sum + (Number(item[field]) || 0), 0);
 

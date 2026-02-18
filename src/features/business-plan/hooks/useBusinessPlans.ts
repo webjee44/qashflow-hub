@@ -12,7 +12,7 @@ import {
   type BusinessPlan, 
   type BusinessPlanInsert, 
   type BusinessPlanUpdate 
-} from '@/services';
+} from '../api';
 
 // Re-export types for backward compatibility
 export type { BusinessPlan, BusinessPlanInsert, BusinessPlanUpdate };

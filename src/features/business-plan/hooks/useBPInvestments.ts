@@ -13,7 +13,7 @@ import {
   type BPInvestment, 
   type BPInvestmentInsert,
   INVESTMENT_CATEGORIES,
-} from '@/services';
+} from '../api';
 
 // Re-export types and constants for backward compatibility
 export type { BPInvestment };
