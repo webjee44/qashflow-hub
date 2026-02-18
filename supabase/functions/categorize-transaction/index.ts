@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
-import { TransactionRepository } from '../_shared/repositories/TransactionRepository.ts';
+import { createSupabaseServices } from '../_shared/serviceFactory.ts';
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -81,8 +81,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    const transactionRepo = new TransactionRepository(supabase);
+    const { supabaseAdmin: supabase, transactionRepo } = createSupabaseServices();
 
     // Fetch uncategorized transactions via repository
     const filter = companyId ? { companyId } : { userId: user.id };

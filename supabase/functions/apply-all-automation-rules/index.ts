@@ -1,6 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { TransactionRepository } from '../_shared/repositories/TransactionRepository.ts';
-import { AutomationRepository, type RuleCondition } from '../_shared/repositories/AutomationRepository.ts';
+import { createSupabaseServices } from '../_shared/serviceFactory.ts';
+import { type RuleCondition } from '../_shared/repositories/AutomationRepository.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -97,12 +97,8 @@ Deno.serve(async (req) => {
   console.log('[apply-all-automation-rules] Starting...');
 
   try {
+    const { supabaseAdmin, automationRepo, transactionRepo } = createSupabaseServices();
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
-
-    const automationRepo = new AutomationRepository(supabaseAdmin);
-    const transactionRepo = new TransactionRepository(supabaseAdmin);
 
     // Check if this is a user-initiated request or cron
     const authHeader = req.headers.get('Authorization');

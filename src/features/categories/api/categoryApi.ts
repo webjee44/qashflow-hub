@@ -1,4 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
+import { z } from 'zod';
+import { categorySchema } from '@/lib/schemas';
 
 export interface CategoryInsert {
   name: string;
@@ -24,6 +26,7 @@ export const categoryApi = {
       .order('name', { ascending: true });
 
     if (error) throw error;
+    z.array(categorySchema).parse(data || []);
     return data || [];
   },
 
