@@ -1,115 +1,161 @@
 
 
-# Renforcement Qualite : Tests Unitaires + Hygiene Git
+# Audit Review : Etat des lieux et actions restantes
 
-## 1. Correction `.gitignore` (Hygiene)
+## Resultat de l'audit point par point
 
-Ajouter `.env` au `.gitignore`. Bien que le fichier ne contienne que des cles publiques (`VITE_` = cles anon visibles dans le bundle JS client de toute facon), c'est une bonne pratique.
+### Point 1 : Lazy Loading -- DEJA EN PLACE
 
-**Pourquoi pas de panique :** Les vraies cles sensibles (Stripe, Bridge, Service Role) sont stockees dans les secrets backend, inaccessibles depuis le code source. La cle `VITE_SUPABASE_PUBLISHABLE_KEY` est la cle anon -- elle est **conçue** pour etre publique.
+`App.tsx` utilise deja `React.lazy()` et `Suspense` pour toutes les pages protegees (Dashboard, Transactions, BP, SuperAdmin). Seules les pages publiques (Landing, Tarifs, etc.) sont importees directement, ce qui est correct car elles constituent le point d'entree des utilisateurs.
 
-## 2. Setup Testing (Vitest)
+Aucune action necessaire.
 
-Installer et configurer Vitest pour le projet :
+---
 
-- Ajouter les devDependencies : `vitest`, `@testing-library/jest-dom`, `@testing-library/react`, `jsdom`
-- Creer `vitest.config.ts` avec alias `@` et environment `jsdom`
-- Creer `src/test/setup.ts` pour les matchers DOM
-- Mettre a jour `tsconfig.app.json` avec les types Vitest
+### Point 2 : Logique transactionnelle (Race Conditions) -- NON APPLICABLE
 
-## 3. Tests Unitaires -- Fonctions Pures
+Les "stocks" dans ce projet (`bp_stocks`) sont des **projections de business plan** : l'utilisateur saisit manuellement stock initial, achats et stock final par annee fiscale. Ce ne sont pas des compteurs decrements en temps reel par des commandes concurrentes.
 
-Creer des tests pour les utilitaires critiques qui ne dependent pas de Supabase :
+Il n'y a pas de scenario de race condition ici. La remarque est pertinente pour un e-commerce avec inventaire en temps reel, mais pas pour un outil de previsionnel financier.
 
-### A. `src/lib/zenfirstParser.test.ts`
-Fonctions testables :
-- `parseZenfirstMonth("Janvier 2026")` doit retourner `"2026-01-01"`
-- `parseZenfirstMonth("février 2025")` doit retourner `"2025-02-01"`
-- `parseZenfirstAmount("30 647")` doit retourner `30647`
-- `parseZenfirstAmount("-24 802")` doit retourner `-24802`
-- `parseZenfirstAmount("1 705,50")` doit retourner `1705.5`
-- `parseZenfirstAmount("")` doit retourner `0`
-- `parseZenfirstCSV(...)` avec un fichier CSV complet
+Aucune action necessaire.
 
-### B. `src/lib/utils.test.ts`
-- Test des fonctions utilitaires (`cn`, formatage, etc.)
+---
 
-### C. `src/features/transactions/api/transactionApi.test.ts` (optionnel)
-- Tests avec mock Supabase pour valider la couche API
+### Point 3 : Gestion des erreurs -- 2 ACTIONS A FAIRE
 
-## 4. Fichiers crees/modifies
+**Constat :**
+- `src/lib/logger.ts` existe deja avec suppression des logs en production
+- Mais **43 fichiers** utilisent encore `console.error` directement au lieu de `logError`
+- **Aucun ErrorBoundary** n'est en place : un crash React rend la page blanche
 
-| Fichier | Action |
+**Actions :**
+
+#### A. Creer un composant ErrorBoundary
+
+Fichier : `src/components/ErrorBoundary.tsx`
+
+Un composant class React qui :
+- Capture les erreurs de rendu via `componentDidCatch`
+- Affiche une page d'erreur elegante ("Oups, une erreur est survenue") au lieu d'un ecran blanc
+- Propose un bouton "Recharger la page"
+- Log l'erreur via `logError` (pas `console.error`)
+
+Integration dans `src/App.tsx` : wrapper autour du `BrowserRouter`.
+
+#### B. Remplacer les `console.error` restants par `logError`
+
+Passer sur les 43 fichiers concernes et remplacer `console.error(...)` par `logError(...)` avec import de `@/lib/logger`.
+
+Cela garantit zero fuite d'information en production.
+
+---
+
+### Point 4 : RLS -- DEJA SECURISE
+
+Le linter de securite ne remonte **aucun probleme RLS**. Le projet utilise des fonctions `SECURITY DEFINER` (`has_company_access`, `is_org_member`, `is_org_admin`) appliquees sur 21+ tables. Les policies verifient l'appartenance a la societe/organisation via la base de donnees, pas via le filtrage JS client.
+
+Seul avertissement : **Leaked Password Protection** desactivee (protection contre les mots de passe compromis dans des fuites de donnees). C'est un parametrage d'authentification, pas un probleme de code.
+
+Aucune action code necessaire.
+
+---
+
+### Point 5 : .gitignore -- CORRECTION RAPIDE
+
+`.env` n'est toujours pas dans le `.gitignore`. A ajouter.
+
+---
+
+## Plan d'implementation
+
+### Fichiers a creer
+
+| Fichier | Description |
 |---|---|
+| `src/components/ErrorBoundary.tsx` | Composant ErrorBoundary avec UI de fallback |
+
+### Fichiers a modifier
+
+| Fichier | Modification |
+|---|---|
+| `src/App.tsx` | Wrapper ErrorBoundary autour du BrowserRouter |
 | `.gitignore` | Ajouter `.env` |
-| `vitest.config.ts` | Creer |
-| `src/test/setup.ts` | Creer |
-| `tsconfig.app.json` | Ajouter types vitest |
-| `src/lib/zenfirstParser.test.ts` | Creer (~15 tests) |
-| `src/lib/utils.test.ts` | Creer (~5 tests) |
+| ~43 fichiers avec `console.error` | Remplacer par `logError` de `@/lib/logger` |
 
-## Details techniques
+### Details techniques
 
-### Configuration Vitest
+#### ErrorBoundary
 
 ```typescript
-// vitest.config.ts
-import { defineConfig } from "vitest/config";
-import react from "@vitejs/plugin-react-swc";
-import path from "path";
+// src/components/ErrorBoundary.tsx
+import { Component, ReactNode } from 'react';
+import { logError } from '@/lib/logger';
 
-export default defineConfig({
-  plugins: [react()],
-  test: {
-    environment: "jsdom",
-    globals: true,
-    setupFiles: ["./src/test/setup.ts"],
-    include: ["src/**/*.{test,spec}.{ts,tsx}"],
-  },
-  resolve: {
-    alias: { "@": path.resolve(__dirname, "./src") },
-  },
-});
+interface State { hasError: boolean }
+
+export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
+  state: State = { hasError: false };
+
+  static getDerivedStateFromError(): State {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    logError('React ErrorBoundary caught:', error, info.componentStack);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-background">
+          <div className="text-center space-y-4 p-8">
+            <h1 className="text-2xl font-bold">Oups, une erreur est survenue</h1>
+            <p className="text-muted-foreground">
+              L'application a rencontre un probleme inattendu.
+            </p>
+            <button
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 bg-primary text-primary-foreground rounded-md"
+            >
+              Recharger la page
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 ```
 
-### Exemple de tests zenfirstParser
+#### Remplacement console.error
 
+Fichiers concernes (liste partielle des plus importants) :
+- `src/hooks/useAccountingConnector.ts` (6 occurrences)
+- `src/hooks/useBridgeAutoSync.ts` (2)
+- `src/features/business-plan/hooks/useStocks.ts` (3)
+- `src/features/business-plan/hooks/useScenarios.ts` (1)
+- `src/features/business-plan/dialogs/EmployeeDialog.tsx` (1)
+- `src/features/business-plan/dialogs/BulkEditExpenseDialog.tsx` (3)
+- `src/components/transactions/CategorizationModal.tsx` (2)
+- `src/components/settings/LinkBridgeDialog.tsx` (2)
+- `src/pages/Start.tsx`, `StartVerify.tsx`, `NotFound.tsx`
+- Et ~30 autres fichiers
+
+Pattern de remplacement :
 ```typescript
-describe('parseZenfirstMonth', () => {
-  it('parses "Janvier 2026" to ISO format', () => {
-    expect(parseZenfirstMonth('Janvier 2026')).toBe('2026-01-01');
-  });
-  
-  it('handles accented month names', () => {
-    expect(parseZenfirstMonth('février 2025')).toBe('2025-02-01');
-  });
-  
-  it('returns null for invalid input', () => {
-    expect(parseZenfirstMonth('invalid')).toBeNull();
-  });
-});
+// Avant
+console.error('Error:', error);
 
-describe('parseZenfirstAmount', () => {
-  it('parses French number with spaces', () => {
-    expect(parseZenfirstAmount('30 647')).toBe(30647);
-  });
-  
-  it('handles comma decimal separator', () => {
-    expect(parseZenfirstAmount('1 705,50')).toBe(1705.5);
-  });
-  
-  it('handles negative values', () => {
-    expect(parseZenfirstAmount('-24 802')).toBe(-24802);
-  });
-  
-  it('returns 0 for empty string', () => {
-    expect(parseZenfirstAmount('')).toBe(0);
-  });
-});
+// Apres
+import { logError } from '@/lib/logger';
+logError('Error:', error);
 ```
 
 ## Impact
 
 - Zero changement fonctionnel
-- Ajout de ~20 tests unitaires sur les fonctions pures critiques
-- Infrastructure de test prete pour couvrir progressivement le reste du projet
+- Protection contre les ecrans blancs (ErrorBoundary)
+- Zero fuite d'information en production (plus aucun console.error)
+- `.env` protege du tracking Git
