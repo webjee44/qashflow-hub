@@ -267,10 +267,10 @@ export function useRevenueStreams() {
   // Helper: get growth rate for a specific year
   const getYearGrowthRate = (stream: RevenueStream, yearIndex: number): number => {
     switch (yearIndex) {
-      case 1: return stream.growth_rate_year2 ?? stream.annual_growth_rate ?? 0.10;
-      case 2: return stream.growth_rate_year3 ?? stream.annual_growth_rate ?? 0.10;
-      case 3: return stream.growth_rate_year4 ?? stream.annual_growth_rate ?? 0.10;
-      default: return stream.growth_rate_year4 ?? stream.annual_growth_rate ?? 0.10;
+      case 1: return (stream.growth_rate_year2 ?? stream.annual_growth_rate ?? 10) / 100;
+      case 2: return (stream.growth_rate_year3 ?? stream.annual_growth_rate ?? 10) / 100;
+      case 3: return (stream.growth_rate_year4 ?? stream.annual_growth_rate ?? 10) / 100;
+      default: return (stream.growth_rate_year4 ?? stream.annual_growth_rate ?? 10) / 100;
     }
   };
 
