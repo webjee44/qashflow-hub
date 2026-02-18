@@ -1,5 +1,5 @@
 import { Suspense, useEffect } from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
+import { Outlet } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { AppHeader } from './AppHeader';
 import { AppBreadcrumb } from './AppBreadcrumb';
@@ -7,8 +7,6 @@ import { TrialExpiredBlocker } from './TrialExpiredBlocker';
 import { DemoBanner } from './DemoBanner';
 import { useAppModeSync } from '@/hooks/useAppMode';
 import { useAuth } from '@/hooks/useAuth';
-import { useNavigate } from 'react-router-dom';
-import { useOnboarding } from '@/hooks/useOnboarding';
 import { PageLoader } from '@/components/ui/page-loader';
 import { useActivityTracker } from '@/hooks/useActivityTracker';
 
@@ -17,29 +15,13 @@ const SUPPORT_WIDGET_API_KEY = '6304a129-c64a-42eb-b298-c04f46b23363';
 const SUPPORT_WIDGET_COLOR = '#3b82f6';
 
 export function AppLayout() {
-  const location = useLocation();
-  const navigate = useNavigate();
   const { user } = useAuth();
-  const { bpEnabled, profileLoaded } = useOnboarding();
   
   // Auto-sync mode with current route
   useAppModeSync();
   useActivityTracker();
 
-  // If the account is configured as "BP-only", prevent landing on Treasury routes.
-  // IMPORTANT: Only redirect AFTER the profile has loaded from the server to avoid
-  // premature redirects based on stale localStorage values.
-  useEffect(() => {
-    if (!profileLoaded || !bpEnabled) return;
-
-    const path = location.pathname;
-    const isBusinessPlanRoute = path.startsWith('/bp');
-    const isAllowedNonBPRoute = path === '/parametres' || path === '/aide';
-
-    if (!isBusinessPlanRoute && !isAllowedNonBPRoute) {
-      navigate('/bp/revenus', { replace: true });
-    }
-  }, [profileLoaded, bpEnabled, location.pathname, navigate]);
+  // Treasury is always accessible - no redirect needed
 
   // Charger le widget de support externe
   useEffect(() => {
