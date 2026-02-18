@@ -79,12 +79,12 @@ export function AppHeader() {
         </DropdownMenuContent>
       </DropdownMenu>
 
-      {/* Center: Mode Toggle - Only shown when the Treasury module is enabled */}
-      {!bpEnabled ? (
+      {/* Center: Mode Toggle - shown when BP is enabled (both modules available), otherwise just Treasury label */}
+      {bpEnabled ? (
         <ModeToggle />
       ) : (
         <div className="text-sm font-medium text-muted-foreground">
-          Business Plan
+          Trésorerie
         </div>
       )}
 
