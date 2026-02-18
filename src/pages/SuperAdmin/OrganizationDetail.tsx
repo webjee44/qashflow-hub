@@ -17,6 +17,7 @@ import { toast } from 'sonner';
 import { CompanyMembersManager } from '@/components/superadmin/CompanyMembersManager';
 import { OrganizationMembersSection } from '@/components/superadmin/OrganizationMembersSection';
 import { EngagementCard } from '@/components/superadmin/EngagementCard';
+import { logError } from '@/lib/logger';
 
 const planColors: Record<string, string> = {
   free: 'bg-muted text-muted-foreground',
@@ -141,7 +142,7 @@ export default function SuperAdminOrganizationDetail() {
       });
 
       if (error) {
-        console.error('Impersonation error:', error);
+        logError('Impersonation error:', error);
         toast.error("Erreur lors de l'impersonation");
         return;
       }
@@ -154,7 +155,7 @@ export default function SuperAdminOrganizationDetail() {
         toast.error("Aucun token d'impersonation reçu");
       }
     } catch (err) {
-      console.error('Unexpected error:', err);
+      logError('Unexpected error:', err);
       toast.error("Erreur inattendue");
     } finally {
       setIsImpersonating(false);

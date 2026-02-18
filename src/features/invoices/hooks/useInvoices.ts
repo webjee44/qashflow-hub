@@ -162,7 +162,7 @@ export function useInvoices() {
     },
     onError: (error) => {
       toast({ title: 'Erreur', description: 'Impossible de supprimer la facture.', variant: 'destructive' });
-      console.error('Delete invoice error:', error);
+      logError('Delete invoice error:', error);
     },
   });
 
@@ -179,18 +179,18 @@ export function useInvoices() {
         try {
           await invoiceApi.upsertPartnerMapping(currentCompany.id, currentCompany.user_id, invoice.partner_name, categoryId);
         } catch (e) {
-          console.error('Mapping upsert error:', e);
+          logError('Mapping upsert error:', e);
         }
         try {
           await invoiceApi.bulkUpdateCategoryByPartner(currentCompany.id, invoice.partner_name, categoryId);
         } catch (e) {
-          console.error('Bulk category update error:', e);
+          logError('Bulk category update error:', e);
         }
       } else {
         try {
           await invoiceApi.deletePartnerMapping(currentCompany.id, invoice.partner_name);
         } catch (e) {
-          console.error('Mapping delete error:', e);
+          logError('Mapping delete error:', e);
         }
       }
 
@@ -201,7 +201,7 @@ export function useInvoices() {
     },
     onError: (error) => {
       toast({ title: 'Erreur', description: 'Impossible de mettre à jour la catégorie.', variant: 'destructive' });
-      console.error('Update category error:', error);
+      logError('Update category error:', error);
     },
   });
 

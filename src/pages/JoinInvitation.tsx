@@ -13,6 +13,7 @@ import { useInvitationByToken, useAcceptInvitation, type InvitationRole } from '
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { logError } from '@/lib/logger';
 import { Building2, Mail, Shield, User, Eye, Loader2, CheckCircle, XCircle, ArrowRight } from 'lucide-react';
 import logo from '@/assets/logo.png';
 
@@ -100,7 +101,7 @@ export default function JoinInvitation() {
       setSignUpSuccess(true);
       toast.success('Compte créé ! Vérifiez votre email pour confirmer.');
     } catch (error: any) {
-      console.error('Sign up error:', error);
+      logError('Sign up error:', error);
       toast.error(error.message || 'Erreur lors de la création du compte');
     } finally {
       setIsSigningUp(false);

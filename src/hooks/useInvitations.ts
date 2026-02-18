@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { logError } from '@/lib/logger';
 
 export type InvitationRole = 'owner' | 'admin' | 'member' | 'viewer';
 
@@ -84,7 +85,7 @@ export function useInvitations(organizationId?: string) {
       queryClient.invalidateQueries({ queryKey: ['invitations', organizationId] });
     },
     onError: (error: Error) => {
-      console.error('Error creating invitation:', error);
+      logError('Error creating invitation:', error);
       toast.error(error.message || 'Erreur lors de la création de l\'invitation');
     },
   });

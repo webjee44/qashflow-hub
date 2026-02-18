@@ -194,7 +194,7 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
       toast.success(`Invitation envoyée à ${email}`);
       await fetchMembers();
     } catch (error) {
-      console.error('Error inviting member:', error);
+      logError('Error inviting member:', error);
       toast.error('Erreur lors de l\'invitation');
       throw error;
     }
@@ -212,7 +212,7 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
       toast.success('Membre supprimé');
       await fetchMembers();
     } catch (error) {
-      console.error('Error removing member:', error);
+      logError('Error removing member:', error);
       toast.error('Erreur lors de la suppression');
       throw error;
     }
@@ -230,7 +230,7 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
       toast.success('Rôle mis à jour');
       await fetchMembers();
     } catch (error) {
-      console.error('Error updating member role:', error);
+      logError('Error updating member role:', error);
       toast.error('Erreur lors de la mise à jour');
       throw error;
     }

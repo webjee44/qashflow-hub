@@ -10,6 +10,7 @@ import { format, formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Download, HardDrive, RefreshCw, Trash2, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { logError } from '@/lib/logger';
 
 interface ExportFile {
   id: string;
@@ -64,7 +65,7 @@ export function DataExportsCard() {
 
       toast.success('Export téléchargé');
     } catch (error) {
-      console.error('Download error:', error);
+      logError('Download error:', error);
       toast.error('Erreur lors du téléchargement');
     }
   };
@@ -83,7 +84,7 @@ export function DataExportsCard() {
       await refetch();
       toast.success('Export supprimé');
     } catch (error) {
-      console.error('Delete error:', error);
+      logError('Delete error:', error);
       toast.error('Erreur lors de la suppression');
     } finally {
       setIsDeleting(null);
