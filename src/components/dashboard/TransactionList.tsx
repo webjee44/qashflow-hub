@@ -7,6 +7,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Tables } from '@/integrations/supabase/types';
 import { Link } from 'react-router-dom';
 import { useCompany } from '@/hooks/useCompany';
+import { transactionApi } from '@/features/transactions/api/transactionApi';
 
 type Transaction = Tables<'transactions'>;
 type Category = Tables<'categories'>;
@@ -19,30 +20,23 @@ export function TransactionList() {
 
   useEffect(() => {
     const fetchData = async () => {
-      setLoading(true);
-      
-      let transactionsQuery = supabase
-        .from('transactions')
-        .select('*')
-        .order('date', { ascending: false })
-        .limit(6);
-
-      let categoriesQuery = supabase
-        .from('categories')
-        .select('*');
-
-      // Filter by company - strict filtering for data isolation
-      if (currentCompany) {
-        transactionsQuery = transactionsQuery.eq('company_id', currentCompany.id);
-        categoriesQuery = categoriesQuery.or(`company_id.eq.${currentCompany.id},company_id.is.null`);
+      if (!currentCompany) {
+        setLoading(false);
+        return;
       }
+      setLoading(true);
 
-      const [transactionsRes, categoriesRes] = await Promise.all([
-        transactionsQuery,
-        categoriesQuery
+      const categoriesQuery = supabase
+        .from('categories')
+        .select('*')
+        .or(`company_id.eq.${currentCompany.id},company_id.is.null`);
+
+      const [transactionsData, categoriesRes] = await Promise.all([
+        transactionApi.getRecentByCompany(currentCompany.id, 6),
+        categoriesQuery,
       ]);
 
-      if (transactionsRes.data) setTransactions(transactionsRes.data);
+      setTransactions(transactionsData);
       if (categoriesRes.data) setCategories(categoriesRes.data);
       setLoading(false);
     };
