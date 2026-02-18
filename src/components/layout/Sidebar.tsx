@@ -254,7 +254,7 @@ export function Sidebar() {
               <Wallet className="h-5 w-5 text-primary" />
             )}
           </div>
-          {isBusinessPlan && (
+          {bpEnabled && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
@@ -271,7 +271,7 @@ export function Sidebar() {
       )}
 
       {/* BP Settings Button (expanded) - Only in BP mode */}
-      {!isCollapsed && isBusinessPlan && (
+      {!isCollapsed && bpEnabled && (
         <div className="px-4 py-3 border-b border-border space-y-1">
           <button
             data-tour-bp="settings"
@@ -298,8 +298,8 @@ export function Sidebar() {
 
       {/* Main Navigation */}
       <nav className="flex-1 p-4 space-y-1 overflow-y-auto overflow-x-hidden">
-        {/* Treasury Section - Only shown in Treasury mode */}
-        {isTreasury && showTreasuryModule && (
+        {/* Treasury Section - Always visible */}
+        {showTreasuryModule && (
           <>
             {!isCollapsed && (
               <div className="px-2 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
@@ -339,8 +339,8 @@ export function Sidebar() {
           </>
         )}
         
-        {/* Business Plan Section - Only shown in BP mode */}
-        {isBusinessPlan && (
+        {/* Business Plan Section - Shown when BP is enabled */}
+        {bpEnabled && (
           <>
             {!isCollapsed && (
               <div className="px-2 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
