@@ -113,8 +113,9 @@ export function Sidebar() {
   const queryClient = useQueryClient();
   const currentPath = location.pathname;
   
-  // Treasury module is always available and cannot be disabled
-  const showTreasuryModule = true;
+  // bpEnabled = true means ONLY BP is shown (Treasury is disabled)
+  // bpEnabled = false means BOTH BP and Treasury are shown
+  const showTreasuryModule = !bpEnabled;
 
   const handleSignOut = async () => {
     await signOut();
@@ -254,7 +255,7 @@ export function Sidebar() {
               <Wallet className="h-5 w-5 text-primary" />
             )}
           </div>
-          {bpEnabled && (
+          {isBusinessPlan && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
@@ -271,7 +272,7 @@ export function Sidebar() {
       )}
 
       {/* BP Settings Button (expanded) - Only in BP mode */}
-      {!isCollapsed && bpEnabled && (
+      {!isCollapsed && isBusinessPlan && (
         <div className="px-4 py-3 border-b border-border space-y-1">
           <button
             data-tour-bp="settings"
@@ -298,8 +299,8 @@ export function Sidebar() {
 
       {/* Main Navigation */}
       <nav className="flex-1 p-4 space-y-1 overflow-y-auto overflow-x-hidden">
-        {/* Treasury Section - Always visible */}
-        {showTreasuryModule && (
+        {/* Treasury Section - Only shown in Treasury mode */}
+        {isTreasury && showTreasuryModule && (
           <>
             {!isCollapsed && (
               <div className="px-2 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
@@ -339,8 +340,8 @@ export function Sidebar() {
           </>
         )}
         
-        {/* Business Plan Section - Shown when BP is enabled */}
-        {bpEnabled && (
+        {/* Business Plan Section - Only shown in BP mode */}
+        {isBusinessPlan && (
           <>
             {!isCollapsed && (
               <div className="px-2 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
