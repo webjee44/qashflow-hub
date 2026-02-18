@@ -113,9 +113,8 @@ export function Sidebar() {
   const queryClient = useQueryClient();
   const currentPath = location.pathname;
   
-  // bpEnabled = true means ONLY BP is shown (Treasury is disabled)
-  // bpEnabled = false means BOTH BP and Treasury are shown
-  const showTreasuryModule = !bpEnabled;
+  // Treasury module is always available and cannot be disabled
+  const showTreasuryModule = true;
 
   const handleSignOut = async () => {
     await signOut();
