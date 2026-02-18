@@ -12,7 +12,7 @@ import {
   revenueStreamService, 
   type BPRevenueStream, 
   type BPRevenueStreamInsert 
-} from '@/services';
+} from '../api';
 
 // Re-export types for backward compatibility
 export type { BPRevenueStream };

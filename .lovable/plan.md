@@ -18,7 +18,7 @@ Le projet mélange actuellement 3 responsabilités dans les hooks React :
 
 - [x] **Phase 1 : Transactions** — API layer + hook refactoré + backend Repository
 - [x] **Phase 2 : Categories + Invoices** — API layers + hooks refactorés
-- [ ] **Phase 3 : Business Plan** — Renommer services en api/, reorganiser
+- [x] **Phase 3 : Business Plan** — API layer créé, hooks refactorés, snapshots/notes extraits
 - [ ] **Phase 4 : Edge Functions** — Refactorer pour utiliser les Repositories
 
 ## Fichiers créés
@@ -37,10 +37,16 @@ Le projet mélange actuellement 3 responsabilités dans les hooks React :
 - `src/features/invoices/hooks/useInvoices.ts`
 - `src/features/invoices/index.ts`
 
+### Phase 3
+- `src/features/business-plan/api/index.ts` (re-exports all services)
+- `src/features/business-plan/api/snapshotApi.ts` (extrait de useBPSnapshots)
+- `src/features/business-plan/api/noteApi.ts` (extrait de useBPNotes)
+
 ### Fichiers de rétrocompatibilité (re-exports)
 - `src/hooks/useTransactions.ts` → re-export depuis `features/transactions`
 - `src/hooks/useCategories.ts` → re-export depuis `features/categories`
 - `src/hooks/useInvoices.ts` → re-export depuis `features/invoices`
+- `src/services/index.ts` → reste en place, importé par `features/business-plan/api/`
 
 ## Regles strictes
 
@@ -50,9 +56,6 @@ Le projet mélange actuellement 3 responsabilités dans les hooks React :
 4. Les Edge Functions ne touchent la DB que via les Repositories
 
 ## Prochaines étapes
-
-### Phase 3 : Business Plan
-Les services existants (`src/services/`) doivent être déplacés dans `src/features/business-plan/api/`.
 
 ### Phase 4 : Edge Functions
 Créer les repositories manquants et refactorer les fonctions complexes :

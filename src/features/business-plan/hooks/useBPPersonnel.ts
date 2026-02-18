@@ -15,7 +15,7 @@ import {
   WORKER_TYPES,
   CONTRACT_TYPES,
   type WorkerType,
-} from '@/services';
+} from '../api';
 
 // Re-export types and constants for backward compatibility
 export type { BPPersonnel, WorkerType };

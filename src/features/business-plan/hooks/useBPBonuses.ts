@@ -5,7 +5,7 @@
 // ============================================
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { bonusService, BPBonus, BPBonusInsert, BPBonusUpdate, BonusType } from '@/services/bonusService';
+import { bonusService, type BPBonus, type BPBonusInsert, type BPBonusUpdate, type BonusType } from '../api';
 import { useAuth } from '@/hooks/useAuth';
 import { useCompany } from '@/hooks/useCompany';
 import { useBPPersonnel } from './useBPPersonnel';

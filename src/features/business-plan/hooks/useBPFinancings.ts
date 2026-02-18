@@ -12,7 +12,7 @@ import {
   financingService, 
   type BPFinancing, 
   type BPFinancingInsert,
-} from '@/services';
+} from '../api';
 
 // Re-export types for backward compatibility
 export type { BPFinancing };
