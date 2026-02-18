@@ -1,73 +1,117 @@
-# Welcome to your Lovable project
+# Qashflow
 
-## Project info
+**Gestion de trésorerie et business plan pour les TPE/PME françaises.**
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+Qashflow permet aux entrepreneurs de piloter leur trésorerie, construire un prévisionnel financier complet (compte de résultat, bilan, plan de financement) et suivre leurs factures — le tout depuis une interface moderne et intuitive.
 
-## How can I edit this code?
+## Stack technique
 
-There are several ways of editing your application.
+| Couche | Technologies |
+|---|---|
+| **Frontend** | React 18, TypeScript, Vite, Tailwind CSS, shadcn/ui |
+| **State / Data** | TanStack React Query, React Hook Form, Zod |
+| **Backend** | Lovable Cloud (Supabase) — Auth, Database, Edge Functions, Storage |
+| **Charts** | Recharts |
+| **PDF** | @react-pdf/renderer |
+| **Tests** | Vitest, Testing Library, jsdom |
+| **Animations** | Framer Motion |
 
-**Use Lovable**
+## Fonctionnalités principales
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+- 📊 **Dashboard trésorerie** — solde bancaire, flux entrants/sortants, graphiques
+- 🏦 **Synchronisation bancaire** — connexion automatique via Bridge API
+- 📑 **Gestion des factures** — import Pennylane/Odoo, suivi créances/dettes
+- 📈 **Prévisions de trésorerie** — par catégorie, comparaison réalisé vs prévu
+- 📋 **Business Plan complet** — revenus, charges fixes/variables, personnel, investissements, financements, scénarios, bilan, P&L, cash-flow
+- 🤖 **Automatisations** — catégorisation automatique des transactions par règles
+- 👥 **Multi-organisation** — gestion d'équipe avec rôles (owner, admin, member, viewer)
+- 🔒 **Sécurité** — RLS sur toutes les tables, logger centralisé, ErrorBoundary
 
-Changes made via Lovable will be committed automatically to this repo.
+## Installation locale
 
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
+```bash
+# Cloner le repo
 git clone <YOUR_GIT_URL>
+cd qashflow-hub
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+# Installer les dépendances
+npm install
 
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# Lancer le serveur de développement
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+## Variables d'environnement
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+Créez un fichier `.env` à la racine avec :
 
-**Use GitHub Codespaces**
+```env
+VITE_SUPABASE_URL=https://<project-id>.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=<anon-key>
+VITE_SUPABASE_PROJECT_ID=<project-id>
+```
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+> Ces variables sont fournies automatiquement par Lovable Cloud.
 
-## What technologies are used for this project?
+## Scripts disponibles
 
-This project is built with:
+| Script | Description |
+|---|---|
+| `npm run dev` | Serveur de développement (Vite) |
+| `npm run build` | Build de production |
+| `npm run preview` | Prévisualisation du build |
+| `npm run lint` | Vérification ESLint |
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+## Architecture
 
-## How can I deploy this project?
+```
+src/
+├── components/          # Composants UI réutilisables
+│   ├── ui/              # Primitives shadcn/ui
+│   ├── layout/          # Header, Sidebar, Navbar
+│   ├── dashboard/       # Widgets du tableau de bord
+│   ├── transactions/    # Gestion des transactions
+│   ├── invoices/        # Gestion des factures
+│   ├── forecasts/       # Prévisions de trésorerie
+│   ├── categories/      # Catégories de transactions
+│   ├── automations/     # Règles d'automatisation
+│   ├── settings/        # Paramètres utilisateur
+│   └── superadmin/      # Administration système
+├── features/
+│   └── business-plan/   # Module Business Plan complet
+│       ├── charts/      # Graphiques spécifiques BP
+│       ├── components/  # Tables et cartes BP
+│       ├── dialogs/     # Formulaires et wizards
+│       ├── hooks/       # Logique métier BP
+│       ├── pdf/         # Export PDF du BP
+│       └── api/         # Couche d'accès données
+├── hooks/               # Hooks applicatifs globaux
+├── pages/               # Routes de l'application
+├── lib/                 # Utilitaires (logger, parsers, mock data)
+├── services/            # Services métier
+└── integrations/        # Client Supabase (auto-généré)
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+supabase/
+├── functions/           # Edge Functions (backend serverless)
+└── migrations/          # Migrations SQL
+```
 
-## Can I connect a custom domain to my Lovable project?
+## Conventions
 
-Yes, you can!
+- **Logger centralisé** : utiliser `logError`, `logInfo`, `logWarn`, `logDebug` depuis `@/lib/logger` — jamais `console.*` directement
+- **Design tokens** : utiliser les tokens sémantiques Tailwind (`bg-primary`, `text-foreground`) — pas de couleurs hardcodées
+- **Lazy loading** : toutes les pages protégées utilisent `React.lazy()` + `Suspense`
+- **ErrorBoundary** : wraps l'application entière pour capturer les crashes React
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+## Déploiement
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+L'application est déployée automatiquement via Lovable. Pour publier :
+
+1. Ouvrir le projet dans Lovable
+2. Cliquer sur **Share → Publish**
+
+Domaine personnalisé : **Settings → Domains → Connect Domain**
+
+## Licence
+
+Projet propriétaire — tous droits réservés.
