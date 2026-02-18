@@ -1,12 +1,12 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
+import { TransactionRepository } from '../_shared/repositories/TransactionRepository.ts';
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// ========== Zod Schema for request validation ==========
 const categorizeTransactionRequestSchema = z.object({
   transactionIds: z.array(z.string()).min(1, 'Au moins un ID requis').max(100, 'Maximum 100 IDs'),
   companyId: z.string().optional(),
@@ -43,140 +43,90 @@ Deno.serve(async (req) => {
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
-    // Create user client to validate auth
     const supabaseUser = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } },
     });
 
-    // Verify the user is authenticated
     const { data: { user }, error: authError } = await supabaseUser.auth.getUser();
     if (authError || !user) {
-      console.error('[categorize-transaction] Auth error:', authError);
       return new Response(JSON.stringify({ error: 'Non autorisé' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    console.log(`[categorize-transaction] Authenticated user: ${user.id}`);
-
-    // Parse and validate request body
     let rawBody;
-    try {
-      rawBody = await req.json();
-    } catch {
+    try { rawBody = await req.json(); } catch {
       return new Response(JSON.stringify({ error: 'Body JSON invalide' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
     const validation = categorizeTransactionRequestSchema.safeParse(rawBody);
     if (!validation.success) {
       const errors = validation.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join(', ');
-      console.error('[categorize-transaction] Validation error:', errors);
       return new Response(JSON.stringify({ error: `Validation échouée: ${errors}` }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
     const { transactionIds, companyId } = validation.data;
-
-    // Limiter à 50 transactions à la fois pour éviter les timeouts
     const limitedIds = transactionIds.slice(0, 50);
-    console.log(`[categorize-transaction] Processing ${limitedIds.length} transactions out of ${transactionIds.length}`);
+    console.log(`[categorize-transaction] Processing ${limitedIds.length} transactions`);
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
-      console.error("[categorize-transaction] LOVABLE_API_KEY is not configured");
       return new Response(JSON.stringify({ error: "Service IA non configuré" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Use service role client for queries but ALWAYS filter by authenticated user
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const transactionRepo = new TransactionRepository(supabase);
 
-    // Fetch transactions to categorize - CRITICAL: Filter by user_id
-    let txQuery = supabase
-      .from('transactions')
-      .select('id, description, amount, type')
-      .eq('user_id', user.id)  // CRITICAL: Only user's own transactions
-      .is('category_id', null)
-      .limit(50);
+    // Fetch uncategorized transactions via repository
+    const filter = companyId ? { companyId } : { userId: user.id };
+    const allUncategorized = await transactionRepo.findUncategorized(filter, { pageSize: 50 });
+    const transactions = allUncategorized.slice(0, 50) as unknown as Transaction[];
 
-    // Filter by company if provided
-    if (companyId) {
-      txQuery = txQuery.eq('company_id', companyId);
-    }
-
-    const { data: transactions, error: txError } = await txQuery;
-
-    if (txError) {
-      console.error('[categorize-transaction] Error fetching transactions:', txError);
-      throw new Error(`Erreur de récupération des transactions: ${txError.message}`);
-    }
-
-    if (!transactions || transactions.length === 0) {
+    if (transactions.length === 0) {
       return new Response(JSON.stringify({ 
-        success: true, 
-        categorized: 0,
-        message: 'Aucune transaction à catégoriser' 
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+        success: true, categorized: 0, message: 'Aucune transaction à catégoriser' 
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // Fetch available categories - filter by user's categories
+    // Fetch categories (still direct query — no CategoryRepository yet, acceptable)
     let categoriesQuery = supabase.from('categories').select('id, name, type').eq('user_id', user.id);
     if (companyId) {
       categoriesQuery = categoriesQuery.or(`company_id.eq.${companyId},company_id.is.null`);
     }
-
     const { data: categories, error: catError } = await categoriesQuery;
-
-    if (catError) {
-      console.error('[categorize-transaction] Error fetching categories:', catError);
-      throw catError;
-    }
+    if (catError) throw catError;
 
     if (!categories || categories.length === 0) {
       return new Response(JSON.stringify({ 
-        success: true, 
-        categorized: 0,
-        message: 'Aucune catégorie disponible' 
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+        success: true, categorized: 0, message: 'Aucune catégorie disponible' 
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // Fetch recent categorized transactions for context - filter by user
+    // Fetch recent categorized transactions for context
     let recentQuery = supabase
       .from('transactions')
       .select('description, category_id, categories(name)')
-      .eq('user_id', user.id)  // CRITICAL: Only user's own transactions
+      .eq('user_id', user.id)
       .not('category_id', 'is', null)
       .order('created_at', { ascending: false })
       .limit(50);
-
-    if (companyId) {
-      recentQuery = recentQuery.eq('company_id', companyId);
-    }
-
+    if (companyId) recentQuery = recentQuery.eq('company_id', companyId);
     const { data: recentTransactions } = await recentQuery;
 
-    // Build context from recent categorizations
     const examples = recentTransactions?.map((t: any) => 
       `"${t.description}" → ${t.categories?.name}`
     ).slice(0, 20).join('\n') || '';
 
-    // Prepare categories list
     const incomeCategories = categories.filter(c => c.type === 'income').map(c => c.name).join(', ');
     const expenseCategories = categories.filter(c => c.type === 'expense').map(c => c.name).join(', ');
 
-    // Prepare transactions for AI
     const transactionsText = transactions.map((t: Transaction) => 
       `ID: ${t.id} | Type: ${t.type} | Montant: ${t.amount}€ | Description: "${t.description}"`
     ).join('\n');
@@ -203,7 +153,6 @@ ${transactionsText}
 Réponds UNIQUEMENT au format JSON suivant, sans aucun texte avant ou après:
 [{"id": "uuid", "category": "nom exact de la catégorie", "confidence": 0.0-1.0}]`;
 
-    // Call AI Gateway
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -223,14 +172,12 @@ Réponds UNIQUEMENT au format JSON suivant, sans aucun texte avant ou après:
     if (!response.ok) {
       if (response.status === 429) {
         return new Response(JSON.stringify({ error: "Limite de requêtes atteinte, réessayez plus tard" }), {
-          status: 429,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       if (response.status === 402) {
         return new Response(JSON.stringify({ error: "Crédits IA insuffisants" }), {
-          status: 402,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       const errorText = await response.text();
@@ -240,23 +187,17 @@ Réponds UNIQUEMENT au format JSON suivant, sans aucun texte avant ou après:
 
     const aiResponse = await response.json();
     const content = aiResponse.choices?.[0]?.message?.content;
+    if (!content) throw new Error("Réponse IA vide");
 
-    if (!content) {
-      throw new Error("Réponse IA vide");
-    }
-
-    // Parse AI response
     let suggestions: Array<{ id: string; category: string; confidence: number }>;
     try {
-      // Clean the response (remove markdown code blocks if present)
       const cleanContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
       suggestions = JSON.parse(cleanContent);
-    } catch (parseError) {
+    } catch {
       console.error('[categorize-transaction] Error parsing AI response:', content);
       throw new Error("Format de réponse IA invalide");
     }
 
-    // Map suggestions to category IDs and update transactions
     let categorizedCount = 0;
     const results: Array<{ id: string; category: string; confidence: number }> = [];
 
@@ -266,49 +207,33 @@ Réponds UNIQUEMENT au format JSON suivant, sans aucun texte avant ou après:
       );
 
       if (category) {
-        // CRITICAL: Also filter by user_id on update to prevent modifying other users' transactions
-        const { error: updateError } = await supabase
-          .from('transactions')
-          .update({ 
+        try {
+          await transactionRepo.updateWithOwnerCheck(suggestion.id, user.id, {
             category_id: category.id,
-            ai_confidence: suggestion.confidence
-          })
-          .eq('id', suggestion.id)
-          .eq('user_id', user.id);  // CRITICAL: Ensure ownership
-
-        if (!updateError) {
-          categorizedCount++;
-          results.push({
-            id: suggestion.id,
-            category: category.name,
-            confidence: suggestion.confidence
+            ai_confidence: suggestion.confidence,
           });
-        } else {
-          console.error('[categorize-transaction] Error updating transaction:', suggestion.id, updateError);
+          categorizedCount++;
+          results.push({ id: suggestion.id, category: category.name, confidence: suggestion.confidence });
+        } catch (err) {
+          console.error('[categorize-transaction] Error updating transaction:', suggestion.id, err);
         }
       } else {
         console.warn('[categorize-transaction] Category not found:', suggestion.category);
       }
     }
 
-    console.log(`[categorize-transaction] Successfully categorized ${categorizedCount}/${transactions.length} transactions`);
+    console.log(`[categorize-transaction] Successfully categorized ${categorizedCount}/${transactions.length}`);
 
     return new Response(JSON.stringify({ 
-      success: true, 
-      categorized: categorizedCount,
-      total: transactions.length,
-      results
-    }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+      success: true, categorized: categorizedCount, total: transactions.length, results
+    }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
   } catch (error) {
     console.error("[categorize-transaction] Error:", error);
     return new Response(JSON.stringify({ 
       error: error instanceof Error ? error.message : "Erreur inconnue" 
     }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });

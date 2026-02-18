@@ -1,4 +1,5 @@
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { InvoiceRepository } from '../_shared/repositories/InvoiceRepository.ts';
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -46,7 +47,6 @@ interface SyncResult {
 }
 
 Deno.serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -63,7 +63,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Get the authorization header to identify the user
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(
@@ -72,10 +71,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Create Supabase client with service role for DB operations
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const invoiceRepo = new InvoiceRepository(supabase);
 
-    // Verify user token and get user info
     const anonClient = createClient(
       supabaseUrl,
       Deno.env.get("SUPABASE_ANON_KEY")!,
@@ -103,50 +101,31 @@ Deno.serve(async (req) => {
 
     const result: SyncResult = { created: 0, updated: 0, errors: [] };
 
-    // Fetch customer invoices (receivables)
-    const customerInvoices = await fetchPennylaneInvoices(
-      pennylaneApiKey,
-      "customer_invoices",
-      result
-    );
+    const customerInvoices = await fetchPennylaneInvoices(pennylaneApiKey, "customer_invoices", result);
+    const supplierInvoices = await fetchPennylaneInvoices(pennylaneApiKey, "supplier_invoices", result);
 
-    // Fetch supplier invoices (payables)
-    const supplierInvoices = await fetchPennylaneInvoices(
-      pennylaneApiKey,
-      "supplier_invoices",
-      result
-    );
-
-    // Filter out paid invoices - we only want pending ones
     const pendingCustomerInvoices = customerInvoices.filter(inv => !inv.paid);
     const pendingSupplierInvoices = supplierInvoices.filter(inv => !inv.paid);
 
-    console.log(`[pennylane-invoices-sync] Filtered: ${customerInvoices.length} -> ${pendingCustomerInvoices.length} customer invoices (excluding paid)`);
-    console.log(`[pennylane-invoices-sync] Filtered: ${supplierInvoices.length} -> ${pendingSupplierInvoices.length} supplier invoices (excluding paid)`);
+    console.log(`[pennylane-invoices-sync] Filtered: ${customerInvoices.length} -> ${pendingCustomerInvoices.length} customer, ${supplierInvoices.length} -> ${pendingSupplierInvoices.length} supplier`);
 
-    // Delete any existing invoices that are now paid (cleanup)
+    // Clean up paid invoices via repository
     const paidCustomerIds = customerInvoices.filter(inv => inv.paid).map(inv => inv.id);
     const paidSupplierIds = supplierInvoices.filter(inv => inv.paid).map(inv => inv.id);
     
-    if (paidCustomerIds.length > 0 || paidSupplierIds.length > 0) {
-      const allPaidIds = [...paidCustomerIds, ...paidSupplierIds];
-      const { error: deleteError } = await supabase
-        .from("invoices")
-        .delete()
-        .eq("company_id", company_id)
-        .eq("source", "pennylane")
-        .in("external_id", allPaidIds);
-      
-      if (deleteError) {
-        console.error("[pennylane-invoices-sync] Error cleaning up paid invoices:", deleteError);
-      } else {
+    const allPaidIds = [...paidCustomerIds, ...paidSupplierIds];
+    if (allPaidIds.length > 0) {
+      try {
+        await invoiceRepo.deleteBySourceAndExternalIds(company_id, "pennylane", allPaidIds);
         console.log(`[pennylane-invoices-sync] Cleaned up ${allPaidIds.length} paid invoices`);
+      } catch (err) {
+        console.error("[pennylane-invoices-sync] Error cleaning up paid invoices:", err);
       }
     }
 
-    // Process customer invoices (receivables) - only pending
+    // Process customer invoices (receivables)
     for (const inv of pendingCustomerInvoices) {
-      await upsertInvoice(supabase, {
+      await upsertInvoice(invoiceRepo, {
         user_id: user.id,
         company_id,
         type: "receivable",
@@ -164,9 +143,9 @@ Deno.serve(async (req) => {
       }, result);
     }
 
-    // Process supplier invoices (payables) - only pending
+    // Process supplier invoices (payables)
     for (const inv of pendingSupplierInvoices) {
-      await upsertInvoice(supabase, {
+      await upsertInvoice(invoiceRepo, {
         user_id: user.id,
         company_id,
         type: "payable",
@@ -221,13 +200,12 @@ async function fetchPennylaneInvoices(
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`[pennylane-invoices-sync] Pennylane API error for ${endpoint}:`, errorText);
+      console.error(`[pennylane-invoices-sync] API error for ${endpoint}:`, errorText);
       result.errors.push(`Erreur API Pennylane (${endpoint}): ${response.status}`);
       return [];
     }
 
     const data = await response.json();
-    // Pennylane v2 returns data under "items" key with cursor pagination
     return data.items || data[endpoint] || data.invoices || data.data || [];
   } catch (err: unknown) {
     const error = err as Error;
@@ -238,56 +216,37 @@ async function fetchPennylaneInvoices(
 }
 
 async function upsertInvoice(
-  supabase: SupabaseClient,
+  invoiceRepo: InvoiceRepository,
   invoice: InvoiceData,
   result: SyncResult
 ) {
   try {
-    // Check if invoice already exists by external_id
-    const { data: existing } = await supabase
-      .from("invoices")
-      .select("id")
-      .eq("external_id", invoice.external_id)
-      .eq("company_id", invoice.company_id)
-      .maybeSingle();
+    const existing = await invoiceRepo.findByExternalId(invoice.company_id, invoice.external_id);
 
     if (existing) {
-      // Update existing invoice
-      const { error } = await supabase
-        .from("invoices")
-        .update({
-          partner_name: invoice.partner_name,
-          invoice_number: invoice.invoice_number,
-          invoice_date: invoice.invoice_date,
-          due_date: invoice.due_date,
-          amount_ht: invoice.amount_ht,
-          amount_ttc: invoice.amount_ttc,
-          vat_amount: invoice.vat_amount,
-          status: invoice.status,
-          paid_at: invoice.paid_at,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", existing.id);
-
-      if (error) throw error;
+      await invoiceRepo.update(existing.id, {
+        partner_name: invoice.partner_name,
+        invoice_number: invoice.invoice_number,
+        invoice_date: invoice.invoice_date,
+        due_date: invoice.due_date,
+        amount_ht: invoice.amount_ht,
+        amount_ttc: invoice.amount_ttc,
+        vat_amount: invoice.vat_amount,
+        status: invoice.status,
+        paid_at: invoice.paid_at,
+        updated_at: new Date().toISOString(),
+      });
       result.updated++;
     } else {
-      // Look up partner → category mapping for new invoices
+      // Look up partner → category mapping
       let categoryId: string | null = null;
-      const { data: mapping } = await supabase
-        .from("partner_category_mappings")
-        .select("category_id")
-        .eq("company_id", invoice.company_id)
-        .eq("partner_name", invoice.partner_name)
-        .maybeSingle();
-
+      const mapping = await invoiceRepo.findPartnerMapping(invoice.company_id, invoice.partner_name);
       if (mapping?.category_id) {
         categoryId = mapping.category_id;
         console.log(`[pennylane-invoices-sync] Auto-assigning category for partner "${invoice.partner_name}"`);
       }
 
-      // Create new invoice with auto-assigned category
-      const { error } = await supabase.from("invoices").insert({
+      await invoiceRepo.insert({
         user_id: invoice.user_id,
         company_id: invoice.company_id,
         type: invoice.type,
@@ -304,7 +263,6 @@ async function upsertInvoice(
         external_id: invoice.external_id,
         category_id: categoryId,
       });
-      if (error) throw error;
       result.created++;
     }
   } catch (err: unknown) {

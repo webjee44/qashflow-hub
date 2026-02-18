@@ -1,28 +1,22 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { TransactionRepository } from '../_shared/repositories/TransactionRepository.ts';
+import { AutomationRepository, type RuleCondition } from '../_shared/repositories/AutomationRepository.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-interface RuleCondition {
-  condition_field: string;
-  condition_operator: string;
-  condition_value: string;
-}
-
-interface AutomationRule {
+interface FullRule {
   id: string;
   target_category_id: string;
   user_id: string;
   company_id: string | null;
   match_count: number;
   is_active: boolean;
-  // Primary condition from automation_rules table
   condition_field: string;
   condition_operator: string;
   condition_value: string;
-  // Additional conditions from automation_rule_conditions table
   extra_conditions: RuleCondition[];
 }
 
@@ -44,72 +38,45 @@ function matchCondition(transaction: Transaction, condition: RuleCondition): boo
     case 'description': {
       const fieldValue = transaction.description.toLowerCase();
       const compareValue = condition_value.toLowerCase();
-      
       switch (condition_operator) {
-        case 'contains':
-          return fieldValue.includes(compareValue);
-        case 'equals':
-          return fieldValue === compareValue;
-        case 'starts_with':
-          return fieldValue.startsWith(compareValue);
-        case 'ends_with':
-          return fieldValue.endsWith(compareValue);
-        default:
-          return false;
+        case 'contains': return fieldValue.includes(compareValue);
+        case 'equals': return fieldValue === compareValue;
+        case 'starts_with': return fieldValue.startsWith(compareValue);
+        case 'ends_with': return fieldValue.endsWith(compareValue);
+        default: return false;
       }
     }
-    
     case 'amount': {
       const amount = Math.abs(transaction.amount);
       const value = parseFloat(condition_value);
-      
       switch (condition_operator) {
-        case 'equals':
-          // Tolerance of 0.01 for rounding
-          return Math.abs(amount - value) < 0.01;
-        case 'greater_than':
-          return amount > value;
-        case 'less_than':
-          return amount < value;
+        case 'equals': return Math.abs(amount - value) < 0.01;
+        case 'greater_than': return amount > value;
+        case 'less_than': return amount < value;
         case 'between': {
-          try {
-            const { min, max } = JSON.parse(condition_value);
-            return amount >= min && amount <= max;
-          } catch {
-            return false;
-          }
+          try { const { min, max } = JSON.parse(condition_value); return amount >= min && amount <= max; }
+          catch { return false; }
         }
-        default:
-          return false;
+        default: return false;
       }
     }
-    
     case 'type':
       return transaction.type === condition_value;
-    
     default:
       return false;
   }
 }
 
-// Check if transaction matches ALL conditions (AND logic)
-function matchesRule(transaction: Transaction, rule: AutomationRule): boolean {
-  // First check the primary condition from the rule itself
+function matchesRule(transaction: Transaction, rule: FullRule): boolean {
   const primaryCondition: RuleCondition = {
     condition_field: rule.condition_field,
     condition_operator: rule.condition_operator,
     condition_value: rule.condition_value,
   };
-  
-  if (!matchCondition(transaction, primaryCondition)) {
-    return false;
-  }
-  
-  // Then check any additional conditions (AND logic)
+  if (!matchCondition(transaction, primaryCondition)) return false;
   if (rule.extra_conditions && rule.extra_conditions.length > 0) {
-    return rule.extra_conditions.every(condition => matchCondition(transaction, condition));
+    return rule.extra_conditions.every(c => matchCondition(transaction, c));
   }
-  
   return true;
 }
 
@@ -134,7 +101,10 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Check if this is a user-initiated request (with auth) or a cron job
+    const automationRepo = new AutomationRepository(supabaseAdmin);
+    const transactionRepo = new TransactionRepository(supabaseAdmin);
+
+    // Check if this is a user-initiated request or cron
     const authHeader = req.headers.get('Authorization');
     let userFilter: string | null = null;
     let companyFilter: string | null = null;
@@ -150,45 +120,21 @@ Deno.serve(async (req) => {
 
       if (!claimsError && claimsData?.claims) {
         userFilter = claimsData.claims.sub as string;
-        
-        // Try to get company_id from request body
         try {
           const body = await req.json();
           companyFilter = body.company_id || null;
-        } catch {
-          // No body or invalid JSON
-        }
-        
+        } catch { /* No body */ }
         console.log(`[apply-all-automation-rules] User-initiated: ${userFilter}, company: ${companyFilter || 'all'}`);
       }
     }
 
-    // 1. Fetch all active automation rules with their primary conditions
-    let rulesQuery = supabaseAdmin
-      .from('automation_rules')
-      .select('*')
-      .eq('is_active', true)
-      .not('target_category_id', 'is', null);
+    // 1. Fetch active rules via repository
+    const rules = await automationRepo.findActiveRules({
+      userId: userFilter || undefined,
+      companyId: companyFilter || undefined,
+    });
 
-    if (userFilter) {
-      rulesQuery = rulesQuery.eq('user_id', userFilter);
-      if (companyFilter) {
-        rulesQuery = rulesQuery.or(`company_id.eq.${companyFilter},company_id.is.null`);
-      }
-    }
-
-    const { data: rules, error: rulesError } = await rulesQuery;
-
-    if (rulesError) {
-      console.error('[apply-all-automation-rules] Error fetching rules:', rulesError);
-      return new Response(
-        JSON.stringify({ error: 'Failed to fetch rules' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    if (!rules || rules.length === 0) {
-      console.log('[apply-all-automation-rules] No active rules found');
+    if (rules.length === 0) {
       return new Response(
         JSON.stringify({ message: 'No active rules', matched: 0, updated: 0 }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -197,32 +143,23 @@ Deno.serve(async (req) => {
 
     console.log(`[apply-all-automation-rules] Found ${rules.length} active rules`);
 
-    // 2. Fetch additional conditions for these rules (if any)
+    // 2. Fetch extra conditions via repository
     const ruleIds = rules.map(r => r.id);
-    const { data: allExtraConditions, error: conditionsError } = await supabaseAdmin
-      .from('automation_rule_conditions')
-      .select('*')
-      .in('rule_id', ruleIds);
+    const allExtraConditions = await automationRepo.findConditionsByRuleIds(ruleIds);
 
-    if (conditionsError) {
-      console.error('[apply-all-automation-rules] Error fetching conditions:', conditionsError);
-      // Continue anyway - extra conditions are optional
-    }
-
-    // Group extra conditions by rule_id
+    // Group by rule_id
     const extraConditionsByRule = new Map<string, RuleCondition[]>();
-    for (const condition of (allExtraConditions || [])) {
-      const ruleConditions = extraConditionsByRule.get(condition.rule_id) || [];
+    for (const condition of allExtraConditions) {
+      const ruleConditions = extraConditionsByRule.get((condition as any).rule_id) || [];
       ruleConditions.push({
         condition_field: condition.condition_field,
         condition_operator: condition.condition_operator,
         condition_value: condition.condition_value,
       });
-      extraConditionsByRule.set(condition.rule_id, ruleConditions);
+      extraConditionsByRule.set((condition as any).rule_id, ruleConditions);
     }
 
-    // Create rules with their conditions
-    const rulesWithConditions: AutomationRule[] = rules
+    const rulesWithConditions: FullRule[] = rules
       .filter(rule => rule.condition_field && rule.condition_operator && rule.condition_value)
       .map(rule => ({
         id: rule.id,
@@ -234,10 +171,8 @@ Deno.serve(async (req) => {
         condition_field: rule.condition_field,
         condition_operator: rule.condition_operator,
         condition_value: rule.condition_value,
-        extra_conditions: extraConditionsByRule.get(rule.id) || []
+        extra_conditions: extraConditionsByRule.get(rule.id) || [],
       }));
-
-    console.log(`[apply-all-automation-rules] ${rulesWithConditions.length} rules have valid primary conditions`);
 
     if (rulesWithConditions.length === 0) {
       return new Response(
@@ -246,74 +181,35 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Group rules by user_id for efficient processing
-    const rulesByUser = new Map<string, AutomationRule[]>();
+    // Group rules by user_id
+    const rulesByUser = new Map<string, FullRule[]>();
     for (const rule of rulesWithConditions) {
-      const userId = rule.user_id;
-      if (!rulesByUser.has(userId)) {
-        rulesByUser.set(userId, []);
-      }
-      rulesByUser.get(userId)!.push(rule);
+      if (!rulesByUser.has(rule.user_id)) rulesByUser.set(rule.user_id, []);
+      rulesByUser.get(rule.user_id)!.push(rule);
     }
 
     let totalMatched = 0;
     let totalUpdated = 0;
     const ruleUpdates: { ruleId: string; additionalMatches: number }[] = [];
 
-    // Process each user's rules
     for (const [userId, userRules] of rulesByUser) {
       console.log(`[apply-all-automation-rules] Processing ${userRules.length} rules for user ${userId}`);
 
-      // Fetch uncategorized transactions for this user (paginated)
-      let allTransactions: Transaction[] = [];
-      let page = 0;
-      const pageSize = 1000;
-      let hasMore = true;
-
-      while (hasMore) {
-        let txQuery = supabaseAdmin
-          .from('transactions')
-          .select('id, description, amount, type, category_id, user_id, company_id')
-          .eq('user_id', userId)
-          .is('category_id', null)
-          .is('deleted_at', null)
-          .range(page * pageSize, (page + 1) * pageSize - 1);
-
-        if (companyFilter) {
-          txQuery = txQuery.eq('company_id', companyFilter);
-        }
-
-        const { data: batch, error: txError } = await txQuery;
-
-        if (txError) {
-          console.error(`[apply-all-automation-rules] Error fetching transactions for user ${userId}:`, txError);
-          break;
-        }
-
-        if (batch && batch.length > 0) {
-          allTransactions = allTransactions.concat(batch as Transaction[]);
-          hasMore = batch.length === pageSize;
-          page++;
-        } else {
-          hasMore = false;
-        }
-      }
+      // Fetch uncategorized transactions via repository
+      const allTransactions = await transactionRepo.findUncategorized(
+        companyFilter ? { companyId: companyFilter } : { userId },
+      );
 
       console.log(`[apply-all-automation-rules] Found ${allTransactions.length} uncategorized transactions for user ${userId}`);
-
       if (allTransactions.length === 0) continue;
 
-      // Apply rules to transactions
-      const transactionUpdates = new Map<string, string>(); // transaction_id -> category_id
+      // Apply rules
+      const transactionUpdates = new Map<string, string>();
 
       for (const rule of userRules) {
-        const matchingTxs = allTransactions.filter(tx => {
-          // Skip if already categorized by another rule in this batch
+        const matchingTxs = (allTransactions as unknown as Transaction[]).filter(tx => {
           if (transactionUpdates.has(tx.id)) return false;
-          
-          // Check company match if rule has company_id
           if (rule.company_id && tx.company_id !== rule.company_id) return false;
-          
           return matchesRule(tx, rule);
         });
 
@@ -323,46 +219,36 @@ Deno.serve(async (req) => {
 
         if (matchingTxs.length > 0) {
           ruleUpdates.push({ ruleId: rule.id, additionalMatches: matchingTxs.length });
-          console.log(`[apply-all-automation-rules] Rule "${rule.id}" matched ${matchingTxs.length} transactions`);
         }
       }
 
       totalMatched += transactionUpdates.size;
 
-      // Apply updates in batches, grouped by category
+      // Apply updates via repository, grouped by category
       const updatesByCategory = new Map<string, string[]>();
       for (const [txId, categoryId] of transactionUpdates) {
-        if (!updatesByCategory.has(categoryId)) {
-          updatesByCategory.set(categoryId, []);
-        }
+        if (!updatesByCategory.has(categoryId)) updatesByCategory.set(categoryId, []);
         updatesByCategory.get(categoryId)!.push(txId);
       }
 
       for (const [categoryId, txIds] of updatesByCategory) {
         const batches = chunkArray(txIds, 100);
         for (const batch of batches) {
-          const { error: updateError } = await supabaseAdmin
-            .from('transactions')
-            .update({ category_id: categoryId })
-            .in('id', batch);
-
-          if (updateError) {
-            console.error('[apply-all-automation-rules] Error updating batch:', updateError);
-          } else {
+          try {
+            await transactionRepo.bulkUpdateCategory(batch, categoryId);
             totalUpdated += batch.length;
+          } catch (err) {
+            console.error('[apply-all-automation-rules] Error updating batch:', err);
           }
         }
       }
     }
 
-    // Update match_count for each rule
+    // Update match counts via repository
     for (const { ruleId, additionalMatches } of ruleUpdates) {
       const rule = rules.find(r => r.id === ruleId);
       if (rule) {
-        await supabaseAdmin
-          .from('automation_rules')
-          .update({ match_count: (rule.match_count || 0) + additionalMatches })
-          .eq('id', ruleId);
+        await automationRepo.updateMatchCount(ruleId, (rule.match_count || 0) + additionalMatches);
       }
     }
 
