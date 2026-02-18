@@ -248,7 +248,9 @@ export function useRevenueStreams() {
       
       if (monthsDiff < 0) return 0;
       
-      const netGrowth = (stream.growth_rate || 0.10) - (stream.churn_rate || 0.05);
+      const growthPct = (stream.growth_rate ?? 10) / 100;
+      const churnPct = (stream.churn_rate ?? 5) / 100;
+      const netGrowth = growthPct - churnPct;
       const subscribers = Math.round((stream.initial_subscribers || 0) * Math.pow(1 + netGrowth, monthsDiff));
       return subscribers * (stream.monthly_price || 0);
     }
