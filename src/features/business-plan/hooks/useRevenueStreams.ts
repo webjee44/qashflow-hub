@@ -131,12 +131,12 @@ export function useRevenueStreams() {
           is_active: true,
           initial_subscribers: data.initial_subscribers || 0,
           monthly_price: data.monthly_price || 0,
-          churn_rate: data.churn_rate || 0.05,
-          growth_rate: data.growth_rate || 0.10,
-          annual_growth_rate: data.annual_growth_rate ?? 0.10,
-          growth_rate_year2: data.growth_rate_year2 ?? 0.10,
-          growth_rate_year3: data.growth_rate_year3 ?? 0.10,
-          growth_rate_year4: data.growth_rate_year4 ?? 0.10,
+          churn_rate: data.churn_rate || 5,
+          growth_rate: data.growth_rate || 10,
+          annual_growth_rate: data.annual_growth_rate ?? 10,
+          growth_rate_year2: data.growth_rate_year2 ?? 10,
+          growth_rate_year3: data.growth_rate_year3 ?? 10,
+          growth_rate_year4: data.growth_rate_year4 ?? 10,
         })
         .select()
         .single();
@@ -244,7 +244,9 @@ export function useRevenueStreams() {
       
       if (monthsDiff < 0) return 0;
       
-      const netGrowth = (stream.growth_rate || 0.10) - (stream.churn_rate || 0.05);
+      const growthPct = (stream.growth_rate ?? 10) / 100;
+      const churnPct = (stream.churn_rate ?? 5) / 100;
+      const netGrowth = growthPct - churnPct;
       const subscribers = Math.round((stream.initial_subscribers || 0) * Math.pow(1 + netGrowth, monthsDiff));
       return subscribers * (stream.monthly_price || 0);
     }
@@ -259,12 +261,12 @@ export function useRevenueStreams() {
   };
 
   // Helper: get growth rate for a specific year
-  const getYearGrowthRate = (stream: RevenueStream, yearIndex: number): number => {
+  const getYearGrowthRate = (stream: any, yearIndex: number): number => {
     switch (yearIndex) {
-      case 1: return stream.growth_rate_year2 ?? stream.annual_growth_rate ?? 0.10;
-      case 2: return stream.growth_rate_year3 ?? stream.annual_growth_rate ?? 0.10;
-      case 3: return stream.growth_rate_year4 ?? stream.annual_growth_rate ?? 0.10;
-      default: return stream.growth_rate_year4 ?? stream.annual_growth_rate ?? 0.10;
+      case 1: return (stream.growth_rate_year2 ?? stream.annual_growth_rate ?? 10) / 100;
+      case 2: return (stream.growth_rate_year3 ?? stream.annual_growth_rate ?? 10) / 100;
+      case 3: return (stream.growth_rate_year4 ?? stream.annual_growth_rate ?? 10) / 100;
+      default: return (stream.growth_rate_year4 ?? stream.annual_growth_rate ?? 10) / 100;
     }
   };
 

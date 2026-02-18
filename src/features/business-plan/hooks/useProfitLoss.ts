@@ -299,7 +299,9 @@ export function useProfitLoss() {
       const startMonth = startOfMonth(startDate);
       const monthsDiff = Math.round((targetMonth.getTime() - startMonth.getTime()) / (1000 * 60 * 60 * 24 * 30));
       if (monthsDiff < 0) return 0;
-      const netGrowth = (stream.growth_rate || 0.10) - (stream.churn_rate || 0.05);
+      const growthPct = (stream.growth_rate ?? 10) / 100;
+      const churnPct = (stream.churn_rate ?? 5) / 100;
+      const netGrowth = growthPct - churnPct;
       const subscribers = Math.round((stream.initial_subscribers || 0) * Math.pow(1 + netGrowth, monthsDiff));
       return subscribers * (stream.monthly_price || 0);
     }
@@ -326,10 +328,10 @@ export function useProfitLoss() {
     let projectedAmount = baseAmount;
     
     for (let y = 1; y <= yearOffset; y++) {
-      let growthRate = stream.growth_rate || 0;
-      if (y === 1) growthRate = stream.growth_rate_year2 ?? stream.growth_rate ?? 0;
-      else if (y === 2) growthRate = stream.growth_rate_year3 ?? stream.growth_rate ?? 0;
-      else growthRate = stream.growth_rate_year4 ?? stream.growth_rate ?? 0;
+      let growthRate = (stream.growth_rate || 0) / 100;
+      if (y === 1) growthRate = (stream.growth_rate_year2 ?? stream.growth_rate ?? 0) / 100;
+      else if (y === 2) growthRate = (stream.growth_rate_year3 ?? stream.growth_rate ?? 0) / 100;
+      else growthRate = (stream.growth_rate_year4 ?? stream.growth_rate ?? 0) / 100;
       
       projectedAmount = projectedAmount * (1 + growthRate);
     }
