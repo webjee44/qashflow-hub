@@ -369,12 +369,7 @@ export function UnifiedCategoryList({
                     ) : (
                       <ChevronDown className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                     )}
-                    <div
-                      className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0"
-                      style={{ backgroundColor: `${group.color}20` }}
-                    >
-                      <Folder className="w-3.5 h-3.5" style={{ color: group.color }} />
-                    </div>
+                    <Folder className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                     <span className="font-semibold text-sm uppercase tracking-wide text-foreground">
                       {group.name}
                     </span>
