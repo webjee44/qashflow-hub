@@ -157,7 +157,7 @@ export function ForecastTable() {
   // Transaction detail dialog state
   const [transactionDetailOpen, setTransactionDetailOpen] = useState(false);
   const [transactionDetailData, setTransactionDetailData] = useState<{
-    categoryId: string;
+    categoryId: string | null;
     categoryName: string;
     categoryColor: string;
     categoryType: 'income' | 'expense';
@@ -1307,6 +1307,18 @@ export function ForecastTable() {
     // Check if there are any uncategorized transactions for this type
     const hasUncategorized = months.some(month => getUncategorized(type, month) > 0);
     if (!hasUncategorized) return null;
+
+    const openUncategorizedDetail = (monthIndex: number) => {
+      setTransactionDetailData({
+        categoryId: null,
+        categoryName: type === 'income' ? 'Non catégorisés (encaissements)' : 'Non catégorisés (décaissements)',
+        categoryColor: 'hsl(var(--muted-foreground))',
+        categoryType: type,
+        month: months[monthIndex],
+        forecast: 0,
+      });
+      setTransactionDetailOpen(true);
+    };
     
     return (
       <tr className="bg-muted/30 border-b border-border">
@@ -1333,10 +1345,13 @@ export function ForecastTable() {
           if (periodType === 'past') {
             return (
               <td key={monthIndex} className="p-0 border-r border-border min-w-[90px]">
-                <div className={cn(
-                  "px-3 py-2 text-right font-medium",
-                  amount > 0 ? "text-muted-foreground" : "text-muted-foreground"
-                )}>
+                <div 
+                  className={cn(
+                    "px-3 py-2 text-right font-medium text-muted-foreground",
+                    amount > 0 && "cursor-pointer hover:bg-muted/50"
+                  )}
+                  onClick={() => amount > 0 && openUncategorizedDetail(monthIndex)}
+                >
                   {amount > 0 ? formatValue(amount) : '—'}
                 </div>
               </td>
@@ -1346,10 +1361,13 @@ export function ForecastTable() {
           return (
             <td key={monthIndex} className="p-0 border-r border-border min-w-[160px]">
               <div className="flex">
-                <div className={cn(
-                  "flex-1 px-3 py-2 text-right border-r border-border/50 font-medium",
-                  amount > 0 ? "text-muted-foreground" : "text-muted-foreground"
-                )}>
+                <div 
+                  className={cn(
+                    "flex-1 px-3 py-2 text-right border-r border-border/50 font-medium text-muted-foreground",
+                    amount > 0 && "cursor-pointer hover:bg-muted/50"
+                  )}
+                  onClick={() => amount > 0 && openUncategorizedDetail(monthIndex)}
+                >
                   {amount > 0 ? formatValue(amount) : '—'}
                 </div>
                 <div className="flex-1 px-3 py-2 text-right text-muted-foreground">

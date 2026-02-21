@@ -54,7 +54,7 @@ interface PayableInvoice {
 interface TransactionDetailDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  categoryId: string;
+  categoryId: string | null;
   categoryName: string;
   categoryColor: string;
   categoryType: 'income' | 'expense';
@@ -113,8 +113,9 @@ export function TransactionDetailDialog({
   };
 
   // Fetch transactions for category and month
+  const isUncategorized = categoryId === null;
   const { data: transactions = [], isLoading } = useQuery({
-    queryKey: ['transaction-detail', categoryId, format(currentMonth, 'yyyy-MM')],
+    queryKey: ['transaction-detail', categoryId ?? 'uncategorized', format(currentMonth, 'yyyy-MM')],
     queryFn: async () => {
       if (!user?.id) return [];
 
@@ -124,11 +125,16 @@ export function TransactionDetailDialog({
       let query = supabase
         .from('transactions')
         .select('id, date, description, amount, category_id, type')
-        .eq('category_id', categoryId)
         .gte('date', monthStart)
         .lt('date', monthEnd)
         .is('deleted_at', null)
         .order('date', { ascending: false });
+
+      if (isUncategorized) {
+        query = query.is('category_id', null).eq('type', categoryType);
+      } else {
+        query = query.eq('category_id', categoryId);
+      }
 
       if (currentCompany) {
         query = query.or(`company_id.eq.${currentCompany.id},company_id.is.null`);
@@ -139,7 +145,7 @@ export function TransactionDetailDialog({
       if (error) throw error;
       return (data || []) as Transaction[];
     },
-    enabled: open && !!user?.id && !!categoryId,
+    enabled: open && !!user?.id,
   });
 
   // Fetch payable invoices for this category and month (only for expenses)
@@ -199,6 +205,7 @@ export function TransactionDetailDialog({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['transaction-detail'] });
       queryClient.invalidateQueries({ queryKey: ['category-actuals'] });
+      queryClient.invalidateQueries({ queryKey: ['uncategorized-transactions'] });
       toast.success('Transaction recatégorisée');
     },
     onError: () => {
