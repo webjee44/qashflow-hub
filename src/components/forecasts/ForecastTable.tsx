@@ -423,7 +423,7 @@ export function ForecastTable() {
           <div 
             className={cn(
               "px-3 py-2 text-right bg-muted/20 transition-colors",
-              hasActual && (isPositive ? "text-success" : "text-destructive"),
+              hasActual && (isPositive ? "text-success" : "text-foreground"),
               hasActual && "cursor-pointer hover:bg-muted/40"
             )}
             onClick={() => hasActual && openTransactionDetail(category, monthIndex)}
@@ -546,7 +546,7 @@ export function ForecastTable() {
             <div 
               className={cn(
                 "flex-1 px-3 py-2 text-right border-r border-border/50 bg-primary/5 transition-colors",
-                hasActual && (isPositive ? "text-success" : "text-destructive"),
+                hasActual && (isPositive ? "text-success" : "text-foreground"),
                 hasActual && "cursor-pointer hover:bg-primary/10"
               )}
               onClick={() => hasActual && openTransactionDetail(category, monthIndex)}
@@ -768,7 +768,7 @@ export function ForecastTable() {
           <div 
             className={cn(
               "flex-1 px-3 py-2 text-right border-r border-border/50 bg-primary/5 transition-colors",
-              hasActual && (isPositive ? "text-success" : "text-destructive"),
+              hasActual && (isPositive ? "text-success" : "text-foreground"),
               hasActual && "cursor-pointer hover:bg-primary/10"
             )}
             onClick={() => hasActual && openTransactionDetail(category, monthIndex)}
@@ -921,7 +921,7 @@ export function ForecastTable() {
     
     const groupId = group.group.id;
     const isCollapsed = collapsedGroups.has(groupId);
-    const textClass = type === 'income' ? 'text-success' : 'text-destructive';
+    const textClass = type === 'income' ? 'text-success' : 'text-foreground';
     
     return (
       <tr 
@@ -1129,7 +1129,7 @@ export function ForecastTable() {
 
   const renderTotalRow = (label: string, type: 'income' | 'expense', variant: 'subtotal' | 'total' = 'subtotal') => {
     const bgClass = variant === 'total' ? 'bg-primary/10' : 'bg-muted/50';
-    const textClass = type === 'income' ? 'text-success' : 'text-destructive';
+    const textClass = type === 'income' ? 'text-success' : 'text-foreground';
     
     return (
       <tr className={cn("font-semibold", bgClass)}>
@@ -1180,7 +1180,7 @@ export function ForecastTable() {
   };
 
   const renderVatRow = (label: string, type: 'income' | 'expense') => {
-    const textClass = type === 'income' ? 'text-success/70' : 'text-destructive/70';
+    const textClass = type === 'income' ? 'text-success/70' : 'text-muted-foreground';
     
     return (
       <tr className="bg-muted/30 text-sm">
@@ -1230,7 +1230,7 @@ export function ForecastTable() {
   };
 
   const renderTtcRow = (label: string, type: 'income' | 'expense') => {
-    const textClass = type === 'income' ? 'text-success' : 'text-destructive';
+    const textClass = type === 'income' ? 'text-success' : 'text-foreground';
     
     return (
       <tr className="font-bold bg-muted/60">
@@ -1377,7 +1377,7 @@ export function ForecastTable() {
   const renderVatToPayRow = () => {
     return (
       <tr className="bg-muted/30 text-sm">
-        <td className="p-2 pl-6 sticky left-0 z-10 bg-muted/30 border-r border-border italic text-destructive/70">
+        <td className="p-2 pl-6 sticky left-0 z-10 bg-muted/30 border-r border-border italic text-muted-foreground">
           💰 TVA à décaisser
         </td>
         {months.map((month, monthIndex) => {
@@ -1393,7 +1393,7 @@ export function ForecastTable() {
               <td key={monthIndex} className="p-0 border-r border-border min-w-[90px]">
                 <div className={cn(
                   "px-3 py-1.5 text-right",
-                  vatToPayActual > 0 ? "text-destructive/70" : vatToPayActual < 0 ? "text-success" : "text-muted-foreground"
+                  vatToPayActual > 0 ? "text-muted-foreground" : vatToPayActual < 0 ? "text-success" : "text-muted-foreground"
                 )}>
                   {hasActual ? formatValue(Math.max(0, vatToPayActual)) : '—'}
                 </div>
@@ -1406,7 +1406,7 @@ export function ForecastTable() {
               <td key={monthIndex} className="p-0 border-r border-border min-w-[90px]">
                 <div className={cn(
                   "px-3 py-1.5 text-right",
-                  vatToPayForecast > 0 ? "text-destructive/70" : vatToPayForecast < 0 ? "text-success" : "text-muted-foreground"
+                  vatToPayForecast > 0 ? "text-muted-foreground" : vatToPayForecast < 0 ? "text-success" : "text-muted-foreground"
                 )}>
                   {hasForecast ? formatValue(Math.max(0, vatToPayForecast)) : '—'}
                 </div>
@@ -1419,13 +1419,13 @@ export function ForecastTable() {
               <div className="flex">
                 <div className={cn(
                   "flex-1 px-3 py-1.5 text-right border-r border-border/50",
-                  vatToPayActual > 0 ? "text-destructive/70" : vatToPayActual < 0 ? "text-success" : "text-muted-foreground"
+                  vatToPayActual > 0 ? "text-muted-foreground" : vatToPayActual < 0 ? "text-success" : "text-muted-foreground"
                 )}>
                   {hasActual ? formatValue(Math.max(0, vatToPayActual)) : '—'}
                 </div>
                 <div className={cn(
                   "flex-1 px-3 py-1.5 text-right",
-                  vatToPayForecast > 0 ? "text-destructive/70" : vatToPayForecast < 0 ? "text-success" : "text-muted-foreground"
+                  vatToPayForecast > 0 ? "text-muted-foreground" : vatToPayForecast < 0 ? "text-success" : "text-muted-foreground"
                 )}>
                   {hasForecast ? formatValue(Math.max(0, vatToPayForecast)) : '—'}
                 </div>
@@ -1453,7 +1453,7 @@ export function ForecastTable() {
               <td key={monthIndex} className="p-0 border-r border-border min-w-[90px]">
                 <div className={cn(
                   "px-3 py-2 text-right font-bold",
-                  balance >= 0 ? "text-primary" : "text-destructive"
+                  balance >= 0 ? "text-primary" : "text-foreground"
                 )}>
                   {formatValue(balance)}
                 </div>
@@ -1466,7 +1466,7 @@ export function ForecastTable() {
               <td key={monthIndex} className="p-0 border-r border-border min-w-[90px]">
                 <div className={cn(
                   "px-3 py-2 text-right font-bold italic",
-                  balance >= 0 ? "text-muted-foreground" : "text-destructive"
+                  balance >= 0 ? "text-muted-foreground" : "text-foreground"
                 )}>
                   {formatValue(balance)}
                 </div>
