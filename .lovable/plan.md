@@ -1,68 +1,72 @@
 
+# Catégorie "Virement intercompte" -- neutralisation en trésorerie
 
-# Mise en valeur du mois en cours : Reel vs Prevu
+## Contexte
 
-## Constat actuel
+Quand un virement est fait du compte A vers le compte B (même entreprise), deux transactions apparaissent : une sortie (-5000) et une entrée (+5000). En net, l'impact trésorerie est nul. Aujourd'hui, ces mouvements polluent les encaissements/décaissements et faussent les totaux.
 
-Le mois en cours affiche deja deux sous-colonnes "Reel" et "Prevu", mais visuellement il se fond trop avec les autres mois. On ne voit pas d'un coup d'oeil ou on en est par rapport aux previsions.
+## Solution proposée
 
-## Inspirations Zenfirst
+Créer une catégorie système **"Virement intercompte"** qui :
+1. Est créée automatiquement par société (non supprimable)
+2. Les transactions catégorisées avec cette catégorie sont **exclues** des totaux encaissements/décaissements et du graphique prévisionnel
 
-L'ecran Zenfirst montre pour le mois courant :
-- Un en-tete de colonne clairement mis en avant (fond colore distinct)
-- Pour chaque categorie : affichage **"Reel / Prevu"** avec une **barre de progression** en dessous
-- Les barres sont vertes (encaissements) ou rouges (decaissements) et montrent le % de realisation
-- Les totaux du mois courant montrent aussi ce format avec barre
+---
 
-## Modifications proposees
+## Etapes techniques
 
-### 1. En-tete du mois courant plus visible
-- Ajouter un fond `bg-primary/10` plus marque sur l'en-tete du mois courant + une bordure gauche/droite coloree `border-x-2 border-primary/30`
-- Mettre le nom du mois en couleur primaire
+### 1. Ajouter une colonne `is_system` sur la table `categories`
 
-### 2. Barres de progression dans les cellules du mois courant
-Pour chaque cellule du mois en cours (categories, totaux, variation nette), ajouter sous les valeurs une mini barre de progression :
-- **Encaissements** : barre verte, % = reel / prevu
-- **Decaissements** : barre rouge, % = reel / prevu  
-- Largeur de la barre = `min(100%, (reel/prevu) * 100)%`
-- Si reel depasse prevu : barre a 100% avec couleur plus intense
+Migration SQL :
+- `ALTER TABLE categories ADD COLUMN is_system boolean NOT NULL DEFAULT false;`
+- Cette colonne empêchera la suppression côté frontend
 
-### 3. Lignes de synthese (totaux, soldes) du mois courant
-- Les lignes "Total Encaissements", "Total Decaissements", "Variation nette" et "Solde de fin de mois" du mois courant auront aussi une barre de progression
-- Le solde de fin de mois montre la progression vers la prevision
+### 2. Créer automatiquement la catégorie au chargement
 
-## Details techniques
+Dans `useCategories.ts` :
+- Lors de `initializeDefaultCategories`, ajouter la catégorie "Virement intercompte" avec `is_system: true`, type `expense`, icone `ArrowLeftRight`, couleur gris neutre
+- Ajouter une fonction `ensureSystemCategories()` appelée au chargement qui vérifie si la catégorie système existe et la crée si absente (même si les catégories par défaut ont déjà été initialisées)
 
-### Fichier : `src/components/forecasts/ForecastTable.tsx`
+### 3. Empêcher la suppression côté UI
 
-**Nouveau composant interne `ProgressBar`** :
-```tsx
-const ProgressBar = ({ actual, forecast, type }: { actual: number; forecast: number; type: 'income' | 'expense' | 'balance' }) => {
-  if (forecast === 0 && actual === 0) return null;
-  const pct = forecast > 0 ? Math.min(100, (actual / forecast) * 100) : (actual > 0 ? 100 : 0);
-  const colorClass = type === 'income' ? 'bg-success' : type === 'expense' ? 'bg-destructive' : 'bg-primary';
-  const overBudget = forecast > 0 && actual > forecast;
-  return (
-    <div className="w-full h-1.5 bg-muted/50 rounded-full mt-1">
-      <div className={cn(colorClass, overBudget && "opacity-80", "h-full rounded-full transition-all")}
-        style={{ width: `${pct}%` }} />
-    </div>
-  );
-};
-```
+- `CategoryCard.tsx` : masquer le bouton supprimer si `category.is_system === true`
+- `UnifiedCategoryList.tsx` : idem dans les menus contextuels
+- `CategoryDialog.tsx` : rendre le nom en lecture seule pour les catégories système
+- `useCategories.ts` : ajouter un guard dans `deleteCategory` qui refuse la suppression si `is_system`
 
-**Modification de `renderCell` (mois courant)** : ajouter `<ProgressBar>` sous les valeurs dans la sous-colonne "Reel" du mois courant.
+### 4. Exclure du tableau de prévisions
 
-**Modification du header `<thead>`** : renforcer le style du mois courant avec un fond plus visible, une bordure coloree, et le nom du mois en `text-primary font-bold`.
+Dans `ForecastTable.tsx` :
+- Filtrer les transactions catégorisées "Virement intercompte" des calculs de totaux encaissements et décaissements
+- Ne pas afficher de ligne pour cette catégorie dans le tableau (ou l'afficher en grisé avec un total toujours nul)
 
-**Modification des lignes de totaux** (`renderTtcRow`, `renderNetRow`, `renderClosingBalanceRow`) : ajouter la barre de progression pour le mois courant.
+### 5. Exclure du graphique
 
-### Fichier unique concerne
-- `src/components/forecasts/ForecastTable.tsx`
+Dans `ForecastChart.tsx` :
+- Exclure les montants "Virement intercompte" des barres income/expense et du calcul de solde net
 
-## Resultat attendu
-Le mois en cours ressort immediatement dans le tableau avec :
-- Un en-tete visuellement distinct (fond colore + bordures)
-- Des barres de progression montrant en un clin d'oeil le taux de realisation reel/prevu par categorie
-- Une lecture instantanee du type "on est a 70% des encaissements prevus ce mois"
+### 6. Mettre à jour le type TypeScript
 
+- Ajouter `is_system?: boolean` dans l'interface `Category`
+- Mettre à jour le schema Zod `categorySchema` dans `src/lib/schemas.ts`
+- Mettre à jour `CategoryInsert` dans `categoryApi.ts`
+
+### 7. Exclure du dashboard
+
+Dans les hooks/composants du dashboard (`useDashboardStats.ts`, `CategoryBreakdown.tsx`), exclure aussi les transactions "Virement intercompte" des statistiques pour ne pas gonfler artificiellement les entrées/sorties.
+
+---
+
+## Résumé des fichiers modifiés
+
+| Fichier | Modification |
+|---|---|
+| Migration SQL | Ajout colonne `is_system` |
+| `src/features/categories/hooks/useCategories.ts` | Création auto + guard suppression |
+| `src/features/categories/api/categoryApi.ts` | Ajout `is_system` dans l'insert |
+| `src/lib/schemas.ts` | Ajout `is_system` au schema Zod |
+| `src/components/categories/CategoryCard.tsx` | Masquer bouton supprimer si système |
+| `src/components/categories/UnifiedCategoryList.tsx` | Masquer suppression si système |
+| `src/components/forecasts/ForecastTable.tsx` | Exclure des totaux |
+| `src/components/forecasts/ForecastChart.tsx` | Exclure des barres |
+| `src/hooks/useDashboardStats.ts` | Exclure des stats |
