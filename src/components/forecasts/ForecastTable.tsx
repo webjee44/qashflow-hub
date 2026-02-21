@@ -1918,8 +1918,7 @@ export function ForecastTable() {
             {renderVatToPayRow()}
             {renderTtcRow('Total Décaissements', 'expense')}
 
-            {/* Payables Row (supplier debts) */}
-            {renderPayablesRow()}
+            {/* Uncategorized payables notification moved to Engagements sidebar badge */}
 
             {/* Net Row */}
             {renderNetRow()}

@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState, useMemo, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { useAppMode } from '@/hooks/useAppMode';
 import { useBPSettings } from '@/hooks/useBPSettings';
@@ -112,6 +113,25 @@ export function Sidebar() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const currentPath = location.pathname;
+
+  // Count uncategorized payable invoices for badge
+  const { data: uncategorizedPayablesCount = 0 } = useQuery({
+    queryKey: ['uncategorized-payables-count', user?.id, currentCompany?.id],
+    queryFn: async () => {
+      if (!user?.id || !currentCompany?.id) return 0;
+      const { count, error } = await supabase
+        .from('invoices')
+        .select('id', { count: 'exact', head: true })
+        .eq('company_id', currentCompany.id)
+        .eq('type', 'payable')
+        .eq('status', 'pending')
+        .is('category_id', null);
+      if (error) return 0;
+      return count || 0;
+    },
+    enabled: !!user?.id && !!currentCompany?.id,
+    staleTime: 1000 * 60 * 5,
+  });
   
   // Both modules are always available — no restriction
   const showTreasuryModule = true;
@@ -330,7 +350,19 @@ export function Sidebar() {
                       isActive && "drop-shadow-sm"
                     )} />
                     {!isCollapsed && (
-                      <span className="font-medium">{item.label}</span>
+                      <>
+                        <span className="font-medium">{item.label}</span>
+                        {item.href === '/creances' && uncategorizedPayablesCount > 0 && (
+                          <span className={cn(
+                            "ml-auto flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-xs font-bold",
+                            isActive
+                              ? "bg-primary-foreground/20 text-primary-foreground"
+                              : "bg-destructive text-destructive-foreground"
+                          )}>
+                            {uncategorizedPayablesCount}
+                          </span>
+                        )}
+                      </>
                     )}
                   </Link>
                 </motion.div>
