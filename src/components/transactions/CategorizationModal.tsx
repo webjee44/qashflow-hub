@@ -364,10 +364,6 @@ export function CategorizationModal({
               <div key={group.group?.id || 'ungrouped'}>
                 {group.group && (
                   <div className="px-3 py-1.5 text-xs font-semibold text-muted-foreground flex items-center gap-2 mt-2">
-                    <div
-                      className="w-2 h-2 rounded-full shrink-0"
-                      style={{ backgroundColor: group.group.color }}
-                    />
                     {group.group.name}
                   </div>
                 )}

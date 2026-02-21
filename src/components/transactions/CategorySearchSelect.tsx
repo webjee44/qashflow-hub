@@ -188,10 +188,6 @@ export function CategorySearchSelect({
         <div key={group.group.id}>
           {/* Group header - not selectable */}
           <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground flex items-center gap-2">
-            <div
-              className="h-2 w-2 rounded-full shrink-0"
-              style={{ backgroundColor: group.group.color }}
-            />
             {group.group.name}
           </div>
           {/* Children */}
