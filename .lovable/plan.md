@@ -1,73 +1,68 @@
 
 
-# Refonte des soldes dans le tableau de previsions
+# Mise en valeur du mois en cours : Reel vs Prevu
 
-## Problemes identifies
+## Constat actuel
 
-1. **"Solde Net TTC"** est un nom trompeur : c'est la variation nette du mois (encaissements - decaissements), pas un solde bancaire. Les utilisateurs confondent.
-2. **"Solde au 1er du mois"** est correct dans la logique mais ne montre pas le solde de fin de mois, ce qui empeche de voir l'evolution du solde bancaire cumule.
-3. L'utilisateur ne peut pas lire directement : "je commence le mois a X, il se passe Y, je finis a Z".
+Le mois en cours affiche deja deux sous-colonnes "Reel" et "Prevu", mais visuellement il se fond trop avec les autres mois. On ne voit pas d'un coup d'oeil ou on en est par rapport aux previsions.
 
-## Solution proposee
+## Inspirations Zenfirst
 
-Restructurer le tableau pour afficher clairement 3 lignes de synthese :
+L'ecran Zenfirst montre pour le mois courant :
+- Un en-tete de colonne clairement mis en avant (fond colore distinct)
+- Pour chaque categorie : affichage **"Reel / Prevu"** avec une **barre de progression** en dessous
+- Les barres sont vertes (encaissements) ou rouges (decaissements) et montrent le % de realisation
+- Les totaux du mois courant montrent aussi ce format avec barre
 
-```text
-+------------------------------+----------+----------+----------+
-|                               | Janv     | Fev      | Mars     |
-+------------------------------+----------+----------+----------+
-| Solde de debut de mois        | 50 000   | 55 000   | 48 000   |
-|   Encaissements (detail...)   |          |          |          |
-|   Total Encaissements TTC     | 30 000   | 25 000   | 32 000   |
-|   Decaissements (detail...)   |          |          |          |
-|   Total Decaissements TTC     | 25 000   | 32 000   | 28 000   |
-| Variation nette du mois       | +5 000   | -7 000   | +4 000   |
-| Solde de fin de mois          | 55 000   | 48 000   | 52 000   |
-+------------------------------+----------+----------+----------+
+## Modifications proposees
+
+### 1. En-tete du mois courant plus visible
+- Ajouter un fond `bg-primary/10` plus marque sur l'en-tete du mois courant + une bordure gauche/droite coloree `border-x-2 border-primary/30`
+- Mettre le nom du mois en couleur primaire
+
+### 2. Barres de progression dans les cellules du mois courant
+Pour chaque cellule du mois en cours (categories, totaux, variation nette), ajouter sous les valeurs une mini barre de progression :
+- **Encaissements** : barre verte, % = reel / prevu
+- **Decaissements** : barre rouge, % = reel / prevu  
+- Largeur de la barre = `min(100%, (reel/prevu) * 100)%`
+- Si reel depasse prevu : barre a 100% avec couleur plus intense
+
+### 3. Lignes de synthese (totaux, soldes) du mois courant
+- Les lignes "Total Encaissements", "Total Decaissements", "Variation nette" et "Solde de fin de mois" du mois courant auront aussi une barre de progression
+- Le solde de fin de mois montre la progression vers la prevision
+
+## Details techniques
+
+### Fichier : `src/components/forecasts/ForecastTable.tsx`
+
+**Nouveau composant interne `ProgressBar`** :
+```tsx
+const ProgressBar = ({ actual, forecast, type }: { actual: number; forecast: number; type: 'income' | 'expense' | 'balance' }) => {
+  if (forecast === 0 && actual === 0) return null;
+  const pct = forecast > 0 ? Math.min(100, (actual / forecast) * 100) : (actual > 0 ? 100 : 0);
+  const colorClass = type === 'income' ? 'bg-success' : type === 'expense' ? 'bg-destructive' : 'bg-primary';
+  const overBudget = forecast > 0 && actual > forecast;
+  return (
+    <div className="w-full h-1.5 bg-muted/50 rounded-full mt-1">
+      <div className={cn(colorClass, overBudget && "opacity-80", "h-full rounded-full transition-all")}
+        style={{ width: `${pct}%` }} />
+    </div>
+  );
+};
 ```
 
-Le solde de fin du mois N = solde de debut du mois N+1 (coherence garantie).
+**Modification de `renderCell` (mois courant)** : ajouter `<ProgressBar>` sous les valeurs dans la sous-colonne "Reel" du mois courant.
 
-## Modifications techniques
+**Modification du header `<thead>`** : renforcer le style du mois courant avec un fond plus visible, une bordure coloree, et le nom du mois en `text-primary font-bold`.
 
-### 1. Renommer "Solde Net TTC" en "Variation nette du mois"
-- Fichier : `src/components/forecasts/ForecastTable.tsx`, fonction `renderNetRow()`
-- Changer le label de "Solde Net TTC" a "Variation nette du mois"
-- Le calcul reste identique (encaissements TTC - decaissements TTC)
+**Modification des lignes de totaux** (`renderTtcRow`, `renderNetRow`, `renderClosingBalanceRow`) : ajouter la barre de progression pour le mois courant.
 
-### 2. Ajouter une ligne "Solde de fin de mois"
-- Fichier : `src/components/forecasts/ForecastTable.tsx`
-- Nouvelle fonction `renderClosingBalanceRow()`
-- Calcul : `solde debut du mois + variation nette = solde fin de mois`
-- Pour les mois passes : solde debut + flux reels
-- Pour les mois futurs : solde debut + flux previsionnels
-- Style : ligne en gras avec fond colore, rouge si negatif
-
-### 3. Ajouter un helper `getClosingBalance` dans useForecasts
-- Fichier : `src/hooks/useForecasts.ts`
-- Logique : `getOpeningBalance(month).balance + getMonthNetForecast(month)` pour le futur
-- Pour les mois passes : `getOpeningBalance(nextMonth).balance` (le solde d'ouverture du mois suivant = cloture du mois courant)
-
-### 4. Repositionner les lignes dans le tableau
-- Ordre final dans le `<tbody>` :
-  1. Solde de debut de mois (existant, renomme depuis "Solde au 1er du mois")
-  2. Section Encaissements (inchange)
-  3. Total Encaissements TTC (inchange)
-  4. Section Decaissements (inchange)
-  5. TVA a decaisser (inchange)
-  6. Total Decaissements TTC (inchange)
-  7. Dettes non categorisees (inchange)
-  8. **Variation nette du mois** (ex "Solde Net TTC")
-  9. **Solde de fin de mois** (nouveau)
-
-### 5. Impact sur le graphique
-- Fichier : `src/components/forecasts/ForecastChart.tsx`
-- Ajouter une courbe "Solde projete" qui montre l'evolution du solde de fin de mois dans le temps (optionnel, a confirmer)
-
-## Fichiers concernes
-- `src/hooks/useForecasts.ts` : ajout de `getClosingBalance`
-- `src/components/forecasts/ForecastTable.tsx` : renommage + nouvelle ligne + reorganisation
+### Fichier unique concerne
+- `src/components/forecasts/ForecastTable.tsx`
 
 ## Resultat attendu
-L'utilisateur voit clairement pour chaque mois : solde initial, flux entrants/sortants, et solde final. Le solde de fin de mois N est identique au solde de debut du mois N+1, garantissant la coherence de la projection.
+Le mois en cours ressort immediatement dans le tableau avec :
+- Un en-tete visuellement distinct (fond colore + bordures)
+- Des barres de progression montrant en un clin d'oeil le taux de realisation reel/prevu par categorie
+- Une lecture instantanee du type "on est a 70% des encaissements prevus ce mois"
 
