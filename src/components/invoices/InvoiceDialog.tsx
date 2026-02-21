@@ -129,9 +129,11 @@ export function InvoiceDialog({
     onOpenChange(false);
   };
 
-  const filteredCategories = categories.filter(c => 
-    invoiceType === 'receivable' ? c.type === 'income' : c.type === 'expense'
-  );
+  const filteredCategories = categories.filter(c => {
+    const isGroup = c.icon === 'Folder' || categories.some(child => child.parent_id === c.id);
+    if (isGroup) return false;
+    return invoiceType === 'receivable' ? c.type === 'income' : c.type === 'expense';
+  });
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

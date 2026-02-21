@@ -90,9 +90,9 @@ export function InvoiceTable({ invoices, onEdit, onMarkAsPaid, onDelete, onUpdat
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const { categories } = useCategories();
 
-  // Catégories par type
+  // Catégories par type (exclure les groupes)
   const expenseCategories = useMemo(() => 
-    categories.filter(c => c.type === 'expense'), [categories]);
+    categories.filter(c => c.type === 'expense' && c.icon !== 'Folder' && !categories.some(child => child.parent_id === c.id)), [categories]);
 
   const getCategoryName = (categoryId: string | null) => {
     if (!categoryId) return null;
