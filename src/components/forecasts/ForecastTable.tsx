@@ -73,6 +73,7 @@ export function ForecastTable() {
     getPayableOutflowByCategory,
     getPayableOutflowUncategorized,
     getOpeningBalance,
+    getClosingBalance,
     upsertForecast, 
     isLoading: forecastsLoading,
     extendBefore,
@@ -1387,7 +1388,7 @@ export function ForecastTable() {
     return (
       <tr className="font-semibold bg-primary/5 border-b-2 border-primary/30">
         <td className="p-3 sticky left-0 z-10 bg-primary/5 border-r border-border text-primary">
-          🏦 Solde au 1er du mois
+          🏦 Solde de début de mois
         </td>
         {months.map((month, monthIndex) => {
           const { balance, isActual } = getOpeningBalance(month);
@@ -1510,7 +1511,7 @@ export function ForecastTable() {
     return (
       <tr className="font-bold bg-card border-t-2 border-primary">
         <td className="p-3 sticky left-0 z-10 bg-card border-r border-border text-primary">
-          Solde Net TTC
+          Variation nette du mois
         </td>
         {months.map((month, monthIndex) => {
           const incomeHt = getMonthTotal('income', monthIndex, 'actual');
@@ -1584,6 +1585,66 @@ export function ForecastTable() {
                   netForecast >= 0 ? "text-primary" : "text-destructive"
                 )}>
                   {hasForecast ? formatValue(netForecast) : '—'}
+                </div>
+              </div>
+            </td>
+          );
+        })}
+      </tr>
+    );
+  };
+
+  const renderClosingBalanceRow = () => {
+    return (
+      <tr className="font-semibold bg-primary/10 border-t-2 border-primary/30">
+        <td className="p-3 sticky left-0 z-10 bg-primary/10 border-r border-border text-primary">
+          🏦 Solde de fin de mois
+        </td>
+        {months.map((month, monthIndex) => {
+          const { balance, isActual } = getClosingBalance(month);
+          const periodType = getMonthPeriodType(month);
+          
+          if (periodType === 'past') {
+            return (
+              <td key={monthIndex} className="p-0 border-r border-border min-w-[90px]">
+                <div className={cn(
+                  "px-3 py-2 text-right font-bold",
+                  balance >= 0 ? "text-primary" : "text-destructive"
+                )}>
+                  {formatValue(balance)}
+                </div>
+              </td>
+            );
+          }
+          
+          if (periodType === 'future') {
+            return (
+              <td key={monthIndex} className="p-0 border-r border-border min-w-[90px]">
+                <div className={cn(
+                  "px-3 py-2 text-right font-bold italic",
+                  balance >= 0 ? "text-muted-foreground" : "text-destructive"
+                )}>
+                  {formatValue(balance)}
+                </div>
+              </td>
+            );
+          }
+          
+          // Current month: show in both columns
+          return (
+            <td key={monthIndex} className="p-0 border-r border-border min-w-[160px]">
+              <div className="flex">
+                <div className={cn(
+                  "flex-1 px-3 py-2 text-right border-r border-border/50 font-bold",
+                  balance >= 0 ? "text-primary" : "text-destructive"
+                )}>
+                  {formatValue(balance)}
+                </div>
+                <div className={cn(
+                  "flex-1 px-3 py-2 text-right font-bold italic",
+                  balance >= 0 ? "text-muted-foreground" : "text-destructive"
+                )}>
+                  {formatValue(balance)}
                 </div>
               </div>
             </td>
@@ -1791,6 +1852,9 @@ export function ForecastTable() {
 
             {/* Net Row */}
             {renderNetRow()}
+
+            {/* Closing Balance Row */}
+            {renderClosingBalanceRow()}
           </tbody>
         </table>
       </div>
