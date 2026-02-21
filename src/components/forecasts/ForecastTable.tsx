@@ -6,7 +6,7 @@ import { useCompany } from '@/hooks/useCompany';
 import { useForecasts } from '@/hooks/useForecasts';
 import { format, startOfMonth, isBefore, isSameMonth } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { Loader2, Copy, Check, CheckCircle2, TrendingUp, ChevronRight, ChevronDown, Link2, ChevronsUpDown, ChevronsDownUp, MoreHorizontal, Edit3, Trash2, Eye, EyeOff, ArrowUpRight, FileText, AlertTriangle, Folder } from 'lucide-react';
+import { Loader2, Copy, Check, CheckCircle2, TrendingUp, Plus, Minus, Link2, ChevronsUpDown, ChevronsDownUp, MoreHorizontal, Edit3, Trash2, Eye, EyeOff, ArrowUpRight, FileText, AlertTriangle } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -926,21 +926,22 @@ export function ForecastTable() {
     return (
       <tr 
         key={`group-${groupId}`}
-        className="bg-muted/50 cursor-pointer hover:bg-muted/70 transition-colors border-t-2 border-b border-border"
+        className="group/row cursor-pointer transition-colors duration-200 hover:bg-muted/60 border-b border-border"
         onClick={() => toggleGroup(groupId)}
       >
-        <td className="p-3 sticky left-0 z-10 bg-muted/50 border-r border-border">
-          <div className="flex items-center gap-2">
-            {isCollapsed ? (
-              <ChevronRight className="w-4 h-4 text-muted-foreground" />
-            ) : (
-              <ChevronDown className="w-4 h-4 text-muted-foreground" />
-            )}
-            <Folder className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-            <span className={cn("font-bold uppercase tracking-wide text-foreground", textClass)}>
+        <td className="p-3 sticky left-0 z-10 border-r border-border transition-colors duration-200 group-hover/row:bg-muted/60">
+          <div className="flex items-center gap-2.5">
+            <div className="w-5 h-5 rounded-md flex items-center justify-center bg-muted transition-colors duration-200 group-hover/row:bg-foreground/10">
+              {isCollapsed ? (
+                <Plus className="w-3 h-3 text-muted-foreground transition-colors group-hover/row:text-foreground" />
+              ) : (
+                <Minus className="w-3 h-3 text-muted-foreground transition-colors group-hover/row:text-foreground" />
+              )}
+            </div>
+            <span className={cn("font-semibold text-xs uppercase tracking-wider", textClass)}>
               {group.group.name}
             </span>
-            <span className="text-xs text-muted-foreground bg-background/50 px-1.5 py-0.5 rounded">
+            <span className="text-[10px] text-muted-foreground tabular-nums">
               {group.children.length}
             </span>
           </div>
@@ -952,8 +953,8 @@ export function ForecastTable() {
           
           if (periodType === 'past') {
             return (
-              <td key={monthIndex} className="p-0 border-r border-border bg-muted/30 min-w-[90px]">
-                <div className={cn("px-3 py-2 text-right font-semibold", textClass)}>
+              <td key={monthIndex} className="p-0 border-r border-border min-w-[90px] transition-colors duration-200 group-hover/row:bg-muted/60">
+                <div className={cn("px-3 py-2 text-right font-semibold text-xs", textClass)}>
                   {actualTotal > 0 ? formatValue(actualTotal) : '—'}
                 </div>
               </td>
@@ -962,8 +963,8 @@ export function ForecastTable() {
           
           if (periodType === 'future') {
             return (
-              <td key={monthIndex} className="p-0 border-r border-border bg-muted/30 min-w-[90px]">
-                <div className={cn("px-3 py-2 text-right font-semibold", textClass)}>
+              <td key={monthIndex} className="p-0 border-r border-border min-w-[90px] transition-colors duration-200 group-hover/row:bg-muted/60">
+                <div className={cn("px-3 py-2 text-right font-semibold text-xs", textClass)}>
                   {forecastTotal > 0 ? formatValue(forecastTotal) : '—'}
                 </div>
               </td>
@@ -972,12 +973,12 @@ export function ForecastTable() {
           
           // Current month: both
           return (
-            <td key={monthIndex} className="p-0 border-r border-border bg-muted/30 min-w-[160px]">
+            <td key={monthIndex} className="p-0 border-r border-border min-w-[160px] transition-colors duration-200 group-hover/row:bg-muted/60">
               <div className="flex">
-                <div className={cn("flex-1 px-3 py-2 text-right border-r border-border/50 font-semibold", textClass)}>
+                <div className={cn("flex-1 px-3 py-2 text-right border-r border-border/50 font-semibold text-xs", textClass)}>
                   {actualTotal > 0 ? formatValue(actualTotal) : '—'}
                 </div>
-                <div className={cn("flex-1 px-3 py-2 text-right font-semibold", textClass)}>
+                <div className={cn("flex-1 px-3 py-2 text-right font-semibold text-xs", textClass)}>
                   {forecastTotal > 0 ? formatValue(forecastTotal) : '—'}
                 </div>
               </div>

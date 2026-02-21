@@ -1,8 +1,8 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  ChevronDown, 
-  ChevronRight, 
+  Plus,
+  Minus,
   Edit3, 
   Trash2, 
   FolderPlus, 
@@ -11,7 +11,6 @@ import {
   Ghost,
   Loader2,
   GripVertical,
-  Folder
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -355,7 +354,7 @@ export function UnifiedCategoryList({
                 {/* Group header */}
                 <div
                   className={cn(
-                    "flex items-center justify-between px-4 py-2.5 bg-muted/50 cursor-pointer transition-all",
+                    "flex items-center justify-between px-4 py-2.5 cursor-pointer transition-all duration-200 hover:bg-muted/60",
                     isDropTarget && "ring-2 ring-inset ring-primary bg-primary/5"
                   )}
                   onClick={() => toggleGroup(group.id)}
@@ -363,19 +362,20 @@ export function UnifiedCategoryList({
                   onDragLeave={handleDragLeave}
                   onDrop={(e) => handleDropOnGroup(e, group.id)}
                 >
-                  <div className="flex items-center gap-2">
-                    {isCollapsed ? (
-                      <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                    ) : (
-                      <ChevronDown className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                    )}
-                    <Folder className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                    <span className="font-semibold text-sm uppercase tracking-wide text-foreground">
+                  <div className="flex items-center gap-2.5 group/header">
+                    <div className="w-5 h-5 rounded-md flex items-center justify-center bg-muted transition-colors duration-200 group-hover/header:bg-foreground/10">
+                      {isCollapsed ? (
+                        <Plus className="w-3 h-3 text-muted-foreground transition-colors group-hover/header:text-foreground" />
+                      ) : (
+                        <Minus className="w-3 h-3 text-muted-foreground transition-colors group-hover/header:text-foreground" />
+                      )}
+                    </div>
+                    <span className="font-semibold text-xs uppercase tracking-wider text-foreground">
                       {group.name}
                     </span>
-                    <Badge variant="secondary" className="text-xs px-1.5 py-0 h-5">
+                    <span className="text-[10px] text-muted-foreground tabular-nums">
                       {children.length}
-                    </Badge>
+                    </span>
                   </div>
                   
                   <div 
