@@ -1519,6 +1519,10 @@ export function ForecastTable() {
           const incomeVat = getMonthVat('income', monthIndex, 'actual');
           const expenseVat = getMonthVat('expense', monthIndex, 'actual');
           
+          // Include uncategorized actual transactions so variation matches balance rows
+          const uncatIncome = getUncategorized('income', months[monthIndex]);
+          const uncatExpense = getUncategorized('expense', months[monthIndex]);
+          
           const incomeForecastHt = getMonthTotal('income', monthIndex, 'forecast');
           const expenseForecastHt = getMonthTotal('expense', monthIndex, 'forecast');
           const incomeForecastVat = getMonthVat('income', monthIndex, 'forecast');
@@ -1533,15 +1537,15 @@ export function ForecastTable() {
           const vatActualToDeduct = Math.max(0, netVatActual);
           const vatForecastToDeduct = Math.max(0, netVatForecast);
           
-          const incomeTtc = incomeHt + incomeVat;
-          const expenseTtc = expenseHt + expenseVat + vatActualToDeduct;
+          const incomeTtc = incomeHt + incomeVat + uncatIncome;
+          const expenseTtc = expenseHt + expenseVat + vatActualToDeduct + uncatExpense;
           const incomeForecastTtc = incomeForecastHt + incomeForecastVat;
           const expenseForecastTtc = expenseForecastHt + expenseForecastVat + payableAmount + vatForecastToDeduct;
           
           const netActual = incomeTtc - expenseTtc;
           const netForecast = incomeForecastTtc - expenseForecastTtc;
           
-          const hasActual = incomeHt > 0 || expenseHt > 0;
+          const hasActual = incomeHt > 0 || expenseHt > 0 || uncatIncome > 0 || uncatExpense > 0;
           const hasForecast = incomeForecastHt > 0 || expenseForecastHt > 0 || payableAmount > 0 || vatForecastToDeduct > 0;
           const periodType = getMonthPeriodType(month);
           
