@@ -997,7 +997,7 @@ export function ForecastTable() {
           
           // Current month: both
           return (
-            <td key={monthIndex} className="p-0 border-r border-border min-w-[160px] transition-colors duration-200 group-hover/row:bg-muted/60">
+            <td key={monthIndex} className="p-0 border-x-2 border-primary/30 min-w-[160px] transition-colors duration-200 group-hover/row:bg-muted/60">
               <div className="flex">
                 <div className={cn("flex-1 px-3 py-2 text-right border-r border-border/50 font-semibold text-xs", textClass)}>
                   {actualTotal > 0 ? formatValue(actualTotal) : '—'}
@@ -1455,7 +1455,7 @@ export function ForecastTable() {
           }
           
           return (
-            <td key={monthIndex} className="p-0 border-r border-border min-w-[160px]">
+            <td key={monthIndex} className="p-0 border-x-2 border-primary/30 min-w-[160px]">
               <div className="flex">
                 <div 
                   className={cn(
@@ -1518,7 +1518,7 @@ export function ForecastTable() {
           }
           
           return (
-            <td key={monthIndex} className="p-0 border-r border-border min-w-[160px]">
+            <td key={monthIndex} className="p-0 border-x-2 border-primary/30 min-w-[160px]">
               <div className="flex">
                 <div className={cn(
                   "flex-1 px-3 py-1.5 text-right border-r border-border/50",
@@ -1579,7 +1579,7 @@ export function ForecastTable() {
           
           // Current month: show actual balance only, forecast column shows "—"
           return (
-            <td key={monthIndex} className="p-0 border-r border-border min-w-[160px]">
+            <td key={monthIndex} className="p-0 border-x-2 border-primary/30 min-w-[160px]">
               <div className="flex">
                 <div className={cn(
                   "flex-1 px-3 py-2 text-right border-r border-border/50 font-bold",
@@ -1645,7 +1645,7 @@ export function ForecastTable() {
           }
           
           return (
-            <td key={monthIndex} className="p-0 border-r border-border min-w-[160px]">
+            <td key={monthIndex} className="p-0 border-x-2 border-primary/30 min-w-[160px]">
               <div className="flex">
                 <div className="flex-1 px-3 py-2 text-right border-r border-border/50 text-muted-foreground">
                   —
