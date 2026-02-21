@@ -117,6 +117,10 @@ export default function SuperAdminDashboard() {
   const rankedOrgs = useMemo(() => {
     if (!orgStats) return [];
     return [...orgStats].sort((a, b) => {
+      // Score composite : sociétés + membres + BP + engagement
+      const scoreA = Number(a.company_count || 0) * 3 + Number(a.member_count || 0) * 2 + Number(a.bp_count || 0);
+      const scoreB = Number(b.company_count || 0) * 3 + Number(b.member_count || 0) * 2 + Number(b.bp_count || 0);
+      if (scoreB !== scoreA) return scoreB - scoreA;
       const timeA = Number(a.total_time_seconds || 0);
       const timeB = Number(b.total_time_seconds || 0);
       if (timeB !== timeA) return timeB - timeA;
