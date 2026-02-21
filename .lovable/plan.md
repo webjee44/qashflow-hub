@@ -1,80 +1,84 @@
 
 
-# Popup Calendly anti-churn sur le Dashboard
+# Page comparative "Qashflow vs Zenfirst"
 
 ## Objectif
 
-Reduire le churn a l'onboarding en proposant un appel gratuit de setup aux nouveaux utilisateurs. Un popup elegant apparait apres 45 secondes sur le Dashboard, avec un lien vers Calendly.
+Creer une page "battle" SEO-friendly comparant Qashflow a Zenfirst, accessible depuis le footer de toutes les pages publiques. L'architecture sera pensee pour ajouter facilement d'autres comparatifs plus tard (vs Agicap, vs Fygr, etc.).
 
 ---
 
-## Comportement
+## Architecture
 
-- **Declenchement** : 45 secondes apres l'arrivee sur le Dashboard
-- **Frequence** : 1 seule fois par utilisateur (flag `calendly_popup_dismissed` stocke en base dans la table `profiles`)
-- **Fermeture** : bouton "Plus tard" ou clic sur le CTA. Dans les deux cas, le popup ne reapparait plus
-- **CTA principal** : ouvre le lien Calendly dans un nouvel onglet
-- **Design** : Dialog shadcn/ui avec icone Calendar, titre accrocheur, texte court et 2 boutons
-
----
-
-## Fichiers a creer
-
-### `src/components/onboarding/CalendlyPopup.tsx`
-
-Composant React qui :
-1. Verifie si l'utilisateur a deja ferme le popup (requete `profiles.calendly_popup_dismissed`)
-2. Lance un `setTimeout(45000)` si non dismissed
-3. Affiche un Dialog avec :
-   - Icone Calendar + emoji main
-   - Titre : "Besoin d'un coup de pouce ?"
-   - Texte : "Reservez un appel gratuit de 15 min avec notre equipe pour configurer votre compte ensemble."
-   - Bouton principal : "Reserver mon appel gratuit" (ouvre Calendly)
-   - Bouton secondaire : "Plus tard"
-4. Au clic sur l'un ou l'autre bouton, met a jour `profiles.calendly_popup_dismissed = true`
-
-Le lien Calendly est stocke en constante dans le composant (facile a modifier).
-
----
-
-## Fichiers a modifier
-
-### `src/pages/Dashboard.tsx`
-
-Ajouter `<CalendlyPopup />` dans le JSX, a cote du `<OnboardingTour />` existant.
-
----
-
-## Schema de donnees
-
-Ajout d'une colonne a la table `profiles` :
+Un composant generique `ComparisonPage` recevra les donnees en props, ce qui permettra de creer de futures pages battle en quelques lignes.
 
 ```text
-ALTER TABLE profiles ADD COLUMN calendly_popup_dismissed BOOLEAN DEFAULT false;
+src/pages/comparisons/
+  QashflowVsZenfirst.tsx    -- Page specifique avec les donnees
+src/components/comparisons/
+  ComparisonPage.tsx         -- Composant generique reutilisable
 ```
-
-Cela permet de persister le choix meme si l'utilisateur change de navigateur.
 
 ---
 
-## Parcours utilisateur
+## Page "Qashflow vs Zenfirst"
 
-```text
-Inscription --> Welcome --> Dashboard
-                              |
-                              +-- 45s --> Popup apparait
-                              |             |
-                              |             +-- "Reserver" --> Calendly (nouvel onglet) + dismiss
-                              |             +-- "Plus tard" --> dismiss
-                              |
-                              +-- (prochaine visite : pas de popup)
-```
+### Structure de la page
+
+1. **Hero** : Titre "Qashflow vs Zenfirst", sous-titre explicatif, badge "Comparatif 2026"
+2. **Tableau comparatif** : Grille de fonctionnalites avec icones check/x pour chaque solution
+3. **Section avantages cles** : 3-4 cartes mettant en avant les differenciateurs de Qashflow
+4. **CTA final** : Bandeau d'appel a l'action vers l'essai gratuit
+
+### Criteres de comparaison prevus
+
+- Previsions de tresorerie
+- Synchronisation bancaire automatique
+- Categorisation IA
+- Business Plan integre
+- Scenarios de simulation
+- Export PDF
+- Multi-societes
+- Tarification (licence lifetime vs abonnement)
+
+---
+
+## Modifications des footers
+
+Ajout d'une section "Comparatifs" dans le footer de chaque page publique :
+
+- `src/pages/Landing.tsx`
+- `src/pages/APropos.tsx`
+- `src/pages/Contact.tsx`
+- `src/pages/Fonctionnalites.tsx`
+- `src/pages/Tarifs.tsx`
+- `src/pages/MentionsLegales.tsx`
+- `src/pages/Confidentialite.tsx`
+
+La nouvelle colonne contiendra le lien "Qashflow vs Zenfirst" (et les futurs comparatifs).
+
+---
+
+## Routing
+
+Ajout dans `App.tsx` :
+
+- `/comparatifs/qashflow-vs-zenfirst` -- route publique
+
+---
+
+## SEO
+
+- Composant `SEOHead` avec title "Qashflow vs Zenfirst - Comparatif 2026" et meta description optimisee
+- Ajout de l'URL dans `public/sitemap.xml`
 
 ---
 
 ## Details techniques
 
-- Composant base sur `Dialog` de shadcn/ui (deja installe)
-- Animation d'entree via les classes `animate-in` natives du Dialog
-- Le `setTimeout` est nettoye dans le `useEffect` cleanup pour eviter les fuites memoire
-- Le lien Calendly sera en constante : vous pourrez le modifier facilement dans le fichier
+- La page utilise `PublicNavbar` comme les autres pages publiques
+- Le composant `ComparisonPage` accepte un tableau de criteres `{ label, qashflow: boolean, competitor: boolean }` et le nom du concurrent
+- Design coherent avec le reste du site (Tailwind, shadcn/ui Card, Badge, etc.)
+- Responsive : le tableau se transforme en cartes empilees sur mobile
+- Pour ajouter un futur comparatif (ex: vs Agicap), il suffira de creer un nouveau fichier avec les donnees et une route
+
