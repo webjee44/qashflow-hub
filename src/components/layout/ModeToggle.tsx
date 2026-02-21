@@ -16,26 +16,26 @@ export function ModeToggle() {
   };
 
   return (
-    <div className="relative flex items-center p-1 rounded-xl bg-muted/80 border border-border/50">
+    <div className="relative flex items-center gap-0.5 p-1 rounded-full bg-muted/60 backdrop-blur-sm border border-border/30 shadow-sm">
       {/* Animated background pill */}
       <motion.div
-        className="absolute inset-y-1 rounded-lg bg-background shadow-sm border border-border/50"
+        className="absolute inset-y-1 rounded-full bg-primary shadow-md"
         initial={false}
         animate={{
           left: mode === 'treasury' ? 4 : '50%',
           right: mode === 'treasury' ? '50%' : 4,
         }}
-        transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+        transition={{ type: 'spring', stiffness: 500, damping: 35 }}
       />
 
       {/* Treasury button */}
       <button
         onClick={() => handleModeChange('treasury')}
         className={cn(
-          "relative z-10 flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors",
+          "relative z-10 flex items-center gap-2 px-5 py-1.5 rounded-full text-sm font-semibold transition-colors duration-200",
           mode === 'treasury' 
-            ? "text-foreground" 
-            : "text-muted-foreground hover:text-foreground/80"
+            ? "text-primary-foreground" 
+            : "text-muted-foreground hover:text-foreground"
         )}
       >
         <Wallet className="h-4 w-4" />
@@ -46,10 +46,10 @@ export function ModeToggle() {
       <button
         onClick={() => handleModeChange('business-plan')}
         className={cn(
-          "relative z-10 flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors",
+          "relative z-10 flex items-center gap-2 px-5 py-1.5 rounded-full text-sm font-semibold transition-colors duration-200",
           mode === 'business-plan' 
-            ? "text-foreground" 
-            : "text-muted-foreground hover:text-foreground/80"
+            ? "text-primary-foreground" 
+            : "text-muted-foreground hover:text-foreground"
         )}
       >
         <TrendingUp className="h-4 w-4" />
