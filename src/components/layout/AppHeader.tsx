@@ -1,4 +1,4 @@
-import { Bell, Building2, ChevronDown, Check, Plus } from 'lucide-react';
+import { Building2, ChevronDown, Check, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -82,13 +82,8 @@ export function AppHeader() {
       {/* Center: Mode Toggle - Always show both modules */}
       <ModeToggle />
 
-      {/* Right: Notifications */}
-      <Button variant="ghost" size="icon" className="relative">
-        <Bell className="w-5 h-5" />
-        <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-destructive text-destructive-foreground text-[10px] font-bold rounded-full flex items-center justify-center">
-          3
-        </span>
-      </Button>
+      {/* Right: spacer */}
+      <div />
     </header>
   );
 }
