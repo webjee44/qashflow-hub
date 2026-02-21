@@ -1666,7 +1666,8 @@ export function ForecastTable() {
           🏦 Solde de fin de mois
         </td>
         {months.map((month, monthIndex) => {
-          const { balance, isActual } = getClosingBalance(month);
+          const closingData = getClosingBalance(month);
+          const { balance } = closingData;
           const periodType = getMonthPeriodType(month);
           
           if (periodType === 'past') {
@@ -1695,7 +1696,10 @@ export function ForecastTable() {
             );
           }
           
-          // Current month: show in both columns with progress bar
+          // Current month: show actual (left) and forecast (right)
+          const forecastBal = closingData.forecastBalance != null 
+            ? closingData.forecastBalance 
+            : balance;
           return (
             <td key={monthIndex} className="p-0 border-x-2 border-primary/30 min-w-[160px]">
               <div className="flex">
@@ -1707,9 +1711,9 @@ export function ForecastTable() {
                 </div>
                 <div className={cn(
                   "flex-1 px-3 py-2 text-right font-bold italic",
-                  balance >= 0 ? "text-muted-foreground" : "text-destructive"
+                  forecastBal >= 0 ? "text-muted-foreground" : "text-destructive"
                 )}>
-                  {formatValue(balance)}
+                  {formatValue(forecastBal)}
                 </div>
               </div>
             </td>
