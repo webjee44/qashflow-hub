@@ -52,16 +52,33 @@ export function useDashboardStats() {
       const previousMonthEnd = endOfMonth(subMonths(now, 1));
 
       try {
+        // Fetch system category IDs to exclude from stats (Virement intercompte)
+        const { data: catRows } = await supabase
+          .from('categories')
+          .select('id, name')
+          .eq('company_id', currentCompany?.id ?? '');
+        const systemCatIds = new Set(
+          (catRows || []).filter((c: any) => c.name === 'Virement intercompte').map((c: any) => c.id)
+        );
+
         // Fetch all transactions for calculations
         let query = supabase
           .from('transactions')
-          .select('amount, type, date');
+          .select('amount, type, date, category_id');
 
         if (currentCompany?.id) {
           query = query.eq('company_id', currentCompany.id);
         }
 
-        const { data: transactions, error } = await query;
+        const { data: allTransactions, error } = await query;
+
+        if (error) {
+          logError('Error fetching transactions:', error);
+          return;
+        }
+
+        // Filter out system category transactions
+        const transactions = (allTransactions || []).filter((t: any) => !t.category_id || !systemCatIds.has(t.category_id));
 
         if (error) {
           logError('Error fetching transactions:', error);
@@ -352,6 +369,8 @@ export function useCategoryBreakdown() {
         const categoryTotals: Record<string, { value: number; color: string }> = {};
         
         transactions?.forEach((t: any) => {
+          // Exclude system category "Virement intercompte"
+          if (t.categories?.name === 'Virement intercompte') return;
           const categoryName = t.categories?.name || 'Non catégorisé';
           const categoryColor = t.categories?.color || 'hsl(220, 14%, 96%)';
           

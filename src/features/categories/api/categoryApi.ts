@@ -11,6 +11,7 @@ export interface CategoryInsert {
   parent_id?: string | null;
   forecast_mode?: 'manual' | 'percent_of_revenue';
   forecast_percent?: number;
+  is_system?: boolean;
   user_id: string;
   company_id: string;
 }

@@ -390,14 +390,16 @@ export function UnifiedCategoryList({
                     >
                       <Edit3 className="w-3.5 h-3.5" />
                     </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 hover:bg-destructive/10 hover:text-destructive"
-                      onClick={() => handleDeleteGroupClick(group, children.length)}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </Button>
+                    {!group.is_system && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 hover:bg-destructive/10 hover:text-destructive"
+                        onClick={() => handleDeleteGroupClick(group, children.length)}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    )}
                   </div>
                 </div>
 
@@ -622,14 +624,16 @@ function CategoryRow({
           >
             <Edit3 className="w-3.5 h-3.5" />
           </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 hover:bg-destructive/10 hover:text-destructive"
-            onClick={() => setDeleteDialogOpen(true)}
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-          </Button>
+          {!category.is_system && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 hover:bg-destructive/10 hover:text-destructive"
+              onClick={() => setDeleteDialogOpen(true)}
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </Button>
+          )}
         </div>
         </div>
         
