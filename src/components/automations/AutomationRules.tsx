@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { 
@@ -11,8 +11,10 @@ import {
   Sparkles,
   ArrowRight,
   Loader2,
-  Euro
+  Euro,
+  Search
 } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -51,6 +53,18 @@ const fieldLabels: Record<string, string> = {
 export function AutomationRules() {
   const { rules, categories, loading, stats, createRule, createCategory, updateRule, toggleRule, deleteRule } = useAutomationRules();
   const [editingRule, setEditingRule] = useState<AutomationRule | null>(null);
+  const [search, setSearch] = useState('');
+
+  const filteredRules = useMemo(() => {
+    if (!search.trim()) return rules;
+    const q = search.toLowerCase();
+    return rules.filter(r => 
+      r.name.toLowerCase().includes(q) ||
+      r.category?.name?.toLowerCase().includes(q) ||
+      r.condition_value.toLowerCase().includes(q) ||
+      r.conditions?.some(c => c.condition_value.toLowerCase().includes(q))
+    );
+  }, [rules, search]);
 
   const formatCondition = (condition: RuleCondition) => {
     const field = fieldLabels[condition.condition_field] || condition.condition_field;
@@ -100,7 +114,18 @@ export function AutomationRules() {
               {rules.filter(r => r.is_active).length} règles actives sur {rules.length}
             </p>
           </div>
-          <CreateRuleDialog categories={categories} onCreateRule={createRule} onCreateCategory={createCategory} />
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Rechercher une règle..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="pl-9 w-56"
+              />
+            </div>
+            <CreateRuleDialog categories={categories} onCreateRule={createRule} onCreateCategory={createCategory} />
+          </div>
         </div>
 
         {rules.length === 0 ? (
@@ -122,9 +147,17 @@ export function AutomationRules() {
               }
             />
           </div>
+        ) : filteredRules.length === 0 ? (
+          <div className="p-12 text-center">
+            <Search className="w-12 h-12 mx-auto text-muted-foreground/50 mb-4" />
+            <h4 className="font-semibold text-foreground mb-2">Aucun résultat</h4>
+            <p className="text-sm text-muted-foreground">
+              Aucune règle ne correspond à "{search}"
+            </p>
+          </div>
         ) : (
           <div className="divide-y divide-border">
-            {rules.map((rule, index) => {
+            {filteredRules.map((rule, index) => {
               const conditionTexts = formatRuleConditions(rule);
               const hasMultipleConditions = Array.isArray(conditionTexts) && conditionTexts.length > 1;
               
