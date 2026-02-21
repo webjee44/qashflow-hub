@@ -59,10 +59,13 @@ const getMonthPeriodType = (month: Date): MonthPeriodType => {
 // Shows a ✓ icon when realization is ≥ 100%
 const ProgressBar = ({ actual, forecast, type }: { actual: number; forecast: number; type: 'income' | 'expense' | 'balance' }) => {
   if (forecast === 0 && actual === 0) return null;
-  const pct = forecast > 0 ? Math.min(100, (Math.abs(actual) / Math.abs(forecast)) * 100) : (actual !== 0 ? 100 : 0);
+  const absActual = Math.abs(actual);
+  const absForecast = Math.abs(forecast);
+  const pct = absForecast > 0 ? Math.min(100, (absActual / absForecast) * 100) : (actual !== 0 ? 100 : 0);
   
-  const isComplete = forecast > 0 && Math.abs(actual) >= Math.abs(forecast);
-  const overBudget = type === 'expense' && forecast > 0 && Math.abs(actual) > Math.abs(forecast);
+  // Use a small tolerance (1€) for rounding differences
+  const isComplete = absForecast > 0 && absActual >= absForecast - 1;
+  const overBudget = type === 'expense' && absForecast > 0 && absActual > absForecast + 1;
   
   // Color logic: expenses turn red only when over budget, otherwise green/primary
   const colorClass = overBudget 
