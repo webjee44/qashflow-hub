@@ -80,3 +80,6 @@ verify_jwt = false
 
 [functions.seed-forecast-demo-data]
 verify_jwt = false
+
+[functions.snapshot-balances]
+verify_jwt = false

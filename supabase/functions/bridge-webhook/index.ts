@@ -276,6 +276,17 @@ async function handleAccountUpdated(
     })
     .eq('bridge_account_id', account_id);
 
+  // Save balance snapshot for today
+  const today = new Date().toISOString().split('T')[0];
+  await supabaseAdmin
+    .from('bank_balance_snapshots')
+    .upsert({
+      bridge_account_id: account_id,
+      company_id: company_id,
+      balance,
+      snapshot_date: today,
+    }, { onConflict: 'bridge_account_id,snapshot_date' });
+
   // Update company bank balance
   const { data: allAccounts } = await supabaseAdmin
     .from('bridge_accounts')
