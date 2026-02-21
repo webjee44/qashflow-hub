@@ -578,6 +578,29 @@ export function useForecasts() {
       }, 0);
   }, [categories, forecasts]);
 
+  // Helper to get closing balance (end of month) = opening balance + month net variation
+  const getClosingBalance = useCallback((month: Date): { balance: number; isActual: boolean } => {
+    const opening = getOpeningBalance(month);
+    const periodType = (() => {
+      const todayMonth = startOfMonth(new Date());
+      const target = startOfMonth(month);
+      if (isBefore(target, todayMonth)) return 'past';
+      if (isSameMonth(month, new Date())) return 'current';
+      return 'future';
+    })();
+
+    if (periodType === 'past' || periodType === 'current') {
+      // For past/current: closing = opening of next month (which is calculated from real transactions)
+      const nextMonth = addMonths(startOfMonth(month), 1);
+      const nextOpening = getOpeningBalance(nextMonth);
+      return { balance: nextOpening.balance, isActual: periodType === 'past' };
+    }
+
+    // Future: opening + net forecast
+    const netForecast = getMonthNetForecast(month);
+    return { balance: opening.balance + netForecast, isActual: false };
+  }, [getOpeningBalance, getMonthNetForecast]);
+
   return {
     months,
     forecasts,
@@ -597,6 +620,8 @@ export function useForecasts() {
     getNetVatActual,
     getUncategorized,
     getIncomeForecastTotal,
+    // Closing balance
+    getClosingBalance,
     // Payables
     payableInvoices,
     getPayableOutflow,
