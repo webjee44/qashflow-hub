@@ -53,6 +53,22 @@ const getMonthPeriodType = (month: Date): MonthPeriodType => {
   return 'future';
 };
 
+// Progress bar for current month cells
+const ProgressBar = ({ actual, forecast, type }: { actual: number; forecast: number; type: 'income' | 'expense' | 'balance' }) => {
+  if (forecast === 0 && actual === 0) return null;
+  const pct = forecast > 0 ? Math.min(100, (Math.abs(actual) / Math.abs(forecast)) * 100) : (actual !== 0 ? 100 : 0);
+  const colorClass = type === 'income' ? 'bg-success' : type === 'expense' ? 'bg-destructive' : 'bg-primary';
+  const overBudget = forecast > 0 && Math.abs(actual) > Math.abs(forecast);
+  return (
+    <div className="w-full h-1.5 bg-muted/50 rounded-full mt-1">
+      <div 
+        className={cn(colorClass, overBudget && "opacity-90", "h-full rounded-full transition-all")}
+        style={{ width: `${pct}%` }} 
+      />
+    </div>
+  );
+};
+
 export function ForecastTable() {
   const { currentCompany, isLoading: companyLoading } = useCompany();
   const { categories, loading: categoriesLoading, getGroupedCategories, updateCategory, deleteCategory } = useCategories();
@@ -502,17 +518,18 @@ export function ForecastTable() {
       
       // Current month: actual + editable forecast for variable
       return (
-        <td key={cellKey} className="p-0 border-r border-border min-w-[160px]">
+        <td key={cellKey} className="p-0 border-x-2 border-primary/30 min-w-[160px]">
           <div className="flex">
             <div 
               className={cn(
-                "flex-1 px-3 py-2 text-right border-r border-border/50 bg-muted/20 transition-colors",
+                "flex-1 px-3 py-2 text-right border-r border-border/50 bg-primary/5 transition-colors",
                 hasActual && (isPositive ? "text-success" : "text-destructive"),
-                hasActual && "cursor-pointer hover:bg-muted/40"
+                hasActual && "cursor-pointer hover:bg-primary/10"
               )}
               onClick={() => hasActual && openTransactionDetail(category, monthIndex)}
             >
               {hasActual ? formatValue(Math.abs(actual)) : '—'}
+              <ProgressBar actual={Math.abs(actual)} forecast={totalForecast} type={type} />
             </div>
             <DropdownMenu>
               <Popover open={showingCopyForThis} onOpenChange={(open) => {
@@ -720,20 +737,21 @@ export function ForecastTable() {
       );
     }
 
-    // Current: show both actual + forecast
+    // Current: show both actual + forecast with progress bar
     return (
-      <td key={cellKey} className="p-0 border-r border-border min-w-[160px]">
+      <td key={cellKey} className="p-0 border-x-2 border-primary/30 min-w-[160px]">
         <div className="flex">
           {/* Actual - clickable to open detail */}
           <div 
             className={cn(
-              "flex-1 px-3 py-2 text-right border-r border-border/50 bg-muted/20 transition-colors",
+              "flex-1 px-3 py-2 text-right border-r border-border/50 bg-primary/5 transition-colors",
               hasActual && (isPositive ? "text-success" : "text-destructive"),
-              hasActual && "cursor-pointer hover:bg-muted/40"
+              hasActual && "cursor-pointer hover:bg-primary/10"
             )}
             onClick={() => hasActual && openTransactionDetail(category, monthIndex)}
           >
             {hasActual ? formatValue(Math.abs(actual)) : '—'}
+            <ProgressBar actual={Math.abs(actual)} forecast={totalForecast} type={type} />
           </div>
           
           {/* Forecast (editable) */}
@@ -1128,10 +1146,11 @@ export function ForecastTable() {
           }
           
           return (
-            <td key={monthIndex} className="p-0 border-r border-border min-w-[160px]">
+            <td key={monthIndex} className="p-0 border-x-2 border-primary/30 min-w-[160px]">
               <div className="flex">
                 <div className={cn("flex-1 px-3 py-2 text-right border-r border-border/50", textClass)}>
                   {actualTotal > 0 ? formatValue(actualTotal) : '—'}
+                  <ProgressBar actual={actualTotal} forecast={forecastTotal} type={type} />
                 </div>
                 <div className={cn("flex-1 px-3 py-2 text-right", textClass)}>
                   {forecastTotal > 0 ? formatValue(forecastTotal) : '—'}
@@ -1242,10 +1261,11 @@ export function ForecastTable() {
           }
           
           return (
-            <td key={monthIndex} className="p-0 border-r border-border min-w-[160px]">
+            <td key={monthIndex} className="p-0 border-x-2 border-primary/30 min-w-[160px]">
               <div className="flex">
                 <div className={cn("flex-1 px-3 py-2 text-right border-r border-border/50", textClass)}>
                   {actualTtc > 0 ? formatValue(actualTtc) : '—'}
+                  <ProgressBar actual={actualTtc} forecast={forecastTtc} type={type} />
                 </div>
                 <div className={cn("flex-1 px-3 py-2 text-right", textClass)}>
                   {forecastTtc > 0 ? formatValue(forecastTtc) : '—'}
@@ -1576,13 +1596,14 @@ export function ForecastTable() {
           }
           
           return (
-            <td key={monthIndex} className="p-0 border-r border-border min-w-[160px]">
+            <td key={monthIndex} className="p-0 border-x-2 border-primary/30 min-w-[160px]">
               <div className="flex">
                 <div className={cn(
                   "flex-1 px-3 py-2 text-right border-r border-border/50 font-bold",
                   netActual >= 0 ? "text-success" : "text-destructive"
                 )}>
                   {hasActual ? formatValue(netActual) : '—'}
+                  <ProgressBar actual={Math.abs(netActual)} forecast={Math.abs(netForecast)} type="balance" />
                 </div>
                 <div className={cn(
                   "flex-1 px-3 py-2 text-right font-bold",
@@ -1634,9 +1655,9 @@ export function ForecastTable() {
             );
           }
           
-          // Current month: show in both columns
+          // Current month: show in both columns with progress bar
           return (
-            <td key={monthIndex} className="p-0 border-r border-border min-w-[160px]">
+            <td key={monthIndex} className="p-0 border-x-2 border-primary/30 min-w-[160px]">
               <div className="flex">
                 <div className={cn(
                   "flex-1 px-3 py-2 text-right border-r border-border/50 font-bold",
@@ -1808,17 +1829,17 @@ export function ForecastTable() {
                   );
                 }
                 
-                // Current month: both columns
+                // Current month: both columns - highlighted
                 return (
-                  <th key={index} className={cn("p-0 border-r border-border", minWidth)}>
-                    <div className="text-center p-2 border-b border-border/50 font-semibold text-foreground capitalize bg-primary/5">
-                      {formatMonth(month)}
+                  <th key={index} className={cn("p-0 border-x-2 border-primary/30", minWidth)}>
+                    <div className="text-center p-2 border-b border-border/50 font-bold text-primary capitalize bg-primary/10">
+                      📍 {formatMonth(month)}
                     </div>
-                    <div className="flex text-xs">
-                      <div className="flex-1 px-3 py-1.5 text-center border-r border-border/50 text-muted-foreground font-medium">
+                    <div className="flex text-xs bg-primary/5">
+                      <div className="flex-1 px-3 py-1.5 text-center border-r border-border/50 text-primary font-semibold">
                         Réel
                       </div>
-                      <div className="flex-1 px-3 py-1.5 text-center text-muted-foreground font-medium">
+                      <div className="flex-1 px-3 py-1.5 text-center text-primary font-semibold">
                         Prévu
                       </div>
                     </div>
