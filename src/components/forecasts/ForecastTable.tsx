@@ -1891,6 +1891,7 @@ export function ForecastTable() {
               </td>
             </tr>
             {renderGroupedSection(expenseGroups, 'expense', incomeCategories.length)}
+            {renderUncategorizedRow('expense')}
             {/* TVA à décaisser row - inside expense section, before total */}
             {renderVatToPayRow()}
             {renderTtcRow('Total Décaissements', 'expense')}
