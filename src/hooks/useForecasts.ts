@@ -635,7 +635,7 @@ export function useForecasts() {
   }, [categories, forecasts]);
 
   // Helper to get closing balance (end of month) = opening balance + month net variation
-  const getClosingBalance = useCallback((month: Date): { balance: number; isActual: boolean } => {
+  const getClosingBalance = useCallback((month: Date): { balance: number; forecastBalance?: number; isActual: boolean } => {
     const opening = getOpeningBalance(month);
     const periodType = (() => {
       const todayMonth = startOfMonth(new Date());
@@ -645,11 +645,19 @@ export function useForecasts() {
       return 'future';
     })();
 
-    if (periodType === 'past' || periodType === 'current') {
-      // For past/current: closing = opening of next month (which is calculated from real transactions)
+    if (periodType === 'past') {
       const nextMonth = addMonths(startOfMonth(month), 1);
       const nextOpening = getOpeningBalance(nextMonth);
-      return { balance: nextOpening.balance, isActual: periodType === 'past' };
+      return { balance: nextOpening.balance, isActual: true };
+    }
+
+    if (periodType === 'current') {
+      // Actual: opening of next month (based on real transactions so far)
+      const nextMonth = addMonths(startOfMonth(month), 1);
+      const nextOpening = getOpeningBalance(nextMonth);
+      // Forecast: opening + net forecast for the full month
+      const netForecast = getMonthNetForecast(month);
+      return { balance: nextOpening.balance, forecastBalance: opening.balance + netForecast, isActual: false };
     }
 
     // Future: opening + net forecast
