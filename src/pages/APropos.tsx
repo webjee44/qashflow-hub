@@ -275,6 +275,7 @@ export default function APropos() {
               <h3 className="font-semibold mb-4">Comparatifs</h3>
               <ul className="space-y-2 text-sm text-muted-foreground">
                 <li><Link to="/comparatifs/qashflow-vs-zenfirst" className="hover:text-foreground">Qashflow vs Zenfirst</Link></li>
+                <li><Link to="/comparatifs/qashflow-vs-agicap" className="hover:text-foreground">Qashflow vs Agicap</Link></li>
               </ul>
             </div>
             <div>
