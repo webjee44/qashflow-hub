@@ -114,17 +114,16 @@ export function Sidebar() {
   const queryClient = useQueryClient();
   const currentPath = location.pathname;
 
-  // Count uncategorized payable invoices for badge
-  const { data: uncategorizedPayablesCount = 0 } = useQuery({
-    queryKey: ['uncategorized-payables-count', user?.id, currentCompany?.id],
+  // Count uncategorized invoices (both receivable & payable, pending or overdue) for badge
+  const { data: uncategorizedInvoicesCount = 0 } = useQuery({
+    queryKey: ['uncategorized-invoices-count', user?.id, currentCompany?.id],
     queryFn: async () => {
       if (!user?.id || !currentCompany?.id) return 0;
       const { count, error } = await supabase
         .from('invoices')
         .select('id', { count: 'exact', head: true })
         .eq('company_id', currentCompany.id)
-        .eq('type', 'payable')
-        .eq('status', 'pending')
+        .in('status', ['pending', 'overdue'])
         .is('category_id', null);
       if (error) return 0;
       return count || 0;
@@ -370,14 +369,14 @@ export function Sidebar() {
                     {!isCollapsed && (
                       <>
                         <span className="font-medium">{item.label}</span>
-                        {item.href === '/creances' && uncategorizedPayablesCount > 0 && (
+                        {item.href === '/creances' && uncategorizedInvoicesCount > 0 && (
                           <span className={cn(
                             "ml-auto flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-xs font-bold",
                             isActive
                               ? "bg-primary-foreground/20 text-primary-foreground"
                               : "bg-destructive text-destructive-foreground"
                           )}>
-                            {uncategorizedPayablesCount}
+                            {uncategorizedInvoicesCount}
                           </span>
                         )}
                         {item.href === '/transactions' && uncategorizedTransactionsCount > 0 && (
