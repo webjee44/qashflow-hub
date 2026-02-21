@@ -27,6 +27,9 @@ export interface OrgStats {
   company_count: number;
   bp_count: number;
   is_demo: boolean;
+  total_logins?: number;
+  total_time_seconds?: number;
+  last_active_at?: string | null;
 }
 
 export function useSuperAdminRole() {
@@ -80,7 +83,7 @@ export function useSuperAdminOrgStats() {
   return useQuery({
     queryKey: ['superadmin-org-stats'],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('get_superadmin_org_stats');
+      const { data, error } = await supabase.rpc('get_superadmin_org_stats_with_engagement');
       
       if (error) {
         logError('Error fetching org stats:', error);
