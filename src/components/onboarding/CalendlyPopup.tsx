@@ -7,7 +7,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { logError } from '@/lib/logger';
 
 // 👇 Modifiez ce lien avec votre URL Calendly
-const CALENDLY_URL = 'https://calendly.com/votre-lien/setup-15min';
+const CALENDLY_URL = 'https://calendly.com/felix-see/partner';
 
 const POPUP_DELAY_MS = 45_000;
 
