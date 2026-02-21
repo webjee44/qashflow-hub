@@ -1,72 +1,105 @@
 
-# Catégorie "Virement intercompte" -- neutralisation en trésorerie
 
-## Contexte
+# Correction de la "Variation nette du mois" -- plan d'action
 
-Quand un virement est fait du compte A vers le compte B (même entreprise), deux transactions apparaissent : une sortie (-5000) et une entrée (+5000). En net, l'impact trésorerie est nul. Aujourd'hui, ces mouvements polluent les encaissements/décaissements et faussent les totaux.
+## Diagnostic
 
-## Solution proposée
+L'analyse de la base de donnees revele **deux bugs majeurs** dans le calcul des actuals du tableau de previsions. Cloud Vapor est le plus touche mais d'autres societes sont aussi affectees.
 
-Créer une catégorie système **"Virement intercompte"** qui :
-1. Est créée automatiquement par société (non supprimable)
-2. Les transactions catégorisées avec cette catégorie sont **exclues** des totaux encaissements/décaissements et du graphique prévisionnel
+### Bug 1 (critique) : Melange type de transaction / type de categorie
 
----
+La categorie "Ventes" (type `income`) de Cloud Vapor contient des transactions des DEUX types :
+- 380 520 EUR de transactions `income` (encaissements clients)
+- 339 692 EUR de transactions `expense` (achats fournisseurs)
 
-## Etapes techniques
+Le code dans `useForecasts.ts` somme aveuglements TOUS les montants par `category_id` sans filtrer par `tx.type` :
 
-### 1. Ajouter une colonne `is_system` sur la table `categories`
+```text
+actuals["Ventes"]["2026-01"] = 720 212 EUR  (income + expense)
+```
 
-Migration SQL :
-- `ALTER TABLE categories ADD COLUMN is_system boolean NOT NULL DEFAULT false;`
-- Cette colonne empêchera la suppression côté frontend
+Resultat : `getMonthTotal('income', ...)` gonfle les encaissements de 340K EUR, et `getMonthTotal('expense', ...)` les ignore completement. La variation nette est faussee.
 
-### 2. Créer automatiquement la catégorie au chargement
+Societes impactees (donnees reelles) :
 
-Dans `useCategories.ts` :
-- Lors de `initializeDefaultCategories`, ajouter la catégorie "Virement intercompte" avec `is_system: true`, type `expense`, icone `ArrowLeftRight`, couleur gris neutre
-- Ajouter une fonction `ensureSystemCategories()` appelée au chargement qui vérifie si la catégorie système existe et la crée si absente (même si les catégories par défaut ont déjà été initialisées)
+| Societe           | Transactions mal comptees | Montant       |
+|---|---|---|
+| Cloud Vapor       | 137                       | 1 030 735 EUR |
+| E-fumeur Internet | 28                        | 50 209 EUR    |
+| Coachflix          | 14                        | 56 670 EUR    |
+| Tradeflix          | 1                         | 29 197 EUR    |
+| Vapeflix           | 1                         | 1 000 EUR     |
 
-### 3. Empêcher la suppression côté UI
+### Bug 2 (secondaire) : TVA ajoutee sur des montants deja TTC
 
-- `CategoryCard.tsx` : masquer le bouton supprimer si `category.is_system === true`
-- `UnifiedCategoryList.tsx` : idem dans les menus contextuels
-- `CategoryDialog.tsx` : rendre le nom en lecture seule pour les catégories système
-- `useCategories.ts` : ajouter un guard dans `deleteCategory` qui refuse la suppression si `is_system`
+Pour les mois passes, les montants des transactions bancaires sont deja TTC. Mais le code calcule :
 
-### 4. Exclure du tableau de prévisions
+```text
+actualTtc = actualHt + actualVat    -- FAUX : actualHt est deja TTC !
+```
 
-Dans `ForecastTable.tsx` :
-- Filtrer les transactions catégorisées "Virement intercompte" des calculs de totaux encaissements et décaissements
-- Ne pas afficher de ligne pour cette catégorie dans le tableau (ou l'afficher en grisé avec un total toujours nul)
+Cela gonfle artificiellement les totaux TTC et la variation nette (ecart visible uniquement sur les categories avec `vat_rate > 0`).
 
-### 5. Exclure du graphique
+### Bug 3 (bloquant) : Colonne `is_system` jamais creee
 
-Dans `ForecastChart.tsx` :
-- Exclure les montants "Virement intercompte" des barres income/expense et du calcul de solde net
-
-### 6. Mettre à jour le type TypeScript
-
-- Ajouter `is_system?: boolean` dans l'interface `Category`
-- Mettre à jour le schema Zod `categorySchema` dans `src/lib/schemas.ts`
-- Mettre à jour `CategoryInsert` dans `categoryApi.ts`
-
-### 7. Exclure du dashboard
-
-Dans les hooks/composants du dashboard (`useDashboardStats.ts`, `CategoryBreakdown.tsx`), exclure aussi les transactions "Virement intercompte" des statistiques pour ne pas gonfler artificiellement les entrées/sorties.
+La migration SQL a echoue silencieusement. La colonne `is_system` n'existe pas dans la base, ce qui empeche toute la logique "Virement intercompte" de fonctionner. Il faut la re-creer.
 
 ---
 
-## Résumé des fichiers modifiés
+## Corrections prevues
+
+### Etape 1 -- Corriger le calcul des actuals (useForecasts.ts)
+
+Modifier la requete `actuals` pour separer les montants par type de transaction :
+
+```text
+Avant :  grouped[category_id][month] += amount
+Apres :  grouped[category_id][month] = { income: X, expense: Y }
+```
+
+Modifier `getActual(categoryId, month)` pour accepter un parametre `type` optionnel et ne retourner que les montants correspondants au type de la categorie. `getMonthTotal('income', ...)` utilisera uniquement la partie `income` et vice versa.
+
+Fichier : `src/hooks/useForecasts.ts`
+
+### Etape 2 -- Supprimer la TVA sur les actuals
+
+Les montants bancaires sont TTC. Pour les calculs de totaux sur les mois passes :
+- `renderTtcRow` : `actualTtc = actualHt` (pas de `+ actualVat`)
+- `renderNetRow` : idem, ne pas ajouter `incomeVat` / `expenseVat` sur les actuals
+- `renderSectionHeaderRow` : idem
+- `getVatActual` : garde pour l'affichage informatif de la ligne "TVA collectee/deductible" mais ne l'injecter nulle part dans les totaux
+
+Fichier : `src/components/forecasts/ForecastTable.tsx`
+
+### Etape 3 -- Re-creer la colonne `is_system`
+
+Nouvelle migration SQL :
+```sql
+ALTER TABLE public.categories ADD COLUMN IF NOT EXISTS is_system boolean NOT NULL DEFAULT false;
+NOTIFY pgrst, 'reload schema';
+```
+
+### Etape 4 -- Aligner getMonthNetForecast (useForecasts.ts)
+
+La fonction `getMonthNetForecast` (utilisee pour le calcul du solde projete) itere sur TOUTES les categories y compris systeme. Ajouter un filtre `!cat.is_system` pour exclure "Virement intercompte" des projections.
+
+Idem pour `getVatForecast` et `getVatActual` qui ne doivent pas inclure les categories systeme.
+
+Fichier : `src/hooks/useForecasts.ts`
+
+---
+
+## Resume des fichiers modifies
 
 | Fichier | Modification |
 |---|---|
-| Migration SQL | Ajout colonne `is_system` |
-| `src/features/categories/hooks/useCategories.ts` | Création auto + guard suppression |
-| `src/features/categories/api/categoryApi.ts` | Ajout `is_system` dans l'insert |
-| `src/lib/schemas.ts` | Ajout `is_system` au schema Zod |
-| `src/components/categories/CategoryCard.tsx` | Masquer bouton supprimer si système |
-| `src/components/categories/UnifiedCategoryList.tsx` | Masquer suppression si système |
-| `src/components/forecasts/ForecastTable.tsx` | Exclure des totaux |
-| `src/components/forecasts/ForecastChart.tsx` | Exclure des barres |
-| `src/hooks/useDashboardStats.ts` | Exclure des stats |
+| `src/hooks/useForecasts.ts` | Actuals groupes par tx.type ; getActual type-aware ; filtre is_system dans getMonthNetForecast, getVatForecast, getVatActual |
+| `src/components/forecasts/ForecastTable.tsx` | Suppression ajout VAT sur actuals dans renderTtcRow, renderNetRow, renderSectionHeaderRow |
+| Migration SQL | Re-creation colonne `is_system` |
+
+## Impact attendu
+
+- La variation nette des mois passes correspondra exactement a : somme des encaissements reels - somme des decaissements reels
+- Les totaux TTC des mois passes refleront les montants bancaires sans TVA fantome
+- Toutes les organisations seront corrigees, pas seulement Cloud Vapor
+
