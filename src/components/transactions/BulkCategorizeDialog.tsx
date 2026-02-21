@@ -229,12 +229,13 @@ export function BulkCategorizeDialog({
 
   // Smart category recommendations based on similar categorized transactions
   const recommendedCategories = useMemo(() => {
+    const isGroup = (c: typeof categories[0]) => c.icon === 'Folder' || categories.some(child => child.parent_id === c.id);
     const type = analysis.dominantType;
     const typedCategories = type === 'income' 
-      ? categories.filter(c => c.type === 'income')
+      ? categories.filter(c => c.type === 'income' && !isGroup(c))
       : type === 'expense' 
-        ? categories.filter(c => c.type === 'expense')
-        : categories;
+        ? categories.filter(c => c.type === 'expense' && !isGroup(c))
+        : categories.filter(c => !isGroup(c));
 
     if (selectedTransactions.length === 0) return typedCategories;
 

@@ -36,9 +36,9 @@ export function BPImportDialog({ open, onOpenChange }: BPImportDialogProps) {
     [streams]
   );
 
-  // Income categories for destination
+  // Income categories for destination (exclude groups)
   const incomeCategories = useMemo(() => 
-    categories.filter(c => c.type === 'income'),
+    categories.filter(c => c.type === 'income' && c.icon !== 'Folder' && !categories.some(child => child.parent_id === c.id)),
     [categories]
   );
 
