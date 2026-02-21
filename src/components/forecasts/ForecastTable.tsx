@@ -1623,7 +1623,6 @@ export function ForecastTable() {
                   netActual >= 0 ? "text-success" : "text-destructive"
                 )}>
                   {hasActual ? formatValue(netActual) : '—'}
-                  <ProgressBar actual={Math.abs(netActual)} forecast={Math.abs(netForecast)} type="balance" />
                 </div>
                 <div className={cn(
                   "flex-1 px-3 py-2 text-right font-bold",
