@@ -266,7 +266,7 @@ export default function Tarifs() {
       {/* ── Footer ── */}
       <footer className="py-12 px-4 sm:px-6 lg:px-8 border-t border-border">
         <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-8">
             <div>
               <h3 className="font-semibold mb-4">Produit</h3>
               <ul className="space-y-2 text-sm text-muted-foreground">
@@ -281,6 +281,12 @@ export default function Tarifs() {
                 <li><Link to="/a-propos" className="hover:text-foreground">À propos</Link></li>
                 <li><Link to="/contact" className="hover:text-foreground">Contact</Link></li>
                 <li><Link to="/blog" className="hover:text-foreground">Blog</Link></li>
+              </ul>
+            </div>
+            <div>
+              <h3 className="font-semibold mb-4">Comparatifs</h3>
+              <ul className="space-y-2 text-sm text-muted-foreground">
+                <li><Link to="/comparatifs/qashflow-vs-zenfirst" className="hover:text-foreground">Qashflow vs Zenfirst</Link></li>
               </ul>
             </div>
             <div>
