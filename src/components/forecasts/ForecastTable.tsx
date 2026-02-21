@@ -1309,10 +1309,10 @@ export function ForecastTable() {
     if (!hasUncategorized) return null;
     
     return (
-      <tr className="bg-amber-500/10 border-b border-border">
-        <td className="p-3 sticky left-0 z-10 bg-amber-500/10 border-r border-border">
+      <tr className="bg-muted/30 border-b border-border">
+        <td className="p-3 sticky left-0 z-10 bg-muted/30 border-r border-border">
           <div className="flex items-center gap-2">
-            <span className="font-medium text-amber-700 dark:text-amber-400">{label}</span>
+            <span className="font-medium text-muted-foreground">{label}</span>
           </div>
         </td>
         {months.map((month, monthIndex) => {
@@ -1335,7 +1335,7 @@ export function ForecastTable() {
               <td key={monthIndex} className="p-0 border-r border-border min-w-[90px]">
                 <div className={cn(
                   "px-3 py-2 text-right font-medium",
-                  amount > 0 ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground"
+                  amount > 0 ? "text-muted-foreground" : "text-muted-foreground"
                 )}>
                   {amount > 0 ? formatValue(amount) : '—'}
                 </div>
@@ -1348,7 +1348,7 @@ export function ForecastTable() {
               <div className="flex">
                 <div className={cn(
                   "flex-1 px-3 py-2 text-right border-r border-border/50 font-medium",
-                  amount > 0 ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground"
+                  amount > 0 ? "text-muted-foreground" : "text-muted-foreground"
                 )}>
                   {amount > 0 ? formatValue(amount) : '—'}
                 </div>
