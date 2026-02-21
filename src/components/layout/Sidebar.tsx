@@ -114,17 +114,19 @@ export function Sidebar() {
   const queryClient = useQueryClient();
   const currentPath = location.pathname;
 
-  // Count uncategorized invoices (both receivable & payable, pending or overdue) for badge
+  // Count uncategorized invoices not yet overdue (matching default "En attente" filter)
   const { data: uncategorizedInvoicesCount = 0 } = useQuery({
     queryKey: ['uncategorized-invoices-count', user?.id, currentCompany?.id],
     queryFn: async () => {
       if (!user?.id || !currentCompany?.id) return 0;
+      const today = new Date().toISOString().split('T')[0];
       const { count, error } = await supabase
         .from('invoices')
         .select('id', { count: 'exact', head: true })
         .eq('company_id', currentCompany.id)
-        .in('status', ['pending', 'overdue'])
-        .is('category_id', null);
+        .eq('status', 'pending')
+        .is('category_id', null)
+        .gte('due_date', today);
       if (error) return 0;
       return count || 0;
     },
