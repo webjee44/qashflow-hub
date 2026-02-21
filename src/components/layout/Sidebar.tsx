@@ -142,7 +142,8 @@ export function Sidebar() {
         .from('transactions')
         .select('id', { count: 'exact', head: true })
         .eq('company_id', currentCompany.id)
-        .is('category_id', null);
+        .is('category_id', null)
+        .is('deleted_at', null);
       if (error) return 0;
       return count || 0;
     },
