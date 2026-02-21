@@ -42,6 +42,7 @@ import ImpersonateLanding from "./pages/ImpersonateLanding";
 // Comparison pages (lazy loading)
 // ============================================
 const QashflowVsZenfirst = lazy(() => import("./pages/comparisons/QashflowVsZenfirst"));
+const QashflowVsAgicap = lazy(() => import("./pages/comparisons/QashflowVsAgicap"));
 
 // ============================================
 // Protected pages (lazy loading)
@@ -135,6 +136,7 @@ const App = () => (
                 
                 {/* Comparison pages */}
                 <Route path="/comparatifs/qashflow-vs-zenfirst" element={<Suspense fallback={<PageLoader />}><QashflowVsZenfirst /></Suspense>} />
+                <Route path="/comparatifs/qashflow-vs-agicap" element={<Suspense fallback={<PageLoader />}><QashflowVsAgicap /></Suspense>} />
                 
                 {/* Impersonation landing (for superadmin) */}
                 <Route path="/impersonate-landing" element={<ImpersonateLanding />} />
