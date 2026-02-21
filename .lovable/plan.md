@@ -1,84 +1,73 @@
 
 
-# Page comparative "Qashflow vs Zenfirst"
+# Refonte des soldes dans le tableau de previsions
 
-## Objectif
+## Problemes identifies
 
-Creer une page "battle" SEO-friendly comparant Qashflow a Zenfirst, accessible depuis le footer de toutes les pages publiques. L'architecture sera pensee pour ajouter facilement d'autres comparatifs plus tard (vs Agicap, vs Fygr, etc.).
+1. **"Solde Net TTC"** est un nom trompeur : c'est la variation nette du mois (encaissements - decaissements), pas un solde bancaire. Les utilisateurs confondent.
+2. **"Solde au 1er du mois"** est correct dans la logique mais ne montre pas le solde de fin de mois, ce qui empeche de voir l'evolution du solde bancaire cumule.
+3. L'utilisateur ne peut pas lire directement : "je commence le mois a X, il se passe Y, je finis a Z".
 
----
+## Solution proposee
 
-## Architecture
-
-Un composant generique `ComparisonPage` recevra les donnees en props, ce qui permettra de creer de futures pages battle en quelques lignes.
+Restructurer le tableau pour afficher clairement 3 lignes de synthese :
 
 ```text
-src/pages/comparisons/
-  QashflowVsZenfirst.tsx    -- Page specifique avec les donnees
-src/components/comparisons/
-  ComparisonPage.tsx         -- Composant generique reutilisable
++------------------------------+----------+----------+----------+
+|                               | Janv     | Fev      | Mars     |
++------------------------------+----------+----------+----------+
+| Solde de debut de mois        | 50 000   | 55 000   | 48 000   |
+|   Encaissements (detail...)   |          |          |          |
+|   Total Encaissements TTC     | 30 000   | 25 000   | 32 000   |
+|   Decaissements (detail...)   |          |          |          |
+|   Total Decaissements TTC     | 25 000   | 32 000   | 28 000   |
+| Variation nette du mois       | +5 000   | -7 000   | +4 000   |
+| Solde de fin de mois          | 55 000   | 48 000   | 52 000   |
++------------------------------+----------+----------+----------+
 ```
 
----
+Le solde de fin du mois N = solde de debut du mois N+1 (coherence garantie).
 
-## Page "Qashflow vs Zenfirst"
+## Modifications techniques
 
-### Structure de la page
+### 1. Renommer "Solde Net TTC" en "Variation nette du mois"
+- Fichier : `src/components/forecasts/ForecastTable.tsx`, fonction `renderNetRow()`
+- Changer le label de "Solde Net TTC" a "Variation nette du mois"
+- Le calcul reste identique (encaissements TTC - decaissements TTC)
 
-1. **Hero** : Titre "Qashflow vs Zenfirst", sous-titre explicatif, badge "Comparatif 2026"
-2. **Tableau comparatif** : Grille de fonctionnalites avec icones check/x pour chaque solution
-3. **Section avantages cles** : 3-4 cartes mettant en avant les differenciateurs de Qashflow
-4. **CTA final** : Bandeau d'appel a l'action vers l'essai gratuit
+### 2. Ajouter une ligne "Solde de fin de mois"
+- Fichier : `src/components/forecasts/ForecastTable.tsx`
+- Nouvelle fonction `renderClosingBalanceRow()`
+- Calcul : `solde debut du mois + variation nette = solde fin de mois`
+- Pour les mois passes : solde debut + flux reels
+- Pour les mois futurs : solde debut + flux previsionnels
+- Style : ligne en gras avec fond colore, rouge si negatif
 
-### Criteres de comparaison prevus
+### 3. Ajouter un helper `getClosingBalance` dans useForecasts
+- Fichier : `src/hooks/useForecasts.ts`
+- Logique : `getOpeningBalance(month).balance + getMonthNetForecast(month)` pour le futur
+- Pour les mois passes : `getOpeningBalance(nextMonth).balance` (le solde d'ouverture du mois suivant = cloture du mois courant)
 
-- Previsions de tresorerie
-- Synchronisation bancaire automatique
-- Categorisation IA
-- Business Plan integre
-- Scenarios de simulation
-- Export PDF
-- Multi-societes
-- Tarification (licence lifetime vs abonnement)
+### 4. Repositionner les lignes dans le tableau
+- Ordre final dans le `<tbody>` :
+  1. Solde de debut de mois (existant, renomme depuis "Solde au 1er du mois")
+  2. Section Encaissements (inchange)
+  3. Total Encaissements TTC (inchange)
+  4. Section Decaissements (inchange)
+  5. TVA a decaisser (inchange)
+  6. Total Decaissements TTC (inchange)
+  7. Dettes non categorisees (inchange)
+  8. **Variation nette du mois** (ex "Solde Net TTC")
+  9. **Solde de fin de mois** (nouveau)
 
----
+### 5. Impact sur le graphique
+- Fichier : `src/components/forecasts/ForecastChart.tsx`
+- Ajouter une courbe "Solde projete" qui montre l'evolution du solde de fin de mois dans le temps (optionnel, a confirmer)
 
-## Modifications des footers
+## Fichiers concernes
+- `src/hooks/useForecasts.ts` : ajout de `getClosingBalance`
+- `src/components/forecasts/ForecastTable.tsx` : renommage + nouvelle ligne + reorganisation
 
-Ajout d'une section "Comparatifs" dans le footer de chaque page publique :
-
-- `src/pages/Landing.tsx`
-- `src/pages/APropos.tsx`
-- `src/pages/Contact.tsx`
-- `src/pages/Fonctionnalites.tsx`
-- `src/pages/Tarifs.tsx`
-- `src/pages/MentionsLegales.tsx`
-- `src/pages/Confidentialite.tsx`
-
-La nouvelle colonne contiendra le lien "Qashflow vs Zenfirst" (et les futurs comparatifs).
-
----
-
-## Routing
-
-Ajout dans `App.tsx` :
-
-- `/comparatifs/qashflow-vs-zenfirst` -- route publique
-
----
-
-## SEO
-
-- Composant `SEOHead` avec title "Qashflow vs Zenfirst - Comparatif 2026" et meta description optimisee
-- Ajout de l'URL dans `public/sitemap.xml`
-
----
-
-## Details techniques
-
-- La page utilise `PublicNavbar` comme les autres pages publiques
-- Le composant `ComparisonPage` accepte un tableau de criteres `{ label, qashflow: boolean, competitor: boolean }` et le nom du concurrent
-- Design coherent avec le reste du site (Tailwind, shadcn/ui Card, Badge, etc.)
-- Responsive : le tableau se transforme en cartes empilees sur mobile
-- Pour ajouter un futur comparatif (ex: vs Agicap), il suffira de creer un nouveau fichier avec les donnees et une route
+## Resultat attendu
+L'utilisateur voit clairement pour chaque mois : solde initial, flux entrants/sortants, et solde final. Le solde de fin de mois N est identique au solde de debut du mois N+1, garantissant la coherence de la projection.
 
