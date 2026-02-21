@@ -132,7 +132,24 @@ export function Sidebar() {
     enabled: !!user?.id && !!currentCompany?.id,
     staleTime: 1000 * 60 * 5,
   });
-  
+
+  // Count uncategorized transactions for badge
+  const { data: uncategorizedTransactionsCount = 0 } = useQuery({
+    queryKey: ['uncategorized-transactions-count', user?.id, currentCompany?.id],
+    queryFn: async () => {
+      if (!user?.id || !currentCompany?.id) return 0;
+      const { count, error } = await supabase
+        .from('transactions')
+        .select('id', { count: 'exact', head: true })
+        .eq('company_id', currentCompany.id)
+        .is('category_id', null);
+      if (error) return 0;
+      return count || 0;
+    },
+    enabled: !!user?.id && !!currentCompany?.id,
+    staleTime: 1000 * 60 * 5,
+  });
+
   // Both modules are always available — no restriction
   const showTreasuryModule = true;
 
@@ -360,6 +377,16 @@ export function Sidebar() {
                               : "bg-destructive text-destructive-foreground"
                           )}>
                             {uncategorizedPayablesCount}
+                          </span>
+                        )}
+                        {item.href === '/transactions' && uncategorizedTransactionsCount > 0 && (
+                          <span className={cn(
+                            "ml-auto flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-xs font-bold",
+                            isActive
+                              ? "bg-primary-foreground/20 text-primary-foreground"
+                              : "bg-destructive text-destructive-foreground"
+                          )}>
+                            {uncategorizedTransactionsCount}
                           </span>
                         )}
                       </>
