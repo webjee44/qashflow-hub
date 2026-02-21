@@ -6,7 +6,7 @@ import { useCompany } from '@/hooks/useCompany';
 import { useForecasts } from '@/hooks/useForecasts';
 import { format, startOfMonth, isBefore, isSameMonth } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { Loader2, Copy, Check, CheckCircle2, TrendingUp, ChevronRight, ChevronDown, Link2, ChevronsUpDown, ChevronsDownUp, MoreHorizontal, Edit3, Trash2, Eye, EyeOff, ArrowUpRight, FileText, AlertTriangle } from 'lucide-react';
+import { Loader2, Copy, Check, CheckCircle2, TrendingUp, ChevronRight, ChevronDown, Link2, ChevronsUpDown, ChevronsDownUp, MoreHorizontal, Edit3, Trash2, Eye, EyeOff, ArrowUpRight, FileText, AlertTriangle, Folder } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -936,15 +936,7 @@ export function ForecastTable() {
             ) : (
               <ChevronDown className="w-4 h-4 text-muted-foreground" />
             )}
-            <div 
-              className="w-6 h-6 rounded-lg flex items-center justify-center"
-              style={{ backgroundColor: `${group.group.color}25` }}
-            >
-              <div 
-                className="w-3 h-3 rounded-full" 
-                style={{ backgroundColor: group.group.color }}
-              />
-            </div>
+            <Folder className="w-4 h-4 text-muted-foreground flex-shrink-0" />
             <span className={cn("font-bold uppercase tracking-wide text-foreground", textClass)}>
               {group.group.name}
             </span>
