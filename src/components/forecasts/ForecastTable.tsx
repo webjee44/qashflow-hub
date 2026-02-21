@@ -1397,7 +1397,7 @@ export function ForecastTable() {
   };
 
   const renderUncategorizedRow = (type: 'income' | 'expense') => {
-    const label = type === 'income' ? '⚠️ Non catégorisés (encaissements)' : '⚠️ Non catégorisés (décaissements)';
+    const label = type === 'income' ? 'Non catégorisés (encaissements)' : 'Non catégorisés (décaissements)';
     
     // Check if there are any uncategorized transactions for this type
     const hasUncategorized = months.some(month => getUncategorized(type, month) > 0);
@@ -1480,7 +1480,7 @@ export function ForecastTable() {
     return (
       <tr className="bg-muted/30 text-sm">
         <td className="p-2 pl-6 sticky left-0 z-10 bg-muted/30 border-r border-border italic text-muted-foreground">
-          💰 TVA à décaisser
+          TVA à décaisser
         </td>
         {months.map((month, monthIndex) => {
           const vatToPayForecast = getNetVatForecast(months[monthIndex]);
@@ -1544,7 +1544,7 @@ export function ForecastTable() {
     return (
       <tr className="font-semibold bg-primary/5 border-b-2 border-primary/30">
         <td className="p-3 sticky left-0 z-10 bg-primary/5 border-r border-border text-primary">
-          🏦 Solde de début de mois
+          Solde de début de mois
         </td>
         {months.map((month, monthIndex) => {
           const { balance, isActual } = getOpeningBalance(month);
@@ -1611,7 +1611,7 @@ export function ForecastTable() {
         <td className="p-3 sticky left-0 z-10 bg-amber-500/10 border-r border-border text-amber-700 dark:text-amber-400">
           <div className="flex items-center gap-2">
             <AlertTriangle className="w-4 h-4" />
-            ⚠️ Dettes non catégorisées
+            Dettes non catégorisées
           </div>
         </td>
         {months.map((month, monthIndex) => {
@@ -1758,7 +1758,7 @@ export function ForecastTable() {
     return (
       <tr className="font-semibold bg-primary/10 border-t-2 border-primary/30">
         <td className="p-3 sticky left-0 z-10 bg-primary/10 border-r border-border text-primary">
-          🏦 Solde de fin de mois
+          Solde de fin de mois
         </td>
         {months.map((month, monthIndex) => {
           const closingData = getClosingBalance(month);
@@ -1973,7 +1973,7 @@ export function ForecastTable() {
                 return (
                   <th key={index} className={cn("p-0 border-x-2 border-primary/30", minWidth)}>
                     <div className="text-center p-2 border-b border-border/50 font-bold text-primary capitalize bg-primary/10">
-                      📍 {formatMonth(month)}
+                      {formatMonth(month)}
                     </div>
                     <div className="flex text-xs bg-primary/5">
                       <div className="flex-1 px-3 py-1.5 text-center border-r border-border/50 text-primary font-semibold">
