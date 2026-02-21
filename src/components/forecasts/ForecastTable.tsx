@@ -184,8 +184,14 @@ export function ForecastTable() {
   const isCategoriesLoading = categoriesLoading && categories.length === 0;
 
   // Get grouped categories
-  const incomeGroups = useMemo(() => getGroupedCategories('income'), [categories]);
-  const expenseGroups = useMemo(() => getGroupedCategories('expense'), [categories]);
+  const incomeGroups = useMemo(() => {
+    const groups = getGroupedCategories('income');
+    return groups.map(g => ({ ...g, children: g.children.filter(c => !c.is_system) })).filter(g => g.group || g.children.length > 0);
+  }, [categories]);
+  const expenseGroups = useMemo(() => {
+    const groups = getGroupedCategories('expense');
+    return groups.map(g => ({ ...g, children: g.children.filter(c => !c.is_system) })).filter(g => g.group || g.children.length > 0);
+  }, [categories]);
 
   // Get all group IDs for default collapsed state
   const allGroupIds = useMemo(() => 
@@ -277,8 +283,8 @@ export function ForecastTable() {
   const allExpanded = allGroupIds.length > 0 && !allGroupIds.some(id => collapsedGroups.has(id)) && !collapsedSections.has('income') && !collapsedSections.has('expense');
 
   // Separate categories by type (for backward compatibility)
-  const incomeCategories = categories.filter(c => c.type === 'income');
-  const expenseCategories = categories.filter(c => c.type === 'expense');
+  const incomeCategories = categories.filter(c => c.type === 'income' && !c.is_system);
+  const expenseCategories = categories.filter(c => c.type === 'expense' && !c.is_system);
 
   const formatValue = (value: number) => {
     return new Intl.NumberFormat('fr-FR', {

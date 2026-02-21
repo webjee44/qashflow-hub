@@ -79,12 +79,14 @@ export function CategoryCard({
             >
               <Edit3 className="w-4 h-4" />
             </button>
-            <button 
-              onClick={() => setDeleteDialogOpen(true)}
-              className="p-2 rounded-lg hover:bg-destructive/10 transition-colors text-muted-foreground hover:text-destructive"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
+            {!category.is_system && (
+              <button 
+                onClick={() => setDeleteDialogOpen(true)}
+                className="p-2 rounded-lg hover:bg-destructive/10 transition-colors text-muted-foreground hover:text-destructive"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </div>
       </motion.div>

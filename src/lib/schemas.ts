@@ -48,6 +48,7 @@ export const categorySchema = z.object({
   sort_order: z.number().nullable(),
   forecast_mode: z.string(),
   forecast_percent: z.number(),
+  is_system: z.boolean().optional().default(false),
   created_at: z.string(),
   updated_at: z.string(),
 }).passthrough();

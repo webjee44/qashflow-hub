@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { useCompany } from '@/hooks/useCompany';
@@ -20,7 +21,10 @@ export interface Category {
   sort_order?: number;
   forecast_mode?: 'manual' | 'percent_of_revenue';
   forecast_percent?: number;
+  is_system?: boolean;
 }
+
+export const SYSTEM_CATEGORY_INTERCOMPTE = 'Virement intercompte';
 
 export interface CategoryGroup {
   group: Category | null;
@@ -48,11 +52,46 @@ export function useCategories() {
 
   const { data: categories = [], isLoading: loading, refetch } = useQuery({
     queryKey,
-    queryFn: () => categoryApi.getByCompany(companyId!),
+    queryFn: async () => {
+      const data = await categoryApi.getByCompany(companyId!);
+      return data as Category[];
+    },
     enabled: !!user && !!companyId,
     staleTime: 1000 * 60 * 10,
-    select: (data) => data as Category[],
   });
+
+  // Ensure system categories exist whenever categories are loaded
+  const ensureSystemCategories = async () => {
+    if (!user || !currentCompany) return;
+    const hasIntercompte = categories.some(c => c.name === SYSTEM_CATEGORY_INTERCOMPTE);
+    if (hasIntercompte) return;
+
+    try {
+      await categoryApi.create({
+        name: SYSTEM_CATEGORY_INTERCOMPTE,
+        color: 'hsl(220, 14%, 60%)',
+        icon: 'ArrowLeftRight',
+        type: 'expense',
+        vat_rate: 0,
+        is_system: true,
+        user_id: currentCompany.user_id,
+        company_id: currentCompany.id,
+      });
+      queryClient.invalidateQueries({ queryKey });
+    } catch (error) {
+      logError('Error creating system category:', error);
+    }
+  };
+
+  // Auto-ensure system categories when categories are loaded
+  useEffect(() => {
+    if (!loading && categories.length > 0 && user && currentCompany) {
+      const hasIntercompte = categories.some(c => c.name === SYSTEM_CATEGORY_INTERCOMPTE);
+      if (!hasIntercompte) {
+        ensureSystemCategories();
+      }
+    }
+  }, [loading, categories.length, user?.id, currentCompany?.id]);
 
   const initializeDefaultCategories = async () => {
     if (!user || !currentCompany) return;
@@ -165,6 +204,11 @@ export function useCategories() {
   });
 
   const deleteCategory = async (id: string, reassignToId?: string | null) => {
+    const cat = categories.find(c => c.id === id);
+    if (cat?.is_system) {
+      toast.error('Les catégories système ne peuvent pas être supprimées');
+      return;
+    }
     try {
       await deleteMutation.mutateAsync({ id, reassignToId });
     } catch {
