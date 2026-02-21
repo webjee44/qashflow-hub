@@ -424,7 +424,7 @@ export default function Landing() {
       {/* ─── Footer ─── */}
       <footer className="border-t border-border py-12 px-4 sm:px-6 lg:px-8" role="contentinfo">
         <div className="max-w-7xl mx-auto">
-          <div className="grid md:grid-cols-4 gap-8">
+          <div className="grid md:grid-cols-5 gap-8">
             <div>
               <div className="flex items-center mb-4">
                 <img src={logo} alt="Qashflow - Direction Financière augmentée" className="h-8" />
@@ -448,6 +448,12 @@ export default function Landing() {
                 <li><Link to="/a-propos" className="hover:text-foreground">À propos de Qashflow</Link></li>
                 <li><Link to="/contact" className="hover:text-foreground">Contact</Link></li>
                 <li><a href="mailto:support@qashflow.fr" className="hover:text-foreground">Support</a></li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="font-semibold mb-4">Comparatifs</h4>
+              <ul className="space-y-2 text-sm text-muted-foreground">
+                <li><Link to="/comparatifs/qashflow-vs-zenfirst" className="hover:text-foreground">Qashflow vs Zenfirst</Link></li>
               </ul>
             </div>
             <div>

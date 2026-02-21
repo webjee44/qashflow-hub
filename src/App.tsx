@@ -39,6 +39,11 @@ import JoinInvitation from "./pages/JoinInvitation";
 import ImpersonateLanding from "./pages/ImpersonateLanding";
 
 // ============================================
+// Comparison pages (lazy loading)
+// ============================================
+const QashflowVsZenfirst = lazy(() => import("./pages/comparisons/QashflowVsZenfirst"));
+
+// ============================================
 // Protected pages (lazy loading)
 // ============================================
 const Dashboard = lazy(() => import("./pages/Dashboard"));
@@ -127,6 +132,9 @@ const App = () => (
                 <Route path="/start" element={<Start />} />
                 <Route path="/start/verify" element={<StartVerify />} />
                 <Route path="/start/welcome" element={<StartWelcome />} />
+                
+                {/* Comparison pages */}
+                <Route path="/comparatifs/qashflow-vs-zenfirst" element={<Suspense fallback={<PageLoader />}><QashflowVsZenfirst /></Suspense>} />
                 
                 {/* Impersonation landing (for superadmin) */}
                 <Route path="/impersonate-landing" element={<ImpersonateLanding />} />
