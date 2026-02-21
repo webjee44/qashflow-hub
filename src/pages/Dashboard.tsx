@@ -6,6 +6,7 @@ import { CategoryBreakdown } from '@/components/dashboard/CategoryBreakdown';
 import { QuickActions } from '@/components/dashboard/QuickActions';
 import { BankAccounts } from '@/components/dashboard/BankAccounts';
 import { OnboardingTour } from '@/components/onboarding/OnboardingTour';
+import { CalendlyPopup } from '@/components/onboarding/CalendlyPopup';
 import { Wallet, TrendingUp, TrendingDown, Calendar } from 'lucide-react';
 import { useDashboardStats } from '@/hooks/useDashboardStats';
 import { useBridgeAutoSync } from '@/hooks/useBridgeAutoSync';
@@ -40,6 +41,7 @@ export default function Dashboard() {
   return (
     <>
       <OnboardingTour />
+      <CalendlyPopup />
       <div className="space-y-8" data-tour="dashboard">
         <PageHeader 
           title="Tableau de bord" 
