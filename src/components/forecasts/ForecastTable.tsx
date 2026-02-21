@@ -6,7 +6,7 @@ import { useCompany } from '@/hooks/useCompany';
 import { useForecasts } from '@/hooks/useForecasts';
 import { format, startOfMonth, isBefore, isSameMonth } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { Loader2, Copy, Check, TrendingUp, ChevronRight, ChevronDown, Link2, ChevronsUpDown, ChevronsDownUp, MoreHorizontal, Edit3, Trash2, Eye, EyeOff, ArrowUpRight, FileText, AlertTriangle } from 'lucide-react';
+import { Loader2, Copy, Check, CheckCircle2, TrendingUp, ChevronRight, ChevronDown, Link2, ChevronsUpDown, ChevronsDownUp, MoreHorizontal, Edit3, Trash2, Eye, EyeOff, ArrowUpRight, FileText, AlertTriangle } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -54,17 +54,37 @@ const getMonthPeriodType = (month: Date): MonthPeriodType => {
 };
 
 // Progress bar for current month cells
+// For expenses: green = on track (actual ≤ forecast), red = over budget
+// For income: green = on track (actual ≥ some threshold), always green
+// Shows a ✓ icon when realization is ≥ 100%
 const ProgressBar = ({ actual, forecast, type }: { actual: number; forecast: number; type: 'income' | 'expense' | 'balance' }) => {
   if (forecast === 0 && actual === 0) return null;
   const pct = forecast > 0 ? Math.min(100, (Math.abs(actual) / Math.abs(forecast)) * 100) : (actual !== 0 ? 100 : 0);
-  const colorClass = type === 'income' ? 'bg-success' : type === 'expense' ? 'bg-destructive' : 'bg-primary';
-  const overBudget = forecast > 0 && Math.abs(actual) > Math.abs(forecast);
+  
+  const isComplete = forecast > 0 && Math.abs(actual) >= Math.abs(forecast);
+  const overBudget = type === 'expense' && forecast > 0 && Math.abs(actual) > Math.abs(forecast);
+  
+  // Color logic: expenses turn red only when over budget, otherwise green/primary
+  const colorClass = overBudget 
+    ? 'bg-destructive' 
+    : type === 'balance' 
+      ? 'bg-primary' 
+      : 'bg-success';
+  
   return (
-    <div className="w-full h-1.5 bg-muted/50 rounded-full mt-1">
-      <div 
-        className={cn(colorClass, overBudget && "opacity-90", "h-full rounded-full transition-all")}
-        style={{ width: `${pct}%` }} 
-      />
+    <div className="flex items-center gap-1 mt-1">
+      <div className="flex-1 h-1.5 bg-muted/50 rounded-full">
+        <div 
+          className={cn(colorClass, "h-full rounded-full transition-all")}
+          style={{ width: `${pct}%` }} 
+        />
+      </div>
+      {isComplete && !overBudget && (
+        <CheckCircle2 className="w-3 h-3 text-success flex-shrink-0" />
+      )}
+      {overBudget && (
+        <AlertTriangle className="w-3 h-3 text-destructive flex-shrink-0" />
+      )}
     </div>
   );
 };
