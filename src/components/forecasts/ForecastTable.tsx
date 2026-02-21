@@ -1881,6 +1881,7 @@ export function ForecastTable() {
               </td>
             </tr>
             {renderGroupedSection(incomeGroups, 'income', 0)}
+            {renderUncategorizedRow('income')}
             {renderTtcRow('Total Encaissements', 'income')}
 
             {/* Expense Section */}
