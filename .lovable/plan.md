@@ -1,75 +1,80 @@
 
 
-# Optimisations 95/100 : Validation Zod + Factory Backend
+# Popup Calendly anti-churn sur le Dashboard
 
-## Contexte
+## Objectif
 
-Le CTO a identifie 2 axes d'amelioration restants. Le point ErrorBoundary est deja en place (`App.tsx` ligne 96). Le `.gitignore` n'est pas pertinent car le `.env` est gere automatiquement par la plateforme.
-
----
-
-## 1. Validation Zod sur les reponses API (Front-end)
-
-Ajouter des schemas Zod pour valider les donnees retournees par la base de donnees avant qu'elles n'entrent dans l'application. Cela protege contre les changements de schema non synchronises.
-
-### Fichier a creer : `src/lib/schemas.ts`
-
-Schemas Zod pour les 3 entites principales :
-- `transactionSchema` : id, date, amount, type, description, category_id, company_id, deleted_at...
-- `invoiceSchema` : id, type, partner_name, amount_ht, amount_ttc, due_date, status...
-- `categorySchema` : id, name, color, icon, type, company_id, parent_id...
-
-Chaque schema utilise `.passthrough()` pour tolerer les champs supplementaires sans casser.
-
-### Fichiers a modifier
-
-| Fichier | Changement |
-|---|---|
-| `src/features/transactions/api/transactionApi.ts` | Wrapper `z.array(transactionSchema).parse(data)` sur les retours de `getByCompany` et `getRecentByCompany` |
-| `src/features/invoices/api/invoiceApi.ts` | Wrapper `z.array(invoiceSchema).parse(data)` sur `getByCompany` |
-| `src/features/categories/api/categoryApi.ts` | Wrapper `z.array(categorySchema).parse(data)` sur `getByCompany` |
-
-La validation est appliquee uniquement sur les fonctions de **lecture** (SELECT) qui alimentent l'UI, pas sur les mutations (INSERT/UPDATE/DELETE) qui ne retournent pas de listes.
+Reduire le churn a l'onboarding en proposant un appel gratuit de setup aux nouveaux utilisateurs. Un popup elegant apparait apres 45 secondes sur le Dashboard, avec un lien vers Calendly.
 
 ---
 
-## 2. Factory de services backend (Edge Functions)
+## Comportement
 
-Creer une factory qui centralise l'instanciation du client Supabase admin + tous les repositories en un seul appel.
+- **Declenchement** : 45 secondes apres l'arrivee sur le Dashboard
+- **Frequence** : 1 seule fois par utilisateur (flag `calendly_popup_dismissed` stocke en base dans la table `profiles`)
+- **Fermeture** : bouton "Plus tard" ou clic sur le CTA. Dans les deux cas, le popup ne reapparait plus
+- **CTA principal** : ouvre le lien Calendly dans un nouvel onglet
+- **Design** : Dialog shadcn/ui avec icone Calendar, titre accrocheur, texte court et 2 boutons
 
-### Fichier a creer : `supabase/functions/_shared/serviceFactory.ts`
+---
+
+## Fichiers a creer
+
+### `src/components/onboarding/CalendlyPopup.tsx`
+
+Composant React qui :
+1. Verifie si l'utilisateur a deja ferme le popup (requete `profiles.calendly_popup_dismissed`)
+2. Lance un `setTimeout(45000)` si non dismissed
+3. Affiche un Dialog avec :
+   - Icone Calendar + emoji main
+   - Titre : "Besoin d'un coup de pouce ?"
+   - Texte : "Reservez un appel gratuit de 15 min avec notre equipe pour configurer votre compte ensemble."
+   - Bouton principal : "Reserver mon appel gratuit" (ouvre Calendly)
+   - Bouton secondaire : "Plus tard"
+4. Au clic sur l'un ou l'autre bouton, met a jour `profiles.calendly_popup_dismissed = true`
+
+Le lien Calendly est stocke en constante dans le composant (facile a modifier).
+
+---
+
+## Fichiers a modifier
+
+### `src/pages/Dashboard.tsx`
+
+Ajouter `<CalendlyPopup />` dans le JSX, a cote du `<OnboardingTour />` existant.
+
+---
+
+## Schema de donnees
+
+Ajout d'une colonne a la table `profiles` :
 
 ```text
-createSupabaseServices()
-  --> supabaseAdmin (SupabaseClient)
-  --> transactionRepo (TransactionRepository)
-  --> invoiceRepo (InvoiceRepository)
-  --> automationRepo (AutomationRepository)
+ALTER TABLE profiles ADD COLUMN calendly_popup_dismissed BOOLEAN DEFAULT false;
 ```
 
-La factory lit `SUPABASE_URL` et `SUPABASE_SERVICE_ROLE_KEY` depuis l'environnement et retourne un objet avec le client + les 3 repositories pre-instancies.
-
-### Fichiers a modifier (4 Edge Functions)
-
-| Fichier | Avant | Apres |
-|---|---|---|
-| `categorize-transaction/index.ts` | `createClient(...)` + `new TransactionRepository(...)` | `const { transactionRepo } = createSupabaseServices()` |
-| `apply-automation-rule/index.ts` | `createClient(...)` + `new AutomationRepository(...)` + `new TransactionRepository(...)` | `const { automationRepo, transactionRepo } = createSupabaseServices()` |
-| `apply-all-automation-rules/index.ts` | idem | idem |
-| `pennylane-invoices-sync/index.ts` | `createClient(...)` + `new InvoiceRepository(...)` | `const { invoiceRepo } = createSupabaseServices()` |
-
-Chaque fonction passe de ~5 lignes de setup a 1 ligne. Le client `createClient` n'est plus repete.
+Cela permet de persister le choix meme si l'utilisateur change de navigateur.
 
 ---
 
-## Resume des livrables
+## Parcours utilisateur
 
-| Livrable | Fichiers | Type |
-|---|---|---|
-| Schemas Zod | `src/lib/schemas.ts` (nouveau) | Creation |
-| Validation front | 3 fichiers API (`transactionApi`, `invoiceApi`, `categoryApi`) | Modification |
-| Factory backend | `supabase/functions/_shared/serviceFactory.ts` (nouveau) | Creation |
-| Simplification Edge Functions | 4 fichiers Edge Functions | Modification |
+```text
+Inscription --> Welcome --> Dashboard
+                              |
+                              +-- 45s --> Popup apparait
+                              |             |
+                              |             +-- "Reserver" --> Calendly (nouvel onglet) + dismiss
+                              |             +-- "Plus tard" --> dismiss
+                              |
+                              +-- (prochaine visite : pas de popup)
+```
 
-**Impact** : Zero changement fonctionnel. Renforcement de la robustesse (runtime type-safety) et reduction du code duplique backend (DRY).
+---
 
+## Details techniques
+
+- Composant base sur `Dialog` de shadcn/ui (deja installe)
+- Animation d'entree via les classes `animate-in` natives du Dialog
+- Le `setTimeout` est nettoye dans le `useEffect` cleanup pour eviter les fuites memoire
+- Le lien Calendly sera en constante : vous pourrez le modifier facilement dans le fichier
