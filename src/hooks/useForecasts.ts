@@ -387,19 +387,46 @@ export function useForecasts() {
   const { data: allTransactions = [], isLoading: transactionsLoading } = useQuery({
     queryKey: ['all-transactions-for-balance', user?.id, currentCompany?.id],
     queryFn: async () => {
-      if (!user?.id) return [];
+      if (!user?.id || !currentCompany?.id) return [];
       
-      if (!currentCompany?.id) return [];
+      // Fetch in batches to avoid the 1000 row default limit
+      const batchSize = 1000;
+      let allData: { amount: number; date: string; type: string }[] = [];
+      let offset = 0;
+      let hasMore = true;
       
-      const { data, error } = await supabase
-        .from('transactions')
-        .select('amount, date, type')
-        .eq('company_id', currentCompany.id)
-        .is('deleted_at', null);
-      if (error) throw error;
-      return data as { amount: number; date: string; type: string }[];
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('transactions')
+          .select('amount, date, type')
+          .eq('company_id', currentCompany.id)
+          .is('deleted_at', null)
+          .range(offset, offset + batchSize - 1);
+        if (error) throw error;
+        allData = allData.concat(data || []);
+        hasMore = (data?.length ?? 0) === batchSize;
+        offset += batchSize;
+      }
+      
+      return allData;
     },
     enabled: !!user?.id && !!currentCompany?.id,
+  });
+
+  // Fetch balance snapshots for past months (use real recorded balances instead of retroactive calc)
+  const { data: balanceSnapshots = [] } = useQuery({
+    queryKey: ['balance-snapshots', currentCompany?.id],
+    queryFn: async () => {
+      if (!currentCompany?.id) return [];
+      const { data, error } = await (supabase as any)
+        .from('bank_balance_snapshots')
+        .select('bridge_account_id, balance, snapshot_date')
+        .eq('company_id', currentCompany.id)
+        .order('snapshot_date', { ascending: false });
+      if (error) throw error;
+      return (data || []) as { bridge_account_id: number; balance: number; snapshot_date: string }[];
+    },
+    enabled: !!currentCompany?.id,
   });
 
   // Helper to get payable outflow for a specific month
@@ -529,11 +556,17 @@ export function useForecasts() {
           const txDate = new Date(tx.date);
           return txDate < targetMonth;
         });
-        const netBefore = transactionsBeforeTarget.reduce((sum, tx) => sum + Number(tx.amount), 0);
+        const netBefore = transactionsBeforeTarget.reduce((sum, tx) => {
+          const amount = Number(tx.amount);
+          return sum + (tx.type === 'income' ? amount : -amount);
+        }, 0);
         return { balance: initialBalance + netBefore, isActual: !isBefore(todayMonth, targetMonth) };
       }
       // Future: initial_balance + all past transactions + forecasts
-      const allPastNet = allTransactions.reduce((sum, tx) => sum + Number(tx.amount), 0);
+      const allPastNet = allTransactions.reduce((sum, tx) => {
+        const amount = Number(tx.amount);
+        return sum + (tx.type === 'income' ? amount : -amount);
+      }, 0);
       let projected = initialBalance + allPastNet;
       for (let m = addMonths(todayMonth, 1); isBefore(m, targetMonth); m = addMonths(m, 1)) {
         projected += getMonthNetForecast(m);
@@ -547,13 +580,26 @@ export function useForecasts() {
     }
     
     if (isBefore(targetMonth, todayMonth)) {
-      // Past month: walk backwards from current balance
-      // Balance at 1st of target month = currentBalance - sum(transactions from targetMonth to today)
+      // Past month: first check if we have a balance snapshot
+      const targetDateStr = format(targetMonth, 'yyyy-MM-dd');
+      // Find snapshots for the last day of the previous month or first day of target month
+      const snapshotsForDate = balanceSnapshots.filter(s => s.snapshot_date === targetDateStr);
+      if (snapshotsForDate.length > 0) {
+        // Sum all account snapshots for this date = total company balance at that point
+        const snapshotBalance = snapshotsForDate.reduce((sum, s) => sum + Number(s.balance), 0);
+        return { balance: snapshotBalance, isActual: true };
+      }
+      
+      // Fallback: walk backwards from current balance using signed transactions
+      // Balance at 1st of target month = currentBalance - net(transactions from targetMonth to today)
       const transactionsBetween = allTransactions.filter(tx => {
         const txDate = new Date(tx.date);
         return txDate >= targetMonth && txDate < todayMonth;
       });
-      const netBetween = transactionsBetween.reduce((sum, tx) => sum + Number(tx.amount), 0);
+      const netBetween = transactionsBetween.reduce((sum, tx) => {
+        const amount = Number(tx.amount);
+        return sum + (tx.type === 'income' ? amount : -amount);
+      }, 0);
       return { balance: currentBankBalance - netBetween, isActual: true };
     }
     
@@ -565,7 +611,7 @@ export function useForecasts() {
       projectedBalance += monthNet;
     }
     return { balance: projectedBalance, isActual: false };
-  }, [currentCompany, allTransactions, getMonthNetForecast]);
+  }, [currentCompany, allTransactions, balanceSnapshots, getMonthNetForecast]);
 
   // Helper to get total income forecast (HT) for a month - used for variable charge tooltips
   const getIncomeForecastTotal = useCallback((month: Date): number => {
