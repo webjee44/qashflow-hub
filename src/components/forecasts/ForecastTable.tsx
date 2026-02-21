@@ -1750,6 +1750,7 @@ export function ForecastTable() {
         getMonthTotal={getMonthTotal}
         getMonthVat={getMonthVat}
         getPayableOutflow={getPayableOutflow}
+        getClosingBalance={getClosingBalance}
       />
       
       {/* Table */}

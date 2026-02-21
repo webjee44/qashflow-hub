@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { format, isBefore, startOfMonth } from 'date-fns';
+import { format, isBefore, startOfMonth, isSameMonth } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import {
   ComposedChart,
@@ -12,26 +12,31 @@ import {
   ResponsiveContainer,
   ReferenceLine,
   Cell,
+  Legend,
 } from 'recharts';
 import { Card, CardContent } from '@/components/ui/card';
+
+interface ClosingBalanceData {
+  balance: number;
+  forecastBalance?: number | null;
+}
 
 interface ForecastChartProps {
   months: Date[];
   getMonthTotal: (type: 'income' | 'expense', monthIndex: number, valueType: 'forecast' | 'actual') => number;
   getMonthVat: (type: 'income' | 'expense', monthIndex: number, valueType: 'forecast' | 'actual') => number;
   getPayableOutflow?: (month: Date) => number;
+  getClosingBalance: (month: Date) => ClosingBalanceData;
 }
 
-export function ForecastChart({ months, getMonthTotal, getMonthVat, getPayableOutflow }: ForecastChartProps) {
+export function ForecastChart({ months, getMonthTotal, getMonthVat, getPayableOutflow, getClosingBalance }: ForecastChartProps) {
   const today = startOfMonth(new Date());
 
   const data = useMemo(() => {
-    let cumulativeBalance = 0;
-    
     return months.map((month, index) => {
       const isPast = isBefore(month, today);
+      const isCurrent = isSameMonth(month, today);
       
-      // Get totals TTC
       const incomeHt = getMonthTotal('income', index, isPast ? 'actual' : 'forecast');
       const expenseHt = getMonthTotal('expense', index, isPast ? 'actual' : 'forecast');
       const incomeVat = getMonthVat('income', index, isPast ? 'actual' : 'forecast');
@@ -40,25 +45,26 @@ export function ForecastChart({ months, getMonthTotal, getMonthVat, getPayableOu
       const incomeTtc = incomeHt + incomeVat;
       let expenseTtc = expenseHt + expenseVat;
       
-      // Add payables to expenses for forecast months
       if (!isPast && getPayableOutflow) {
         expenseTtc += getPayableOutflow(month);
       }
-      
-      const netFlow = incomeTtc - expenseTtc;
-      
-      cumulativeBalance += netFlow;
+
+      // Get real closing balance from the forecast engine
+      const closingData = getClosingBalance(month);
+      const endBalance = (isCurrent && closingData.forecastBalance != null)
+        ? closingData.forecastBalance
+        : closingData.balance;
       
       return {
         month: format(month, 'MMM', { locale: fr }),
         fullMonth: format(month, 'MMMM yyyy', { locale: fr }),
         income: incomeTtc,
         expense: expenseTtc,
-        balance: cumulativeBalance,
-        isPast,
+        endBalance,
+        isPast: isPast || isCurrent,
       };
     });
-  }, [months, getMonthTotal, getMonthVat, getPayableOutflow, today]);
+  }, [months, getMonthTotal, getMonthVat, getPayableOutflow, getClosingBalance, today]);
 
   const formatValue = (value: number) => {
     if (Math.abs(value) >= 1000) {
@@ -76,28 +82,28 @@ export function ForecastChart({ months, getMonthTotal, getMonthVat, getPayableOu
     }).format(value);
   };
 
-  const CustomTooltip = ({ active, payload, label }: any) => {
+  const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
-      const data = payload[0].payload;
+      const d = payload[0].payload;
       return (
         <div className="bg-popover border border-border rounded-lg shadow-lg p-3 text-sm">
-          <p className="font-semibold text-foreground capitalize mb-2">{data.fullMonth}</p>
+          <p className="font-semibold text-foreground capitalize mb-2">{d.fullMonth}</p>
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 rounded-sm bg-success" />
-              <span className="text-muted-foreground">Revenus:</span>
-              <span className="font-medium text-success">{formatTooltipValue(data.income)}</span>
+              <span className="text-muted-foreground">Encaissements:</span>
+              <span className="font-medium text-success">{formatTooltipValue(d.income)}</span>
             </div>
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 rounded-sm bg-destructive" />
-              <span className="text-muted-foreground">Dépenses:</span>
-              <span className="font-medium text-destructive">{formatTooltipValue(data.expense)}</span>
+              <span className="text-muted-foreground">Décaissements:</span>
+              <span className="font-medium text-destructive">{formatTooltipValue(d.expense)}</span>
             </div>
             <div className="flex items-center gap-2 pt-1 border-t border-border">
               <div className="w-3 h-0.5 bg-primary rounded" />
-              <span className="text-muted-foreground">Solde cumulé:</span>
-              <span className={`font-semibold ${data.balance >= 0 ? 'text-primary' : 'text-destructive'}`}>
-                {formatTooltipValue(data.balance)}
+              <span className="text-muted-foreground">Solde fin de mois:</span>
+              <span className={`font-semibold ${d.endBalance >= 0 ? 'text-primary' : 'text-destructive'}`}>
+                {formatTooltipValue(d.endBalance)}
               </span>
             </div>
           </div>
@@ -110,7 +116,7 @@ export function ForecastChart({ months, getMonthTotal, getMonthVat, getPayableOu
   return (
     <Card className="mb-6">
       <CardContent className="pt-6">
-        <div className="h-[200px] w-full">
+        <div className="h-[220px] w-full">
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart
               data={data}
@@ -147,20 +153,32 @@ export function ForecastChart({ months, getMonthTotal, getMonthVat, getPayableOu
                 tickLine={false}
               />
               <YAxis 
+                yAxisId="bars"
                 tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
                 axisLine={false}
                 tickLine={false}
                 tickFormatter={formatValue}
                 width={50}
               />
+              <YAxis 
+                yAxisId="balance"
+                orientation="right"
+                tick={{ fill: 'hsl(var(--primary))', fontSize: 11 }}
+                axisLine={false}
+                tickLine={false}
+                tickFormatter={formatValue}
+                width={55}
+              />
               <Tooltip content={<CustomTooltip />} />
-              <ReferenceLine y={0} stroke="hsl(var(--border))" strokeWidth={1} />
+              <ReferenceLine yAxisId="balance" y={0} stroke="hsl(var(--border))" strokeWidth={1} />
               
               {/* Income bars */}
               <Bar 
                 dataKey="income" 
+                yAxisId="bars"
                 radius={[4, 4, 0, 0]}
                 maxBarSize={40}
+                name="Encaissements"
               >
                 {data.map((entry, index) => (
                   <Cell 
@@ -176,8 +194,10 @@ export function ForecastChart({ months, getMonthTotal, getMonthVat, getPayableOu
               {/* Expense bars */}
               <Bar 
                 dataKey="expense" 
+                yAxisId="bars"
                 radius={[4, 4, 0, 0]}
                 maxBarSize={40}
+                name="Décaissements"
               >
                 {data.map((entry, index) => (
                   <Cell 
@@ -190,12 +210,14 @@ export function ForecastChart({ months, getMonthTotal, getMonthVat, getPayableOu
                 ))}
               </Bar>
               
-              {/* Balance line */}
+              {/* End-of-month balance line */}
               <Line 
                 type="monotone"
-                dataKey="balance"
+                dataKey="endBalance"
+                yAxisId="balance"
                 stroke="hsl(var(--primary))"
                 strokeWidth={2.5}
+                name="Solde fin de mois"
                 dot={{ 
                   fill: 'hsl(var(--primary))', 
                   stroke: 'hsl(var(--background))',
@@ -217,15 +239,15 @@ export function ForecastChart({ months, getMonthTotal, getMonthVat, getPayableOu
         <div className="flex items-center justify-center gap-6 mt-4 text-xs text-muted-foreground">
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-sm bg-success" />
-            <span>Revenus</span>
+            <span>Encaissements</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-sm bg-destructive" />
-            <span>Dépenses</span>
+            <span>Décaissements</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-4 h-0.5 bg-primary rounded" />
-            <span>Solde cumulé</span>
+            <span>Solde fin de mois</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-sm border-2 border-dashed border-muted-foreground/50" />
