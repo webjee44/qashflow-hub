@@ -195,6 +195,28 @@ export function ForecastTable() {
     [incomeGroups, expenseGroups]
   );
   
+  // Section-level collapse (Encaissements / Décaissements)
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem('forecast-collapsed-sections');
+      if (saved) return new Set(JSON.parse(saved));
+      return new Set();
+    } catch { return new Set(); }
+  });
+
+  useEffect(() => {
+    localStorage.setItem('forecast-collapsed-sections', JSON.stringify([...collapsedSections]));
+  }, [collapsedSections]);
+
+  const toggleSection = (sectionId: string) => {
+    setCollapsedSections(prev => {
+      const next = new Set(prev);
+      if (next.has(sectionId)) next.delete(sectionId);
+      else next.add(sectionId);
+      return next;
+    });
+  };
+
   // Collapsed groups state with localStorage persistence - DEFAULT COLLAPSED
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => {
     try {
@@ -243,14 +265,16 @@ export function ForecastTable() {
 
   const expandAll = () => {
     setCollapsedGroups(new Set());
+    setCollapsedSections(new Set());
   };
 
   const collapseAll = () => {
     setCollapsedGroups(new Set(allGroupIds));
+    setCollapsedSections(new Set(['income', 'expense']));
   };
 
-  const allCollapsed = allGroupIds.length > 0 && allGroupIds.every(id => collapsedGroups.has(id));
-  const allExpanded = allGroupIds.length > 0 && !allGroupIds.some(id => collapsedGroups.has(id));
+  const allCollapsed = allGroupIds.length > 0 && allGroupIds.every(id => collapsedGroups.has(id)) && collapsedSections.has('income') && collapsedSections.has('expense');
+  const allExpanded = allGroupIds.length > 0 && !allGroupIds.some(id => collapsedGroups.has(id)) && !collapsedSections.has('income') && !collapsedSections.has('expense');
 
   // Separate categories by type (for backward compatibility)
   const incomeCategories = categories.filter(c => c.type === 'income');
@@ -1294,6 +1318,84 @@ export function ForecastTable() {
     );
   };
 
+  // Collapsible section header row with inline TTC totals
+  const renderSectionHeaderRow = (label: string, type: 'income' | 'expense', sectionId: string) => {
+    const isCollapsed = collapsedSections.has(sectionId);
+    const textClass = type === 'income' ? 'text-success' : 'text-foreground';
+    
+    return (
+      <tr 
+        className="font-semibold cursor-pointer group/section transition-colors duration-200 hover:bg-muted/60 border-b border-border"
+        onClick={() => toggleSection(sectionId)}
+      >
+        <td className="p-3 sticky left-0 z-10 bg-inherit border-r border-border">
+          <div className="flex items-center gap-2">
+            <div className="w-5 h-5 rounded-md flex items-center justify-center bg-muted transition-colors duration-200 group-hover/section:bg-foreground/10">
+              {isCollapsed ? (
+                <Plus className="w-3 h-3 text-muted-foreground" />
+              ) : (
+                <Minus className="w-3 h-3 text-muted-foreground" />
+              )}
+            </div>
+            <span className={textClass}>{label}</span>
+          </div>
+        </td>
+        {months.map((month, monthIndex) => {
+          const forecastHt = getMonthTotal(type, monthIndex, 'forecast');
+          const actualHt = getMonthTotal(type, monthIndex, 'actual');
+          const forecastVat = getMonthVat(type, monthIndex, 'forecast');
+          const actualVat = getMonthVat(type, monthIndex, 'actual');
+          
+          let forecastTtc = forecastHt + forecastVat;
+          let actualTtc = actualHt + actualVat;
+          
+          if (type === 'expense') {
+            const netVatForecast = getNetVatForecast(months[monthIndex]);
+            const netVatActual = getNetVatActual(months[monthIndex]);
+            if (netVatForecast > 0) forecastTtc += netVatForecast;
+            if (netVatActual > 0) actualTtc += netVatActual;
+          }
+          
+          const periodType = getMonthPeriodType(month);
+          
+          if (periodType === 'past') {
+            return (
+              <td key={monthIndex} className="p-0 border-r border-border min-w-[90px]">
+                <div className={cn("px-3 py-2 text-right font-semibold", textClass)}>
+                  {actualTtc > 0 ? formatValue(actualTtc) : '—'}
+                </div>
+              </td>
+            );
+          }
+          
+          if (periodType === 'future') {
+            return (
+              <td key={monthIndex} className="p-0 border-r border-border min-w-[90px]">
+                <div className={cn("px-3 py-2 text-right font-semibold", textClass)}>
+                  {forecastTtc > 0 ? formatValue(forecastTtc) : '—'}
+                </div>
+              </td>
+            );
+          }
+          
+          return (
+            <td key={monthIndex} className="p-0 border-x-2 border-primary/30 min-w-[160px]">
+              <div className="flex">
+                <div className={cn("flex-1 px-3 py-2 text-right border-r border-border/50 font-semibold", textClass)}>
+                  {actualTtc > 0 ? formatValue(actualTtc) : '—'}
+                  <ProgressBar actual={actualTtc} forecast={forecastTtc} type={type} />
+                </div>
+                <div className={cn("flex-1 px-3 py-2 text-right font-semibold", textClass)}>
+                  {forecastTtc > 0 ? formatValue(forecastTtc) : '—'}
+                </div>
+              </div>
+            </td>
+          );
+        })}
+      </tr>
+    );
+  };
+
   const renderUncategorizedRow = (type: 'income' | 'expense') => {
     const label = type === 'income' ? '⚠️ Non catégorisés (encaissements)' : '⚠️ Non catégorisés (décaissements)';
     
@@ -1480,7 +1582,7 @@ export function ForecastTable() {
               <div className="flex">
                 <div className={cn(
                   "flex-1 px-3 py-2 text-right border-r border-border/50 font-bold",
-                  balance >= 0 ? "text-primary" : "text-destructive"
+                  balance >= 0 ? "text-primary" : "text-foreground"
                 )}>
                   {formatValue(balance)}
                 </div>
@@ -1608,7 +1710,7 @@ export function ForecastTable() {
               <td key={monthIndex} className="p-0 border-r border-border min-w-[90px]">
                 <div className={cn(
                   "px-3 py-2 text-right font-bold",
-                  netActual >= 0 ? "text-success" : "text-destructive"
+                  netActual >= 0 ? "text-success" : "text-foreground"
                 )}>
                   {hasActual ? formatValue(netActual) : '—'}
                 </div>
@@ -1621,7 +1723,7 @@ export function ForecastTable() {
               <td key={monthIndex} className="p-0 border-r border-border min-w-[90px]">
                 <div className={cn(
                   "px-3 py-2 text-right font-bold",
-                  netForecast >= 0 ? "text-primary" : "text-destructive"
+                  netForecast >= 0 ? "text-primary" : "text-foreground"
                 )}>
                   {hasForecast ? formatValue(netForecast) : '—'}
                 </div>
@@ -1634,13 +1736,13 @@ export function ForecastTable() {
               <div className="flex">
                 <div className={cn(
                   "flex-1 px-3 py-2 text-right border-r border-border/50 font-bold",
-                  netActual >= 0 ? "text-success" : "text-destructive"
+                  netActual >= 0 ? "text-success" : "text-foreground"
                 )}>
                   {hasActual ? formatValue(netActual) : '—'}
                 </div>
                 <div className={cn(
                   "flex-1 px-3 py-2 text-right font-bold",
-                  netForecast >= 0 ? "text-primary" : "text-destructive"
+                  netForecast >= 0 ? "text-primary" : "text-foreground"
                 )}>
                   {hasForecast ? formatValue(netForecast) : '—'}
                 </div>
@@ -1668,7 +1770,7 @@ export function ForecastTable() {
               <td key={monthIndex} className="p-0 border-r border-border min-w-[90px]">
                 <div className={cn(
                   "px-3 py-2 text-right font-bold",
-                  balance >= 0 ? "text-primary" : "text-destructive"
+                  balance >= 0 ? "text-primary" : "text-foreground"
                 )}>
                   {formatValue(balance)}
                 </div>
@@ -1681,7 +1783,7 @@ export function ForecastTable() {
               <td key={monthIndex} className="p-0 border-r border-border min-w-[90px]">
                 <div className={cn(
                   "px-3 py-2 text-right font-bold italic",
-                  balance >= 0 ? "text-muted-foreground" : "text-destructive"
+                  balance >= 0 ? "text-muted-foreground" : "text-foreground"
                 )}>
                   {formatValue(balance)}
                 </div>
@@ -1698,13 +1800,13 @@ export function ForecastTable() {
               <div className="flex">
                 <div className={cn(
                   "flex-1 px-3 py-2 text-right border-r border-border/50 font-bold",
-                  balance >= 0 ? "text-primary" : "text-destructive"
+                  balance >= 0 ? "text-primary" : "text-foreground"
                 )}>
                   {formatValue(balance)}
                 </div>
                 <div className={cn(
                   "flex-1 px-3 py-2 text-right font-bold italic",
-                  forecastBal >= 0 ? "text-muted-foreground" : "text-destructive"
+                  forecastBal >= 0 ? "text-muted-foreground" : "text-foreground"
                 )}>
                   {formatValue(forecastBal)}
                 </div>
@@ -1890,27 +1992,24 @@ export function ForecastTable() {
             {/* Opening Balance Row */}
             {renderOpeningBalanceRow()}
             
-            {/* Income Section */}
-            <tr className="bg-success/5">
-              <td colSpan={months.length + 1} className="p-2 font-semibold text-success border-b border-border">
-                📈 Encaissements
-              </td>
-            </tr>
-            {renderGroupedSection(incomeGroups, 'income', 0)}
-            {renderUncategorizedRow('income')}
-            {renderTtcRow('Total Encaissements', 'income')}
+            {/* Income Section - Collapsible */}
+            {renderSectionHeaderRow('Encaissements', 'income', 'income')}
+            {!collapsedSections.has('income') && (
+              <>
+                {renderGroupedSection(incomeGroups, 'income', 0)}
+                {renderUncategorizedRow('income')}
+              </>
+            )}
 
-            {/* Expense Section */}
-            <tr className="bg-destructive/5">
-              <td colSpan={months.length + 1} className="p-2 font-semibold text-destructive border-b border-border">
-                📉 Décaissements
-              </td>
-            </tr>
-            {renderGroupedSection(expenseGroups, 'expense', incomeCategories.length)}
-            {renderUncategorizedRow('expense')}
-            {/* TVA à décaisser row - inside expense section, before total */}
-            {renderVatToPayRow()}
-            {renderTtcRow('Total Décaissements', 'expense')}
+            {/* Expense Section - Collapsible */}
+            {renderSectionHeaderRow('Décaissements', 'expense', 'expense')}
+            {!collapsedSections.has('expense') && (
+              <>
+                {renderGroupedSection(expenseGroups, 'expense', incomeCategories.length)}
+                {renderUncategorizedRow('expense')}
+                {renderVatToPayRow()}
+              </>
+            )}
 
             {/* Uncategorized payables notification moved to Engagements sidebar badge */}
 
