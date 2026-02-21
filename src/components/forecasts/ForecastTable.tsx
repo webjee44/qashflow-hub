@@ -447,7 +447,7 @@ export function ForecastTable() {
           <div 
             className={cn(
               "px-3 py-2 text-right bg-muted/20 transition-colors",
-              hasActual && (isPositive ? "text-success" : "text-foreground"),
+              hasActual && "text-foreground",
               hasActual && "cursor-pointer hover:bg-muted/40"
             )}
             onClick={() => hasActual && openTransactionDetail(category, monthIndex)}
@@ -570,7 +570,7 @@ export function ForecastTable() {
             <div 
               className={cn(
                 "flex-1 px-3 py-2 text-right border-r border-border/50 bg-primary/5 transition-colors",
-                hasActual && (isPositive ? "text-success" : "text-foreground"),
+                hasActual && "text-foreground",
                 hasActual && "cursor-pointer hover:bg-primary/10"
               )}
               onClick={() => hasActual && openTransactionDetail(category, monthIndex)}
@@ -792,7 +792,7 @@ export function ForecastTable() {
           <div 
             className={cn(
               "flex-1 px-3 py-2 text-right border-r border-border/50 bg-primary/5 transition-colors",
-              hasActual && (isPositive ? "text-success" : "text-foreground"),
+              hasActual && "text-foreground",
               hasActual && "cursor-pointer hover:bg-primary/10"
             )}
             onClick={() => hasActual && openTransactionDetail(category, monthIndex)}
@@ -945,7 +945,7 @@ export function ForecastTable() {
     
     const groupId = group.group.id;
     const isCollapsed = collapsedGroups.has(groupId);
-    const textClass = type === 'income' ? 'text-success' : 'text-foreground';
+    const textClass = 'text-foreground';
     
     return (
       <tr 
@@ -1153,7 +1153,7 @@ export function ForecastTable() {
 
   const renderTotalRow = (label: string, type: 'income' | 'expense', variant: 'subtotal' | 'total' = 'subtotal') => {
     const bgClass = variant === 'total' ? 'bg-primary/10' : 'bg-muted/50';
-    const textClass = type === 'income' ? 'text-success' : 'text-foreground';
+    const textClass = 'text-foreground';
     
     return (
       <tr className={cn("font-semibold", bgClass)}>
@@ -1204,7 +1204,7 @@ export function ForecastTable() {
   };
 
   const renderVatRow = (label: string, type: 'income' | 'expense') => {
-    const textClass = type === 'income' ? 'text-success/70' : 'text-muted-foreground';
+    const textClass = 'text-muted-foreground';
     
     return (
       <tr className="bg-muted/30 text-sm">
@@ -1254,7 +1254,7 @@ export function ForecastTable() {
   };
 
   const renderTtcRow = (label: string, type: 'income' | 'expense') => {
-    const textClass = type === 'income' ? 'text-success' : 'text-foreground';
+    const textClass = 'text-foreground';
     
     return (
       <tr className="font-bold bg-muted/60">
@@ -1321,23 +1321,24 @@ export function ForecastTable() {
   // Collapsible section header row with inline TTC totals
   const renderSectionHeaderRow = (label: string, type: 'income' | 'expense', sectionId: string) => {
     const isCollapsed = collapsedSections.has(sectionId);
-    const textClass = type === 'income' ? 'text-success' : 'text-foreground';
+    const bgClass = type === 'income' ? 'bg-success/10' : 'bg-destructive/10';
+    const stickyBgClass = type === 'income' ? 'bg-success/10' : 'bg-destructive/10';
     
     return (
       <tr 
-        className="font-semibold cursor-pointer group/section transition-colors duration-200 hover:bg-muted/60 border-b border-border"
+        className={cn("font-semibold cursor-pointer transition-colors duration-200 border-b border-border", bgClass)}
         onClick={() => toggleSection(sectionId)}
       >
-        <td className="p-3 sticky left-0 z-10 bg-inherit border-r border-border">
+        <td className={cn("p-3 sticky left-0 z-10 border-r border-border", stickyBgClass)}>
           <div className="flex items-center gap-2">
-            <div className="w-5 h-5 rounded-md flex items-center justify-center bg-muted transition-colors duration-200 group-hover/section:bg-foreground/10">
+            <div className="w-5 h-5 rounded-md flex items-center justify-center bg-background/50">
               {isCollapsed ? (
                 <Plus className="w-3 h-3 text-muted-foreground" />
               ) : (
                 <Minus className="w-3 h-3 text-muted-foreground" />
               )}
             </div>
-            <span className={textClass}>{label}</span>
+            <span className="text-foreground">{label}</span>
           </div>
         </td>
         {months.map((month, monthIndex) => {
@@ -1361,7 +1362,7 @@ export function ForecastTable() {
           if (periodType === 'past') {
             return (
               <td key={monthIndex} className="p-0 border-r border-border min-w-[90px]">
-                <div className={cn("px-3 py-2 text-right font-semibold", textClass)}>
+                <div className={cn("px-3 py-2 text-right font-semibold text-foreground")}>
                   {actualTtc > 0 ? formatValue(actualTtc) : '—'}
                 </div>
               </td>
@@ -1371,7 +1372,7 @@ export function ForecastTable() {
           if (periodType === 'future') {
             return (
               <td key={monthIndex} className="p-0 border-r border-border min-w-[90px]">
-                <div className={cn("px-3 py-2 text-right font-semibold", textClass)}>
+                <div className={cn("px-3 py-2 text-right font-semibold text-foreground")}>
                   {forecastTtc > 0 ? formatValue(forecastTtc) : '—'}
                 </div>
               </td>
@@ -1381,11 +1382,11 @@ export function ForecastTable() {
           return (
             <td key={monthIndex} className="p-0 border-x-2 border-primary/30 min-w-[160px]">
               <div className="flex">
-                <div className={cn("flex-1 px-3 py-2 text-right border-r border-border/50 font-semibold", textClass)}>
+                <div className={cn("flex-1 px-3 py-2 text-right border-r border-border/50 font-semibold text-foreground")}>
                   {actualTtc > 0 ? formatValue(actualTtc) : '—'}
                   <ProgressBar actual={actualTtc} forecast={forecastTtc} type={type} />
                 </div>
-                <div className={cn("flex-1 px-3 py-2 text-right font-semibold", textClass)}>
+                <div className={cn("flex-1 px-3 py-2 text-right font-semibold text-foreground")}>
                   {forecastTtc > 0 ? formatValue(forecastTtc) : '—'}
                 </div>
               </div>
