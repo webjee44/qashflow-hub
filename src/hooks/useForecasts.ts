@@ -575,8 +575,18 @@ export function useForecasts() {
     }
     
     if (isSameMonth(month, new Date())) {
-      // Current month: return the current bank balance (anchor point)
-      return { balance: currentBankBalance, isActual: true };
+      // Current month: opening = currentBalance - net of all transactions this month
+      // currentBankBalance is today's balance, not start-of-month balance
+      const monthStart = startOfMonth(month);
+      const transactionsThisMonth = allTransactions.filter(tx => {
+        const txDate = new Date(tx.date);
+        return txDate >= monthStart;
+      });
+      const netThisMonth = transactionsThisMonth.reduce((sum, tx) => {
+        const amount = Number(tx.amount);
+        return sum + (tx.type === 'income' ? amount : -amount);
+      }, 0);
+      return { balance: currentBankBalance - netThisMonth, isActual: true };
     }
     
     if (isBefore(targetMonth, todayMonth)) {
