@@ -2370,6 +2370,28 @@ export type Database = {
           subscription_status: string
         }[]
       }
+      get_superadmin_org_stats_with_engagement: {
+        Args: never
+        Returns: {
+          bp_count: number
+          company_count: number
+          created_at: string
+          is_demo: boolean
+          last_active_at: string
+          max_companies: number
+          max_members: number
+          member_count: number
+          name: string
+          organization_id: string
+          owner_email: string
+          owner_id: string
+          plan: string
+          slug: string
+          subscription_status: string
+          total_logins: number
+          total_time_seconds: number
+        }[]
+      }
       get_user_email_for_superadmin: {
         Args: { _user_id: string }
         Returns: string
