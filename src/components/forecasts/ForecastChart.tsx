@@ -5,12 +5,14 @@ import {
   ComposedChart,
   Bar,
   Line,
+  Area,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
   ReferenceLine,
+  ReferenceArea,
   Cell,
   Legend,
 } from 'recharts';
@@ -140,6 +142,10 @@ export function ForecastChart({ months, getMonthTotal, getMonthVat, getPayableOu
                   <stop offset="0%" stopColor="hsl(var(--destructive))" stopOpacity={0.5} />
                   <stop offset="100%" stopColor="hsl(var(--destructive))" stopOpacity={0.3} />
                 </linearGradient>
+                <linearGradient id="balanceNegativeArea" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="hsl(var(--destructive))" stopOpacity={0.15} />
+                  <stop offset="100%" stopColor="hsl(var(--destructive))" stopOpacity={0.05} />
+                </linearGradient>
               </defs>
               <CartesianGrid 
                 strokeDasharray="3 3" 
@@ -170,7 +176,20 @@ export function ForecastChart({ months, getMonthTotal, getMonthVat, getPayableOu
                 width={55}
               />
               <Tooltip content={<CustomTooltip />} />
-              <ReferenceLine yAxisId="balance" y={0} stroke="hsl(var(--border))" strokeWidth={1} />
+              <ReferenceLine 
+                yAxisId="balance" 
+                y={0} 
+                stroke="hsl(var(--destructive))" 
+                strokeWidth={2} 
+                strokeDasharray="6 3"
+                label={{ 
+                  value: '0 €', 
+                  position: 'right', 
+                  fill: 'hsl(var(--destructive))', 
+                  fontSize: 11, 
+                  fontWeight: 600 
+                }}
+              />
               
               {/* Income bars */}
               <Bar 
@@ -210,6 +229,17 @@ export function ForecastChart({ months, getMonthTotal, getMonthVat, getPayableOu
                 ))}
               </Bar>
               
+              {/* Negative balance area fill */}
+              <Area
+                type="monotone"
+                dataKey={(d: any) => d.endBalance < 0 ? d.endBalance : 0}
+                yAxisId="balance"
+                fill="url(#balanceNegativeArea)"
+                stroke="none"
+                baseValue={0}
+                isAnimationActive={false}
+              />
+              
               {/* End-of-month balance line */}
               <Line 
                 type="monotone"
@@ -218,11 +248,19 @@ export function ForecastChart({ months, getMonthTotal, getMonthVat, getPayableOu
                 stroke="hsl(var(--primary))"
                 strokeWidth={2.5}
                 name="Solde fin de mois"
-                dot={{ 
-                  fill: 'hsl(var(--primary))', 
-                  stroke: 'hsl(var(--background))',
-                  strokeWidth: 2,
-                  r: 4
+                dot={(props: any) => {
+                  const { cx, cy, payload } = props;
+                  const isNegative = payload.endBalance < 0;
+                  return (
+                    <circle
+                      cx={cx}
+                      cy={cy}
+                      r={4}
+                      fill={isNegative ? 'hsl(var(--destructive))' : 'hsl(var(--primary))'}
+                      stroke="hsl(var(--background))"
+                      strokeWidth={2}
+                    />
+                  );
                 }}
                 activeDot={{ 
                   r: 6, 
