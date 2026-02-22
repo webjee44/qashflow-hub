@@ -61,10 +61,11 @@ export function useDashboardStats() {
           (catRows || []).filter((c: any) => c.name === 'Virement intercompte').map((c: any) => c.id)
         );
 
-        // Fetch all transactions for calculations
+        // Fetch all transactions for calculations (exclude deleted)
         let query = supabase
           .from('transactions')
-          .select('amount, type, date, category_id');
+          .select('amount, type, date, category_id')
+          .is('deleted_at', null);
 
         if (currentCompany?.id) {
           query = query.eq('company_id', currentCompany.id);
@@ -208,10 +209,11 @@ export function useBalanceChartData() {
       const now = new Date();
       
       try {
-        // Fetch all transactions
+        // Fetch all transactions (exclude deleted)
         let transactionsQuery = supabase
           .from('transactions')
-          .select('amount, type, date');
+          .select('amount, type, date')
+          .is('deleted_at', null);
 
         if (currentCompany?.id) {
           transactionsQuery = transactionsQuery.eq('company_id', currentCompany.id);
@@ -343,7 +345,7 @@ export function useCategoryBreakdown() {
       const monthEnd = format(endOfMonth(now), 'yyyy-MM-dd');
 
       try {
-        // Fetch transactions with categories for current month
+        // Fetch transactions with categories for current month (exclude deleted)
         let query = supabase
           .from('transactions')
           .select(`
@@ -357,7 +359,8 @@ export function useCategoryBreakdown() {
           `)
           .eq('type', 'expense')
           .gte('date', monthStart)
-          .lte('date', monthEnd);
+          .lte('date', monthEnd)
+          .is('deleted_at', null);
 
         if (currentCompany?.id) {
           query = query.eq('company_id', currentCompany.id);
