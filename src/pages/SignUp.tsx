@@ -56,7 +56,7 @@ export default function SignUp() {
         }
       } else {
         toast({ title: 'Compte créé', description: 'Votre compte a été créé avec succès !' });
-        navigate('/welcome');
+        navigate('/onboarding');
       }
     } finally {
       setIsLoading(false);
