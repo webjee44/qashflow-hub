@@ -13,7 +13,7 @@ const criteria: ComparisonCriterion[] = [
   { label: 'Bilan prévisionnel', qashflow: true, competitor: false },
   { label: 'Plan de financement', qashflow: true, competitor: false },
   { label: 'Adapté aux TPE / PME', qashflow: true, competitor: false },
-  { label: 'Tarification', qashflow: 'Licence à vie — 499 €', competitor: 'À partir de 99 €/mois' },
+  { label: 'Tarification', qashflow: 'Licence à vie — 828 €', competitor: 'À partir de 99 €/mois' },
 ];
 
 const advantages: ComparisonAdvantage[] = [

@@ -48,8 +48,8 @@ const plans = [
   },
   {
     name: 'Licence Lifetime',
-    price: '499',
-    originalPrice: '1 000',
+    price: '828',
+    originalPrice: '1 656',
     suffix: ' paiement unique',
     description: 'Accès à vie, sans abonnement',
     features: [

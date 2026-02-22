@@ -13,7 +13,7 @@ const criteria: ComparisonCriterion[] = [
   { label: 'Bilan prévisionnel', qashflow: true, competitor: false },
   { label: 'Plan de financement', qashflow: true, competitor: false },
   { label: 'Consolidation multi-entités', qashflow: true, competitor: true },
-  { label: 'Tarification', qashflow: 'Licence à vie — 499 €', competitor: 'À partir de 59 €/mois' },
+  { label: 'Tarification', qashflow: 'Licence à vie — 828 €', competitor: 'À partir de 69 €/mois' },
 ];
 
 const advantages: ComparisonAdvantage[] = [
