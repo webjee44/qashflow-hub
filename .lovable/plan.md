@@ -1,105 +1,51 @@
 
+# Rehausser le prix a 828EUR et retravailler le pitch
 
-# Correction de la "Variation nette du mois" -- plan d'action
+## Changement de prix
 
-## Diagnostic
+Le prix passe de **499EUR** a **828EUR** (equivalent a 69EUR/mois sur 12 mois, aligne sur Fygr). Le prix barre passe de 1 000EUR a **1 656EUR** (equivalent a 138EUR/mois, soit le double). La remise reste a -50%.
 
-L'analyse de la base de donnees revele **deux bugs majeurs** dans le calcul des actuals du tableau de previsions. Cloud Vapor est le plus touche mais d'autres societes sont aussi affectees.
+Le nouveau pitch : "Le meme prix qu'un an d'abonnement chez un concurrent, mais a vie."
 
-### Bug 1 (critique) : Melange type de transaction / type de categorie
+## Fichiers a modifier
 
-La categorie "Ventes" (type `income`) de Cloud Vapor contient des transactions des DEUX types :
-- 380 520 EUR de transactions `income` (encaissements clients)
-- 339 692 EUR de transactions `expense` (achats fournisseurs)
+### 1. `src/hooks/useSubscription.ts`
+- `lifetimePrice`: 499 -> **828**
+- `originalPrice`: 1000 -> **1656**
+- Note : le `priceId` Stripe devra etre mis a jour manuellement dans Stripe (ou un nouveau price cree). Pour l'instant on met a jour le montant affiche cote front.
 
-Le code dans `useForecasts.ts` somme aveuglements TOUS les montants par `category_id` sans filtrer par `tx.type` :
+### 2. `src/pages/Tarifs.tsx`
+- Mettre a jour les FAQ :
+  - "Un seul paiement de **828EUR**..."
+  - "Pourquoi 828EUR au lieu de 1 656EUR ?" -> nouvelle reponse axee sur la comparaison concurrents : "828EUR c'est le prix d'un an chez Fygr ou Agicap. Sauf qu'ici, c'est a vie."
+  - Fin d'essai : montants mis a jour
+- SEO title/description : montants mis a jour
+- Retravailler le hero :
+  - Titre : "Le prix d'un an d'abonnement, **pour toujours**"
+  - Sous-titre : "Vos concurrents facturent 69EUR/mois. Nous, c'est 828EUR une seule fois -- et c'est fini."
+- Card pricing : description retravaillee "Le prix d'un an chez Fygr. Mais a vie."
+- Ajouter une ligne de comparaison sous le prix : "= 69EUR/mois x 12 mois, puis plus rien a payer"
+- Retirer le bandeau flash "OFFRE FLASH" un peu agressif, le remplacer par un bandeau plus sobre "Equivalent a 69EUR/mois -- mais a vie"
+- CTA final : pitch retravaille avec la comparaison concurrents
 
-```text
-actuals["Ventes"]["2026-01"] = 720 212 EUR  (income + expense)
-```
+### 3. `src/pages/Landing.tsx`
+- Mettre a jour le plan local `plans[]` :
+  - `price`: '499' -> '828'
+  - `originalPrice`: '1 000' -> '1 656'
 
-Resultat : `getMonthTotal('income', ...)` gonfle les encaissements de 340K EUR, et `getMonthTotal('expense', ...)` les ignore completement. La variation nette est faussee.
+### 4. Comparatifs (3 fichiers)
+- `src/pages/comparisons/QashflowVsZenfirst.tsx` : "Licence a vie -- 828EUR"
+- `src/pages/comparisons/QashflowVsFygr.tsx` : "Licence a vie -- 828EUR"
+- `src/pages/comparisons/QashflowVsAgicap.tsx` : "Licence a vie -- 828EUR"
 
-Societes impactees (donnees reelles) :
+### 5. `src/components/layout/TrialExpiredBlocker.tsx`
+- Les montants sont deja dynamiques via `PLANS.pro.lifetimePrice` et `PLANS.pro.originalPrice`, donc la mise a jour dans `useSubscription.ts` suffit.
 
-| Societe           | Transactions mal comptees | Montant       |
-|---|---|---|
-| Cloud Vapor       | 137                       | 1 030 735 EUR |
-| E-fumeur Internet | 28                        | 50 209 EUR    |
-| Coachflix          | 14                        | 56 670 EUR    |
-| Tradeflix          | 1                         | 29 197 EUR    |
-| Vapeflix           | 1                         | 1 000 EUR     |
+### 6. `src/components/settings/BillingCard.tsx`
+- Dynamique via `PLANS.pro.lifetimePrice`, pas de changement necessaire.
 
-### Bug 2 (secondaire) : TVA ajoutee sur des montants deja TTC
+## Section technique
 
-Pour les mois passes, les montants des transactions bancaires sont deja TTC. Mais le code calcule :
-
-```text
-actualTtc = actualHt + actualVat    -- FAUX : actualHt est deja TTC !
-```
-
-Cela gonfle artificiellement les totaux TTC et la variation nette (ecart visible uniquement sur les categories avec `vat_rate > 0`).
-
-### Bug 3 (bloquant) : Colonne `is_system` jamais creee
-
-La migration SQL a echoue silencieusement. La colonne `is_system` n'existe pas dans la base, ce qui empeche toute la logique "Virement intercompte" de fonctionner. Il faut la re-creer.
-
----
-
-## Corrections prevues
-
-### Etape 1 -- Corriger le calcul des actuals (useForecasts.ts)
-
-Modifier la requete `actuals` pour separer les montants par type de transaction :
-
-```text
-Avant :  grouped[category_id][month] += amount
-Apres :  grouped[category_id][month] = { income: X, expense: Y }
-```
-
-Modifier `getActual(categoryId, month)` pour accepter un parametre `type` optionnel et ne retourner que les montants correspondants au type de la categorie. `getMonthTotal('income', ...)` utilisera uniquement la partie `income` et vice versa.
-
-Fichier : `src/hooks/useForecasts.ts`
-
-### Etape 2 -- Supprimer la TVA sur les actuals
-
-Les montants bancaires sont TTC. Pour les calculs de totaux sur les mois passes :
-- `renderTtcRow` : `actualTtc = actualHt` (pas de `+ actualVat`)
-- `renderNetRow` : idem, ne pas ajouter `incomeVat` / `expenseVat` sur les actuals
-- `renderSectionHeaderRow` : idem
-- `getVatActual` : garde pour l'affichage informatif de la ligne "TVA collectee/deductible" mais ne l'injecter nulle part dans les totaux
-
-Fichier : `src/components/forecasts/ForecastTable.tsx`
-
-### Etape 3 -- Re-creer la colonne `is_system`
-
-Nouvelle migration SQL :
-```sql
-ALTER TABLE public.categories ADD COLUMN IF NOT EXISTS is_system boolean NOT NULL DEFAULT false;
-NOTIFY pgrst, 'reload schema';
-```
-
-### Etape 4 -- Aligner getMonthNetForecast (useForecasts.ts)
-
-La fonction `getMonthNetForecast` (utilisee pour le calcul du solde projete) itere sur TOUTES les categories y compris systeme. Ajouter un filtre `!cat.is_system` pour exclure "Virement intercompte" des projections.
-
-Idem pour `getVatForecast` et `getVatActual` qui ne doivent pas inclure les categories systeme.
-
-Fichier : `src/hooks/useForecasts.ts`
-
----
-
-## Resume des fichiers modifies
-
-| Fichier | Modification |
-|---|---|
-| `src/hooks/useForecasts.ts` | Actuals groupes par tx.type ; getActual type-aware ; filtre is_system dans getMonthNetForecast, getVatForecast, getVatActual |
-| `src/components/forecasts/ForecastTable.tsx` | Suppression ajout VAT sur actuals dans renderTtcRow, renderNetRow, renderSectionHeaderRow |
-| Migration SQL | Re-creation colonne `is_system` |
-
-## Impact attendu
-
-- La variation nette des mois passes correspondra exactement a : somme des encaissements reels - somme des decaissements reels
-- Les totaux TTC des mois passes refleront les montants bancaires sans TVA fantome
-- Toutes les organisations seront corrigees, pas seulement Cloud Vapor
-
+- Le `priceId` Stripe (`price_1SzN92Itjz0ztyfFAwU5xdOD`) devra correspondre au nouveau montant de 828EUR. Si ce n'est pas encore fait dans Stripe, il faudra creer un nouveau Price a 828EUR et mettre a jour le `priceId` dans `useSubscription.ts`.
+- Aucune modification de base de donnees requise.
+- 6 fichiers a modifier au total.
