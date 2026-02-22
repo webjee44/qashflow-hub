@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Check, Sparkles, Calendar, Shield, Zap, HeadphonesIcon, Clock, Flame, Users, Award } from 'lucide-react';
+import { Check, Sparkles, Calendar, Shield, Zap, HeadphonesIcon, Clock, Users, Award } from 'lucide-react';
 import { SEOHead, generateBreadcrumbSchema, generateFAQSchema } from '@/components/seo/SEOHead';
 import { useSubscription, PLANS } from '@/hooks/useSubscription';
 import { useAuth } from '@/hooks/useAuth';
@@ -20,11 +20,11 @@ const faqs = [
   },
   {
     question: "Qu'est-ce que la licence à vie ?",
-    answer: "Un seul paiement de 499€ et vous accédez à qashflow pour toujours, sans abonnement ni frais récurrents. Toutes les mises à jour futures sont incluses.",
+    answer: "Un seul paiement de 828€ et vous accédez à Qashflow pour toujours, sans abonnement ni frais récurrents. Toutes les mises à jour futures sont incluses.",
   },
   {
-    question: "Pourquoi 499€ au lieu de 1 000€ ?",
-    answer: "Nous proposons une offre de lancement à -50% pour les premiers utilisateurs. Ce tarif passera à 1 000€ une fois l'offre terminée.",
+    question: "Pourquoi 828€ ?",
+    answer: "828€, c'est exactement le prix d'un an d'abonnement chez Fygr ou Agicap (69€/mois × 12). Sauf qu'ici, c'est pour la vie. Dès le 13e mois, c'est tout bénéfice.",
   },
   {
     question: 'Y a-t-il une limite sur le nombre de transactions ?',
@@ -36,7 +36,7 @@ const faqs = [
   },
   {
     question: "Que se passe-t-il à la fin de l'essai gratuit ?",
-    answer: "À la fin des 7 jours d'essai, vous pourrez acheter la licence à vie à 499€ (au lieu de 1 000€). Vous recevrez un rappel avant la fin de l'essai.",
+    answer: "À la fin des 7 jours d'essai, vous pourrez acheter la licence à vie à 828€. Vous recevrez un rappel avant la fin de l'essai.",
   },
 ];
 
@@ -73,18 +73,16 @@ export default function Tarifs() {
   return (
     <div className="min-h-screen bg-background">
       <SEOHead
-        title="Tarifs - Licence à vie 499€ | Offre -50%"
-        description="Essayez qashflow gratuitement pendant 7 jours. Licence à vie à 499€ au lieu de 1 000€. Sociétés illimitées, Business Plan complet, catégorisation IA."
-        keywords="tarifs gestion trésorerie, prix logiciel comptabilité, licence lifetime business plan, PME startup, essai gratuit"
+        title="Tarifs - Licence à vie 828€ | Le prix d'un an d'abonnement, pour toujours"
+        description="Essayez Qashflow gratuitement pendant 7 jours. Licence à vie à 828€ — le même prix qu'un an chez Fygr ou Agicap, mais pour toujours."
+        keywords="tarifs gestion trésorerie, prix logiciel comptabilité, licence lifetime business plan, PME startup, essai gratuit, alternative fygr agicap"
       />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }} />
 
-      {/* ── Flash Banner ── */}
-      <div className="fixed top-0 left-0 right-0 z-[60] bg-gradient-to-r from-destructive to-destructive/80 text-destructive-foreground py-2 px-4 text-center text-xs sm:text-sm font-semibold flex items-center justify-center gap-2">
-        <Flame className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-pulse flex-shrink-0" />
-        <span>OFFRE FLASH — Économisez {savings}€</span>
-        <Flame className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-pulse flex-shrink-0" />
+      {/* ── Equivalence Banner ── */}
+      <div className="fixed top-0 left-0 right-0 z-[60] bg-primary text-primary-foreground py-2 px-4 text-center text-xs sm:text-sm font-medium flex items-center justify-center gap-2">
+        <span>Équivalent à 69€/mois — mais à vie</span>
       </div>
 
       {/* ── Navbar ── */}
@@ -99,14 +97,14 @@ export default function Tarifs() {
               7 jours d'essai gratuit • Sans carte bancaire
             </Badge>
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6">
-              Un seul paiement,
+              Le prix d'un an d'abonnement,
               <br />
               <span className="bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-                un accès à vie
+                pour toujours
               </span>
             </h1>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-4">
-              Pas d'abonnement, pas de frais récurrents. Payez une seule fois et accédez à toutes les fonctionnalités pour toujours.
+              Vos concurrents facturent 69€/mois. Nous, c'est 828€ une seule fois — et c'est fini.
             </p>
             {/* Social proof */}
             <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground mb-8">
@@ -124,13 +122,6 @@ export default function Tarifs() {
             <Card className="border-primary shadow-2xl shadow-primary/20 relative overflow-hidden">
               <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary to-primary/60" />
 
-              {/* Best offer badge */}
-              <div className="absolute -top-0 -right-0">
-                <div className="bg-destructive text-destructive-foreground text-xs font-bold px-4 py-1.5 rounded-bl-xl">
-                  -{PLANS.pro.discount}%
-                </div>
-              </div>
-
               <CardHeader className="text-center pb-4 pt-8">
                 <div className="flex justify-center mb-4">
                   <Badge className="bg-primary text-primary-foreground px-4 py-1">
@@ -140,17 +131,14 @@ export default function Tarifs() {
                 </div>
                 <CardTitle className="text-3xl">Licence Lifetime</CardTitle>
                 <CardDescription className="text-base">
-                  Tout ce dont vous avez besoin — pour toujours
+                  Le prix d'un an chez Fygr. Mais à vie.
                 </CardDescription>
                 <div className="mt-6">
-                  <div className="mb-1">
-                    <span className="text-2xl text-muted-foreground line-through">{PLANS.pro.originalPrice}€</span>
-                  </div>
                   <span className="text-5xl font-bold">{PLANS.pro.lifetimePrice}€</span>
                   <span className="text-muted-foreground text-lg ml-2">paiement unique</span>
                 </div>
-                <p className="text-sm text-destructive font-semibold mt-2">
-                  Vous économisez {savings}€ — Offre de lancement
+                <p className="text-sm text-muted-foreground mt-2">
+                  = 69€/mois × 12 mois, puis plus rien à payer
                 </p>
               </CardHeader>
 
@@ -166,16 +154,8 @@ export default function Tarifs() {
                   ))}
                 </ul>
 
-                {/* Scarcity */}
-                <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3 text-center">
-                  <p className="text-sm font-semibold text-destructive flex items-center justify-center gap-2">
-                    <Flame className="w-4 h-4" />
-                    Plus que 12 places à ce tarif
-                  </p>
-                </div>
-
                 <Button
-                  className="w-full h-12 text-lg animate-pulse"
+                  className="w-full h-12 text-lg"
                   size="lg"
                   onClick={isCurrentlySubscribed ? undefined : handleStartTrial}
                   disabled={isCurrentlySubscribed || checkoutLoading}
@@ -249,11 +229,11 @@ export default function Tarifs() {
       <section className="py-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-3xl mx-auto text-center">
           <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
-            <h2 className="text-3xl font-bold mb-4">Prêt à simplifier votre gestion ?</h2>
+            <h2 className="text-3xl font-bold mb-4">Arrêtez de payer tous les mois</h2>
             <p className="text-muted-foreground mb-8">
-              Rejoignez les entrepreneurs qui ont choisi qashflow pour piloter leur trésorerie.
+              828€ une seule fois au lieu de 69€/mois pour toujours. Le choix est vite fait.
             </p>
-            <Button size="lg" className="h-12 px-8 animate-pulse" onClick={handleStartTrial} disabled={isCurrentlySubscribed || checkoutLoading}>
+            <Button size="lg" className="h-12 px-8" onClick={handleStartTrial} disabled={isCurrentlySubscribed || checkoutLoading}>
               Commencer l'essai gratuit
             </Button>
             <p className="text-sm text-muted-foreground mt-4">

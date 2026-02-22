@@ -12,7 +12,7 @@ const criteria: ComparisonCriterion[] = [
   { label: 'Règles d\'automatisation', qashflow: true, competitor: false },
   { label: 'Bilan prévisionnel', qashflow: true, competitor: false },
   { label: 'Plan de financement', qashflow: true, competitor: false },
-  { label: 'Tarification', qashflow: 'Licence à vie — 499 €', competitor: 'Abonnement mensuel' },
+  { label: 'Tarification', qashflow: 'Licence à vie — 828 €', competitor: 'Abonnement mensuel' },
 ];
 
 const advantages: ComparisonAdvantage[] = [

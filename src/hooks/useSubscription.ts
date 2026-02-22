@@ -13,12 +13,12 @@ interface SubscriptionStatus {
   trial_end: string | null;
 }
 
-// Plan configuration with Stripe IDs - Lifetime license at 499€ (one-time payment)
+// Plan configuration with Stripe IDs - Lifetime license at 828€ (one-time payment)
 export const PLANS = {
   pro: {
     name: 'Licence Lifetime',
-    lifetimePrice: 499,
-    originalPrice: 1000,
+    lifetimePrice: 828,
+    originalPrice: 1656,
     discount: 50,
     priceId: 'price_1SzN92Itjz0ztyfFAwU5xdOD',
     productId: 'prod_TxHiDrkeAaBxbk',
