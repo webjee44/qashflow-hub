@@ -114,25 +114,32 @@ export function useDashboardStats() {
           .filter(t => t.type === 'expense')
           .reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
 
-        // Current balance: use real bank balance from Bridge if available, otherwise calculate from transactions
+        // Current balance: use LIVE bridge_accounts balance (not stale companies.bank_balance)
         let currentBalance: number;
         
-        if (currentCompany?.bank_balance !== null && currentCompany?.bank_balance !== undefined) {
-          // Use real bank balance from Bridge
-          currentBalance = Number(currentCompany.bank_balance);
-          logDebug('Using real bank balance from Bridge:', currentBalance);
-        } else {
-          // Fallback: calculate from initial balance + transactions
-          const initialBalance = currentCompany?.initial_balance || 0;
-          const transactionsBalance = transactions?.reduce((acc, t) => {
-            if (t.type === 'income') {
-              return acc + Number(t.amount);
-            } else {
+        if (currentCompany?.id) {
+          const { data: bridgeAccounts } = await supabase
+            .from('bridge_accounts')
+            .select('balance')
+            .eq('company_id', currentCompany.id);
+          
+          if (bridgeAccounts && bridgeAccounts.length > 0) {
+            currentBalance = bridgeAccounts.reduce((sum, acc) => sum + Number(acc.balance || 0), 0);
+            logDebug('Using live bridge_accounts balance:', currentBalance);
+          } else if (currentCompany.bank_balance !== null && currentCompany.bank_balance !== undefined) {
+            currentBalance = Number(currentCompany.bank_balance);
+            logDebug('Fallback to companies.bank_balance:', currentBalance);
+          } else {
+            const initialBalance = currentCompany.initial_balance || 0;
+            const transactionsBalance = transactions?.reduce((acc, t) => {
+              if (t.type === 'income') return acc + Number(t.amount);
               return acc - Math.abs(Number(t.amount));
-            }
-          }, 0) || 0;
-          currentBalance = initialBalance + transactionsBalance;
-          logDebug('Using calculated balance (initial + transactions):', currentBalance);
+            }, 0) || 0;
+            currentBalance = initialBalance + transactionsBalance;
+            logDebug('Using calculated balance:', currentBalance);
+          }
+        } else {
+          currentBalance = 0;
         }
 
         // 90-day forecast - use forecasts table
@@ -233,21 +240,29 @@ export function useBalanceChartData() {
 
         const { data: forecasts } = await forecastsQuery;
 
-        // Calculate current balance: use real bank balance if available
+        // Calculate current balance: use LIVE bridge_accounts balance
         let currentBalance: number;
         
-        if (currentCompany?.bank_balance !== null && currentCompany?.bank_balance !== undefined) {
-          currentBalance = Number(currentCompany.bank_balance);
-        } else {
-          const initialBalance = currentCompany?.initial_balance || 0;
-          const transactionsBalance = transactions?.reduce((acc, t) => {
-            if (t.type === 'income') {
-              return acc + Number(t.amount);
-            } else {
+        if (currentCompany?.id) {
+          const { data: bridgeAccounts } = await supabase
+            .from('bridge_accounts')
+            .select('balance')
+            .eq('company_id', currentCompany.id);
+          
+          if (bridgeAccounts && bridgeAccounts.length > 0) {
+            currentBalance = bridgeAccounts.reduce((sum, acc) => sum + Number(acc.balance || 0), 0);
+          } else if (currentCompany.bank_balance !== null && currentCompany.bank_balance !== undefined) {
+            currentBalance = Number(currentCompany.bank_balance);
+          } else {
+            const initialBalance = currentCompany.initial_balance || 0;
+            const transactionsBalance = transactions?.reduce((acc, t) => {
+              if (t.type === 'income') return acc + Number(t.amount);
               return acc - Math.abs(Number(t.amount));
-            }
-          }, 0) || 0;
-          currentBalance = initialBalance + transactionsBalance;
+            }, 0) || 0;
+            currentBalance = initialBalance + transactionsBalance;
+          }
+        } else {
+          currentBalance = 0;
         }
 
         // Group past transactions by month (last 6 months)
