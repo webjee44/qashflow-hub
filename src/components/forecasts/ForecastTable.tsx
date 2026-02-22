@@ -32,7 +32,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { CategoryDialog } from '@/components/categories/CategoryDialog';
-
+import { ForecastChart } from './ForecastChart';
 import { PeriodSelector } from './PeriodSelector';
 import { TransactionDetailDialog } from './TransactionDetailDialog';
 import { supabase } from '@/integrations/supabase/client';
@@ -1840,6 +1840,15 @@ export function ForecastTable() {
 
   return (
     <div className="space-y-0">
+      {/* Chart */}
+      <ForecastChart 
+        months={months}
+        getMonthTotal={getMonthTotal}
+        getMonthVat={getMonthVat}
+        getPayableOutflow={getPayableOutflow}
+        getClosingBalance={getClosingBalance}
+      />
+      
       {/* Table */}
       <motion.div
         initial={{ y: 20, opacity: 0 }}
