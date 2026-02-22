@@ -15,8 +15,8 @@ import logo from '@/assets/logo.png';
 /* ───── FAQ ───── */
 const faqs = [
   {
-    question: "Comment fonctionne l'essai gratuit de 30 jours ?",
-    answer: "Vous pouvez utiliser toutes les fonctionnalités pendant 30 jours sans engagement. Aucune carte bancaire n'est requise pour commencer. À la fin de l'essai, vous pouvez acheter la licence à vie.",
+    question: "Comment fonctionne l'essai gratuit de 7 jours ?",
+    answer: "Vous pouvez utiliser toutes les fonctionnalités pendant 7 jours sans engagement. Aucune carte bancaire n'est requise pour commencer. À la fin de l'essai, vous pouvez acheter la licence à vie.",
   },
   {
     question: "Qu'est-ce que la licence à vie ?",
@@ -36,7 +36,7 @@ const faqs = [
   },
   {
     question: "Que se passe-t-il à la fin de l'essai gratuit ?",
-    answer: "À la fin des 30 jours d'essai, vous pourrez acheter la licence à vie à 499€ (au lieu de 1 000€). Vous recevrez un rappel avant la fin de l'essai.",
+    answer: "À la fin des 7 jours d'essai, vous pourrez acheter la licence à vie à 499€ (au lieu de 1 000€). Vous recevrez un rappel avant la fin de l'essai.",
   },
 ];
 
@@ -51,7 +51,7 @@ export default function Tarifs() {
   const handleStartTrial = () => {
     if (!user) { navigate('/sign-up'); return; }
     navigate('/bp/revenus');
-    toast.success('Bienvenue ! Votre essai gratuit de 30 jours est actif.');
+    toast.success('Bienvenue ! Votre essai gratuit de 7 jours est actif.');
   };
 
   const handleSubscribe = async () => {
@@ -74,7 +74,7 @@ export default function Tarifs() {
     <div className="min-h-screen bg-background">
       <SEOHead
         title="Tarifs - Licence à vie 499€ | Offre -50%"
-        description="Essayez qashflow gratuitement pendant 30 jours. Licence à vie à 499€ au lieu de 1 000€. Sociétés illimitées, Business Plan complet, catégorisation IA."
+        description="Essayez qashflow gratuitement pendant 7 jours. Licence à vie à 499€ au lieu de 1 000€. Sociétés illimitées, Business Plan complet, catégorisation IA."
         keywords="tarifs gestion trésorerie, prix logiciel comptabilité, licence lifetime business plan, PME startup, essai gratuit"
       />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }} />
@@ -96,7 +96,7 @@ export default function Tarifs() {
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
             <Badge variant="secondary" className="mb-6 px-4 py-2">
               <Sparkles className="w-4 h-4 mr-2" />
-              30 jours d'essai gratuit • Sans carte bancaire
+              7 jours d'essai gratuit • Sans carte bancaire
             </Badge>
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6">
               Un seul paiement,
@@ -135,7 +135,7 @@ export default function Tarifs() {
                 <div className="flex justify-center mb-4">
                   <Badge className="bg-primary text-primary-foreground px-4 py-1">
                     <Calendar className="w-3 h-3 mr-2" />
-                    30 jours gratuits
+                    7 jours gratuits
                   </Badge>
                 </div>
                 <CardTitle className="text-3xl">Licence Lifetime</CardTitle>
@@ -188,7 +188,7 @@ export default function Tarifs() {
                 {/* Guarantee */}
                 <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
                   <Award className="w-4 h-4 text-primary" />
-                  Satisfait ou remboursé 30 jours
+                  Satisfait ou remboursé 7 jours
                 </div>
 
                 <p className="text-center text-sm text-muted-foreground">

@@ -193,7 +193,7 @@ export default function SignUp() {
       {/* Right Panel - Promotional */}
       <div className="hidden lg:flex lg:w-1/2 bg-muted/30 items-center justify-center p-12">
         <div className="text-center max-w-lg">
-          <p className="text-3xl font-bold text-primary mb-2">14 jours gratuits</p>
+          <p className="text-3xl font-bold text-primary mb-2">7 jours gratuits</p>
           <p className="text-lg font-medium text-primary/70 mb-10">Sans engagement</p>
 
           {/* Product screenshot */}

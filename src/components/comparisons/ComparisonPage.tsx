@@ -220,7 +220,7 @@ export function ComparisonPage({
                 Prêt à passer à Qashflow ?
               </h2>
               <p className="text-lg opacity-90 mb-8 max-w-xl mx-auto">
-                Essayez gratuitement pendant 30 jours, sans engagement ni carte bancaire.
+                Essayez gratuitement pendant 7 jours, sans engagement ni carte bancaire.
               </p>
               <Button
                 size="lg"

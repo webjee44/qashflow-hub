@@ -34,7 +34,7 @@ const plans = [
   {
     name: 'Essai gratuit',
     price: '0',
-    suffix: ' pendant 30 jours',
+    suffix: ' pendant 7 jours',
     description: 'Testez toutes les fonctionnalités',
     features: [
       '1 société incluse',
@@ -162,7 +162,7 @@ export default function Landing() {
             </div>
 
             <p className="text-xs sm:text-sm text-muted-foreground mt-4 flex flex-wrap justify-center gap-x-4 gap-y-1">
-              <span>✓ Gratuit 30 jours</span>
+              <span>✓ Gratuit 7 jours</span>
               <span>✓ Sans carte bancaire</span>
               <span>✓ Annulation facile</span>
             </p>

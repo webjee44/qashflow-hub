@@ -22,7 +22,7 @@ export const PLANS = {
     discount: 50,
     priceId: 'price_1SzN92Itjz0ztyfFAwU5xdOD',
     productId: 'prod_TxHiDrkeAaBxbk',
-    trialDays: 30,
+    trialDays: 7,
     features: [
       'Sociétés illimitées',
       'Comptes bancaires illimités',
