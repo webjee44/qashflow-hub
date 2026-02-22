@@ -57,7 +57,7 @@ export const TrialExpiredBlocker = () => {
           </div>
           <DialogTitle className="text-2xl">Votre essai gratuit est terminé</DialogTitle>
           <DialogDescription className="text-base">
-            Votre période d'essai de 30 jours est arrivée à son terme. 
+            Votre période d'essai de 7 jours est arrivée à son terme. 
             Pour continuer à utiliser qashflow, achetez votre licence à vie.
           </DialogDescription>
         </DialogHeader>
@@ -100,7 +100,7 @@ export const TrialExpiredBlocker = () => {
         </div>
 
         <p className="text-center text-sm text-muted-foreground mt-4">
-          Paiement unique • Accès à vie • Satisfait ou remboursé 30 jours
+          Paiement unique • Accès à vie • Satisfait ou remboursé 7 jours
         </p>
       </DialogContent>
     </Dialog>

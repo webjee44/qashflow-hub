@@ -474,7 +474,7 @@ export default function Fonctionnalites() {
             Prêt à piloter votre rentabilité en temps réel ?
           </h2>
           <p className="text-xl text-muted-foreground mb-8">
-            Essayez Qashflow gratuitement pendant 30 jours, sans carte bancaire.
+            Essayez Qashflow gratuitement pendant 7 jours, sans carte bancaire.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Button size="lg" onClick={() => navigate('/sign-up')}>

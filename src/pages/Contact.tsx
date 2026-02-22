@@ -225,7 +225,7 @@ export default function Contact() {
                 <CardContent className="pt-6">
                   <h3 className="font-semibold mb-2">Vous êtes pressé ?</h3>
                   <p className="text-sm text-muted-foreground mb-4">
-                    Testez qashflow gratuitement pendant 30 jours et découvrez par vous-même 
+                    Testez qashflow gratuitement pendant 7 jours et découvrez par vous-même 
                     comment simplifier votre gestion de trésorerie.
                   </p>
                   <Button variant="default" onClick={() => navigate('/sign-up')}>
