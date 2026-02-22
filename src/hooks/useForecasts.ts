@@ -121,15 +121,15 @@ export function useForecasts() {
     enabled: !!user?.id && !!startMonthStr,
   });
 
-  // Fetch actual amounts from transactions grouped by category and month
-  const { data: actuals = [], isLoading: actualsLoading } = useQuery({
+  // Fetch actual amounts from transactions grouped by category, month AND type
+  const { data: actuals = {}, isLoading: actualsLoading } = useQuery({
     queryKey: ['category-actuals', user?.id, currentCompany?.id, startMonthStr, endMonthStr],
     queryFn: async () => {
-      if (!user?.id || !startMonthStr) return [];
+      if (!user?.id || !startMonthStr) return {};
       
       const endMonthPlusOne = format(addMonths(months[months.length - 1], 1), 'yyyy-MM-01');
       
-      if (!currentCompany?.id) return [];
+      if (!currentCompany?.id) return {};
       
       const { data, error } = await supabase
         .from('transactions')
@@ -141,8 +141,8 @@ export function useForecasts() {
       
       if (error) throw error;
       
-      // Group by category and month
-      const grouped: Record<string, Record<string, number>> = {};
+      // Group by category, month, AND transaction type
+      const grouped: Record<string, Record<string, { income: number; expense: number }>> = {};
       
       data?.forEach((tx) => {
         if (!tx.category_id) return;
@@ -152,10 +152,14 @@ export function useForecasts() {
           grouped[tx.category_id] = {};
         }
         if (!grouped[tx.category_id][monthKey]) {
-          grouped[tx.category_id][monthKey] = 0;
+          grouped[tx.category_id][monthKey] = { income: 0, expense: 0 };
         }
-        // Use absolute value for expenses, positive for income
-        grouped[tx.category_id][monthKey] += Number(tx.amount);
+        const amount = Number(tx.amount);
+        if (tx.type === 'income') {
+          grouped[tx.category_id][monthKey].income += amount;
+        } else {
+          grouped[tx.category_id][monthKey].expense += amount;
+        }
       });
       
       return grouped;
@@ -321,14 +325,23 @@ export function useForecasts() {
   };
 
   // Helper to get actual amount for a specific category and month
+  // Returns only the amount matching the category's type to prevent mixing income/expense
   const getActual = (categoryId: string, month: Date): number => {
     const monthStr = format(month, 'yyyy-MM-01');
-    return actuals[categoryId]?.[monthStr] ?? 0;
+    const data = actuals[categoryId]?.[monthStr];
+    if (!data) return 0;
+    
+    // Find the category to determine which type of transactions to return
+    const category = categories.find(c => c.id === categoryId);
+    if (!category) return data.income + data.expense; // fallback
+    
+    // Return only the amount matching the category type
+    return category.type === 'income' ? data.income : data.expense;
   };
 
   // Helper to calculate VAT forecast for a type (income/expense) and month
   const getVatForecast = (type: 'income' | 'expense', month: Date): number => {
-    const typedCategories = categories.filter(c => c.type === type);
+    const typedCategories = categories.filter(c => c.type === type && !c.is_system);
     return typedCategories.reduce((sum, cat) => {
       const forecast = getForecast(cat.id, month);
       const vatAmount = forecast * cat.vat_rate;
@@ -337,11 +350,14 @@ export function useForecasts() {
   };
 
   // Helper to calculate VAT actual for a type (income/expense) and month
+  // NOTE: Bank transactions are already TTC, so this is an *estimate* of the VAT component
+  // It should NOT be added to actuals for total calculations
   const getVatActual = (type: 'income' | 'expense', month: Date): number => {
-    const typedCategories = categories.filter(c => c.type === type);
+    const typedCategories = categories.filter(c => c.type === type && !c.is_system);
     return typedCategories.reduce((sum, cat) => {
       const actual = Math.abs(getActual(cat.id, month));
-      const vatAmount = actual * cat.vat_rate;
+      // Reverse-calculate VAT from TTC amount: vatAmount = ttc * rate / (1 + rate)
+      const vatAmount = cat.vat_rate > 0 ? actual * cat.vat_rate / (1 + cat.vat_rate) : 0;
       return sum + vatAmount;
     }, 0);
   };
@@ -510,7 +526,7 @@ export function useForecasts() {
     let incomeTtc = 0;
     let expenseTtc = 0;
     
-    categories.forEach(cat => {
+    categories.filter(c => !c.is_system).forEach(cat => {
       const forecast = getForecast(cat.id, month);
       const vatAmount = forecast * cat.vat_rate;
       const ttc = forecast + vatAmount;
@@ -537,13 +553,43 @@ export function useForecasts() {
     return incomeTtc - expenseTtc;
   }, [categories, getForecast, getPayableOutflowByCategory, getPayableOutflowUncategorized, getNetVatForecast]);
 
+  // Fetch live bank balance from bridge_accounts (assigned to this company)
+  const { data: liveBankBalance } = useQuery({
+    queryKey: ['live-bank-balance', currentCompany?.id],
+    queryFn: async () => {
+      if (!currentCompany?.id) return null;
+      
+      const { data: assignments, error: assignError } = await supabase
+        .from('company_bridge_accounts')
+        .select('bridge_account_id')
+        .eq('company_id', currentCompany.id);
+      
+      if (assignError) throw assignError;
+      if (!assignments || assignments.length === 0) return null;
+      
+      const assignedIds = assignments.map(a => a.bridge_account_id);
+      
+      const { data: accounts, error: accountsError } = await supabase
+        .from('bridge_accounts')
+        .select('balance')
+        .in('bridge_account_id', assignedIds);
+      
+      if (accountsError) throw accountsError;
+      
+      return accounts?.reduce((sum, acc) => sum + (Number(acc.balance) || 0), 0) ?? null;
+    },
+    enabled: !!currentCompany?.id,
+    staleTime: 30 * 1000,
+  });
+
   // Calculate the opening balance for a given month
   // Anchored on the current Bridge bank balance (most reliable reference point)
   // Past months: walk backwards by subtracting transactions between target and now
   // Future months: walk forwards by adding net forecasts
   const getOpeningBalance = useCallback((month: Date): { balance: number; isActual: boolean } => {
-    const currentBankBalance = currentCompany?.bank_balance ?? 0;
-    const hasBankBalance = currentCompany?.bank_balance != null;
+    // Use live bank balance from bridge_accounts, fallback to companies.bank_balance
+    const currentBankBalance = liveBankBalance ?? (currentCompany?.bank_balance != null ? Number(currentCompany.bank_balance) : null);
+    const hasBankBalance = currentBankBalance != null;
     const initialBalance = currentCompany?.initial_balance ?? 0;
     const todayMonth = startOfMonth(new Date());
     const targetMonth = startOfMonth(month);
@@ -576,7 +622,6 @@ export function useForecasts() {
     
     if (isSameMonth(month, new Date())) {
       // Current month: opening = currentBalance - net of all transactions this month
-      // currentBankBalance is today's balance, not start-of-month balance
       const monthStart = startOfMonth(month);
       const transactionsThisMonth = allTransactions.filter(tx => {
         const txDate = new Date(tx.date);
@@ -592,16 +637,13 @@ export function useForecasts() {
     if (isBefore(targetMonth, todayMonth)) {
       // Past month: first check if we have a balance snapshot
       const targetDateStr = format(targetMonth, 'yyyy-MM-dd');
-      // Find snapshots for the last day of the previous month or first day of target month
       const snapshotsForDate = balanceSnapshots.filter(s => s.snapshot_date === targetDateStr);
       if (snapshotsForDate.length > 0) {
-        // Sum all account snapshots for this date = total company balance at that point
         const snapshotBalance = snapshotsForDate.reduce((sum, s) => sum + Number(s.balance), 0);
         return { balance: snapshotBalance, isActual: true };
       }
       
-      // Fallback: walk backwards from current balance using signed transactions
-      // Balance at 1st of target month = currentBalance - net(transactions from targetMonth to today)
+      // Fallback: walk backwards from current balance
       const transactionsBetween = allTransactions.filter(tx => {
         const txDate = new Date(tx.date);
         return txDate >= targetMonth && txDate < todayMonth;
@@ -614,14 +656,13 @@ export function useForecasts() {
     }
     
     // Future month: calculate projected balance
-    // = current balance + sum of net forecasts for intermediate months
     let projectedBalance = currentBankBalance;
     for (let m = todayMonth; isBefore(m, targetMonth); m = addMonths(m, 1)) {
       const monthNet = getMonthNetForecast(m);
       projectedBalance += monthNet;
     }
     return { balance: projectedBalance, isActual: false };
-  }, [currentCompany, allTransactions, balanceSnapshots, getMonthNetForecast]);
+  }, [currentCompany, liveBankBalance, allTransactions, balanceSnapshots, getMonthNetForecast]);
 
   // Helper to get total income forecast (HT) for a month - used for variable charge tooltips
   const getIncomeForecastTotal = useCallback((month: Date): number => {

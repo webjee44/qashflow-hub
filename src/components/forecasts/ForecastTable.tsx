@@ -1271,17 +1271,16 @@ export function ForecastTable() {
           const forecastHt = getMonthTotal(type, monthIndex, 'forecast');
           const actualHt = getMonthTotal(type, monthIndex, 'actual');
           const forecastVat = getMonthVat(type, monthIndex, 'forecast');
-          const actualVat = getMonthVat(type, monthIndex, 'actual');
           
+          // Actuals are already TTC (bank amounts include VAT) - don't add VAT again
           let forecastTtc = forecastHt + forecastVat;
-          let actualTtc = actualHt + actualVat;
+          let actualTtc = actualHt; // Already TTC!
           
-          // For expenses, add net VAT to pay (only positive = amount owed to state)
+          // For expenses, add net VAT to pay (only for forecasts, not actuals)
           if (type === 'expense') {
             const netVatForecast = getNetVatForecast(months[monthIndex]);
-            const netVatActual = getNetVatActual(months[monthIndex]);
             if (netVatForecast > 0) forecastTtc += netVatForecast;
-            if (netVatActual > 0) actualTtc += netVatActual;
+            // Don't add net VAT to actuals - already included in bank amounts
           }
           
           const periodType = getMonthPeriodType(month);
@@ -1351,16 +1350,14 @@ export function ForecastTable() {
           const forecastHt = getMonthTotal(type, monthIndex, 'forecast');
           const actualHt = getMonthTotal(type, monthIndex, 'actual');
           const forecastVat = getMonthVat(type, monthIndex, 'forecast');
-          const actualVat = getMonthVat(type, monthIndex, 'actual');
           
+          // Actuals are already TTC - don't add VAT
           let forecastTtc = forecastHt + forecastVat;
-          let actualTtc = actualHt + actualVat;
+          let actualTtc = actualHt; // Already TTC!
           
           if (type === 'expense') {
             const netVatForecast = getNetVatForecast(months[monthIndex]);
-            const netVatActual = getNetVatActual(months[monthIndex]);
             if (netVatForecast > 0) forecastTtc += netVatForecast;
-            if (netVatActual > 0) actualTtc += netVatActual;
           }
           
           const periodType = getMonthPeriodType(month);
@@ -1679,8 +1676,6 @@ export function ForecastTable() {
         {months.map((month, monthIndex) => {
           const incomeHt = getMonthTotal('income', monthIndex, 'actual');
           const expenseHt = getMonthTotal('expense', monthIndex, 'actual');
-          const incomeVat = getMonthVat('income', monthIndex, 'actual');
-          const expenseVat = getMonthVat('expense', monthIndex, 'actual');
           
           // Include uncategorized actual transactions so variation matches balance rows
           const uncatIncome = getUncategorized('income', months[monthIndex]);
@@ -1694,14 +1689,13 @@ export function ForecastTable() {
           // Add payables to forecast expenses
           const payableAmount = getPayableOutflow(month);
           
-          // Add net VAT to pay (positive = amount owed)
-          const netVatActual = getNetVatActual(months[monthIndex]);
+          // Add net VAT to pay (only for forecasts, not actuals)
           const netVatForecast = getNetVatForecast(months[monthIndex]);
-          const vatActualToDeduct = Math.max(0, netVatActual);
           const vatForecastToDeduct = Math.max(0, netVatForecast);
           
-          const incomeTtc = incomeHt + incomeVat + uncatIncome;
-          const expenseTtc = expenseHt + expenseVat + vatActualToDeduct + uncatExpense;
+          // Actuals are already TTC - no VAT to add
+          const incomeTtc = incomeHt + uncatIncome;
+          const expenseTtc = expenseHt + uncatExpense;
           const incomeForecastTtc = incomeForecastHt + incomeForecastVat;
           const expenseForecastTtc = expenseForecastHt + expenseForecastVat + payableAmount + vatForecastToDeduct;
           
