@@ -1,130 +1,83 @@
 
-# Refonte du funnel post-inscription (style Fygr)
 
-## Objectif
-Remplacer la page `/welcome` actuelle (confettis + un seul bouton "Commencer") par un funnel multi-etapes qui collecte les informations utilisateur et entreprise, puis propose la connexion bancaire. Les donnees sont sauvegardees progressivement (meme si l'utilisateur ne termine pas).
+# Optimisation du Disk Space (5.99 GB)
 
-## Flux en 3 etapes
+## Diagnostic
 
-```text
-/sign-up (existant)
-    |
-    v
-/onboarding (nouvelle page, 3 etapes)
-    |
-    Etape 1 : Finaliser mon inscription
-    |   - Prenom
-    |   - Nom
-    |   - Fonction principale (select)
-    |   - Telephone (+33)
-    |   -> Sauvegarde dans profiles a chaque "Valider"
-    |
-    Etape 2 : Informations sur mon entreprise
-    |   - Nom de l'entreprise
-    |   - Type d'activite (select)
-    |   - Chiffre d'affaires (select, tranches)
-    |   - Nombre d'entites (select)
-    |   -> Sauvegarde dans profiles + update companies.name
-    |
-    Etape 3 : Connecter ma banque
-    |   - Logo/badge securite
-    |   - Texte explicatif
-    |   - Bouton "+ Ajouter une banque" (lance Bridge)
-    |   - Lien "Passer cette etape"
-    |   - Badges : 100% conforme RGPD, Agregateurs certifies ACPR
-    |   -> Redirect vers /dashboard
+L'analyse de la base de donnees revele un coupable massif :
+
+| Table | Taille | Lignes | % du total |
+|-------|--------|--------|------------|
+| **audit_logs** | **5 571 MB** (5.4 GB) | 3 660 000 | **~93%** |
+| transactions | 149 MB | 6 879 | ~2.5% |
+| Tout le reste | < 10 MB | - | < 1% |
+
+**La table `audit_logs` represente 93% de l'espace disque total.**
+
+### Cause racine
+
+Un trigger `audit_transactions_trigger` enregistre **chaque INSERT, UPDATE et DELETE** sur la table `transactions` dans `audit_logs`, avec les donnees completes (old_data + new_data, ~611 octets chacune).
+
+En fevrier 2026 uniquement : **2 933 544 UPDATE** sur les transactions ont ete loggues. Cela correspond aux synchros Bridge et aux operations bulk (categorisation automatique, deduplication, etc.) qui generent des volumes enormes de logs d'audit.
+
+### Donnees orphelines
+
+Pas de donnees orphelines significatives detectees. Le probleme est uniquement le volume des audit logs.
+
+## Plan d'optimisation (3 actions)
+
+### Action 1 : Purger les anciens audit logs (gain immediat : ~5 GB)
+
+Supprimer les audit logs de plus de 30 jours. Conserver uniquement le dernier mois pour le suivi.
+
+```sql
+DELETE FROM audit_logs 
+WHERE created_at < now() - interval '30 days';
 ```
 
-## Modifications de la base de donnees
+Puis lancer un VACUUM pour recuperer l'espace :
+Nota : le VACUUM FULL necessite un acces exclusif, un simple VACUUM (sans FULL) est suffisant en premier lieu car autovacuum tourne deja.
 
-Ajout de colonnes dans la table `profiles` :
+### Action 2 : Exclure les transactions du trigger d'audit
 
-| Colonne | Type | Default |
-|---------|------|---------|
-| first_name | text | null |
-| last_name | text | null |
-| job_title | text | null |
-| company_activity_type | text | null |
-| company_revenue_range | text | null |
-| company_entity_count | text | null |
+Les transactions representent 99.8% des audit logs. Ce niveau de traçabilite n'est pas utile pour des lignes bancaires synchronisees automatiquement.
 
-Ces colonnes permettent de capturer les donnees meme partiellement. Le champ `full_name` existant sera mis a jour automatiquement a partir de first_name + last_name.
+```sql
+DROP TRIGGER IF EXISTS audit_transactions_trigger ON transactions;
+```
 
-## Valeurs des selects
+Cela stoppera la croissance exponentielle. Les audits resteront actifs sur `companies`, `categories`, et `organizations` qui generent un volume negligeable.
 
-**Fonction principale :**
-- Dirigeant / CEO / Gerant
-- DAF / RAF
-- Finance / Comptabilite / Controle de Gestion
-- Expert-Comptable
-- Assistant / Office Manager / Secretaire
-- Manager / Responsable (hors fonction finance)
-- Freelance / Auto-Entrepreneur
-- Autre
+### Action 3 : Ajouter une retention automatique (CRON)
 
-**Type d'activite :**
-- Commercants
-- Artisans
-- Professions liberales
-- Services / Conseil
-- Industrie / Production
-- Tech / Startup
-- BTP / Construction
-- Restauration / Hotellerie
-- Autre
+Creer un job CRON (via pg_cron deja actif dans le projet) pour purger automatiquement les logs de plus de 90 jours :
 
-**Chiffre d'affaires :**
-- Moins de 50 000 EUR
-- De 50 000 a 250 000 EUR
-- De 250 000 a 1 000 000 EUR
-- De 1 000 000 a 5 000 000 EUR
-- Plus de 5 000 000 EUR
+```sql
+SELECT cron.schedule(
+  'cleanup-audit-logs',
+  '0 3 * * 0',  -- Chaque dimanche a 3h
+  $$DELETE FROM audit_logs WHERE created_at < now() - interval '90 days'$$
+);
+```
 
-**Nombre d'entites :**
-- Une seule
-- 2 a 3
-- 4 a 10
-- Plus de 10
+## Impact estime
 
-## Fichiers a creer / modifier
-
-### 1. Migration SQL
-- Ajouter 6 colonnes a `profiles` (first_name, last_name, job_title, company_activity_type, company_revenue_range, company_entity_count)
-
-### 2. Nouvelle page `src/pages/Onboarding.tsx`
-- Composant multi-etapes avec un state `step` (1, 2, 3)
-- Barre de progression en haut (3 points)
-- Design clean sur fond blanc, centre, style Fygr (logo en haut, formulaire sobre)
-- Sauvegarde progressive : a chaque "Valider", upsert dans `profiles` et passer a l'etape suivante. Si l'utilisateur quitte, les donnees deja soumises sont conservees.
-- Etape 3 : reutilise la logique de `handleConnectBridge` de BankAccountsCard (bridge-auth + bridge-connect)
-- Bouton "Passer" sur l'etape 3 pour aller directement au dashboard
-
-### 3. `src/App.tsx`
-- Ajouter la route `/onboarding` (protegee)
-- Supprimer ou conserver `/welcome` en redirect vers `/onboarding`
-
-### 4. `src/pages/SignUp.tsx`
-- Changer `navigate('/welcome')` en `navigate('/onboarding')`
-
-### 5. `src/hooks/useAuth.tsx`
-- Passer `full_name` au signUp (actuellement supporte mais non utilise dans SignUp)
-
-### 6. `src/components/layout/ProtectedRoute.tsx`
-- Ajouter un check : si `profiles.onboarding_completed === false`, rediriger vers `/onboarding` (sauf si deja sur /onboarding)
-- Cela garantit que les utilisateurs qui ont quitte en cours de route reprennent le funnel
-
-### 7. Nettoyage
-- La page `/welcome` existante redirigera vers `/onboarding`
-- Les pages `/start`, `/start/verify`, `/start/welcome` (ancien flow OTP) restent en place mais ne sont plus utilisees dans le flux principal
-
-## Capture des donnees partielles
-
-Chaque etape sauvegarde independamment dans `profiles` via un `UPDATE` au clic sur "Valider". Meme si l'utilisateur quitte apres l'etape 1, on a deja son prenom, nom, fonction et telephone.
+| Action | Gain espace | Effort |
+|--------|------------|--------|
+| Purge 30j+ | ~4-5 GB | Migration SQL |
+| Supprimer trigger transactions | Stoppe la croissance | Migration SQL |
+| CRON retention 90j | Maintenance auto | Migration SQL |
+| **Total** | **~5 GB recuperes** | **3 commandes SQL** |
 
 ## Section technique
 
-- Les 6 nouvelles colonnes sont toutes `text NULL` -- pas de contrainte, pas de migration destructive.
-- La logique Bridge est extraite en fonctions reutilisables depuis `BankAccountsCard.tsx` (ou dupliquee proprement dans la page Onboarding pour eviter un refactor trop large).
-- Le redirect URL pour Bridge sera `/onboarding?bridge_callback=success` pour revenir sur le funnel apres connexion.
-- L'etape d'onboarding est trackee via `profiles.onboarding_step` (deja existant) : 0 = pas commence, 1 = etape 1 faite, 2 = etape 2 faite, 3 = complete.
-- A la fin (etape 3 validee ou skipee), `profiles.onboarding_completed = true` et `profiles.onboarding_step = 3`, puis redirect vers `/dashboard`.
+Les 3 actions se font dans une seule migration SQL :
+
+1. `DELETE FROM audit_logs WHERE created_at < now() - interval '30 days'` -- purge initiale
+2. `DROP TRIGGER audit_transactions_trigger ON transactions` -- arret du logging massif
+3. `SELECT cron.schedule(...)` -- retention automatique
+
+Aucune modification de code frontend n'est necessaire. La page Parametres > Audit Logs (`AuditLogsCard.tsx`) continuera de fonctionner normalement avec les logs restants.
+
+La table `transactions` (149 MB pour 6 879 lignes) est un peu volumineuse aussi, probablement due a des tuples morts ou du bloat. Un `VACUUM` classique devrait suffire, et l'autovacuum y passe deja regulierement.
+
