@@ -1,6 +1,7 @@
 import { useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Loader2, RefreshCw } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tables } from '@/integrations/supabase/types';
@@ -68,22 +69,28 @@ export function TransactionsView() {
 
   return (
     <div className="space-y-6">
-      {/* Actions Bar */}
+      {/* Compact header: title + stats + actions on one line */}
       <motion.div
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         className="flex items-center justify-between flex-wrap gap-3"
       >
-        <div className="flex items-center gap-3">
-          <Badge variant="secondary" className="text-sm font-medium">
-            {filters.filteredTransactions.length.toLocaleString('fr-FR')} résultat{filters.filteredTransactions.length > 1 ? 's' : ''}
-          </Badge>
+        <div className="flex items-center gap-4">
+          <h1 className="text-2xl font-bold text-foreground">Transactions</h1>
+          <span className="text-sm text-muted-foreground tabular-nums">
+            {filters.filteredTransactions.length.toLocaleString('fr-FR')} opération{filters.filteredTransactions.length > 1 ? 's' : ''}
+          </span>
+          <span className="text-sm text-muted-foreground">•</span>
+          <span className={cn("text-sm font-semibold tabular-nums", bankBalance >= 0 ? "text-success" : "text-destructive")}>
+            {formatAmount(bankBalance)}
+          </span>
         </div>
         <div className="flex items-center gap-2">
           <Button
             onClick={handlers.applyAutomationRules}
             disabled={handlers.applyingRules}
             variant="outline"
+            size="sm"
             className="gap-2"
             title="Appliquer les règles d'automatisation"
           >
@@ -92,12 +99,6 @@ export function TransactionsView() {
           </Button>
         </div>
       </motion.div>
-
-      <TransactionStatsBar
-        transactionCount={filters.filteredTransactions.length}
-        bankBalance={bankBalance}
-        formatAmount={formatAmount}
-      />
 
       <TransactionTabsFilter
         tabFilter={filters.tabFilter}
