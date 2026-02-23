@@ -1984,10 +1984,16 @@ export type Database = {
         Row: {
           avatar_url: string | null
           bp_enabled: boolean | null
+          company_activity_type: string | null
+          company_entity_count: string | null
           company_name: string | null
+          company_revenue_range: string | null
           created_at: string
+          first_name: string | null
           full_name: string | null
           id: string
+          job_title: string | null
+          last_name: string | null
           onboarding_completed: boolean | null
           onboarding_step: number | null
           phone: string | null
@@ -1996,10 +2002,16 @@ export type Database = {
         Insert: {
           avatar_url?: string | null
           bp_enabled?: boolean | null
+          company_activity_type?: string | null
+          company_entity_count?: string | null
           company_name?: string | null
+          company_revenue_range?: string | null
           created_at?: string
+          first_name?: string | null
           full_name?: string | null
           id: string
+          job_title?: string | null
+          last_name?: string | null
           onboarding_completed?: boolean | null
           onboarding_step?: number | null
           phone?: string | null
@@ -2008,10 +2020,16 @@ export type Database = {
         Update: {
           avatar_url?: string | null
           bp_enabled?: boolean | null
+          company_activity_type?: string | null
+          company_entity_count?: string | null
           company_name?: string | null
+          company_revenue_range?: string | null
           created_at?: string
+          first_name?: string | null
           full_name?: string | null
           id?: string
+          job_title?: string | null
+          last_name?: string | null
           onboarding_completed?: boolean | null
           onboarding_step?: number | null
           phone?: string | null
