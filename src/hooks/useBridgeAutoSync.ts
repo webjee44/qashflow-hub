@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useCompany } from './useCompany';
 import { toast } from 'sonner';
@@ -9,6 +10,7 @@ const SYNC_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes cooldown
 
 export function useBridgeAutoSync() {
   const { currentCompany, refetch } = useCompany();
+  const queryClient = useQueryClient();
   const hasSynced = useRef(false);
 
   useEffect(() => {
@@ -63,6 +65,8 @@ export function useBridgeAutoSync() {
         });
 
         await refetch();
+        await queryClient.invalidateQueries({ queryKey: ['transactions'] });
+        await queryClient.invalidateQueries({ queryKey: ['bank_balance'] });
       } catch (err) {
         logError('Bridge auto-sync error:', err);
       }

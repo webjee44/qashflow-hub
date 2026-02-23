@@ -510,6 +510,8 @@ export default function Onboarding() {
         } as any)
         .eq('id', user.id);
       localStorage.setItem('show-welcome-guide', 'true');
+      // Clear sync cooldown so auto-sync triggers immediately on /transactions
+      localStorage.removeItem('bridge_last_auto_sync');
 
       // Auto-assign bank accounts if user has only one company
       const { data: userCompanies } = await supabase
