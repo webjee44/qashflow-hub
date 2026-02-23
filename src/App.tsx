@@ -27,7 +27,7 @@ import APropos from "./pages/APropos";
 import Contact from "./pages/Contact";
 import MentionsLegales from "./pages/MentionsLegales";
 import Confidentialite from "./pages/Confidentialite";
-import Auth from "./pages/Auth";
+// Auth.tsx removed - /auth now redirects to /sign-in
 import SignIn from "./pages/SignIn";
 import SignUp from "./pages/SignUp";
 import Welcome from "./pages/Welcome";
@@ -123,7 +123,7 @@ const App = () => (
                 <Route path="/contact" element={<Contact />} />
                 <Route path="/mentions-legales" element={<MentionsLegales />} />
                 <Route path="/confidentialite" element={<Confidentialite />} />
-                <Route path="/auth" element={<Auth />} />
+                <Route path="/auth" element={<Navigate to="/sign-in" replace />} />
                 <Route path="/sign-in" element={<SignIn />} />
                 <Route path="/sign-up" element={<SignUp />} />
                 <Route path="/welcome" element={<Welcome />} />
