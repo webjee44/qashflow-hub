@@ -156,6 +156,11 @@ export interface MemberStats {
   user_id: string;
   email: string;
   full_name: string | null;
+  phone: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  job_title: string | null;
+  onboarding_completed: boolean;
   created_at: string;
   organizations: {
     org_id: string;
@@ -182,7 +187,7 @@ export function useSuperAdminAllMembers() {
         throw error;
       }
 
-      return (data as MemberStats[]) || [];
+      return (data as unknown as MemberStats[]) || [];
     },
     enabled: !!isSuperAdmin,
   });
