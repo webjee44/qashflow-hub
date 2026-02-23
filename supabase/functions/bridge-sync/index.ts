@@ -241,6 +241,26 @@ async function syncCompanyTransactions(
       if (tx.pennylane_id) existingByPennylaneId.set(tx.pennylane_id, tx.id);
     }
 
+    // Pre-fetch ALL existing transactions for this company for in-memory signature matching
+    // This replaces per-transaction DB queries and prevents timeout
+    const { data: allExistingTxs } = await supabaseAdmin
+      .from('transactions')
+      .select('id, description, date, amount, type, bank_account_name')
+      .eq('company_id', correctCompanyId)
+      .is('deleted_at', null)
+      .limit(10000);
+
+    // Build signature lookup: "description|date|amount|type|bank_account_name" -> id
+    const signatureMap = new Map<string, string>();
+    for (const tx of allExistingTxs || []) {
+      const sig = `${tx.description}|${tx.date}|${tx.amount}|${tx.type}|${tx.bank_account_name || ''}`;
+      signatureMap.set(sig, tx.id);
+    }
+
+    // Batch inserts and updates
+    const toInsert: any[] = [];
+    const toUpdate: { id: string; data: any }[] = [];
+
     for (const transaction of companyTransactions) {
       const transactionType = bridgeClient.getTransactionType(transaction);
       const accountName = accountNameMap[transaction.account_id] || null;
@@ -251,64 +271,68 @@ async function syncCompanyTransactions(
       let existingId = existingByBridgeId.get(transaction.id) 
         || existingByPennylaneId.get(`bridge_${transaction.id}`);
 
-      // Phase 3: Fallback by signature if no ID match found
+      // Phase 3: In-memory signature match (replaces per-tx DB query)
       if (!existingId) {
-        const { data: signatureMatch } = await supabaseAdmin
-          .from('transactions')
-          .select('id')
-          .eq('company_id', correctCompanyId)
-          .eq('description', description)
-          .eq('date', transaction.date)
-          .eq('amount', absAmount)
-          .eq('type', transactionType)
-          .is('deleted_at', null)
-          .limit(1)
-          .maybeSingle();
-
-        if (signatureMatch) {
-          existingId = signatureMatch.id;
-          console.info(`[bridge-sync] Signature match found for bridge_tx ${transaction.id}`);
+        const sig = `${description}|${transaction.date}|${absAmount}|${transactionType}|${accountName || ''}`;
+        const matchId = signatureMap.get(sig);
+        if (matchId) {
+          existingId = matchId;
         }
       }
 
       if (existingId) {
-        const { error } = await supabaseAdmin
-          .from('transactions')
-          .update({
+        toUpdate.push({
+          id: existingId,
+          data: {
             amount: absAmount,
-            description: description,
+            description,
             date: transaction.date,
             type: transactionType,
             bank_account_name: accountName,
             source: 'bridge',
-            bridge_transaction_id: transaction.id, // Backfill for legacy rows
+            bridge_transaction_id: transaction.id,
             company_id: correctCompanyId,
             updated_at: new Date().toISOString(),
-          })
-          .eq('id', existingId);
-
-        if (!error) updatedCount++;
+          }
+        });
       } else {
-        const { error } = await supabaseAdmin
-          .from('transactions')
-          .insert({
-            user_id: userId,
-            company_id: correctCompanyId,
-            bridge_transaction_id: transaction.id,
-            pennylane_id: `bridge_${transaction.id}`,
-            amount: absAmount,
-            description: description,
-            date: transaction.date,
-            type: transactionType,
-            bank_account_name: accountName,
-            source: 'bridge',
-            is_reconciled: false,
-          });
-
-        if (!error) insertedCount++;
-        else console.warn(`[bridge-sync] Insert failed (likely duplicate trigger):`, error.message);
+        toInsert.push({
+          user_id: userId,
+          company_id: correctCompanyId,
+          bridge_transaction_id: transaction.id,
+          pennylane_id: `bridge_${transaction.id}`,
+          amount: absAmount,
+          description,
+          date: transaction.date,
+          type: transactionType,
+          bank_account_name: accountName,
+          source: 'bridge',
+          is_reconciled: false,
+        });
       }
     }
+
+    // Batch insert new transactions
+    if (toInsert.length > 0) {
+      const BATCH_SIZE = 100;
+      for (let i = 0; i < toInsert.length; i += BATCH_SIZE) {
+        const batch = toInsert.slice(i, i + BATCH_SIZE);
+        const { error } = await supabaseAdmin.from('transactions').insert(batch);
+        if (!error) insertedCount += batch.length;
+        else console.warn(`[bridge-sync] Batch insert failed:`, error.message);
+      }
+    }
+
+    // Batch update existing transactions
+    for (const item of toUpdate) {
+      const { error } = await supabaseAdmin
+        .from('transactions')
+        .update(item.data)
+        .eq('id', item.id);
+      if (!error) updatedCount++;
+    }
+
+    console.info(`[bridge-sync] Company ${correctCompanyId}: ${toInsert.length} new, ${toUpdate.length} updated`);
   }
 
   return { inserted: insertedCount, updated: updatedCount };
