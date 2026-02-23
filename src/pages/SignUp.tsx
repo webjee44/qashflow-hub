@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { MailCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -22,10 +23,18 @@ export default function SignUp() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+  const [showEmailConfirmation, setShowEmailConfirmation] = useState(false);
   
   const { signUp, user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (user) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [user, navigate]);
 
   useEffect(() => {
     const emailParam = searchParams.get('email');
@@ -55,8 +64,8 @@ export default function SignUp() {
           toast({ title: 'Erreur', description: error.message, variant: 'destructive' });
         }
       } else {
-        toast({ title: 'Compte créé', description: 'Votre compte a été créé avec succès !' });
-        navigate('/onboarding');
+        // Show email confirmation screen instead of navigating
+        setShowEmailConfirmation(true);
       }
     } finally {
       setIsLoading(false);
@@ -71,6 +80,64 @@ export default function SignUp() {
       toast({ title: 'Erreur', description: error.message, variant: 'destructive' });
     }
   };
+
+  // Email confirmation screen
+  if (showEmailConfirmation) {
+    return (
+      <div className="min-h-screen bg-background flex">
+        <div className="flex-1 flex flex-col">
+          <div className="p-6">
+            <Link to="/">
+              <img src={logo} alt="Qashflow" className="h-8" />
+            </Link>
+          </div>
+          <div className="flex-1 flex items-center justify-center px-8 pb-12">
+            <div className="w-full max-w-md text-center">
+              <div className="mx-auto w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-6">
+                <MailCheck className="w-8 h-8 text-primary" />
+              </div>
+              <h1 className="text-2xl font-bold text-foreground mb-3">Vérifiez votre email</h1>
+              <p className="text-muted-foreground mb-2">
+                Un email de confirmation a été envoyé à
+              </p>
+              <p className="font-semibold text-foreground mb-6">{email}</p>
+              <p className="text-sm text-muted-foreground mb-8">
+                Cliquez sur le lien dans l'email pour activer votre compte et accéder à Qashflow.
+              </p>
+              <div className="space-y-3">
+                <Button variant="outline" onClick={() => setShowEmailConfirmation(false)} className="w-full">
+                  Modifier l'email
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  Vous n'avez pas reçu l'email ? Vérifiez vos spams ou{' '}
+                  <button
+                    type="button"
+                    className="text-primary hover:underline"
+                    onClick={handleSubmit as any}
+                  >
+                    renvoyez-le
+                  </button>.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="hidden lg:flex lg:w-1/2 bg-muted/30 items-center justify-center p-12">
+          <div className="text-center max-w-lg">
+            <p className="text-3xl font-bold text-primary mb-2">7 jours gratuits</p>
+            <p className="text-lg font-medium text-primary/70 mb-10">Sans engagement</p>
+            <div className="relative">
+              <img
+                src={screenshotPrevisions}
+                alt="Aperçu de Qashflow - Prévisions de trésorerie"
+                className="rounded-xl shadow-2xl border border-border/50"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background flex">
