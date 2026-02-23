@@ -329,7 +329,7 @@ export function CategorizationModal({
         </div>
 
         {/* Category List */}
-        <ScrollArea className="max-h-[300px]">
+        <ScrollArea className="max-h-[40vh]">
           <div className="p-2">
             {/* Remove category (for already-categorized transactions) */}
             {transaction?.category_id && onRemoveCategory && (
