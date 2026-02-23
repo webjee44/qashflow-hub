@@ -154,16 +154,10 @@ export default function Landing() {
               L'outil de pilotage financier conçu pour les PME.
             </p>
 
-            <div className="flex items-center justify-center gap-4">
+            <div className="flex items-center justify-center">
               <Button size="lg" onClick={() => navigate(user ? '/dashboard' : '/sign-up')}>
                 Démarrer mon essai gratuit (7j)
                 <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
-              <Button size="lg" variant="outline" asChild>
-                <Link to="/contact">
-                  Demander une démo
-                  <ChevronRight className="w-4 h-4 ml-2" />
-                </Link>
               </Button>
             </div>
 
