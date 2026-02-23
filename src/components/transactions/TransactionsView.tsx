@@ -13,7 +13,9 @@ import {
   RefreshCw,
   List,
   CheckCircle2,
-  CircleDashed
+  CircleDashed,
+  EyeOff,
+  Eye,
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
@@ -40,7 +42,7 @@ import { SplitTransactionDialog } from './SplitTransactionDialog';
 
 type Transaction = Tables<'transactions'>;
 
-type TabFilter = 'all' | 'categorized' | 'uncategorized';
+type TabFilter = 'all' | 'categorized' | 'uncategorized' | 'ignored';
 
 export function TransactionsView() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -72,8 +74,10 @@ export function TransactionsView() {
     isLoading, 
     updateCategory, 
     bulkUpdateCategory,
+    bulkSetIgnored,
     splitTransaction,
     isBulkUpdating,
+    isBulkIgnoring,
     isSplitting,
     refetch: refetchTransactions
   } = useTransactions();
@@ -155,9 +159,14 @@ export function TransactionsView() {
     // Apply tab filter first
     let baseFiltered = transactions;
     if (tabFilter === 'categorized') {
-      baseFiltered = transactions.filter(t => t.category_id !== null);
+      baseFiltered = transactions.filter(t => t.category_id !== null && !t.is_ignored);
     } else if (tabFilter === 'uncategorized') {
-      baseFiltered = transactions.filter(t => t.category_id === null);
+      baseFiltered = transactions.filter(t => t.category_id === null && !t.is_ignored);
+    } else if (tabFilter === 'ignored') {
+      baseFiltered = transactions.filter(t => t.is_ignored);
+    } else {
+      // 'all' tab: exclude ignored
+      baseFiltered = transactions.filter(t => !t.is_ignored);
     }
     
     // Apply bank filter
@@ -180,14 +189,17 @@ export function TransactionsView() {
   const tabCounts = useMemo(() => {
     let categorized = 0;
     let uncategorized = 0;
+    let ignored = 0;
     for (const t of transactions) {
+      if (t.is_ignored) { ignored++; continue; }
       if (t.category_id) categorized++;
       else uncategorized++;
     }
     return { 
-      all: transactions.length,
+      all: transactions.length - ignored,
       categorized, 
-      uncategorized 
+      uncategorized,
+      ignored,
     };
   }, [transactions]);
 
@@ -304,6 +316,30 @@ export function TransactionsView() {
       });
     }
   }, [selectedTransactionIds, bulkUpdateCategory, toast]);
+
+  const handleBulkIgnore = useCallback(async (isIgnored: boolean) => {
+    if (selectedTransactionIds.size === 0) return;
+
+    try {
+      await bulkSetIgnored({ 
+        transactionIds: Array.from(selectedTransactionIds), 
+        isIgnored 
+      });
+      
+      toast({
+        title: isIgnored ? 'Transactions ignorées' : 'Transactions restaurées',
+        description: `${selectedTransactionIds.size} transaction(s) ${isIgnored ? 'ignorée(s)' : 'restaurée(s)'}`,
+      });
+      
+      setSelectedTransactionIds(new Set());
+    } catch {
+      toast({
+        title: 'Erreur',
+        description: `Impossible ${isIgnored ? "d'ignorer" : 'de restaurer'} les transactions`,
+        variant: 'destructive',
+      });
+    }
+  }, [selectedTransactionIds, bulkSetIgnored, toast]);
 
   const applyAutomationRules = useCallback(async () => {
     setApplyingRules(true);
@@ -549,13 +585,13 @@ export function TransactionsView() {
         transition={{ delay: 0.2 }}
       >
         <Tabs value={tabFilter} onValueChange={(v) => setTabFilter(v as TabFilter)}>
-          <TabsList className="w-full sm:w-auto grid grid-cols-3 sm:inline-flex h-12 p-1 bg-muted/80">
+          <TabsList className="w-full sm:w-auto grid grid-cols-4 sm:inline-flex h-12 p-1 bg-muted/80">
             <TabsTrigger 
               value="all" 
               className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
             >
               <List className="w-4 h-4" />
-              <span className="hidden sm:inline">Tous les mouvements</span>
+              <span className="hidden sm:inline">Tous</span>
               <span className="sm:hidden">Tous</span>
               <Badge variant="outline" className="ml-1 text-xs bg-background/50">
                 {tabCounts.all.toLocaleString('fr-FR')}
@@ -582,6 +618,19 @@ export function TransactionsView() {
               {tabCounts.uncategorized > 0 && (
                 <Badge variant="destructive" className="ml-1 text-xs">
                   {tabCounts.uncategorized.toLocaleString('fr-FR')}
+                </Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger 
+              value="ignored" 
+              className="gap-2 data-[state=active]:bg-muted-foreground data-[state=active]:text-background"
+            >
+              <EyeOff className="w-4 h-4" />
+              <span className="hidden sm:inline">Ignoré</span>
+              <span className="sm:hidden">Ign.</span>
+              {tabCounts.ignored > 0 && (
+                <Badge variant="outline" className="ml-1 text-xs bg-background/50">
+                  {tabCounts.ignored.toLocaleString('fr-FR')}
                 </Badge>
               )}
             </TabsTrigger>
@@ -639,6 +688,30 @@ export function TransactionsView() {
             {isBulkUpdating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Tag className="w-4 h-4" />}
             Catégoriser
           </Button>
+
+          {tabFilter === 'ignored' ? (
+            <Button 
+              size="sm" 
+              variant="outline"
+              className="gap-2" 
+              disabled={isBulkIgnoring}
+              onClick={() => handleBulkIgnore(false)}
+            >
+              {isBulkIgnoring ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
+              Restaurer
+            </Button>
+          ) : (
+            <Button 
+              size="sm" 
+              variant="outline"
+              className="gap-2" 
+              disabled={isBulkIgnoring}
+              onClick={() => handleBulkIgnore(true)}
+            >
+              {isBulkIgnoring ? <Loader2 className="w-4 h-4 animate-spin" /> : <EyeOff className="w-4 h-4" />}
+              Ignorer
+            </Button>
+          )}
 
           <Button variant="ghost" size="sm" onClick={clearSelection} className="gap-1">
             <X className="w-4 h-4" />

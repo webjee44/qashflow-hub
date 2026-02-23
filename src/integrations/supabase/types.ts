@@ -2091,6 +2091,7 @@ export type Database = {
           deleted_at: string | null
           description: string
           id: string
+          is_ignored: boolean
           is_reconciled: boolean
           parent_transaction_id: string | null
           pennylane_id: string | null
@@ -2111,6 +2112,7 @@ export type Database = {
           deleted_at?: string | null
           description: string
           id?: string
+          is_ignored?: boolean
           is_reconciled?: boolean
           parent_transaction_id?: string | null
           pennylane_id?: string | null
@@ -2131,6 +2133,7 @@ export type Database = {
           deleted_at?: string | null
           description?: string
           id?: string
+          is_ignored?: boolean
           is_reconciled?: boolean
           parent_transaction_id?: string | null
           pennylane_id?: string | null

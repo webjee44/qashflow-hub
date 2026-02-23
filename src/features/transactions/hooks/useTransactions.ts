@@ -78,6 +78,32 @@ export function useTransactions(options: UseTransactionsOptions = {}) {
     },
   });
 
+  const bulkSetIgnoredMutation = useMutation({
+    mutationFn: async ({ transactionIds, isIgnored }: { transactionIds: string[]; isIgnored: boolean }) => {
+      await transactionApi.bulkSetIgnored(transactionIds, isIgnored);
+      return { transactionIds, isIgnored };
+    },
+    onMutate: async ({ transactionIds, isIgnored }) => {
+      await queryClient.cancelQueries({ queryKey: ['transactions'] });
+      const previousTransactions = queryClient.getQueryData<Transaction[]>(queryKey);
+      const idsSet = new Set(transactionIds);
+      queryClient.setQueriesData<Transaction[]>(
+        { queryKey: ['transactions'] },
+        (old) => old?.map(t => idsSet.has(t.id) ? { ...t, is_ignored: isIgnored } : t) || []
+      );
+      return { previousTransactions };
+    },
+    onError: (err, _, context) => {
+      if (context?.previousTransactions) {
+        queryClient.setQueryData(queryKey, context.previousTransactions);
+      }
+      logError('Error setting ignored status:', err);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+    },
+  });
+
   const splitTransactionMutation = useMutation({
     mutationFn: async ({
       originalTransactionId,
@@ -125,9 +151,11 @@ export function useTransactions(options: UseTransactionsOptions = {}) {
     refetch: query.refetch,
     updateCategory: updateCategoryMutation.mutateAsync,
     bulkUpdateCategory: bulkUpdateCategoryMutation.mutateAsync,
+    bulkSetIgnored: bulkSetIgnoredMutation.mutateAsync,
     splitTransaction: splitTransactionMutation.mutateAsync,
     isUpdating: updateCategoryMutation.isPending,
     isBulkUpdating: bulkUpdateCategoryMutation.isPending,
+    isBulkIgnoring: bulkSetIgnoredMutation.isPending,
     isSplitting: splitTransactionMutation.isPending,
   };
 }

@@ -93,6 +93,15 @@ export const transactionApi = {
     if (error) throw error;
   },
 
+  bulkSetIgnored: async (transactionIds: string[], isIgnored: boolean): Promise<void> => {
+    const { error } = await supabase
+      .from('transactions')
+      .update({ is_ignored: isIgnored })
+      .in('id', transactionIds);
+
+    if (error) throw error;
+  },
+
   getRecentByCompany: async (companyId: string, limit: number = 6): Promise<Transaction[]> => {
     const { data, error } = await supabase
       .from('transactions')
