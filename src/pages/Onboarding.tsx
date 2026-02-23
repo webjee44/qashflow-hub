@@ -509,7 +509,7 @@ export default function Onboarding() {
           onboarding_step: 3,
         } as any)
         .eq('id', user.id);
-      localStorage.setItem('show-welcome-guide', 'true');
+      localStorage.setItem('highlight-first-categorize', 'true');
       // Clear sync cooldown so auto-sync triggers immediately on /transactions
       localStorage.removeItem('bridge_last_auto_sync');
 
