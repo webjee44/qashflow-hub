@@ -834,7 +834,7 @@ export default function Onboarding() {
                 {/* Powered by Bridge */}
                 <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
                   <span>Propulsé par</span>
-                  <img src={bridgeLogo} alt="Bridge" className="h-6 rounded" />
+                  <img src={bridgeLogo} alt="Bridge" className="h-12 rounded" />
                 </div>
 
                 {/* Security trust badges */}
