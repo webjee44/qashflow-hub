@@ -1,83 +1,90 @@
 
 
-# Optimisation du Disk Space (5.99 GB)
+# Plan correctif : Limiter l'import des transactions a 3 mois avant la creation du compte
 
-## Diagnostic
+## Probleme actuel
 
-L'analyse de la base de donnees revele un coupable massif :
+L'API Bridge renvoie tout l'historique disponible par la banque (parfois plus de 2 ans). Aucun filtre cote serveur ne limite les donnees importees. Resultat :
 
-| Table | Taille | Lignes | % du total |
-|-------|--------|--------|------------|
-| **audit_logs** | **5 571 MB** (5.4 GB) | 3 660 000 | **~93%** |
-| transactions | 149 MB | 6 879 | ~2.5% |
-| Tout le reste | < 10 MB | - | < 1% |
+| Entreprise | Creee le | Transaction la plus ancienne | Ecart |
+|---|---|---|---|
+| E-fumeur Internet | 12 jan 2026 | 6 nov 2024 | 14 mois |
+| Coachflix | 18 jan 2026 | 16 fev 2024 | 23 mois |
+| Tradeflix | 18 jan 2026 | 31 dec 2023 | 25 mois |
 
-**La table `audit_logs` represente 93% de l'espace disque total.**
+Cela gonfle la base de donnees inutilement (2 737 transactions pour E-fumeur seul).
 
-### Cause racine
+## Solution
 
-Un trigger `audit_transactions_trigger` enregistre **chaque INSERT, UPDATE et DELETE** sur la table `transactions` dans `audit_logs`, avec les donnees completes (old_data + new_data, ~611 octets chacune).
+Filtrer les transactions **en amont** dans les 3 points d'entree du sync, en se basant sur la date de creation de la company (`created_at`). Seules les transactions dont la date est >= `created_at - 3 mois` seront importees.
 
-En fevrier 2026 uniquement : **2 933 544 UPDATE** sur les transactions ont ete loggues. Cela correspond aux synchros Bridge et aux operations bulk (categorisation automatique, deduplication, etc.) qui generent des volumes enormes de logs d'audit.
+## Points d'intervention (3 fichiers)
 
-### Donnees orphelines
+### 1. `bridge-client.ts` - Methode `fetchAllTransactions`
 
-Pas de donnees orphelines significatives detectees. Le probleme est uniquement le volume des audit logs.
+Ajouter un parametre optionnel `cutoffDate` (date ISO string). Si fourni, filtrer les transactions retournees pour ne garder que celles dont `date >= cutoffDate`.
 
-## Plan d'optimisation (3 actions)
+Actuellement le filtre `sinceDays` est passe a l'API Bridge via le parametre `since`, mais Bridge ne le respecte pas toujours (il renvoie plus). Le filtre cote client en memoire est donc indispensable.
 
-### Action 1 : Purger les anciens audit logs (gain immediat : ~5 GB)
+### 2. `bridge-sync/index.ts` - Sync manuelle et CRON
 
-Supprimer les audit logs de plus de 30 jours. Conserver uniquement le dernier mois pour le suivi.
+Avant d'appeler `fetchAllTransactions`, calculer la date plancher :
 
-```sql
-DELETE FROM audit_logs 
-WHERE created_at < now() - interval '30 days';
+```text
+cutoffDate = company.created_at - 3 mois
 ```
 
-Puis lancer un VACUUM pour recuperer l'espace :
-Nota : le VACUUM FULL necessite un acces exclusif, un simple VACUUM (sans FULL) est suffisant en premier lieu car autovacuum tourne deja.
+Passer cette date a `fetchAllTransactions` et/ou filtrer dans `syncCompanyTransactions` avant d'inserer.
 
-### Action 2 : Exclure les transactions du trigger d'audit
+**2 endroits concernes :**
+- Ligne ~449 : `cron-sync` (`fetchAllTransactions(90)`)
+- Ligne ~585 : `full-sync` (`fetchAllTransactions(90)`)
 
-Les transactions representent 99.8% des audit logs. Ce niveau de traçabilite n'est pas utile pour des lignes bancaires synchronisees automatiquement.
+### 3. `bridge-webhook/index.ts` - Webhook incremental
 
-```sql
-DROP TRIGGER IF EXISTS audit_transactions_trigger ON transactions;
+Dans `handleAccountUpdated`, appliquer le meme filtre : ne pas inserer les transactions dont la date est anterieure a `company.created_at - 3 mois`.
+
+### 4. Nettoyage des donnees existantes (migration SQL)
+
+Supprimer les transactions deja importees qui sont anterieures a la date plancher de chaque company :
+
+```text
+DELETE FROM transactions t
+USING companies c
+WHERE t.company_id = c.id
+  AND t.source = 'bridge'
+  AND t.date < (c.created_at - interval '3 months')::date
+  AND t.deleted_at IS NULL;
 ```
 
-Cela stoppera la croissance exponentielle. Les audits resteront actifs sur `companies`, `categories`, et `organizations` qui generent un volume negligeable.
+## Details techniques
 
-### Action 3 : Ajouter une retention automatique (CRON)
+### Modification de `fetchAllTransactions` dans `bridge-client.ts`
 
-Creer un job CRON (via pg_cron deja actif dans le projet) pour purger automatiquement les logs de plus de 90 jours :
+- Ajouter un parametre `cutoffDate?: string`
+- Apres le fetch, filtrer : `transaction.date >= cutoffDate`
+- Le parametre `since` de l'API Bridge sera aussi mis a jour pour utiliser `cutoffDate` si elle est plus recente que `sinceDays`
 
-```sql
-SELECT cron.schedule(
-  'cleanup-audit-logs',
-  '0 3 * * 0',  -- Chaque dimanche a 3h
-  $$DELETE FROM audit_logs WHERE created_at < now() - interval '90 days'$$
-);
-```
+### Modification de `syncCompanyTransactions` dans `bridge-sync/index.ts`
 
-## Impact estime
+- Recevoir le `created_at` de la company en parametre
+- Calculer `cutoff = new Date(created_at); cutoff.setMonth(cutoff.getMonth() - 3)`
+- Filtrer les transactions avant le traitement (avant la boucle d'insert/update)
 
-| Action | Gain espace | Effort |
-|--------|------------|--------|
-| Purge 30j+ | ~4-5 GB | Migration SQL |
-| Supprimer trigger transactions | Stoppe la croissance | Migration SQL |
-| CRON retention 90j | Maintenance auto | Migration SQL |
-| **Total** | **~5 GB recuperes** | **3 commandes SQL** |
+### Modification de `handleAccountUpdated` dans `bridge-webhook/index.ts`
 
-## Section technique
+- Recuperer `created_at` de la company en plus de `user_id`
+- Filtrer les transactions recues avant l'upsert
 
-Les 3 actions se font dans une seule migration SQL :
+### Migration SQL
 
-1. `DELETE FROM audit_logs WHERE created_at < now() - interval '30 days'` -- purge initiale
-2. `DROP TRIGGER audit_transactions_trigger ON transactions` -- arret du logging massif
-3. `SELECT cron.schedule(...)` -- retention automatique
+- Supprimer les transactions Bridge existantes anterieures a `company.created_at - 3 mois`
+- Estimer : environ 500-1000 lignes a supprimer
 
-Aucune modification de code frontend n'est necessaire. La page Parametres > Audit Logs (`AuditLogsCard.tsx`) continuera de fonctionner normalement avec les logs restants.
+## Impact
 
-La table `transactions` (149 MB pour 6 879 lignes) est un peu volumineuse aussi, probablement due a des tuples morts ou du bloat. Un `VACUUM` classique devrait suffire, et l'autovacuum y passe deja regulierement.
+- Reduction immediate de la base de donnees (suppression des vieilles transactions)
+- Arret de l'importation de donnees trop anciennes a chaque sync
+- Aucun impact sur le frontend (les transactions supprimees ne sont probablement pas utilisees)
+- Le parametre "3 mois" est facilement ajustable si besoin
 
