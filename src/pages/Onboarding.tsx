@@ -969,7 +969,7 @@ export default function Onboarding() {
                   <Label className="text-sm text-muted-foreground">Nombre de comptes bancaires</Label>
                   <Select value={entityCount} onValueChange={setEntityCount}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Combien d'entités ?" />
+                      <SelectValue placeholder="Combien de comptes bancaires ?" />
                     </SelectTrigger>
                     <SelectContent>
                       {ENTITY_COUNTS.map((count) => (
