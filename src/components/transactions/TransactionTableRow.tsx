@@ -139,11 +139,11 @@ export const TransactionTableRow = memo(function TransactionTableRow({
       <div>
         {isUncategorized ? (
           <Button
-            variant="outline"
+            variant="default"
             size="sm"
             onClick={() => onOpenCategorizationModal?.(transaction)}
             className={cn(
-              "h-9 w-full gap-2 bg-warning/20 border-warning text-warning hover:bg-warning/30 hover:text-warning dark:bg-warning/10",
+              "h-9 w-full gap-2 bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm font-semibold",
               highlightCategorize && "animate-pulse ring-2 ring-primary ring-offset-2 ring-offset-background"
             )}
           >
