@@ -112,7 +112,27 @@ export function useDeleteOrganization() {
           throw error;
         }
       } else {
-        // Permanent: disconnect Bridge users first
+        // Permanent: get org members BEFORE deletion to invalidate their sessions after
+        const { data: orgMembers } = await supabase
+          .from('organization_members')
+          .select('user_id')
+          .eq('organization_id', orgId);
+
+        // Identify orphan users (only in this org) to delete their auth sessions
+        const orphanUserIds: string[] = [];
+        if (orgMembers && orgMembers.length > 0) {
+          for (const member of orgMembers) {
+            const { count } = await supabase
+              .from('organization_members')
+              .select('*', { count: 'exact', head: true })
+              .eq('user_id', member.user_id);
+            if (count === 1) {
+              orphanUserIds.push(member.user_id);
+            }
+          }
+        }
+
+        // Disconnect Bridge users first
         const { data: companies } = await supabase
           .from('companies')
           .select('bridge_user_uuid')
@@ -128,16 +148,26 @@ export function useDeleteOrganization() {
               });
             } catch (err) {
               logError('Error deleting Bridge user:', err);
-              // Continue with deletion even if Bridge cleanup fails
             }
           }
         }
 
-        // Then cascade delete
+        // Cascade delete (deletes data + auth.users rows via SQL)
         const { error } = await supabase.rpc('delete_organization_cascade', { _org_id: orgId });
         if (error) {
           logError('Error deleting organization:', error);
           throw error;
+        }
+
+        // Invalidate orphan users' sessions via admin API (properly revokes JWTs)
+        for (const userId of orphanUserIds) {
+          try {
+            await supabase.functions.invoke('admin-delete-user', {
+              body: { targetUserId: userId },
+            });
+          } catch (err) {
+            logError('Error invalidating user session:', err);
+          }
         }
       }
     },
