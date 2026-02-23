@@ -450,6 +450,53 @@ export default function Onboarding() {
     }
   };
 
+  const autoAssignBankAccounts = async (companyId: string) => {
+    try {
+      // Fetch all bridge accounts for this company
+      const { data: bridgeAccounts, error: fetchError } = await supabase
+        .from('bridge_accounts')
+        .select('bridge_account_id')
+        .eq('company_id', companyId);
+
+      if (fetchError || !bridgeAccounts?.length) return;
+
+      // Check existing assignments
+      const { data: existing } = await supabase
+        .from('company_bridge_accounts')
+        .select('bridge_account_id')
+        .eq('company_id', companyId);
+
+      const existingIds = new Set((existing || []).map(e => e.bridge_account_id));
+      const newAssignments = bridgeAccounts
+        .filter(a => !existingIds.has(a.bridge_account_id))
+        .map(a => ({ company_id: companyId, bridge_account_id: a.bridge_account_id }));
+
+      if (newAssignments.length > 0) {
+        await supabase.from('company_bridge_accounts').insert(newAssignments);
+      }
+
+      // Update company balance & count
+      const { data: allAccounts } = await supabase
+        .from('bridge_accounts')
+        .select('balance')
+        .eq('company_id', companyId);
+
+      const totalBalance = (allAccounts || []).reduce((sum, a) => sum + (Number(a.balance) || 0), 0);
+      await supabase
+        .from('companies')
+        .update({
+          bridge_accounts_count: allAccounts?.length || 0,
+          bank_balance: totalBalance,
+          bank_balance_updated_at: new Date().toISOString(),
+        })
+        .eq('id', companyId);
+
+      logDebug('Auto-assigned bank accounts to company', { companyId, count: newAssignments.length });
+    } catch (err) {
+      logError('Auto-assign bank accounts error:', err);
+    }
+  };
+
   const handleComplete = async () => {
     if (!user) return;
     try {
@@ -461,6 +508,17 @@ export default function Onboarding() {
         } as any)
         .eq('id', user.id);
       localStorage.setItem('show-welcome-guide', 'true');
+
+      // Auto-assign bank accounts if user has only one company
+      const { data: userCompanies } = await supabase
+        .from('companies')
+        .select('id')
+        .is('deleted_at', null);
+
+      if (userCompanies?.length === 1) {
+        await autoAssignBankAccounts(userCompanies[0].id);
+      }
+
       // Invalidate all cached data so the app fetches fresh state
       await queryClient.invalidateQueries({ queryKey: ['companies'] });
       await queryClient.invalidateQueries({ queryKey: ['bank_balance'] });
