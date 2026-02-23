@@ -261,7 +261,7 @@ function StepIndicator({ current, total }: { current: number; total: number }) {
 export default function Onboarding() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { user, session } = useAuth();
+  const { user, session, loading: authLoading } = useAuth();
   const { companies } = useCompany();
 
   const [step, setStep] = useState(0);
@@ -287,6 +287,9 @@ export default function Onboarding() {
 
   // Redirect if not authenticated or onboarding already completed
   useEffect(() => {
+    // Wait for auth to finish loading before checking
+    if (authLoading) return;
+    
     if (!user) {
       navigate('/sign-in');
       return;
@@ -311,7 +314,7 @@ export default function Onboarding() {
       }
     };
     checkProfile();
-  }, [user, navigate]);
+  }, [user, authLoading, navigate]);
 
   // Load existing profile data to resume
   useEffect(() => {
@@ -521,7 +524,11 @@ export default function Onboarding() {
     logDebug('SIRENE selected:', result);
   };
 
-  if (!user) return null;
+  if (authLoading || !user) return (
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <Loader2 className="w-8 h-8 animate-spin text-primary" />
+    </div>
+  );
 
   // ─── Render ──────────────────────────────────────────────────────────────
 
