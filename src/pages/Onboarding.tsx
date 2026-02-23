@@ -831,6 +831,25 @@ export default function Onboarding() {
               </div>
 
               <div className="space-y-5">
+                {/* Connection CTA */}
+                <div className="rounded-xl border border-border bg-card p-6 text-center shadow-sm">
+                  <Button
+                    onClick={handleConnectBridge}
+                    disabled={isConnectingBridge}
+                    className="h-12 px-8 text-base font-semibold w-full"
+                  >
+                    {isConnectingBridge ? (
+                      <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                    ) : (
+                      <Landmark className="w-5 h-5 mr-2" />
+                    )}
+                    Connecter ma banque en toute sécurité
+                  </Button>
+                  <p className="text-xs text-muted-foreground mt-3">
+                    Connexion sécurisée via Bridge · Audits de sécurité trimestriels
+                  </p>
+                </div>
+
                 {/* Powered by Bridge */}
                 <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
                   <span>Propulsé par</span>
@@ -867,25 +886,6 @@ export default function Onboarding() {
                       <p className="text-xs text-muted-foreground">Aucun accès à vos identifiants, jamais stockés</p>
                     </div>
                   </div>
-                </div>
-
-                {/* Connection CTA */}
-                <div className="rounded-xl border border-border bg-card p-6 text-center shadow-sm">
-                  <Button
-                    onClick={handleConnectBridge}
-                    disabled={isConnectingBridge}
-                    className="h-12 px-8 text-base font-semibold w-full"
-                  >
-                    {isConnectingBridge ? (
-                      <Loader2 className="w-5 h-5 animate-spin mr-2" />
-                    ) : (
-                      <Landmark className="w-5 h-5 mr-2" />
-                    )}
-                    Connecter ma banque en toute sécurité
-                  </Button>
-                  <p className="text-xs text-muted-foreground mt-3">
-                    Connexion sécurisée via Bridge · Audits de sécurité trimestriels
-                  </p>
                 </div>
 
                 <div className="flex gap-3">
