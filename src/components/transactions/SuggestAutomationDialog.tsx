@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -127,10 +127,12 @@ export function SuggestAutomationDialog({
     }
   }, [open, transaction?.id, category?.id]);
 
-  // Update similar transactions when pattern changes
-  const handlePatternChange = (newPattern: string) => {
-    setEditedPattern(newPattern);
-  };
+  // Live-update similar transactions as pattern is edited
+  const liveSimilarTransactions = useMemo(() => {
+    const pattern = editedPattern.trim();
+    if (!pattern || !transaction) return [];
+    return findSimilarTransactions(pattern);
+  }, [editedPattern, transaction?.id, allTransactions]);
 
   const handlePatternConfirm = () => {
     if (suggestion && editedPattern.trim()) {
@@ -140,7 +142,6 @@ export function SuggestAutomationDialog({
         pattern: newPattern,
         ruleName: `Auto: ${category?.name || 'Catégorie'} - ${newPattern}`,
       });
-      setSimilarTransactions(findSimilarTransactions(newPattern));
       setIsEditingPattern(false);
     }
   };
@@ -252,7 +253,7 @@ export function SuggestAutomationDialog({
                       <span className="text-sm">Description contient "</span>
                       <Input
                         value={editedPattern}
-                        onChange={(e) => handlePatternChange(e.target.value)}
+                        onChange={(e) => setEditedPattern(e.target.value)}
                         className="h-7 w-40 font-mono text-sm"
                         autoFocus
                         onKeyDown={(e) => e.key === 'Enter' && handlePatternConfirm()}
@@ -276,16 +277,16 @@ export function SuggestAutomationDialog({
                 </div>
 
                 {/* Transactions similaires */}
-                {similarTransactions.length > 0 ? (
+                {liveSimilarTransactions.length > 0 ? (
                   <div>
                     <p className="text-sm font-medium mb-2 flex items-center gap-2">
                       <span className="bg-primary text-primary-foreground text-xs px-2 py-0.5 rounded-full">
-                        {similarTransactions.length}
+                        {liveSimilarTransactions.length}
                       </span>
-                      transaction{similarTransactions.length > 1 ? 's' : ''} similaire{similarTransactions.length > 1 ? 's' : ''} non catégorisée{similarTransactions.length > 1 ? 's' : ''}
+                      transaction{liveSimilarTransactions.length > 1 ? 's' : ''} similaire{liveSimilarTransactions.length > 1 ? 's' : ''} non catégorisée{liveSimilarTransactions.length > 1 ? 's' : ''}
                     </p>
                     <div className="space-y-1">
-                      {similarTransactions.map(t => (
+                      {liveSimilarTransactions.map(t => (
                         <div
                           key={t.id}
                           className="flex items-center justify-between text-sm bg-muted/30 rounded px-3 py-2"
