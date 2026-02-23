@@ -3,6 +3,8 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { logError } from '@/lib/logger';
+import { format } from 'date-fns';
+import { fr } from 'date-fns/locale';
 import { 
   Search,
   Loader2,
@@ -16,7 +18,10 @@ import {
   CircleDashed,
   EyeOff,
   Eye,
+  CalendarIcon,
 } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -50,6 +55,8 @@ export function TransactionsView() {
   const [sortOption, setSortOption] = useState<SortOption>('date_desc');
   const [bankFilter, setBankFilter] = useState<string | null>(null);
   const [tabFilter, setTabFilter] = useState<TabFilter>('all');
+  const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
+  const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
   const [showSuggestDialog, setShowSuggestDialog] = useState(false);
   const [lastCategorizedTransaction, setLastCategorizedTransaction] = useState<Transaction | null>(null);
   const [lastSelectedCategory, setLastSelectedCategory] = useState<Category | null>(null);
@@ -169,6 +176,16 @@ export function TransactionsView() {
       baseFiltered = transactions.filter(t => !t.is_ignored);
     }
     
+    // Apply date range filter
+    if (dateFrom) {
+      const fromStr = format(dateFrom, 'yyyy-MM-dd');
+      baseFiltered = baseFiltered.filter(t => t.date >= fromStr);
+    }
+    if (dateTo) {
+      const toStr = format(dateTo, 'yyyy-MM-dd');
+      baseFiltered = baseFiltered.filter(t => t.date <= toStr);
+    }
+
     // Apply bank filter
     if (bankFilter) {
       baseFiltered = baseFiltered.filter(t => {
@@ -183,7 +200,7 @@ export function TransactionsView() {
       getCategoryName,
     });
     return sortTransactions(filtered, sortOption);
-  }, [transactions, tabFilter, bankFilter, searchQuery, selectedCategoryFilter, sortOption, getCategoryName, getBankAccountDisplay]);
+  }, [transactions, tabFilter, bankFilter, dateFrom, dateTo, searchQuery, selectedCategoryFilter, sortOption, getCategoryName, getBankAccountDisplay]);
 
   // Tab counts (from all transactions, not filtered by tab)
   const tabCounts = useMemo(() => {
@@ -654,6 +671,49 @@ export function TransactionsView() {
             className="pl-10"
           />
         </div>
+
+        {/* Date range filter */}
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" className={cn("gap-2 min-w-[140px] justify-start text-left font-normal", !dateFrom && "text-muted-foreground")}>
+              <CalendarIcon className="w-4 h-4" />
+              {dateFrom ? format(dateFrom, 'dd/MM/yyyy') : 'Du'}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar
+              mode="single"
+              selected={dateFrom}
+              onSelect={setDateFrom}
+              initialFocus
+              locale={fr}
+              className="p-3 pointer-events-auto"
+            />
+          </PopoverContent>
+        </Popover>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" className={cn("gap-2 min-w-[140px] justify-start text-left font-normal", !dateTo && "text-muted-foreground")}>
+              <CalendarIcon className="w-4 h-4" />
+              {dateTo ? format(dateTo, 'dd/MM/yyyy') : 'Au'}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar
+              mode="single"
+              selected={dateTo}
+              onSelect={setDateTo}
+              initialFocus
+              locale={fr}
+              className="p-3 pointer-events-auto"
+            />
+          </PopoverContent>
+        </Popover>
+        {(dateFrom || dateTo) && (
+          <Button variant="ghost" size="icon" className="h-10 w-10" onClick={() => { setDateFrom(undefined); setDateTo(undefined); }}>
+            <X className="w-4 h-4" />
+          </Button>
+        )}
 
         <BankFilterDropdown 
           value={bankFilter} 
