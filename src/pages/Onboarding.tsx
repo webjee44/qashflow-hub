@@ -437,10 +437,11 @@ export default function Onboarding() {
           onboarding_step: 3,
         } as any)
         .eq('id', user.id);
-      navigate('/dashboard');
+      localStorage.setItem('show-welcome-guide', 'true');
+      navigate('/transactions');
     } catch (err) {
       logError('Complete onboarding error:', err);
-      navigate('/dashboard');
+      navigate('/transactions');
     }
   };
 
