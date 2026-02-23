@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useContext } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { CompanyContext } from './useCompany';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 export interface BPOnboardingStep {
   id: string;
@@ -111,6 +111,7 @@ export function useBPOnboarding(): UseBPOnboardingReturn {
   const companyContext = useContext(CompanyContext);
   const currentCompany = companyContext?.currentCompany ?? null;
   const navigate = useNavigate();
+  const location = useLocation();
   const [isActive, setIsActive] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [isCompleted, setIsCompleted] = useState(true);
@@ -137,15 +138,18 @@ export function useBPOnboarding(): UseBPOnboardingReturn {
       const hasAnyData = (streams?.length || 0) > 0 || (expenses?.length || 0) > 0;
       setHasData(hasAnyData);
 
-      // Show wizard if no data and not dismissed
+      // Show wizard only on /bp/* routes, if no data and not dismissed
+      const isOnBPRoute = location.pathname.startsWith('/bp');
       const wizardDismissed = localStorage.getItem(`bp-wizard-dismissed-${currentCompany.id}`);
-      if (!hasAnyData && !wizardDismissed) {
+      if (!hasAnyData && !wizardDismissed && isOnBPRoute) {
         setShouldShowWizard(true);
+      } else {
+        setShouldShowWizard(false);
       }
     }
 
     checkBPData();
-  }, [user, currentCompany?.id]);
+  }, [user, currentCompany?.id, location.pathname]);
 
   // Check if tour should start
   useEffect(() => {
