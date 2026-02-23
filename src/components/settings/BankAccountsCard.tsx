@@ -383,8 +383,30 @@ export function BankAccountsCard() {
   const handleSave = async () => {
     setIsSaving(true);
     try {
+      // Detect newly assigned companies (to trigger sync after save)
+      const previousAssignedCompanies = new Set<string>();
+      const newAssignedCompanies = new Set<string>();
+
+      // Build "before" state from current DB assignments
+      for (const account of accounts) {
+        const oldAssignment = assignments.get(account.bridge_account_id);
+        // We need to check what was loaded initially — but we only have current state
+        // So we compare: accounts that NOW have a company but didn't before
+      }
+
       // Only delete assignments for accounts we're managing (to prevent affecting other companies' data)
       const accountIds = accounts.map(a => a.bridge_account_id);
+
+      // Fetch current DB assignments before deleting to detect changes
+      const { data: currentDbAssignments } = await supabase
+        .from('company_bridge_accounts')
+        .select('bridge_account_id, company_id')
+        .in('bridge_account_id', accountIds);
+
+      const oldAssignmentMap = new Map<number, string>();
+      for (const a of currentDbAssignments || []) {
+        oldAssignmentMap.set(a.bridge_account_id, a.company_id);
+      }
       
       const { error: deleteError } = await supabase
         .from('company_bridge_accounts')
@@ -408,6 +430,14 @@ export function BankAccountsCard() {
         if (insertError) throw insertError;
       }
 
+      // Detect which companies gained new accounts
+      for (const a of newAssignments) {
+        const oldCompany = oldAssignmentMap.get(a.bridge_account_id);
+        if (a.company_id && a.company_id !== oldCompany) {
+          newAssignedCompanies.add(a.company_id);
+        }
+      }
+
       // Update company bank balances and counts
       for (const company of companies) {
         const companyAccounts = accounts.filter(account => {
@@ -429,11 +459,51 @@ export function BankAccountsCard() {
       toast.success('Configuration des comptes enregistrée');
       setHasChanges(false);
       refetchCompanies();
+
+      // Trigger sync for companies that gained new accounts
+      if (newAssignedCompanies.size > 0) {
+        triggerSyncForCompanies(newAssignedCompanies);
+      }
     } catch (error) {
       logError('Save error:', error);
       toast.error('Erreur lors de la sauvegarde');
     } finally {
     setIsSaving(false);
+    }
+  };
+
+  const triggerSyncForCompanies = async (companyIds: Set<string>) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const companiesToSync = companies.filter(c => companyIds.has(c.id) && c.bridge_user_uuid);
+      if (companiesToSync.length === 0) return;
+
+      toast.info('Synchronisation des transactions en cours...');
+
+      for (const company of companiesToSync) {
+        const { data, error } = await supabase.functions.invoke('bridge-sync', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+          body: {
+            action: 'full-sync',
+            bridge_user_uuid: company.bridge_user_uuid,
+            company_id: company.id,
+          },
+        });
+
+        if (error || !data?.success) {
+          logError(`Sync error for ${company.name}:`, error || data?.error);
+        } else {
+          const inserted = data.inserted || 0;
+          const updated = data.updated || 0;
+          if (inserted > 0 || updated > 0) {
+            toast.success(`${company.name} : ${inserted} nouvelles transactions synchronisées`);
+          }
+        }
+      }
+    } catch (error) {
+      logError('Post-save sync error:', error);
     }
   };
 
