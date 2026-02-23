@@ -478,7 +478,7 @@ export default function Onboarding() {
           .eq('id', user.id);
       }
 
-      window.location.href = connectData.redirect_url;
+      window.location.href = connectData.connect_url;
     } catch (err) {
       logError('Bridge connect error:', err);
       toast.error('Erreur de connexion bancaire');
