@@ -80,6 +80,7 @@ const SuperAdminMembers = lazy(() => import("./pages/SuperAdmin/Members"));
 const SuperAdminOrganizations = lazy(() => import("./pages/SuperAdmin/Organizations"));
 const SuperAdminOrganizationDetail = lazy(() => import("./pages/SuperAdmin/OrganizationDetail"));
 const SuperAdminSubscriptions = lazy(() => import("./pages/SuperAdmin/Subscriptions"));
+const SuperAdminCRM = lazy(() => import("./pages/SuperAdmin/CRM"));
 
 // Create QueryClient outside component to prevent HMR issues
 const queryClient = new QueryClient({
@@ -201,6 +202,11 @@ const App = () => (
                 <Route path="/superadmin/subscriptions" element={
                   <SuperAdminRoute>
                     <Suspense fallback={<PageLoader />}><SuperAdminSubscriptions /></Suspense>
+                  </SuperAdminRoute>
+                } />
+                <Route path="/superadmin/crm" element={
+                  <SuperAdminRoute>
+                    <Suspense fallback={<PageLoader />}><SuperAdminCRM /></Suspense>
                   </SuperAdminRoute>
                 } />
                 
