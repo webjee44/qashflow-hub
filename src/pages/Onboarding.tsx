@@ -258,11 +258,24 @@ export default function Onboarding() {
   const [revenueRange, setRevenueRange] = useState('');
   const [entityCount, setEntityCount] = useState('');
 
-  // Redirect if not authenticated
+  // Redirect if not authenticated or onboarding already completed
   useEffect(() => {
     if (!user) {
       navigate('/sign-in');
+      return;
     }
+    // Check if onboarding already completed
+    const checkCompleted = async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('onboarding_completed')
+        .eq('id', user.id)
+        .single();
+      if (data?.onboarding_completed === true) {
+        navigate('/dashboard', { replace: true });
+      }
+    };
+    checkCompleted();
   }, [user, navigate]);
 
   // Load existing profile data to resume
