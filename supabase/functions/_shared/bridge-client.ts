@@ -434,10 +434,16 @@ export class BridgeClient {
   // Transaction Methods
   // ============================================
 
-  async fetchAllTransactions(sinceDays = 90): Promise<BridgeTransaction[]> {
+  async fetchAllTransactions(sinceDays = 90, cutoffDate?: string): Promise<BridgeTransaction[]> {
+    // Use cutoffDate if provided and more recent than sinceDays
     const sinceDate = new Date();
     sinceDate.setDate(sinceDate.getDate() - sinceDays);
-    const sinceDateStr = sinceDate.toISOString().split('T')[0];
+    let sinceDateStr = sinceDate.toISOString().split('T')[0];
+
+    if (cutoffDate && cutoffDate > sinceDateStr) {
+      sinceDateStr = cutoffDate;
+      console.info(`[BridgeClient] Using cutoffDate as since parameter: ${sinceDateStr}`);
+    }
 
     console.info(`[BridgeClient] Fetching transactions since ${sinceDateStr}...`);
 
@@ -467,8 +473,17 @@ export class BridgeClient {
       nextUri = data.pagination?.next_uri || null;
     }
 
-    console.info(`[BridgeClient] Fetched ${allTransactions.length} transactions`);
-    return allTransactions;
+    // Apply cutoffDate filter in-memory (Bridge API doesn't always respect `since`)
+    let filtered = allTransactions;
+    if (cutoffDate) {
+      filtered = allTransactions.filter(t => t.date >= cutoffDate);
+      if (filtered.length < allTransactions.length) {
+        console.info(`[BridgeClient] Cutoff filter removed ${allTransactions.length - filtered.length} transactions before ${cutoffDate}`);
+      }
+    }
+
+    console.info(`[BridgeClient] Fetched ${filtered.length} transactions`);
+    return filtered;
   }
 
   // ============================================
