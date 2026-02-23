@@ -8,6 +8,7 @@ import {
   Shield,
   Users,
   LogOut,
+  Filter,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { logError } from '@/lib/logger';
@@ -17,6 +18,7 @@ const navItems = [
   { to: '/superadmin/members', icon: Users, label: 'Membres' },
   { to: '/superadmin/organizations', icon: Building2, label: 'Organisations' },
   { to: '/superadmin/subscriptions', icon: CreditCard, label: 'Abonnements' },
+  { to: '/superadmin/crm', icon: Filter, label: 'CRM' },
 ];
 
 export function SuperAdminSidebar() {

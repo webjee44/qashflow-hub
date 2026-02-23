@@ -2358,6 +2358,22 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_superadmin_crm_pipeline: {
+        Args: never
+        Returns: {
+          created_at: string
+          email: string
+          full_name: string
+          has_automation: boolean
+          has_bank: boolean
+          has_categorized: boolean
+          onboarding_completed: boolean
+          pipeline_stage: string
+          total_logins: number
+          total_time_seconds: number
+          user_id: string
+        }[]
+      }
       get_superadmin_global_stats: {
         Args: never
         Returns: {
