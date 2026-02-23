@@ -325,13 +325,13 @@ export default function Onboarding() {
     }
   }, [companies]);
 
-  // Handle Bridge callback
+  // Handle Bridge callback — must wait for user to be loaded
   useEffect(() => {
-    if (searchParams.get('bridge_callback') === 'success') {
+    if (searchParams.get('bridge_callback') === 'success' && user) {
       localStorage.setItem('bridgePendingSync', 'true');
       handleComplete();
     }
-  }, [searchParams]);
+  }, [searchParams, user]);
 
   // ─── Save Helpers ────────────────────────────────────────────────────────
 
