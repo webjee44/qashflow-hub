@@ -2348,8 +2348,13 @@ export type Database = {
           companies: Json
           created_at: string
           email: string
+          first_name: string
           full_name: string
+          job_title: string
+          last_name: string
+          onboarding_completed: boolean
           organizations: Json
+          phone: string
           user_id: string
         }[]
       }

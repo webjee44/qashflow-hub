@@ -18,31 +18,15 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { Search, UserCog, Users, Loader2 } from 'lucide-react';
+import { Search, UserCog, Users, Loader2, Phone, Briefcase, CheckCircle2, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import type { MemberStats } from '@/hooks/useSuperAdmin';
 
-interface Organization {
-  org_id: string;
-  org_name: string;
-  role: string;
-}
-
-interface Company {
-  company_id: string;
-  company_name: string;
-  access_type: string;
-}
-
-interface Member {
-  user_id: string;
-  email: string;
-  full_name: string | null;
-  created_at: string;
-  organizations: Organization[];
-  companies: Company[];
-}
+type Member = MemberStats;
+type Organization = MemberStats['organizations'][number];
+type Company = MemberStats['companies'][number];
 
 const getRoleBadgeVariant = (role: string) => {
   switch (role) {
@@ -234,9 +218,12 @@ export default function SuperAdminMembers() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Email</TableHead>
-                  <TableHead>Prénom</TableHead>
+                  <TableHead>Nom</TableHead>
+                  <TableHead>Téléphone</TableHead>
+                  <TableHead>Fonction</TableHead>
                   <TableHead>Organisations</TableHead>
                   <TableHead>Sociétés</TableHead>
+                  <TableHead>Onboarding</TableHead>
                   <TableHead>Inscrit le</TableHead>
                   <TableHead className="w-[60px]">Action</TableHead>
                 </TableRow>
@@ -244,7 +231,7 @@ export default function SuperAdminMembers() {
               <TableBody>
                 {filteredMembers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
                       Aucun membre trouvé
                     </TableCell>
                   </TableRow>
@@ -255,10 +242,39 @@ export default function SuperAdminMembers() {
                         {member.email}
                       </TableCell>
                       <TableCell>
-                        {member.full_name || <span className="text-muted-foreground">—</span>}
+                        {member.full_name || [member.first_name, member.last_name].filter(Boolean).join(' ') || <span className="text-muted-foreground">—</span>}
+                      </TableCell>
+                      <TableCell>
+                        {member.phone ? (
+                          <span className="flex items-center gap-1 text-sm">
+                            <Phone className="h-3 w-3 text-muted-foreground" />
+                            {member.phone}
+                          </span>
+                        ) : <span className="text-muted-foreground">—</span>}
+                      </TableCell>
+                      <TableCell>
+                        {member.job_title ? (
+                          <span className="flex items-center gap-1 text-sm">
+                            <Briefcase className="h-3 w-3 text-muted-foreground" />
+                            {member.job_title}
+                          </span>
+                        ) : <span className="text-muted-foreground">—</span>}
                       </TableCell>
                       <TableCell>{renderOrganizations(member.organizations)}</TableCell>
                       <TableCell>{renderCompanies(member.companies)}</TableCell>
+                      <TableCell>
+                        {member.onboarding_completed ? (
+                          <Badge variant="default" className="text-xs gap-1">
+                            <CheckCircle2 className="h-3 w-3" />
+                            OK
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-xs gap-1 text-destructive border-destructive/30">
+                            <AlertCircle className="h-3 w-3" />
+                            Incomplet
+                          </Badge>
+                        )}
+                      </TableCell>
                       <TableCell className="text-muted-foreground text-sm">
                         {format(new Date(member.created_at), 'dd MMM yyyy', { locale: fr })}
                       </TableCell>
