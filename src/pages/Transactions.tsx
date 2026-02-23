@@ -1,18 +1,11 @@
-import { PageHeader } from '@/components/layout/PageHeader';
 import { TransactionsView } from '@/components/transactions/TransactionsView';
-import { useTransactions } from '@/hooks/useTransactions';
 import { useBridgeAutoSync } from '@/hooks/useBridgeAutoSync';
 
 export default function Transactions() {
-  const { transactions } = useTransactions();
   useBridgeAutoSync();
   
   return (
-    <div className="space-y-8">
-      <PageHeader 
-        title="Transactions" 
-        subtitle={`${transactions.length.toLocaleString('fr-FR')} opération${transactions.length > 1 ? 's' : ''} synchronisée${transactions.length > 1 ? 's' : ''}`}
-      />
+    <div className="space-y-6">
       <TransactionsView />
     </div>
   );
