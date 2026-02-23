@@ -16,13 +16,20 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import {
   Command,
   CommandEmpty,
   CommandGroup,
   CommandItem,
   CommandList,
 } from '@/components/ui/command';
-import { Loader2, ArrowRight, ArrowLeft, Building2, Landmark, Shield, CheckCircle2, Search, Lock, Eye, EyeOff, ChevronDown } from 'lucide-react';
+import { Loader2, ArrowRight, ArrowLeft, Building2, Landmark, Shield, CheckCircle2, Search, Lock, Eye, EyeOff, ChevronDown, HelpCircle, TrendingUp, Zap, BarChart3 } from 'lucide-react';
 import { toast } from 'sonner';
 import { logError, logDebug } from '@/lib/logger';
 import logo from '@/assets/logo.png';
@@ -888,7 +895,7 @@ export default function Onboarding() {
                   </div>
                 </div>
 
-                <div className="flex gap-3">
+                <div className="flex items-center justify-between">
                   <Button
                     variant="outline"
                     onClick={() => setStep(1)}
@@ -896,14 +903,59 @@ export default function Onboarding() {
                   >
                     <ArrowLeft className="w-4 h-4" />
                   </Button>
-                  <Button
-                    variant="ghost"
-                    onClick={handleComplete}
-                    className="flex-1 h-12 text-base text-muted-foreground hover:text-foreground"
-                  >
-                    Passer cette étape
-                    <ArrowRight className="w-4 h-4 ml-2" />
-                  </Button>
+
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <button className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary transition-colors">
+                        <HelpCircle className="w-4 h-4" />
+                        Pourquoi connecter ma banque ?
+                      </button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-md">
+                      <DialogHeader>
+                        <DialogTitle className="text-xl">Pourquoi connecter ma banque ?</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4 mt-2">
+                        <div className="flex items-start gap-3">
+                          <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                            <Zap className="w-5 h-5 text-primary" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-foreground">Import automatique</p>
+                            <p className="text-xs text-muted-foreground">Vos transactions sont synchronisées chaque jour, sans saisie manuelle.</p>
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-3">
+                          <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                            <TrendingUp className="w-5 h-5 text-primary" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-foreground">Prévisions fiables</p>
+                            <p className="text-xs text-muted-foreground">Des prévisions de trésorerie basées sur vos flux réels, pas des estimations.</p>
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-3">
+                          <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                            <BarChart3 className="w-5 h-5 text-primary" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-foreground">Vision en temps réel</p>
+                            <p className="text-xs text-muted-foreground">Votre solde et vos flux mis à jour automatiquement, en un coup d'œil.</p>
+                          </div>
+                        </div>
+
+                        <div className="border-t border-border pt-4 space-y-2.5">
+                          <p className="text-xs font-medium text-foreground">🔒 Sécurité garantie</p>
+                          <div className="grid grid-cols-2 gap-2">
+                            <p className="text-xs text-muted-foreground flex items-center gap-1.5"><Shield className="w-3.5 h-3.5 text-green-600 dark:text-green-400" /> Agréé ACPR</p>
+                            <p className="text-xs text-muted-foreground flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5 text-green-600 dark:text-green-400" /> Conforme RGPD</p>
+                            <p className="text-xs text-muted-foreground flex items-center gap-1.5"><Lock className="w-3.5 h-3.5 text-green-600 dark:text-green-400" /> Chiffrement AES-256</p>
+                            <p className="text-xs text-muted-foreground flex items-center gap-1.5"><EyeOff className="w-3.5 h-3.5 text-green-600 dark:text-green-400" /> Lecture seule</p>
+                          </div>
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
                 </div>
               </div>
             </motion.div>
