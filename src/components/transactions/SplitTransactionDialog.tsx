@@ -178,7 +178,8 @@ export function SplitTransactionDialog({
               min={2}
               max={20}
               value={splitCount}
-              onChange={(e) => setSplitCount(Math.max(2, parseInt(e.target.value) || 2))}
+              onChange={(e) => setSplitCount(parseInt(e.target.value) || 0)}
+              onBlur={() => setSplitCount(prev => Math.min(20, Math.max(2, prev)))}
               className="w-20"
             />
             <Button onClick={handleApplySplit} variant="default" className="gap-2">
