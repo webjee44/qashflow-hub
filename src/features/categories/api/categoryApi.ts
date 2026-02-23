@@ -51,14 +51,16 @@ export const categoryApi = {
   },
 
   create: async (category: CategoryInsert) => {
+    // Destructure to remove is_system which doesn't exist as a DB column
+    const { is_system, ...rest } = category;
     const { data, error } = await supabase
       .from('categories')
       .insert({
-        ...category,
-        vat_rate: category.vat_rate ?? 0,
-        parent_id: category.parent_id ?? null,
-        forecast_mode: category.forecast_mode ?? 'manual',
-        forecast_percent: category.forecast_percent ?? 0,
+        ...rest,
+        vat_rate: rest.vat_rate ?? 0,
+        parent_id: rest.parent_id ?? null,
+        forecast_mode: rest.forecast_mode ?? 'manual',
+        forecast_percent: rest.forecast_percent ?? 0,
       } as any)
       .select()
       .single();
