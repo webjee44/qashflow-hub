@@ -432,7 +432,7 @@ export default function Onboarding() {
         .eq('id', user.id);
       if (profileError) throw profileError;
 
-      // Update company name if changed
+      // Update company and organization name if changed
       if (companyName) {
         const defaultCo = companies.find((c) => c.is_default) || companies[0];
         if (defaultCo) {
@@ -440,6 +440,14 @@ export default function Onboarding() {
             .from('companies')
             .update({ name: companyName })
             .eq('id', defaultCo.id);
+
+          // Also update the organization name to match
+          if (defaultCo.organization_id) {
+            await supabase
+              .from('organizations')
+              .update({ name: companyName })
+              .eq('id', defaultCo.organization_id);
+          }
         }
       }
 
