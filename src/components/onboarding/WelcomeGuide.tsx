@@ -12,31 +12,11 @@ import {
 } from 'lucide-react';
 
 const SECTIONS = [
-  {
-    icon: LayoutDashboard,
-    title: 'Tableau de bord',
-    description: 'Vue d\'ensemble de votre trésorerie, solde, encaissements et décaissements.',
-  },
-  {
-    icon: ArrowLeftRight,
-    title: 'Transactions',
-    description: 'Toutes vos opérations bancaires synchronisées automatiquement.',
-  },
-  {
-    icon: TrendingUp,
-    title: 'Prévisions',
-    description: 'Anticipez votre trésorerie future avec vos factures récurrentes.',
-  },
-  {
-    icon: Tags,
-    title: 'Catégorisation',
-    description: 'Classez vos flux par catégorie pour mieux comprendre vos dépenses.',
-  },
-  {
-    icon: Sparkles,
-    title: 'Automatisations IA',
-    description: 'Laissez l\'IA catégoriser automatiquement vos transactions.',
-  },
+  { icon: LayoutDashboard, title: 'Tableau de bord', desc: 'Solde et flux en un coup d\'œil' },
+  { icon: ArrowLeftRight, title: 'Transactions', desc: 'Vos opérations bancaires' },
+  { icon: TrendingUp, title: 'Prévisions', desc: 'Anticipez votre trésorerie' },
+  { icon: Tags, title: 'Catégories', desc: 'Classez vos dépenses' },
+  { icon: Sparkles, title: 'IA', desc: 'Catégorisation automatique' },
 ];
 
 export function WelcomeGuide() {
@@ -71,33 +51,23 @@ export function WelcomeGuide() {
               <X className="w-4 h-4" />
             </button>
 
-            <CardContent className="pt-6 pb-5">
-              <h2 className="text-lg font-semibold text-foreground mb-1">
-                🎉 Bienvenue sur Qashflow !
-              </h2>
-              <p className="text-sm text-muted-foreground mb-5">
-                Voici les sections clés pour piloter votre trésorerie :
+            <CardContent className="pt-4 pb-3 px-4">
+              <p className="text-sm font-semibold text-foreground mb-3">
+                🎉 Bienvenue ! Découvrez vos outils :
               </p>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-                {SECTIONS.map(({ icon: Icon, title, description }) => (
-                  <div
-                    key={title}
-                    className="flex items-start gap-3 rounded-lg border border-border/50 bg-background/60 p-3"
-                  >
-                    <div className="shrink-0 mt-0.5 flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 text-primary">
-                      <Icon className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-foreground">{title}</p>
-                      <p className="text-xs text-muted-foreground leading-relaxed">{description}</p>
-                    </div>
+              <div className="flex flex-wrap gap-x-5 gap-y-1.5">
+                {SECTIONS.map(({ icon: Icon, title, desc }) => (
+                  <div key={title} className="flex items-center gap-2">
+                    <Icon className="w-4 h-4 text-primary shrink-0" />
+                    <span className="text-sm font-medium text-foreground">{title}</span>
+                    <span className="text-xs text-muted-foreground">– {desc}</span>
                   </div>
                 ))}
               </div>
 
-              <div className="mt-5 flex justify-end">
-                <Button size="sm" onClick={dismiss}>
+              <div className="mt-3 flex justify-end">
+                <Button size="sm" variant="outline" onClick={dismiss}>
                   J'ai compris
                 </Button>
               </div>
