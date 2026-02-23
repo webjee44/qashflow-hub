@@ -156,7 +156,7 @@ export default function Landing() {
 
             <div className="flex items-center justify-center">
               <Button size="lg" onClick={() => navigate(user ? '/dashboard' : '/sign-up')}>
-                Démarrer mon essai gratuit (30j)
+                Démarrer mon essai gratuit (7j)
                 <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             </div>
