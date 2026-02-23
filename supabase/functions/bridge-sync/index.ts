@@ -387,7 +387,7 @@ Deno.serve(async (req) => {
       // Get all companies with bridge_user_uuid
       const { data: companiesWithBridge, error: fetchError } = await supabaseAdmin
         .from('companies')
-        .select('id, user_id, bridge_user_uuid')
+        .select('id, user_id, bridge_user_uuid, created_at')
         .not('bridge_user_uuid', 'is', null);
 
       if (fetchError) {
@@ -445,8 +445,12 @@ Deno.serve(async (req) => {
 
           console.info(`[bridge-sync] Company ${company.id}: ${assignedCount} assigned accounts, balance: ${assignedBalance.toLocaleString('fr-FR')}€`);
 
-          // Get transactions
-          const allTransactions = await bridgeClient.fetchAllTransactions(90);
+          // Get transactions - limit to 3 months before company creation
+          const cutoff = new Date(company.created_at);
+          cutoff.setMonth(cutoff.getMonth() - 3);
+          const cutoffDateStr = cutoff.toISOString().split('T')[0];
+          console.info(`[bridge-sync] Company ${company.id} cutoff date: ${cutoffDateStr} (created: ${company.created_at})`);
+          const allTransactions = await bridgeClient.fetchAllTransactions(90, cutoffDateStr);
 
           // Build account→company map for proper transaction assignment
           const accountToCompanyMap = await getAccountToCompanyMap(supabaseAdmin, company.bridge_user_uuid!);
@@ -581,8 +585,22 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Get transactions
-      const allTransactions = await bridgeClient.fetchAllTransactions(90);
+      // Get transactions - limit to 3 months before company creation
+      const { data: companyForCutoff } = await supabaseAdmin
+        .from('companies')
+        .select('created_at')
+        .eq('id', company_id)
+        .single();
+      
+      let cutoffDateStr: string | undefined;
+      if (companyForCutoff?.created_at) {
+        const cutoff = new Date(companyForCutoff.created_at);
+        cutoff.setMonth(cutoff.getMonth() - 3);
+        cutoffDateStr = cutoff.toISOString().split('T')[0];
+        console.info(`[bridge-sync] Full-sync cutoff date: ${cutoffDateStr} (company created: ${companyForCutoff.created_at})`);
+      }
+
+      const allTransactions = await bridgeClient.fetchAllTransactions(90, cutoffDateStr);
 
       // Build account→company map for proper transaction assignment
       const accountToCompanyMap = await getAccountToCompanyMap(supabaseAdmin, bridge_user_uuid);

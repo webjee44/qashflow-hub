@@ -207,10 +207,10 @@ async function handleAccountUpdated(
 
   const { company_id, last_sync_at } = bridgeAccount;
 
-  // Get company owner for user_id
+  // Get company owner and created_at for cutoff filtering
   const { data: company, error: companyError } = await supabaseAdmin
     .from('companies')
-    .select('user_id')
+    .select('user_id, created_at')
     .eq('id', company_id)
     .single();
 
@@ -238,8 +238,25 @@ async function handleAccountUpdated(
   const accountInfo = await bridgeClient.fetchAccount(account_id);
   const accountName = accountInfo?.name || null;
 
+  // Filter transactions based on company creation date - 3 months
+  let filteredTransactions = transactions;
+  if (company.created_at) {
+    const cutoff = new Date(company.created_at);
+    cutoff.setMonth(cutoff.getMonth() - 3);
+    const cutoffDateStr = cutoff.toISOString().split('T')[0];
+    filteredTransactions = transactions.filter((t: any) => t.date >= cutoffDateStr);
+    if (filteredTransactions.length < transactions.length) {
+      console.info(`[bridge-webhook] Cutoff filter removed ${transactions.length - filteredTransactions.length} transactions before ${cutoffDateStr}`);
+    }
+  }
+
+  if (filteredTransactions.length === 0) {
+    console.info('[bridge-webhook] No transactions after cutoff filter');
+    return { inserted: 0, updated: 0 };
+  }
+
   // Prepare batch upsert data
-  const upsertData = transactions.map((t: any) => ({
+  const upsertData = filteredTransactions.map((t: any) => ({
     user_id: company.user_id,
     company_id: company_id,
     pennylane_id: `bridge_${t.id}`,
