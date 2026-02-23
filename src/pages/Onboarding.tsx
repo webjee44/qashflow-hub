@@ -516,10 +516,24 @@ export default function Onboarding() {
       // Auto-assign bank accounts if user has only one company
       const { data: userCompanies } = await supabase
         .from('companies')
-        .select('id')
+        .select('id, bridge_user_uuid')
         .is('deleted_at', null);
 
-      if (userCompanies?.length === 1) {
+      if (userCompanies?.length === 1 && userCompanies[0].bridge_user_uuid) {
+        // Trigger a bridge-sync first so accounts are in DB before auto-assigning
+        try {
+          const { data: { session: syncSession } } = await supabase.auth.getSession();
+          if (syncSession) {
+            logDebug('Triggering bridge-sync before auto-assign...');
+            await supabase.functions.invoke('bridge-sync', {
+              headers: { Authorization: `Bearer ${syncSession.access_token}` },
+              body: { action: 'full-sync' },
+            });
+            logDebug('Bridge-sync completed, now auto-assigning accounts');
+          }
+        } catch (syncErr) {
+          logError('Bridge sync before auto-assign failed:', syncErr);
+        }
         await autoAssignBankAccounts(userCompanies[0].id);
       }
 
