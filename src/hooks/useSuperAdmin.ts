@@ -132,7 +132,18 @@ export function useDeleteOrganization() {
           }
         }
 
-        // Disconnect Bridge users first
+        // Invalidate orphan users' sessions BEFORE cascade (users still exist in auth.users)
+        for (const userId of orphanUserIds) {
+          try {
+            await supabase.functions.invoke('admin-delete-user', {
+              body: { targetUserId: userId },
+            });
+          } catch (err) {
+            logError('Error invalidating user session:', err);
+          }
+        }
+
+        // Disconnect Bridge users
         const { data: companies } = await supabase
           .from('companies')
           .select('bridge_user_uuid')
@@ -157,17 +168,6 @@ export function useDeleteOrganization() {
         if (error) {
           logError('Error deleting organization:', error);
           throw error;
-        }
-
-        // Invalidate orphan users' sessions via admin API (properly revokes JWTs)
-        for (const userId of orphanUserIds) {
-          try {
-            await supabase.functions.invoke('admin-delete-user', {
-              body: { targetUserId: userId },
-            });
-          } catch (err) {
-            logError('Error invalidating user session:', err);
-          }
         }
       }
     },
