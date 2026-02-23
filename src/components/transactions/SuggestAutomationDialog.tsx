@@ -259,12 +259,12 @@ export function SuggestAutomationDialog({
                       />
                       <span className="text-sm">"</span>
                       <Button
-                        variant="ghost"
                         size="sm"
-                        className="h-7 w-7 p-0 text-accent hover:text-accent"
+                        className="h-7 px-3 text-xs gap-1"
                         onClick={handlePatternConfirm}
                       >
-                        <Check className="w-4 h-4" />
+                        <Check className="w-3.5 h-3.5" />
+                        OK
                       </Button>
                     </div>
                   ) : (
