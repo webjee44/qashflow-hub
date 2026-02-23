@@ -853,6 +853,7 @@ export default function Onboarding() {
                       className="flex-1"
                     />
                   </div>
+                  <p className="text-xs text-muted-foreground mt-1">Sert à sécuriser votre connexion</p>
                 </div>
 
                 <Button
