@@ -80,6 +80,29 @@ export default function Landing() {
   const [email, setEmail] = useState('');
   const [countdown, setCountdown] = useState({ minutes: 15, seconds: 0 });
 
+  // Redirect authenticated users: onboarding first, then dashboard
+  useEffect(() => {
+    if (!user) return;
+    const checkAndRedirect = async () => {
+      try {
+        const { supabase } = await import('@/integrations/supabase/client');
+        const { data } = await supabase
+          .from('profiles')
+          .select('onboarding_completed')
+          .eq('id', user.id)
+          .single();
+        if (data?.onboarding_completed === false) {
+          navigate('/onboarding', { replace: true });
+        } else {
+          navigate('/dashboard', { replace: true });
+        }
+      } catch {
+        navigate('/dashboard', { replace: true });
+      }
+    };
+    checkAndRedirect();
+  }, [user, navigate]);
+
   useEffect(() => {
     const DURATION = 15 * 60; // 15 minutes in seconds
     const KEY = 'pricing-countdown-start';
