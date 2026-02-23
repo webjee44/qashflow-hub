@@ -944,7 +944,7 @@ export default function Onboarding() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label className="text-sm text-muted-foreground">Nombre d'entités</Label>
+                  <Label className="text-sm text-muted-foreground">Nombre de comptes bancaires</Label>
                   <Select value={entityCount} onValueChange={setEntityCount}>
                     <SelectTrigger>
                       <SelectValue placeholder="Combien d'entités ?" />
