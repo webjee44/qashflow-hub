@@ -119,7 +119,7 @@ export default function Landing() {
 
   return (
     <div className="min-h-screen bg-background">
-      <h1 className="sr-only">Qashflow - Direction Financière augmentée par l'IA pour PME et startups</h1>
+      <h1 className="sr-only">Qashflow - Logiciel de gestion de trésorerie pour PME</h1>
       <PublicNavbar className="top-0" />
 
       {/* ─── Section 1 : Hero ─── */}
@@ -138,26 +138,32 @@ export default function Landing() {
           >
             <Badge variant="secondary" className="mb-6 gap-1.5">
               <Sparkles className="w-3.5 h-3.5" />
-              Direction Financière augmentée par l'IA
+              Logiciel de gestion de trésorerie pour PME
             </Badge>
 
             <h2 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6 text-balance">
-              Pilotez votre rentabilité{' '}
+              Suivez et anticipez votre{' '}
               <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-                en temps réel
+                trésorerie
               </span>
-              , pas votre comptabilité.
+              {' '}en toute simplicité
             </h2>
 
             <p className="text-lg sm:text-xl text-muted-foreground max-w-3xl mx-auto mb-8">
-              L'IA qui centralise vos banques, anticipe votre cash-flow et décomplexifie la finance.
-              Pour une vision claire de toutes vos sociétés, sans ouvrir un seul Excel.
+              Automatisez le suivi de votre trésorerie, synchronisez vos banques et anticipez votre cash-flow à 12 mois.
+              L'outil de pilotage financier conçu pour les PME.
             </p>
 
-            <div className="flex items-center justify-center">
+            <div className="flex items-center justify-center gap-4">
               <Button size="lg" onClick={() => navigate(user ? '/dashboard' : '/sign-up')}>
                 Démarrer mon essai gratuit (7j)
                 <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
+              <Button size="lg" variant="outline" asChild>
+                <Link to="/contact">
+                  Demander une démo
+                  <ChevronRight className="w-4 h-4 ml-2" />
+                </Link>
               </Button>
             </div>
 
@@ -206,9 +212,9 @@ export default function Landing() {
 
           <div className="grid md:grid-cols-3 gap-6 lg:gap-8">
             {[
-              { icon: Eye, title: 'Le Brouillard', text: 'Je ne sais jamais combien il me reste vraiment à la fin du mois.' },
-              { icon: Clock, title: 'La Corvée', text: 'Je perds des heures à consolider les données de mes 3 sociétés.' },
-              { icon: AlertTriangle, title: 'Le Stress', text: 'Mon bilan arrive 6 mois trop tard pour prendre des décisions.' },
+              { icon: Eye, title: 'Pas de visibilité', text: 'Où en est ma trésorerie aujourd\'hui ? Impossible de répondre sans jongler entre 3 banques.' },
+              { icon: Clock, title: 'Les exports Excel', text: 'Je passe des heures chaque semaine à consolider mes relevés bancaires dans un tableur.' },
+              { icon: AlertTriangle, title: 'Les mauvaises surprises', text: 'Je découvre mes découverts trop tard, sans marge de manœuvre pour réagir.' },
             ].map((pain, i) => (
               <motion.div key={i} {...fadeUp} transition={{ delay: i * 0.1 }}>
                 <Card className="h-full glass-card hover:shadow-xl transition-shadow">
@@ -232,9 +238,9 @@ export default function Landing() {
       <section className="py-20 px-4 sm:px-6 lg:px-8 bg-muted/30">
         <div className="max-w-7xl mx-auto">
           <motion.div {...fadeUp} className="text-center mb-14">
-            <h2 className="text-3xl sm:text-4xl font-bold mb-4">La visibilité financière absolue</h2>
+            <h2 className="text-3xl sm:text-4xl font-bold mb-4">Reprenez le contrôle de votre trésorerie</h2>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Trois piliers pour reprendre le contrôle de vos finances, sans effort.
+              Trois étapes pour une visibilité totale sur vos finances, sans effort.
             </p>
           </motion.div>
 
@@ -246,12 +252,14 @@ export default function Landing() {
                   <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-3">
                     <Building2 className="w-6 h-6 text-primary" />
                   </div>
-                  <CardTitle className="text-lg">Visibilité Multi-Entités</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-muted-foreground">
-                    Consolidation instantanée de toutes vos structures. Un seul écran pour votre groupe.
-                  </p>
+                   <CardTitle className="text-lg">Toutes vos banques en un seul écran</CardTitle>
+                 </CardHeader>
+                 <CardContent>
+                   <ul className="text-muted-foreground space-y-2">
+                     <li className="flex items-start gap-2"><Check className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" /> Centralisez tous vos comptes et devises</li>
+                     <li className="flex items-start gap-2"><Check className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" /> Consultez vos soldes en temps réel</li>
+                     <li className="flex items-start gap-2"><Check className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" /> Évitez les découverts</li>
+                   </ul>
                 </CardContent>
               </Card>
             </motion.div>
@@ -263,12 +271,14 @@ export default function Landing() {
                   <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-3">
                     <Bot className="w-6 h-6 text-primary" />
                   </div>
-                  <CardTitle className="text-lg">Intelligence de Catégorisation</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <p className="text-muted-foreground">
-                    L'IA apprend de vos flux pour classer vos dépenses. Zéro erreur, zéro oubli.
-                  </p>
+                   <CardTitle className="text-lg">Catégorisation automatique par l'IA</CardTitle>
+                 </CardHeader>
+                 <CardContent className="space-y-4">
+                   <ul className="text-muted-foreground space-y-2">
+                     <li className="flex items-start gap-2"><Check className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" /> Définissez des catégories métier</li>
+                     <li className="flex items-start gap-2"><Check className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" /> Catégorisation automatique des transactions</li>
+                     <li className="flex items-start gap-2"><Check className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" /> Vue claire de vos encaissements et décaissements</li>
+                   </ul>
                   {/* AI progress bar */}
                   <div>
                     <div className="flex items-center justify-between text-sm mb-1.5">
@@ -296,12 +306,14 @@ export default function Landing() {
                   <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-3">
                     <TrendingUp className="w-6 h-6 text-primary" />
                   </div>
-                  <CardTitle className="text-lg">Prédictif & Scénarios</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-muted-foreground">
-                    Projetez votre trésorerie à 6 ou 12 mois pour valider vos investissements ou vos recrutements.
-                  </p>
+                   <CardTitle className="text-lg">Prévisions de trésorerie à 12 mois</CardTitle>
+                 </CardHeader>
+                 <CardContent>
+                   <ul className="text-muted-foreground space-y-2">
+                     <li className="flex items-start gap-2"><Check className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" /> Prévisionnel automatique basé sur votre historique</li>
+                     <li className="flex items-start gap-2"><Check className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" /> Scénarisation de vos hypothèses (embauche, investissement…)</li>
+                     <li className="flex items-start gap-2"><Check className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" /> Prise de décision en toute sérénité</li>
+                   </ul>
                 </CardContent>
               </Card>
             </motion.div>
@@ -316,17 +328,16 @@ export default function Landing() {
             <motion.div {...fadeUp}>
               <Badge variant="secondary" className="mb-4 gap-1.5">
                 <Sparkles className="w-3.5 h-3.5" />
-                Humain + IA
+                Bonus
               </Badge>
               <h2 className="text-3xl sm:text-4xl font-bold mb-6">
-                L'outil qui libère votre équipe des tâches ingrates
+                Un Business Plan intégré pour convaincre vos partenaires
               </h2>
               <p className="text-lg text-muted-foreground mb-4">
-                Qashflow ne remplace pas votre expertise, il automatise la saisie manuelle.
-                Redonnez à votre gestionnaire le temps d'analyser plutôt que de copier-coller.
+                Au-delà du suivi quotidien, Qashflow génère automatiquement votre compte de résultat prévisionnel, votre plan de financement et votre bilan. Tout est synchronisé avec vos données réelles.
               </p>
               <p className="text-lg font-medium text-foreground">
-                Moins de stress administratif, plus de conseil stratégique.
+                Financez votre croissance avec des documents qui inspirent confiance.
               </p>
             </motion.div>
 
