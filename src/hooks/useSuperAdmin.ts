@@ -100,18 +100,51 @@ export function useDeleteOrganization() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (orgId: string) => {
-      const { error } = await supabase.rpc('delete_organization_cascade', { _org_id: orgId });
-      
-      if (error) {
-        logError('Error deleting organization:', error);
-        throw error;
+    mutationFn: async ({ orgId, mode }: { orgId: string; mode: 'soft' | 'permanent' }) => {
+      if (mode === 'soft') {
+        // Soft delete: set deleted_at
+        const { error } = await supabase
+          .from('organizations')
+          .update({ deleted_at: new Date().toISOString() })
+          .eq('id', orgId);
+        if (error) {
+          logError('Error soft-deleting organization:', error);
+          throw error;
+        }
+      } else {
+        // Permanent: disconnect Bridge users first
+        const { data: companies } = await supabase
+          .from('companies')
+          .select('bridge_user_uuid')
+          .eq('organization_id', orgId)
+          .not('bridge_user_uuid', 'is', null);
+
+        if (companies && companies.length > 0) {
+          const uniqueUuids = [...new Set(companies.map(c => c.bridge_user_uuid).filter(Boolean))];
+          for (const uuid of uniqueUuids) {
+            try {
+              await supabase.functions.invoke('admin-bridge-delete', {
+                body: { bridge_user_uuid: uuid },
+              });
+            } catch (err) {
+              logError('Error deleting Bridge user:', err);
+              // Continue with deletion even if Bridge cleanup fails
+            }
+          }
+        }
+
+        // Then cascade delete
+        const { error } = await supabase.rpc('delete_organization_cascade', { _org_id: orgId });
+        if (error) {
+          logError('Error deleting organization:', error);
+          throw error;
+        }
       }
     },
-    onSuccess: () => {
+    onSuccess: (_, { mode }) => {
       queryClient.invalidateQueries({ queryKey: ['superadmin-org-stats'] });
       queryClient.invalidateQueries({ queryKey: ['superadmin-global-stats'] });
-      toast.success('Organisation supprimée avec succès');
+      toast.success(mode === 'soft' ? 'Organisation désactivée' : 'Organisation supprimée définitivement');
     },
     onError: (error: Error) => {
       toast.error(`Erreur lors de la suppression: ${error.message}`);

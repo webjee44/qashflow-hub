@@ -48,8 +48,8 @@ export default function SuperAdminOrganizations() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [demoFilter, setDemoFilter] = useState<string>('all');
 
-  const handleDelete = async (orgId: string) => {
-    await deleteOrganization.mutateAsync(orgId);
+  const handleDelete = async (orgId: string, mode: 'soft' | 'permanent') => {
+    await deleteOrganization.mutateAsync({ orgId, mode });
   };
 
   const filteredOrgs = orgStats?.filter((org) => {
