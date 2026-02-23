@@ -24,6 +24,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { PublicNavbar } from '@/components/layout/PublicNavbar';
+import { SEOHead, generateOrganizationSchema, generateBreadcrumbSchema } from '@/components/seo/SEOHead';
 import logo from '@/assets/logo.png';
 import screenshotDashboard from '@/assets/screenshot-previsions.png';
 import screenshotPnl from '@/assets/screenshot-pnl.png';
@@ -140,8 +141,20 @@ export default function Landing() {
     }
   };
 
+  const softwareSchema = generateOrganizationSchema();
+  const breadcrumbSchema = generateBreadcrumbSchema([
+    { name: 'Accueil', url: '/' },
+  ]);
+
   return (
     <div className="min-h-screen bg-background">
+      <SEOHead
+        title="Logiciel de gestion de trésorerie et business plan pour PME"
+        description="Automatisez le suivi de votre trésorerie, synchronisez vos banques et anticipez votre cash-flow à 12 mois. L'outil de pilotage financier conçu pour les PME."
+        keywords="gestion trésorerie, logiciel trésorerie PME, business plan, prévisions cash-flow, synchronisation bancaire, catégorisation IA, pilotage financier"
+      />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareSchema) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }} />
       <h1 className="sr-only">Qashflow - Logiciel de gestion de trésorerie pour PME</h1>
       <PublicNavbar className="top-0" />
 
