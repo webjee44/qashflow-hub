@@ -875,7 +875,10 @@ export default function Onboarding() {
                       className="flex-1"
                     />
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">Sert à sécuriser votre connexion</p>
+                  <p className="text-sm text-muted-foreground mt-1.5 flex items-center gap-1.5">
+                    <Lock className="h-3.5 w-3.5" />
+                    Utilisé uniquement pour la vérification de votre identité
+                  </p>
                 </div>
 
                 <Button
