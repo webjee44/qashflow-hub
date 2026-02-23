@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { useCompany } from '@/hooks/useCompany';
 import { supabase } from '@/integrations/supabase/client';
@@ -260,9 +261,11 @@ function StepIndicator({ current, total }: { current: number; total: number }) {
 
 export default function Onboarding() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const queryClient = useQueryClient();
   const { user, session, loading: authLoading } = useAuth();
   const { companies } = useCompany();
+  const bridgeCallbackHandled = useRef(false);
 
   const [step, setStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -286,9 +289,11 @@ export default function Onboarding() {
   const [entityCount, setEntityCount] = useState('');
 
   // Redirect if not authenticated or onboarding already completed
+  // BUT skip if we're handling a bridge callback (to avoid race condition)
   useEffect(() => {
-    // Wait for auth to finish loading before checking
     if (authLoading) return;
+    // If bridge callback is present, let the bridge effect handle completion
+    if (searchParams.get('bridge_callback') === 'success') return;
     
     if (!user) {
       navigate('/sign-in');
@@ -304,7 +309,6 @@ export default function Onboarding() {
         navigate('/dashboard', { replace: true });
         return;
       }
-      // Check if user is an invited member (not the org owner)
       const { data: memberships } = await supabase
         .from('organization_members')
         .select('role')
@@ -314,7 +318,7 @@ export default function Onboarding() {
       }
     };
     checkProfile();
-  }, [user, authLoading, navigate]);
+  }, [user, authLoading, navigate, searchParams]);
 
   // Load existing profile data to resume
   useEffect(() => {
@@ -353,13 +357,22 @@ export default function Onboarding() {
     }
   }, [companies]);
 
-  // Handle Bridge callback — must wait for user to be loaded
+  // Handle Bridge callback — must wait for auth to load
   useEffect(() => {
-    if (searchParams.get('bridge_callback') === 'success' && user) {
-      localStorage.setItem('bridgePendingSync', 'true');
-      handleComplete();
+    if (authLoading) return;
+    if (searchParams.get('bridge_callback') !== 'success') return;
+    if (!user) {
+      navigate('/sign-in');
+      return;
     }
-  }, [searchParams, user]);
+    if (bridgeCallbackHandled.current) return;
+    bridgeCallbackHandled.current = true;
+
+    localStorage.setItem('bridgePendingSync', 'true');
+    // Clean up URL params
+    setSearchParams({}, { replace: true });
+    handleComplete();
+  }, [searchParams, user, authLoading]);
 
   // ─── Save Helpers ────────────────────────────────────────────────────────
 
@@ -441,10 +454,14 @@ export default function Onboarding() {
         } as any)
         .eq('id', user.id);
       localStorage.setItem('show-welcome-guide', 'true');
-      navigate('/transactions');
+      // Invalidate all cached data so the app fetches fresh state
+      await queryClient.invalidateQueries({ queryKey: ['companies'] });
+      await queryClient.invalidateQueries({ queryKey: ['bank_balance'] });
+      await queryClient.invalidateQueries({ queryKey: ['bridge_accounts'] });
+      navigate('/transactions', { replace: true });
     } catch (err) {
       logError('Complete onboarding error:', err);
-      navigate('/transactions');
+      navigate('/transactions', { replace: true });
     }
   };
 
