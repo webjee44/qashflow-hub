@@ -21,11 +21,33 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command';
-import { Loader2, ArrowRight, ArrowLeft, Building2, Landmark, Shield, CheckCircle2, Search, Lock, Eye, EyeOff } from 'lucide-react';
+import { Loader2, ArrowRight, ArrowLeft, Building2, Landmark, Shield, CheckCircle2, Search, Lock, Eye, EyeOff, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { logError, logDebug } from '@/lib/logger';
 import logo from '@/assets/logo.png';
 import bridgeLogo from '@/assets/bridge-logo.jpg';
+
+// ─── Country codes ───────────────────────────────────────────────────────────
+
+const COUNTRY_CODES = [
+  { code: '+33', flag: '🇫🇷', name: 'France' },
+  { code: '+32', flag: '🇧🇪', name: 'Belgique' },
+  { code: '+41', flag: '🇨🇭', name: 'Suisse' },
+  { code: '+352', flag: '🇱🇺', name: 'Luxembourg' },
+  { code: '+377', flag: '🇲🇨', name: 'Monaco' },
+  { code: '+1', flag: '🇺🇸', name: 'États-Unis' },
+  { code: '+44', flag: '🇬🇧', name: 'Royaume-Uni' },
+  { code: '+49', flag: '🇩🇪', name: 'Allemagne' },
+  { code: '+34', flag: '🇪🇸', name: 'Espagne' },
+  { code: '+39', flag: '🇮🇹', name: 'Italie' },
+  { code: '+351', flag: '🇵🇹', name: 'Portugal' },
+  { code: '+31', flag: '🇳🇱', name: 'Pays-Bas' },
+  { code: '+212', flag: '🇲🇦', name: 'Maroc' },
+  { code: '+216', flag: '🇹🇳', name: 'Tunisie' },
+  { code: '+213', flag: '🇩🇿', name: 'Algérie' },
+  { code: '+221', flag: '🇸🇳', name: 'Sénégal' },
+  { code: '+225', flag: '🇨🇮', name: 'Côte d\'Ivoire' },
+];
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -246,6 +268,9 @@ export default function Onboarding() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isConnectingBridge, setIsConnectingBridge] = useState(false);
   const [isInvitedUser, setIsInvitedUser] = useState(false);
+  const [countryCode, setCountryCode] = useState('+33');
+  const [countryOpen, setCountryOpen] = useState(false);
+  const [countrySearch, setCountrySearch] = useState('');
 
   // Step 1 fields
   const [firstName, setFirstName] = useState('');
@@ -347,7 +372,7 @@ export default function Onboarding() {
           last_name: lastName || null,
           full_name: fullName || null,
           job_title: jobTitle || null,
-          phone: phone || null,
+          phone: phone ? `${countryCode} ${phone}` : null,
           onboarding_step: 1,
         } as any)
         .eq('id', user.id);
@@ -567,12 +592,65 @@ export default function Onboarding() {
 
                 <div className="space-y-1.5">
                   <Label className="text-sm text-muted-foreground">Téléphone</Label>
-                  <Input
-                    type="tel"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="+33 6 12 34 56 78"
-                  />
+                  <div className="flex gap-2">
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setCountryOpen(!countryOpen)}
+                        className="flex items-center gap-1.5 h-10 px-3 rounded-md border border-input bg-background text-sm hover:bg-accent transition-colors min-w-[90px]"
+                      >
+                        <span className="text-base leading-none">{COUNTRY_CODES.find(c => c.code === countryCode)?.flag}</span>
+                        <span className="text-foreground font-medium">{countryCode}</span>
+                        <ChevronDown className="w-3 h-3 text-muted-foreground" />
+                      </button>
+                      {countryOpen && (
+                        <div className="absolute z-50 mt-1 w-64 rounded-md border border-border bg-popover shadow-lg overflow-hidden">
+                          <div className="p-2 border-b border-border">
+                            <Input
+                              value={countrySearch}
+                              onChange={(e) => setCountrySearch(e.target.value)}
+                              placeholder="Rechercher..."
+                              className="h-8 text-sm"
+                              autoFocus
+                            />
+                          </div>
+                          <div className="max-h-[200px] overflow-y-auto">
+                            {COUNTRY_CODES
+                              .filter(c => 
+                                countrySearch === '' || 
+                                c.name.toLowerCase().includes(countrySearch.toLowerCase()) ||
+                                c.code.includes(countrySearch)
+                              )
+                              .map((c) => (
+                                <button
+                                  key={c.code}
+                                  type="button"
+                                  onClick={() => {
+                                    setCountryCode(c.code);
+                                    setCountryOpen(false);
+                                    setCountrySearch('');
+                                  }}
+                                  className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-accent transition-colors ${
+                                    c.code === countryCode ? 'bg-accent' : ''
+                                  }`}
+                                >
+                                  <span className="text-base leading-none">{c.flag}</span>
+                                  <span className="text-foreground">{c.name}</span>
+                                  <span className="text-muted-foreground ml-auto">{c.code}</span>
+                                </button>
+                              ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <Input
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="6 12 34 56 78"
+                      className="flex-1"
+                    />
+                  </div>
                 </div>
 
                 <Button
