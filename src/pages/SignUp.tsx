@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { MailCheck } from 'lucide-react';
+import { MailCheck, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,7 +11,40 @@ import { Separator } from '@/components/ui/separator';
 import { lovable } from '@/integrations/lovable/index';
 import { z } from 'zod';
 import logo from '@/assets/logo.png';
-import screenshotPrevisions from '@/assets/screenshot-previsions.png';
+
+function GradientPanel() {
+  return (
+    <div className="hidden lg:flex lg:w-1/2 gradient-primary items-center justify-center p-12">
+      <div className="max-w-md text-primary-foreground">
+        <div className="flex items-center gap-3 mb-8">
+          <div className="w-14 h-14 rounded-2xl bg-primary-foreground/20 flex items-center justify-center backdrop-blur-sm">
+            <span className="text-2xl font-bold">Q</span>
+          </div>
+          <div>
+            <h2 className="text-2xl font-bold">qashflow</h2>
+            <p className="text-sm opacity-80">Pilotez votre trésorerie</p>
+          </div>
+        </div>
+        <h3 className="text-4xl font-bold leading-tight mb-6">
+          Anticipez. Décidez.<br />Dormez tranquille.
+        </h3>
+        <p className="text-lg opacity-90 mb-8">
+          La solution tout-en-un pour piloter votre trésorerie et créer des business plans professionnels.
+        </p>
+        <div className="space-y-4">
+          {['Synchronisation bancaire automatique', 'Catégorisation IA intelligente', 'Business Plan multi-scénarios'].map((feature) => (
+            <div key={feature} className="flex items-center gap-3">
+              <div className="w-6 h-6 rounded-full bg-primary-foreground/20 flex items-center justify-center">
+                <ArrowRight className="w-4 h-4" />
+              </div>
+              <span>{feature}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const emailSchema = z.string().email('Email invalide');
 const passwordSchema = z.string().min(6, 'Le mot de passe doit contenir au moins 6 caractères');
@@ -122,19 +155,7 @@ export default function SignUp() {
             </div>
           </div>
         </div>
-        <div className="hidden lg:flex lg:w-1/2 bg-muted/30 items-center justify-center p-12">
-          <div className="text-center max-w-lg">
-            <p className="text-3xl font-bold text-primary mb-2">7 jours gratuits</p>
-            <p className="text-lg font-medium text-primary/70 mb-10">Sans engagement</p>
-            <div className="relative">
-              <img
-                src={screenshotPrevisions}
-                alt="Aperçu de Qashflow - Prévisions de trésorerie"
-                className="rounded-xl shadow-2xl border border-border/50"
-              />
-            </div>
-          </div>
-        </div>
+        <GradientPanel />
       </div>
     );
   }
@@ -257,22 +278,8 @@ export default function SignUp() {
         </div>
       </div>
 
-      {/* Right Panel - Promotional */}
-      <div className="hidden lg:flex lg:w-1/2 bg-muted/30 items-center justify-center p-12">
-        <div className="text-center max-w-lg">
-          <p className="text-3xl font-bold text-primary mb-2">7 jours gratuits</p>
-          <p className="text-lg font-medium text-primary/70 mb-10">Sans engagement</p>
-
-          {/* Product screenshot */}
-          <div className="relative">
-            <img
-              src={screenshotPrevisions}
-              alt="Aperçu de Qashflow - Prévisions de trésorerie"
-              className="rounded-xl shadow-2xl border border-border/50"
-            />
-          </div>
-        </div>
-      </div>
+      {/* Right Panel - Gradient branding */}
+      <GradientPanel />
     </div>
   );
 }
