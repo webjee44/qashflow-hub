@@ -23,9 +23,11 @@ import {
   Search,
   Pencil,
   ChevronRight,
+  Lock,
 } from 'lucide-react';
 import { Tables } from '@/integrations/supabase/types';
 import { Category, CategoryGroup } from '@/hooks/useCategories';
+import { SYSTEM_CATEGORY_INTERCOMPTE } from '@/features/categories/hooks/useCategories';
 import { cn } from '@/lib/utils';
 
 type Transaction = Tables<'transactions'>;
@@ -181,10 +183,12 @@ export function BulkCategorizeDialog({
   }, [selectedTransactions]);
 
   // Get relevant categories based on dominant type
+  // System category "Virement intercompte" is always shown (works for both types)
   const relevantCategories = useMemo(() => {
-    if (analysis.dominantType === 'income') return categories.filter(c => c.type === 'income');
-    if (analysis.dominantType === 'expense') return categories.filter(c => c.type === 'expense');
-    return categories;
+    if (analysis.dominantType === 'mixed') return categories;
+    const typed = categories.filter(c => c.type === analysis.dominantType);
+    const systemCats = categories.filter(c => c.name === SYSTEM_CATEGORY_INTERCOMPTE && !typed.some(t => t.id === c.id));
+    return [...typed, ...systemCats];
   }, [categories, analysis.dominantType]);
 
   const categoryGroups = useMemo(() => getGroupedCategories(relevantCategories), [relevantCategories]);
@@ -288,9 +292,10 @@ export function BulkCategorizeDialog({
     ? relevantCategories.find(c => c.id === aiSuggestion.categoryId)
     : null;
 
-  // Check for type mismatch
+  // Check for type mismatch (skip for system categories like "Virement intercompte")
   const hasMismatch = useMemo(() => {
     if (!selectedCategory) return false;
+    if (selectedCategory.is_system) return false;
     if (selectedCategory.type === 'income' && analysis.expenseCount > 0) return true;
     if (selectedCategory.type === 'expense' && analysis.incomeCount > 0) return true;
     return false;
@@ -487,6 +492,9 @@ export function BulkCategorizeDialog({
                       style={{ backgroundColor: cat.color }}
                     />
                     <span className="truncate flex-1 text-left">{cat.name}</span>
+                    {cat.is_system && (
+                      <Lock className="w-3 h-3 text-muted-foreground shrink-0" />
+                    )}
                     {selectedCategoryId === cat.id && (
                       <Check className="w-4 h-4 text-primary shrink-0" />
                     )}

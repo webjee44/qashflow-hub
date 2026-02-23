@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { SYSTEM_CATEGORY_INTERCOMPTE } from '@/features/categories/hooks/useCategories';
 import { 
   Dialog, 
   DialogContent, 
@@ -20,6 +21,7 @@ import {
   ArrowUpRight,
   PlusCircle,
   XCircle,
+  Lock,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
@@ -117,7 +119,13 @@ export function CategorizationModal({
   const [aiError, setAiError] = useState<string | null>(null);
 
   // Determine which categories to show based on transaction type
-  const relevantCategories = transaction?.type === 'income' ? incomeCategories : expenseCategories;
+  // System category "Virement intercompte" is shown for both types
+  const relevantCategories = useMemo(() => {
+    const baseCategories = transaction?.type === 'income' ? incomeCategories : expenseCategories;
+    const allCategories = [...incomeCategories, ...expenseCategories];
+    const systemCats = allCategories.filter(c => c.name === SYSTEM_CATEGORY_INTERCOMPTE && !baseCategories.some(b => b.id === c.id));
+    return [...baseCategories, ...systemCats];
+  }, [transaction?.type, incomeCategories, expenseCategories]);
   const categoryGroups = useMemo(() => getGroupedCategories(relevantCategories), [relevantCategories]);
 
   // Fetch AI suggestion when modal opens
@@ -384,6 +392,9 @@ export function CategorizationModal({
                       style={{ backgroundColor: cat.color }}
                     />
                     <span className="truncate">{cat.name}</span>
+                    {cat.is_system && (
+                      <Lock className="w-3 h-3 text-muted-foreground shrink-0 ml-auto" />
+                    )}
                   </button>
                 ))}
               </div>
