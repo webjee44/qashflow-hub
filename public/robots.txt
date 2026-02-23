@@ -1,5 +1,5 @@
 # Robots.txt pour Qashflow - Logiciel de gestion de trésorerie
-# https://pennylane-cash-flow-buddy.lovable.app
+# https://qashflow.io
 
 User-agent: Googlebot
 Allow: /
@@ -46,4 +46,4 @@ Disallow: /start/*
 Disallow: /welcome
 
 # Sitemap
-Sitemap: https://pennylane-cash-flow-buddy.lovable.app/sitemap.xml
+Sitemap: https://qashflow.io/sitemap.xml

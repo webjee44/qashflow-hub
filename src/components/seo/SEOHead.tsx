@@ -16,7 +16,7 @@ interface SEOHeadProps {
   noIndex?: boolean;
 }
 
-const BASE_URL = 'https://pennylane-cash-flow-buddy.lovable.app';
+export const BASE_URL = 'https://qashflow.io';
 const DEFAULT_OG_IMAGE = `${BASE_URL}/og-image.png`;
 
 export const SEOHead = ({
@@ -108,21 +108,24 @@ export const SEOHead = ({
 export const generateOrganizationSchema = () => ({
   '@context': 'https://schema.org',
   '@type': 'SoftwareApplication',
-  name: 'qashflow',
+  name: 'Qashflow',
   applicationCategory: 'FinanceApplication',
   operatingSystem: 'Web',
-  description: 'Logiciel de gestion de trésorerie et business plan pour PME et startups',
+  description: 'Logiciel de gestion de trésorerie et business plan pour PME et startups. Synchronisation bancaire, prévisions cash-flow et catégorisation IA.',
   url: BASE_URL,
   offers: {
-    '@type': 'Offer',
-    price: '29',
+    '@type': 'AggregateOffer',
+    lowPrice: '0',
+    highPrice: '828',
     priceCurrency: 'EUR',
-    priceValidUntil: '2027-12-31',
+    offerCount: '2',
   },
   aggregateRating: {
     '@type': 'AggregateRating',
     ratingValue: '4.8',
     ratingCount: '150',
+    bestRating: '5',
+    worstRating: '1',
   },
 });
 
