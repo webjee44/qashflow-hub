@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import confetti from 'canvas-confetti';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
@@ -29,7 +30,7 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command';
-import { Loader2, ArrowRight, ArrowLeft, Building2, Landmark, Shield, CheckCircle2, Search, Lock, Eye, EyeOff, ChevronDown, HelpCircle, TrendingUp, Zap, BarChart3 } from 'lucide-react';
+import { Loader2, ArrowRight, ArrowLeft, Building2, Landmark, Shield, CheckCircle2, Search, Lock, Eye, EyeOff, ChevronDown, HelpCircle, TrendingUp, Zap, BarChart3, Rocket, LayoutDashboard, ArrowLeftRight, Tags, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { logError, logDebug } from '@/lib/logger';
 import logo from '@/assets/logo.png';
@@ -275,6 +276,7 @@ export default function Onboarding() {
   const bridgeCallbackHandled = useRef(false);
 
   const [step, setStep] = useState(0);
+  const [showCelebration, setShowCelebration] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isConnectingBridge, setIsConnectingBridge] = useState(false);
   const [isInvitedUser, setIsInvitedUser] = useState(false);
@@ -523,7 +525,25 @@ export default function Onboarding() {
       await queryClient.invalidateQueries({ queryKey: ['companies'] });
       await queryClient.invalidateQueries({ queryKey: ['bank_balance'] });
       await queryClient.invalidateQueries({ queryKey: ['bridge_accounts'] });
-      navigate('/transactions', { replace: true });
+
+      // Show celebration screen
+      setShowCelebration(true);
+
+      // Fire confetti
+      setTimeout(() => {
+        confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 } });
+        setTimeout(() => {
+          confetti({ particleCount: 50, spread: 100, origin: { y: 0.5, x: 0.3 } });
+        }, 300);
+        setTimeout(() => {
+          confetti({ particleCount: 50, spread: 100, origin: { y: 0.5, x: 0.7 } });
+        }, 500);
+      }, 200);
+
+      // Auto-redirect after 4 seconds
+      setTimeout(() => {
+        navigate('/transactions', { replace: true });
+      }, 4500);
     } catch (err) {
       logError('Complete onboarding error:', err);
       navigate('/transactions', { replace: true });
@@ -611,6 +631,96 @@ export default function Onboarding() {
       <Loader2 className="w-8 h-8 animate-spin text-primary" />
     </div>
   );
+
+  // ─── Celebration Screen ───────────────────────────────────────────────────
+  if (showCelebration) {
+    const firstName_ = firstName || user?.user_metadata?.first_name || '';
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center px-4">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5, ease: 'easeOut' }}
+          className="text-center max-w-md"
+        >
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ delay: 0.2, type: 'spring', stiffness: 200, damping: 15 }}
+            className="w-20 h-20 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-6"
+          >
+            <Rocket className="w-10 h-10 text-primary" />
+          </motion.div>
+
+          <motion.h1
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="text-3xl font-bold text-foreground mb-3"
+          >
+            {firstName_ ? `Bienvenue ${firstName_} !` : 'Bienvenue !'}
+          </motion.h1>
+
+          <motion.p
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.6 }}
+            className="text-muted-foreground mb-8"
+          >
+            Votre espace est prêt. Découvrez vos outils pour piloter votre trésorerie.
+          </motion.p>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.8 }}
+            className="grid grid-cols-2 gap-3 mb-8"
+          >
+            {[
+              { icon: LayoutDashboard, label: 'Tableau de bord' },
+              { icon: ArrowLeftRight, label: 'Transactions' },
+              { icon: TrendingUp, label: 'Prévisions' },
+              { icon: Tags, label: 'Catégories' },
+            ].map(({ icon: Icon, label }, i) => (
+              <motion.div
+                key={label}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 1 + i * 0.1 }}
+                className="flex items-center gap-2.5 rounded-lg border border-border p-3"
+              >
+                <Icon className="w-4 h-4 text-primary shrink-0" />
+                <span className="text-sm font-medium text-foreground">{label}</span>
+              </motion.div>
+            ))}
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 1.5 }}
+          >
+            <Button
+              onClick={() => navigate('/transactions', { replace: true })}
+              className="h-12 px-8 gap-2"
+            >
+              C'est parti
+              <ArrowRight className="w-4 h-4" />
+            </Button>
+          </motion.div>
+
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 2 }}
+            className="text-xs text-muted-foreground mt-4"
+          >
+            Redirection automatique dans quelques secondes…
+          </motion.p>
+        </motion.div>
+      </div>
+    );
+  }
 
   // ─── Render ──────────────────────────────────────────────────────────────
 
