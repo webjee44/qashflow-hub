@@ -1,6 +1,7 @@
-import { ReactNode } from 'react';
-import { Navigate } from 'react-router-dom';
+import { ReactNode, useEffect, useState } from 'react';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 import { Loader2 } from 'lucide-react';
 
 interface ProtectedRouteProps {
@@ -9,8 +10,38 @@ interface ProtectedRouteProps {
 
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const { user, loading } = useAuth();
+  const location = useLocation();
+  const [onboardingChecked, setOnboardingChecked] = useState(false);
+  const [needsOnboarding, setNeedsOnboarding] = useState(false);
 
-  if (loading) {
+  useEffect(() => {
+    if (!user) {
+      setOnboardingChecked(true);
+      return;
+    }
+
+    const checkOnboarding = async () => {
+      try {
+        const { data } = await supabase
+          .from('profiles')
+          .select('onboarding_completed')
+          .eq('id', user.id)
+          .single();
+
+        if (data && data.onboarding_completed === false) {
+          setNeedsOnboarding(true);
+        }
+      } catch {
+        // If check fails, don't block access
+      } finally {
+        setOnboardingChecked(true);
+      }
+    };
+
+    checkOnboarding();
+  }, [user]);
+
+  if (loading || !onboardingChecked) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
@@ -23,6 +54,11 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
 
   if (!user) {
     return <Navigate to="/" replace />;
+  }
+
+  // Redirect to onboarding if not completed (avoid loop if already on /onboarding)
+  if (needsOnboarding && !location.pathname.startsWith('/onboarding')) {
+    return <Navigate to="/onboarding" replace />;
   }
 
   return <>{children}</>;
