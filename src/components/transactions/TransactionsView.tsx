@@ -100,8 +100,19 @@ export function TransactionsView() {
     const map = new Map<string, string>();
     bridgeAccounts.forEach(acc => {
       if (acc.name) {
-        // Show the full account name as-is
         map.set(acc.name, acc.name);
+      }
+    });
+    return map;
+  }, [bridgeAccounts]);
+
+  // Create a mapping from account name to bank name (for filtering)
+  const accountToBankMap = useMemo(() => {
+    const map = new Map<string, string>();
+    bridgeAccounts.forEach(acc => {
+      if (acc.name) {
+        const bankName = acc.bank_name && acc.bank_name.toLowerCase() !== 'bridge' ? acc.bank_name : acc.name;
+        map.set(acc.name, bankName);
       }
     });
     return map;
@@ -152,7 +163,7 @@ export function TransactionsView() {
     // Apply bank filter
     if (bankFilter) {
       baseFiltered = baseFiltered.filter(t => {
-        const bankName = getBankAccountDisplay(t.bank_account_name);
+        const bankName = accountToBankMap.get(t.bank_account_name || '') || t.bank_account_name;
         return bankName === bankFilter;
       });
     }
