@@ -21,10 +21,11 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command';
-import { Loader2, ArrowRight, ArrowLeft, Building2, Landmark, Shield, CheckCircle2, Search } from 'lucide-react';
+import { Loader2, ArrowRight, ArrowLeft, Building2, Landmark, Shield, CheckCircle2, Search, Lock, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 import { logError, logDebug } from '@/lib/logger';
 import logo from '@/assets/logo.png';
+import bridgeLogo from '@/assets/bridge-logo.jpg';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -712,11 +713,11 @@ export default function Onboarding() {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -30 }}
               transition={{ duration: 0.3 }}
-              className="w-full max-w-md"
+              className="w-full max-w-lg"
             >
-              <div className="text-center mb-8">
-                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
-                  <Landmark className="w-6 h-6 text-primary" />
+              <div className="text-center mb-6">
+                <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                  <Landmark className="w-7 h-7 text-primary" />
                 </div>
                 <h1 className="text-2xl font-bold text-foreground mb-2">
                   Connecter ma banque
@@ -726,39 +727,62 @@ export default function Onboarding() {
                 </p>
               </div>
 
-              <div className="space-y-6">
-                {/* Security badges */}
-                <div className="flex items-center justify-center gap-4 text-xs text-muted-foreground">
-                  <div className="flex items-center gap-1.5">
-                    <Shield className="w-4 h-4 text-primary" />
-                    <span>100% conforme RGPD</span>
+              <div className="space-y-5">
+                {/* Powered by Bridge */}
+                <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                  <span>Propulsé par</span>
+                  <img src={bridgeLogo} alt="Bridge" className="h-6 rounded" />
+                </div>
+
+                {/* Security trust badges */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex items-start gap-2.5 rounded-lg border border-border bg-card p-3">
+                    <Shield className="w-5 h-5 text-green-600 dark:text-green-400 mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium text-foreground">Agréé ACPR</p>
+                      <p className="text-xs text-muted-foreground">Établissement de paiement contrôlé par la Banque de France</p>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4 text-primary" />
-                    <span>Agrégateurs certifiés ACPR</span>
+                  <div className="flex items-start gap-2.5 rounded-lg border border-border bg-card p-3">
+                    <CheckCircle2 className="w-5 h-5 text-green-600 dark:text-green-400 mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium text-foreground">Conforme RGPD</p>
+                      <p className="text-xs text-muted-foreground">Données protégées selon la réglementation européenne</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2.5 rounded-lg border border-border bg-card p-3">
+                    <Lock className="w-5 h-5 text-green-600 dark:text-green-400 mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium text-foreground">Chiffrement AES-256</p>
+                      <p className="text-xs text-muted-foreground">Données chiffrées au repos et en transit via TLS 1.2</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2.5 rounded-lg border border-border bg-card p-3">
+                    <EyeOff className="w-5 h-5 text-green-600 dark:text-green-400 mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium text-foreground">Lecture seule</p>
+                      <p className="text-xs text-muted-foreground">Aucun accès à vos identifiants, jamais stockés</p>
+                    </div>
                   </div>
                 </div>
 
-                {/* Connection area */}
-                <div className="border border-dashed border-border rounded-xl p-8 text-center bg-muted/30">
-                  <Landmark className="w-10 h-10 text-muted-foreground mx-auto mb-4" />
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Connexion sécurisée via nos partenaires certifiés.
-                    <br />
-                    Vos identifiants ne sont jamais stockés.
-                  </p>
+                {/* Connection CTA */}
+                <div className="rounded-xl border border-border bg-card p-6 text-center shadow-sm">
                   <Button
                     onClick={handleConnectBridge}
                     disabled={isConnectingBridge}
-                    className="h-12 px-6 text-base font-semibold"
+                    className="h-12 px-8 text-base font-semibold w-full"
                   >
                     {isConnectingBridge ? (
                       <Loader2 className="w-5 h-5 animate-spin mr-2" />
                     ) : (
-                      <Landmark className="w-4 h-4 mr-2" />
+                      <Landmark className="w-5 h-5 mr-2" />
                     )}
-                    + Ajouter une banque
+                    Connecter ma banque en toute sécurité
                   </Button>
+                  <p className="text-xs text-muted-foreground mt-3">
+                    Connexion sécurisée via Bridge · Audits de sécurité trimestriels
+                  </p>
                 </div>
 
                 <div className="flex gap-3">
