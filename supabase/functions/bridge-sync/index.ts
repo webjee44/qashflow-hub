@@ -551,6 +551,38 @@ Deno.serve(async (req) => {
         allItems
       );
 
+      // Auto-assign accounts if user has only one company and no assignments exist yet
+      const { data: userCompanies } = await supabaseAdmin
+        .from('companies')
+        .select('id')
+        .eq('user_id', userId)
+        .is('deleted_at', null);
+
+      if (userCompanies && userCompanies.length === 1) {
+        const singleCompanyId = userCompanies[0].id;
+        const bridgeAccountIds = allAccounts.map((a: BridgeAccount) => a.id);
+        const { data: existingAssignments } = await supabaseAdmin
+          .from('company_bridge_accounts')
+          .select('bridge_account_id')
+          .in('bridge_account_id', bridgeAccountIds);
+
+        const alreadyAssigned = new Set((existingAssignments || []).map((a: any) => a.bridge_account_id));
+        const toAutoAssign = bridgeAccountIds.filter((id: number) => !alreadyAssigned.has(id));
+
+        if (toAutoAssign.length > 0) {
+          console.info(`[bridge-sync] Auto-assigning ${toAutoAssign.length} accounts to single company ${singleCompanyId}`);
+          const { error: autoAssignError } = await supabaseAdmin
+            .from('company_bridge_accounts')
+            .insert(toAutoAssign.map((bridge_account_id: number) => ({
+              company_id: singleCompanyId,
+              bridge_account_id,
+            })));
+          if (autoAssignError) {
+            console.error('[bridge-sync] Auto-assign error:', autoAssignError);
+          }
+        }
+      }
+
       // Calculate balance and count based on assigned accounts only
       const { assignedCount, assignedBalance } = await getAssignedAccountsStats(
         supabaseAdmin,
