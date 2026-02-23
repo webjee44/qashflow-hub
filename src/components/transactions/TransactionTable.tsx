@@ -1,4 +1,4 @@
-import { memo, useRef, useCallback } from 'react';
+import { memo, useRef, useCallback, useState, useEffect } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { motion } from 'framer-motion';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -47,6 +47,21 @@ export const TransactionTable = memo(function TransactionTable({
   formatDate,
 }: TransactionTableProps) {
   const parentRef = useRef<HTMLDivElement>(null);
+
+  // Highlight first uncategorized transaction's "Catégoriser" button after onboarding
+  const [highlightFirstId, setHighlightFirstId] = useState<string | null>(null);
+  useEffect(() => {
+    if (localStorage.getItem('highlight-first-categorize') === 'true' && transactions.length > 0) {
+      const first = transactions.find(t => !t.category_id);
+      if (first) {
+        setHighlightFirstId(first.id);
+        localStorage.removeItem('highlight-first-categorize');
+        // Stop pulsing after 6 seconds
+        const timer = setTimeout(() => setHighlightFirstId(null), 6000);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [transactions]);
 
   const virtualizer = useVirtualizer({
     count: transactions.length,
@@ -107,6 +122,7 @@ export const TransactionTable = memo(function TransactionTable({
                     <TransactionTableRow
                       transaction={transaction}
                       isSelected={selectedTransactionIds.has(transaction.id)}
+                      highlightCategorize={transaction.id === highlightFirstId}
                       onToggleSelection={onToggleSelection}
                       onUpdateCategory={onUpdateCategory}
                       onCreateCategory={onCreateCategory}

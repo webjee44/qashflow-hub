@@ -27,6 +27,7 @@ type Transaction = Tables<'transactions'>;
 interface TransactionTableRowProps {
   transaction: Transaction;
   isSelected: boolean;
+  highlightCategorize?: boolean;
   onToggleSelection: (id: string) => void;
   onUpdateCategory: (transactionId: string, categoryId: string | null) => void;
   onCreateCategory: (transactionId: string) => void;
@@ -45,6 +46,7 @@ interface TransactionTableRowProps {
 export const TransactionTableRow = memo(function TransactionTableRow({
   transaction,
   isSelected,
+  highlightCategorize,
   onToggleSelection,
   onUpdateCategory,
   onCreateCategory,
@@ -140,7 +142,10 @@ export const TransactionTableRow = memo(function TransactionTableRow({
             variant="outline"
             size="sm"
             onClick={() => onOpenCategorizationModal?.(transaction)}
-            className="h-9 w-full gap-2 bg-warning/20 border-warning text-warning hover:bg-warning/30 hover:text-warning dark:bg-warning/10"
+            className={cn(
+              "h-9 w-full gap-2 bg-warning/20 border-warning text-warning hover:bg-warning/30 hover:text-warning dark:bg-warning/10",
+              highlightCategorize && "animate-pulse ring-2 ring-primary ring-offset-2 ring-offset-background"
+            )}
           >
             <Tag className="w-4 h-4" />
             Catégoriser
