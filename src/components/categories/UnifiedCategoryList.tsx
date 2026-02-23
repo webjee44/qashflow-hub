@@ -11,6 +11,7 @@ import {
   Ghost,
   Loader2,
   GripVertical,
+  Lock,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -605,6 +606,9 @@ function CategoryRow({
               style={{ backgroundColor: category.color }}
             />
             <span className="text-sm text-foreground">{category.name}</span>
+            {category.is_system && (
+              <Lock className="w-3 h-3 text-muted-foreground shrink-0" />
+            )}
             {showOrphanBadge && isOrphan && (
               <Badge variant="outline" className="text-xs px-1.5 py-0 h-5 text-muted-foreground border-dashed">
                 0 tx

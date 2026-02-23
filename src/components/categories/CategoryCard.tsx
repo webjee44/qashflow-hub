@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Edit3, Trash2, TrendingUp, TrendingDown } from 'lucide-react';
+import { Edit3, Trash2, TrendingUp, TrendingDown, Lock } from 'lucide-react';
 import { Category } from '@/hooks/useCategories';
 import { DeleteCategoryDialog } from './DeleteCategoryDialog';
 
@@ -48,7 +48,12 @@ export function CategoryCard({
           </div>
           
           <div className="flex-1">
-            <h4 className="font-semibold text-foreground">{category.name}</h4>
+            <div className="flex items-center gap-2">
+              <h4 className="font-semibold text-foreground">{category.name}</h4>
+              {category.is_system && (
+                <Lock className="w-3.5 h-3.5 text-muted-foreground" />
+              )}
+            </div>
             <div className="flex items-center gap-2 mt-1">
               {category.type === 'income' ? (
                 <span className="flex items-center gap-1 text-xs text-success">
