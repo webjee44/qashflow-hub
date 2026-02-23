@@ -244,6 +244,7 @@ export default function Onboarding() {
   const [step, setStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isConnectingBridge, setIsConnectingBridge] = useState(false);
+  const [isInvitedUser, setIsInvitedUser] = useState(false);
 
   // Step 1 fields
   const [firstName, setFirstName] = useState('');
@@ -264,8 +265,7 @@ export default function Onboarding() {
       navigate('/sign-in');
       return;
     }
-    // Check if onboarding already completed
-    const checkCompleted = async () => {
+    const checkProfile = async () => {
       const { data } = await supabase
         .from('profiles')
         .select('onboarding_completed')
@@ -273,9 +273,18 @@ export default function Onboarding() {
         .single();
       if (data?.onboarding_completed === true) {
         navigate('/dashboard', { replace: true });
+        return;
+      }
+      // Check if user is an invited member (not the org owner)
+      const { data: memberships } = await supabase
+        .from('organization_members')
+        .select('role')
+        .eq('user_id', user.id);
+      if (memberships && memberships.length > 0 && !memberships.some(m => m.role === 'owner')) {
+        setIsInvitedUser(true);
       }
     };
-    checkCompleted();
+    checkProfile();
   }, [user, navigate]);
 
   // Load existing profile data to resume
@@ -342,6 +351,11 @@ export default function Onboarding() {
         } as any)
         .eq('id', user.id);
       if (error) throw error;
+      // Invited users skip steps 2 & 3 — go directly to dashboard
+      if (isInvitedUser) {
+        await handleComplete();
+        return;
+      }
       setStep(1);
     } catch (err) {
       logError('Save step 1 error:', err);
@@ -489,7 +503,7 @@ export default function Onboarding() {
       {/* Header */}
       <div className="w-full flex items-center justify-between px-6 py-5">
         <img src={logo} alt="Qashflow" className="h-8" />
-        <StepIndicator current={step} total={3} />
+        <StepIndicator current={step} total={isInvitedUser ? 1 : 3} />
       </div>
 
       {/* Content */}
