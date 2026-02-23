@@ -566,11 +566,11 @@ export default function Onboarding() {
 
       // Auto-redirect after 4 seconds
       setTimeout(() => {
-        navigate('/transactions', { replace: true });
+        window.location.href = '/transactions';
       }, 4500);
     } catch (err) {
       logError('Complete onboarding error:', err);
-      navigate('/transactions', { replace: true });
+      window.location.href = '/transactions';
     }
   };
 
@@ -725,7 +725,7 @@ export default function Onboarding() {
             transition={{ delay: 1.5 }}
           >
             <Button
-              onClick={() => navigate('/transactions', { replace: true })}
+              onClick={() => { window.location.href = '/transactions'; }}
               className="h-12 px-8 gap-2"
             >
               C'est parti
