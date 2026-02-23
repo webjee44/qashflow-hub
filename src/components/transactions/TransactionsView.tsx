@@ -23,6 +23,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -714,6 +715,41 @@ export function TransactionsView() {
             <X className="w-4 h-4" />
           </Button>
         )}
+
+        {/* Category filter */}
+        <Select
+          value={selectedCategoryFilter || 'all'}
+          onValueChange={(v) => setSelectedCategoryFilter(v === 'all' ? null : v)}
+        >
+          <SelectTrigger className="w-auto min-w-[180px] gap-2">
+            <Tag className="w-4 h-4 text-muted-foreground" />
+            <SelectValue placeholder="Toutes les catégories" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Toutes les catégories</SelectItem>
+            <SelectItem value="Non catégorisé">Non catégorisé</SelectItem>
+            {incomeCategories.length > 0 && (
+              <>
+                <SelectItem value="__header_income" disabled className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  — Encaissements —
+                </SelectItem>
+                {incomeCategories.map(c => (
+                  <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>
+                ))}
+              </>
+            )}
+            {expenseCategories.length > 0 && (
+              <>
+                <SelectItem value="__header_expense" disabled className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  — Décaissements —
+                </SelectItem>
+                {expenseCategories.map(c => (
+                  <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>
+                ))}
+              </>
+            )}
+          </SelectContent>
+        </Select>
 
         <BankFilterDropdown 
           value={bankFilter} 
