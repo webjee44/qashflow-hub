@@ -1682,28 +1682,35 @@ export function ForecastTable() {
           const uncatExpense = getUncategorized('expense', months[monthIndex]);
           
           const incomeForecastHt = getMonthTotal('income', monthIndex, 'forecast');
-          const expenseForecastHt = getMonthTotal('expense', monthIndex, 'forecast');
           const incomeForecastVat = getMonthVat('income', monthIndex, 'forecast');
-          const expenseForecastVat = getMonthVat('expense', monthIndex, 'forecast');
           
-          // Add payables to forecast expenses
-          const payableAmount = getPayableOutflow(month);
+          // Per-category max(forecast TTC, payables) to avoid double-counting
+          let expenseForecastTtcAdjusted = 0;
+          expenseCategories.forEach(cat => {
+            const forecastHt = getForecast(cat.id, months[monthIndex]);
+            const forecastTtc = forecastHt + forecastHt * cat.vat_rate;
+            const payable = getPayableOutflowByCategory(cat.id, months[monthIndex]);
+            expenseForecastTtcAdjusted += Math.max(forecastTtc, payable);
+          });
+          // Add uncategorized payables
+          expenseForecastTtcAdjusted += getPayableOutflowUncategorized(months[monthIndex]);
           
           // Add net VAT to pay (only for forecasts, not actuals)
           const netVatForecast = getNetVatForecast(months[monthIndex]);
           const vatForecastToDeduct = Math.max(0, netVatForecast);
+          expenseForecastTtcAdjusted += vatForecastToDeduct;
           
           // Actuals are already TTC - no VAT to add
           const incomeTtc = incomeHt + uncatIncome;
           const expenseTtc = expenseHt + uncatExpense;
           const incomeForecastTtc = incomeForecastHt + incomeForecastVat;
-          const expenseForecastTtc = expenseForecastHt + expenseForecastVat + payableAmount + vatForecastToDeduct;
+          const expenseForecastTtc = expenseForecastTtcAdjusted;
           
           const netActual = incomeTtc - expenseTtc;
           const netForecast = incomeForecastTtc - expenseForecastTtc;
           
           const hasActual = incomeHt > 0 || expenseHt > 0 || uncatIncome > 0 || uncatExpense > 0;
-          const hasForecast = incomeForecastHt > 0 || expenseForecastHt > 0 || payableAmount > 0 || vatForecastToDeduct > 0;
+          const hasForecast = incomeForecastHt > 0 || expenseForecastTtcAdjusted > 0 || vatForecastToDeduct > 0;
           const periodType = getMonthPeriodType(month);
           
           if (periodType === 'past') {

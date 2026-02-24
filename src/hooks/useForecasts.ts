@@ -534,10 +534,9 @@ export function useForecasts() {
       if (cat.type === 'income') {
         incomeTtc += ttc;
       } else {
-        expenseTtc += ttc;
-        // Add payables for expenses
+        // Use max(forecast, payables) to avoid double-counting
         const payable = getPayableOutflowByCategory(cat.id, month);
-        expenseTtc += payable;
+        expenseTtc += Math.max(ttc, payable);
       }
     });
     
