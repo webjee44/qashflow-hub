@@ -4,28 +4,47 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { FileSpreadsheet, ArrowLeft, Rocket, TrendingUp, PiggyBank, Users } from 'lucide-react';
 import { useCompany } from '@/hooks/useCompany';
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 
 export function BPIntroDialog() {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
   const { currentCompany } = useCompany();
+  const { user } = useAuth();
 
   useEffect(() => {
-    if (!currentCompany?.id) return;
-    const key = `bp-intro-seen-${currentCompany.id}`;
-    if (!localStorage.getItem(key)) {
-      setOpen(true);
-    }
-  }, [currentCompany?.id]);
+    if (!currentCompany?.id || !user?.id) return;
+    // Check bp_enabled from DB - if already activated, never show
+    supabase
+      .from('profiles')
+      .select('bp_enabled')
+      .eq('id', user.id)
+      .single()
+      .then(({ data }) => {
+        if (data?.bp_enabled) {
+          // Already activated in DB, never show again
+          return;
+        }
+        setOpen(true);
+      });
+  }, [currentCompany?.id, user?.id]);
 
   const dismiss = () => {
-    if (currentCompany?.id) {
-      localStorage.setItem(`bp-intro-seen-${currentCompany.id}`, 'true');
-    }
     setOpen(false);
   };
 
-  const handleActivate = () => {
+  const handleActivate = async () => {
+    // Persist activation in DB so modal never shows again
+    if (user?.id) {
+      await supabase
+        .from('profiles')
+        .update({ bp_enabled: true })
+        .eq('id', user.id);
+      // Also sync localStorage for sidebar/settings
+      localStorage.setItem('bp_enabled', 'true');
+      window.dispatchEvent(new Event('bp-enabled-changed'));
+    }
     dismiss();
   };
 
