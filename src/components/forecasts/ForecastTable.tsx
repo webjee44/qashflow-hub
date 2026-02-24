@@ -490,88 +490,69 @@ export function ForecastTable() {
       if (periodType === 'future') {
         return (
           <td key={cellKey} className="p-0 border-r border-border min-w-[90px]">
-            <DropdownMenu>
-              <Popover open={showingCopyForThis} onOpenChange={(open) => {
-                if (!open && showingCopyForThis && !isSaving) {
-                  handleSave(categoryId, monthIndex, 'single');
-                }
-              }}>
-                <PopoverTrigger asChild>
-                  <DropdownMenuTrigger asChild>
-                    <div 
-                      className={cn(
-                        "px-3 py-2 text-right cursor-pointer hover:bg-violet-500/20 transition-colors relative",
-                        hasOverride ? "bg-violet-500/15 border-l-2 border-violet-500" : "bg-violet-500/10"
-                      )}
-                      onPointerDown={(e) => {
-                        // Prevent DropdownMenuTrigger from capturing left clicks
-                        if (e.button === 0 && !e.ctrlKey) {
-                          e.preventDefault();
-                        }
-                      }}
-                      onClick={(e) => {
-                        // Left click = edit
-                        if (e.button === 0 && !e.ctrlKey) {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          handleVariableCellClick();
-                        }
-                      }}
-                      onContextMenu={(e) => {
-                        if (hasOverride) {
-                          // Allow context menu to open
-                        } else {
-                          e.preventDefault();
-                        }
-                      }}
-                    >
-                      {hasOverride && !isEditing && (
-                        <Edit3 className="w-3 h-3 text-violet-500 absolute top-1 left-1 opacity-70" />
-                      )}
-                      {isEditing ? (
-                        <input
-                          ref={inputRef}
-                          type="number"
-                          value={editValue}
-                          onChange={(e) => setEditValue(e.target.value)}
-                          onBlur={() => handleInputBlur(categoryId, monthIndex, type)}
-                          onKeyDown={(e) => handleKeyDown(e, categoryId, monthIndex, type)}
-                          className="w-full bg-background border border-primary rounded px-2 py-0.5 text-right text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                        />
-                      ) : (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className={totalForecast > 0 ? "text-foreground" : "text-muted-foreground"}>
-                              {totalForecast > 0 ? formatValue(totalForecast) : '—'}
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent side="top" className="text-xs max-w-[280px]">
-                            {variableTooltip}
-                          </TooltipContent>
-                        </Tooltip>
-                      )}
-                    </div>
-                  </DropdownMenuTrigger>
-                </PopoverTrigger>
-                <PopoverContent className="w-64 p-2" side="bottom" align="end">
-                  <div className="flex flex-col gap-1">
-                    <Button variant="ghost" size="sm" className="justify-start gap-2" onClick={() => handleSave(categoryId, monthIndex, 'single')}>
-                      <Check className="w-4 h-4" /> Ce mois uniquement
-                    </Button>
-                    <Button variant="ghost" size="sm" className="justify-start gap-2 text-primary" onClick={() => handleSave(categoryId, monthIndex, 'copy')}>
-                      <Copy className="w-4 h-4" /> Copier sur les mois suivants
-                    </Button>
-                  </div>
-                </PopoverContent>
-              </Popover>
-              {hasOverride && (
-                <DropdownMenuContent className="bg-popover" align="end">
-                  <DropdownMenuItem onClick={handleResetToAuto} className="gap-2 text-violet-600">
-                    <TrendingUp className="w-4 h-4" /> Revenir au calcul automatique
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              )}
-            </DropdownMenu>
+            <Popover open={showingCopyForThis} onOpenChange={(open) => {
+              if (!open && showingCopyForThis && !isSaving) {
+                handleSave(categoryId, monthIndex, 'single');
+              }
+            }}>
+              <PopoverTrigger asChild>
+                <div 
+                  className={cn(
+                    "px-3 py-2 text-right cursor-pointer hover:bg-violet-500/20 transition-colors relative",
+                    hasOverride ? "bg-violet-500/15 border-l-2 border-violet-500" : "bg-violet-500/10"
+                  )}
+                  onClick={(e) => {
+                    if (e.button === 0 && !e.ctrlKey && !isEditing && !showingCopyForThis) {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleVariableCellClick();
+                    }
+                  }}
+                  onContextMenu={(e) => {
+                    if (hasOverride) {
+                      e.preventDefault();
+                      handleResetToAuto();
+                    }
+                  }}
+                >
+                  {hasOverride && !isEditing && (
+                    <Edit3 className="w-3 h-3 text-violet-500 absolute top-1 left-1 opacity-70" />
+                  )}
+                  {isEditing ? (
+                    <input
+                      ref={inputRef}
+                      type="number"
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      onBlur={() => handleInputBlur(categoryId, monthIndex, type)}
+                      onKeyDown={(e) => handleKeyDown(e, categoryId, monthIndex, type)}
+                      className="w-full bg-background border border-primary rounded px-2 py-0.5 text-right text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
+                  ) : (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className={totalForecast > 0 ? "text-foreground" : "text-muted-foreground"}>
+                          {totalForecast > 0 ? formatValue(totalForecast) : '—'}
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="text-xs max-w-[280px]">
+                        {variableTooltip}
+                      </TooltipContent>
+                    </Tooltip>
+                  )}
+                </div>
+              </PopoverTrigger>
+              <PopoverContent className="w-64 p-2" side="bottom" align="end">
+                <div className="flex flex-col gap-1">
+                  <Button variant="ghost" size="sm" className="justify-start gap-2" onClick={() => handleSave(categoryId, monthIndex, 'single')}>
+                    <Check className="w-4 h-4" /> Ce mois uniquement
+                  </Button>
+                  <Button variant="ghost" size="sm" className="justify-start gap-2 text-primary" onClick={() => handleSave(categoryId, monthIndex, 'copy')}>
+                    <Copy className="w-4 h-4" /> Copier sur les mois suivants
+                  </Button>
+                </div>
+              </PopoverContent>
+            </Popover>
           </td>
         );
       }
@@ -591,62 +572,58 @@ export function ForecastTable() {
               {hasActual ? formatValue(Math.abs(actual)) : '—'}
               <ProgressBar actual={Math.abs(actual)} forecast={totalForecast} type={type} />
             </div>
-            <DropdownMenu>
+            
               <Popover open={showingCopyForThis} onOpenChange={(open) => {
                 if (!open && showingCopyForThis && !isSaving) {
                   handleSave(categoryId, monthIndex, 'single');
                 }
               }}>
                 <PopoverTrigger asChild>
-                  <DropdownMenuTrigger asChild>
-                    <div 
-                      className={cn(
-                        "flex-1 px-3 py-2 text-right cursor-pointer hover:bg-violet-500/20 transition-colors relative",
-                        hasOverride ? "bg-violet-500/15 border-l-2 border-violet-500" : "bg-violet-500/10"
-                      )}
-                      onPointerDown={(e) => {
-                        if (e.button === 0 && !e.ctrlKey) {
-                          e.preventDefault();
-                        }
-                      }}
-                      onClick={(e) => {
-                        if (e.button === 0 && !e.ctrlKey) {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          handleVariableCellClick();
-                        }
-                      }}
-                      onContextMenu={(e) => {
-                        if (!hasOverride) e.preventDefault();
-                      }}
-                    >
-                      {hasOverride && !isEditing && (
-                        <Edit3 className="w-3 h-3 text-violet-500 absolute top-1 left-1 opacity-70" />
-                      )}
-                      {isEditing ? (
-                        <input
-                          ref={inputRef}
-                          type="number"
-                          value={editValue}
-                          onChange={(e) => setEditValue(e.target.value)}
-                          onBlur={() => handleInputBlur(categoryId, monthIndex, type)}
-                          onKeyDown={(e) => handleKeyDown(e, categoryId, monthIndex, type)}
-                          className="w-full bg-background border border-primary rounded px-2 py-0.5 text-right text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                        />
-                      ) : (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className={totalForecast > 0 ? "text-foreground" : "text-muted-foreground"}>
-                              {totalForecast > 0 ? formatValue(totalForecast) : '—'}
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent side="top" className="text-xs max-w-[280px]">
-                            {variableTooltip}
-                          </TooltipContent>
-                        </Tooltip>
-                      )}
-                    </div>
-                  </DropdownMenuTrigger>
+                  <div 
+                    className={cn(
+                      "flex-1 px-3 py-2 text-right cursor-pointer hover:bg-violet-500/20 transition-colors relative",
+                      hasOverride ? "bg-violet-500/15 border-l-2 border-violet-500" : "bg-violet-500/10"
+                    )}
+                    onClick={(e) => {
+                      if (e.button === 0 && !e.ctrlKey && !isEditing && !showingCopyForThis) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleVariableCellClick();
+                      }
+                    }}
+                    onContextMenu={(e) => {
+                      if (hasOverride) {
+                        e.preventDefault();
+                        handleResetToAuto();
+                      }
+                    }}
+                  >
+                    {hasOverride && !isEditing && (
+                      <Edit3 className="w-3 h-3 text-violet-500 absolute top-1 left-1 opacity-70" />
+                    )}
+                    {isEditing ? (
+                      <input
+                        ref={inputRef}
+                        type="number"
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        onBlur={() => handleInputBlur(categoryId, monthIndex, type)}
+                        onKeyDown={(e) => handleKeyDown(e, categoryId, monthIndex, type)}
+                        className="w-full bg-background border border-primary rounded px-2 py-0.5 text-right text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                      />
+                    ) : (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className={totalForecast > 0 ? "text-foreground" : "text-muted-foreground"}>
+                            {totalForecast > 0 ? formatValue(totalForecast) : '—'}
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="text-xs max-w-[280px]">
+                          {variableTooltip}
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
+                  </div>
                 </PopoverTrigger>
                 <PopoverContent className="w-64 p-2" side="bottom" align="end">
                   <div className="flex flex-col gap-1">
@@ -659,14 +636,6 @@ export function ForecastTable() {
                   </div>
                 </PopoverContent>
               </Popover>
-              {hasOverride && (
-                <DropdownMenuContent className="bg-popover" align="end">
-                  <DropdownMenuItem onClick={handleResetToAuto} className="gap-2 text-violet-600">
-                    <TrendingUp className="w-4 h-4" /> Revenir au calcul automatique
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              )}
-            </DropdownMenu>
           </div>
         </td>
       );
