@@ -10,6 +10,7 @@ const corsHeaders = {
 interface FullRule {
   id: string;
   target_category_id: string;
+  target_category_type: string;
   user_id: string;
   company_id: string | null;
   match_count: number;
@@ -68,6 +69,11 @@ function matchCondition(transaction: Transaction, condition: RuleCondition): boo
 }
 
 function matchesRule(transaction: Transaction, rule: FullRule): boolean {
+  // Type guard: prevent assigning income category to expense transaction and vice versa
+  if (rule.target_category_type && transaction.type !== rule.target_category_type) {
+    return false;
+  }
+
   const primaryCondition: RuleCondition = {
     condition_field: rule.condition_field,
     condition_operator: rule.condition_operator,
@@ -155,11 +161,25 @@ Deno.serve(async (req) => {
       extraConditionsByRule.set((condition as any).rule_id, ruleConditions);
     }
 
+    // Fetch category types for all target categories (type guard)
+    const categoryIds = [...new Set(rules.map(r => r.target_category_id).filter(Boolean))];
+    const categoryTypeMap = new Map<string, string>();
+    if (categoryIds.length > 0) {
+      const { data: categories } = await supabaseAdmin
+        .from('categories')
+        .select('id, type')
+        .in('id', categoryIds);
+      for (const cat of categories || []) {
+        categoryTypeMap.set(cat.id, cat.type);
+      }
+    }
+
     const rulesWithConditions: FullRule[] = rules
       .filter(rule => rule.condition_field && rule.condition_operator && rule.condition_value)
       .map(rule => ({
         id: rule.id,
         target_category_id: rule.target_category_id,
+        target_category_type: categoryTypeMap.get(rule.target_category_id) || '',
         user_id: rule.user_id,
         company_id: rule.company_id,
         match_count: rule.match_count || 0,
