@@ -1,68 +1,50 @@
 
 
-# Garde de type : empecher l'assignation de categories incoherentes
+## Diagnostic : Bug de double-comptage dans le solde de fin de mois
 
-## Probleme confirme
+### Probleme identifie
 
-La regle d'automatisation `description contains "VIR"` cible la categorie "Ventes" (income). Le mot "VIR" apparait dans tous les virements, y compris les sortants (depenses comme "Vir Atom Snc Cv Loyer"). Le systeme applique donc une categorie income a des transactions expense.
+Le solde previsionnel de fin de mois est faux car les **factures fournisseurs (payables)** sont **additionnees** aux previsions manuelles au lieu de les **remplacer** dans le calcul du solde.
 
-Transactions affectees confirmees en base :
-- "Vir Atom Snc Cv Loyer Janv Fevrier" (7030.20 EUR, type=expense) → categorie "Ventes" (income)
-- "Vir Remise" (12288.96 EUR, type=expense) → categorie "Ventes" (income)  
-- "Vir Inst Virement Interne" (10000.00 EUR, type=expense) → categorie "Ventes" (income)
-- "Frais Remise Vir Sct" (0.44 EUR, type=expense) → categorie "Ventes" (income)
+**Exemple concret avec Toutatis en fevrier :**
+- Prevision manuelle saisie : **2 000 EUR**
+- Factures fournisseurs en attente : **102 973 EUR**
+- Ce que le calcul fait actuellement : **2 000 + 102 973 = 104 973 EUR** comptabilises en depenses
+- Ce qui devrait etre fait : prendre le **maximum** des deux (102 973 EUR), car les payables representent la realite des engagements et rendent le forecast manuel redondant
 
-## Solution
+Ce double-comptage se produit dans la fonction `getMonthNetForecast` (useForecasts.ts, ligne 524-554) qui est utilisee pour calculer le "Solde de fin de mois" previsionnel.
 
-Ajouter une **garde de type** dans les 3 fonctions de categorisation : une categorie ne peut etre assignee que si son type (income/expense) correspond au type de la transaction.
+### Pourquoi le probleme est structural
 
-### 1. `supabase/functions/apply-automation-rule/index.ts`
-
-- Apres avoir charge la regle (ligne 153), faire une requete pour recuperer le `type` de la categorie cible
-- Dans la fonction `matchesRule`, ajouter une verification : si `transaction.type !== targetCategoryType`, retourner `false`
-- Concretement : ajouter un champ `target_category_type` dans l'interface `FullRule` et le peupler
-
-### 2. `supabase/functions/apply-all-automation-rules/index.ts`
-
-- Lors du chargement des regles (ligne 128), joindre la table `categories` pour recuperer le type de chaque categorie cible
-- Ajouter `target_category_type` dans l'interface `FullRule`
-- Dans le filtre de matching (ligne 206-209), ajouter la condition : `if (rule.target_category_type && tx.type !== rule.target_category_type) return false`
-
-### 3. `supabase/functions/categorize-transaction/index.ts`
-
-- Apres le parsing de la reponse IA (ligne 203), ajouter une validation post-IA
-- Avant d'appliquer la mise a jour, verifier que `category.type` correspond a `transaction.type`
-- Si incoherent, ignorer la suggestion et logger un warning
-
-### 4. Nettoyage des donnees existantes
-
-- Executer une requete SQL pour retirer les categories income des transactions expense (et vice versa) : remettre `category_id = NULL` sur les transactions mal categorisees
-- Cela concerne environ 10-20 transactions identifiees
-
----
-
-## Section technique
-
-Logique de garde (identique dans les 3 fonctions) :
-
+La fonction `getMonthNetForecast` parcourt chaque categorie de depenses et fait :
 ```text
-transaction.type === 'expense' → categorie cible doit etre type 'expense'
-transaction.type === 'income' → categorie cible doit etre type 'income'
-Si incoherent → skip (ne pas appliquer)
+expenseTtc += forecast TTC       (prevision manuelle)
+expenseTtc += payable             (factures en attente)
 ```
 
-La requete de nettoyage SQL :
+Quand les deux existent pour la meme categorie/mois, les depenses sont gonflees artificiellement, ce qui fait plonger le solde previsionnel en negatif alors que le solde reel est positif.
+
+### Correction proposee
+
+Modifier la logique dans `getMonthNetForecast` (useForecasts.ts) : quand des factures fournisseurs existent pour une categorie donnee sur un mois, utiliser le **montant le plus eleve** entre le forecast et les payables, au lieu de les additionner.
 
 ```text
-UPDATE transactions SET category_id = NULL
-WHERE type = 'expense'
-AND category_id IN (SELECT id FROM categories WHERE type = 'income')
+Pour chaque categorie de depenses :
+  forecast_ttc = forecast HT + TVA
+  payables = factures fournisseurs en attente
+  depense_reelle = max(forecast_ttc, payables)   // au lieu de forecast_ttc + payables
 ```
 
-Fichiers modifies :
-- `supabase/functions/apply-automation-rule/index.ts`
-- `supabase/functions/apply-all-automation-rules/index.ts`
-- `supabase/functions/categorize-transaction/index.ts`
+La meme correction doit etre appliquee dans `renderNetRow` (ForecastTable.tsx, ligne 1689-1700) pour que la "Variation nette du mois" affichee soit coherente avec le solde.
 
-Aucune migration de schema necessaire. Les fonctions seront redeployees automatiquement.
+### Fichiers a modifier
+
+1. **`src/hooks/useForecasts.ts`** - Fonction `getMonthNetForecast` (lignes 524-554) : remplacer l'addition forecast + payables par `Math.max(forecastTtc, payables)` par categorie
+2. **`src/components/forecasts/ForecastTable.tsx`** - Fonction `renderNetRow` (lignes 1689-1700) : appliquer la meme logique max() pour la variation nette affichee
+
+### Impact
+
+- Le solde previsionnel de fin de mois refletera correctement la realite
+- La variation nette affichee sera coherente avec le solde
+- L'affichage separe des previsions et payables dans les cellules individuelles reste inchange (comme demande precedemment)
 
