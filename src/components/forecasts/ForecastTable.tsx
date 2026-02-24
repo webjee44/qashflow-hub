@@ -503,10 +503,17 @@ export function ForecastTable() {
                         "px-3 py-2 text-right cursor-pointer hover:bg-violet-500/20 transition-colors relative",
                         hasOverride ? "bg-violet-500/15 border-l-2 border-violet-500" : "bg-violet-500/10"
                       )}
+                      onPointerDown={(e) => {
+                        // Prevent DropdownMenuTrigger from capturing left clicks
+                        if (e.button === 0 && !e.ctrlKey) {
+                          e.preventDefault();
+                        }
+                      }}
                       onClick={(e) => {
                         // Left click = edit
                         if (e.button === 0 && !e.ctrlKey) {
                           e.preventDefault();
+                          e.stopPropagation();
                           handleVariableCellClick();
                         }
                       }}
@@ -597,9 +604,15 @@ export function ForecastTable() {
                         "flex-1 px-3 py-2 text-right cursor-pointer hover:bg-violet-500/20 transition-colors relative",
                         hasOverride ? "bg-violet-500/15 border-l-2 border-violet-500" : "bg-violet-500/10"
                       )}
+                      onPointerDown={(e) => {
+                        if (e.button === 0 && !e.ctrlKey) {
+                          e.preventDefault();
+                        }
+                      }}
                       onClick={(e) => {
                         if (e.button === 0 && !e.ctrlKey) {
                           e.preventDefault();
+                          e.stopPropagation();
                           handleVariableCellClick();
                         }
                       }}
