@@ -1,61 +1,68 @@
 
 
-# Plan d'optimisation SEO du site vitrine Qashflow
+# Garde de type : empecher l'assignation de categories incoherentes
 
-## Problemes identifies
+## Probleme confirme
 
-1. **Toutes les URLs SEO pointent vers `pennylane-cash-flow-buddy.lovable.app`** au lieu de `qashflow.io` -- dans `SEOHead.tsx`, `index.html`, `robots.txt`, `sitemap.xml`
-2. **La Landing page n'utilise pas le composant `SEOHead`** -- pas de meta dynamique, pas de JSON-LD
-3. **Le JSON-LD dans `index.html` est obsolete** -- prix "highPrice: 79", "offerCount: 3" alors que c'est une licence a vie a 828 EUR
-4. **Le JSON-LD dans `SEOHead.tsx` (generateOrganizationSchema)** a aussi un prix incorrect (29 EUR)
-5. **Pas de schema FAQPage** sur la page Tarifs malgre la presence d'une FAQ
-6. **Pas de balise hreflang** (pas bloquant si pas d'internationalisation prevue)
+La regle d'automatisation `description contains "VIR"` cible la categorie "Ventes" (income). Le mot "VIR" apparait dans tous les virements, y compris les sortants (depenses comme "Vir Atom Snc Cv Loyer"). Le systeme applique donc une categorie income a des transactions expense.
 
----
+Transactions affectees confirmees en base :
+- "Vir Atom Snc Cv Loyer Janv Fevrier" (7030.20 EUR, type=expense) → categorie "Ventes" (income)
+- "Vir Remise" (12288.96 EUR, type=expense) → categorie "Ventes" (income)  
+- "Vir Inst Virement Interne" (10000.00 EUR, type=expense) → categorie "Ventes" (income)
+- "Frais Remise Vir Sct" (0.44 EUR, type=expense) → categorie "Ventes" (income)
 
-## Modifications prevues
+## Solution
 
-### 1. `src/components/seo/SEOHead.tsx`
+Ajouter une **garde de type** dans les 3 fonctions de categorisation : une categorie ne peut etre assignee que si son type (income/expense) correspond au type de la transaction.
 
-- Remplacer `BASE_URL` par `https://qashflow.io`
-- Mettre a jour `generateOrganizationSchema` : prix 828 EUR, paiement unique, offerCount 1
-- Verifier que les schemas JSON-LD exportes sont corrects
+### 1. `supabase/functions/apply-automation-rule/index.ts`
 
-### 2. `index.html`
+- Apres avoir charge la regle (ligne 153), faire une requete pour recuperer le `type` de la categorie cible
+- Dans la fonction `matchesRule`, ajouter une verification : si `transaction.type !== targetCategoryType`, retourner `false`
+- Concretement : ajouter un champ `target_category_type` dans l'interface `FullRule` et le peupler
 
-- Remplacer toutes les occurrences de `pennylane-cash-flow-buddy.lovable.app` par `qashflow.io`
-- Mettre a jour le JSON-LD `SoftwareApplication` : `highPrice: 828`, `lowPrice: 0` (essai gratuit), `offerCount: 2`, `priceCurrency: EUR`
-- Mettre a jour le JSON-LD `Organization` : URL vers `qashflow.io`
+### 2. `supabase/functions/apply-all-automation-rules/index.ts`
 
-### 3. `public/robots.txt`
+- Lors du chargement des regles (ligne 128), joindre la table `categories` pour recuperer le type de chaque categorie cible
+- Ajouter `target_category_type` dans l'interface `FullRule`
+- Dans le filtre de matching (ligne 206-209), ajouter la condition : `if (rule.target_category_type && tx.type !== rule.target_category_type) return false`
 
-- Remplacer l'URL lovable.app par `https://qashflow.io`
-- Mettre a jour le chemin du Sitemap vers `https://qashflow.io/sitemap.xml`
+### 3. `supabase/functions/categorize-transaction/index.ts`
 
-### 4. `public/sitemap.xml`
+- Apres le parsing de la reponse IA (ligne 203), ajouter une validation post-IA
+- Avant d'appliquer la mise a jour, verifier que `category.type` correspond a `transaction.type`
+- Si incoherent, ignorer la suggestion et logger un warning
 
-- Remplacer toutes les `<loc>` avec le domaine `https://qashflow.io`
-- Mettre a jour les dates `<lastmod>` a `2026-02-23`
+### 4. Nettoyage des donnees existantes
 
-### 5. `src/pages/Landing.tsx`
-
-- Ajouter le composant `<SEOHead>` avec title, description et keywords optimises
-- Injecter le schema JSON-LD `SoftwareApplication` et `BreadcrumbList` via `<script type="application/ld+json">`
-
-### 6. `src/pages/Tarifs.tsx`
-
-- Le schema FAQ est deja injecte (OK) -- verifier que `breadcrumbSchema` et `faqSchema` utilisent le bon BASE_URL (corrige automatiquement via etape 1)
+- Executer une requete SQL pour retirer les categories income des transactions expense (et vice versa) : remettre `category_id = NULL` sur les transactions mal categorisees
+- Cela concerne environ 10-20 transactions identifiees
 
 ---
 
 ## Section technique
 
-Fichiers modifies :
-- `src/components/seo/SEOHead.tsx` -- BASE_URL + schema corrige
-- `index.html` -- URLs + JSON-LD
-- `public/robots.txt` -- domaine
-- `public/sitemap.xml` -- domaine + dates
-- `src/pages/Landing.tsx` -- ajout SEOHead + JSON-LD
+Logique de garde (identique dans les 3 fonctions) :
 
-Aucune nouvelle dependance requise. Aucun changement backend.
+```text
+transaction.type === 'expense' → categorie cible doit etre type 'expense'
+transaction.type === 'income' → categorie cible doit etre type 'income'
+Si incoherent → skip (ne pas appliquer)
+```
+
+La requete de nettoyage SQL :
+
+```text
+UPDATE transactions SET category_id = NULL
+WHERE type = 'expense'
+AND category_id IN (SELECT id FROM categories WHERE type = 'income')
+```
+
+Fichiers modifies :
+- `supabase/functions/apply-automation-rule/index.ts`
+- `supabase/functions/apply-all-automation-rules/index.ts`
+- `supabase/functions/categorize-transaction/index.ts`
+
+Aucune migration de schema necessaire. Les fonctions seront redeployees automatiquement.
 
