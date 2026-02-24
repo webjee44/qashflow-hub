@@ -16,6 +16,7 @@ const automationRuleRequestSchema = z.object({
 interface FullRule {
   id: string;
   target_category_id: string;
+  target_category_type: string;
   user_id: string;
   match_count: number;
   condition_field: string;
@@ -74,6 +75,11 @@ function matchCondition(transaction: Transaction, condition: RuleCondition): boo
 }
 
 function matchesRule(transaction: Transaction, rule: FullRule): boolean {
+  // Type guard: prevent assigning income category to expense transaction and vice versa
+  if (rule.target_category_type && transaction.type !== rule.target_category_type) {
+    return false;
+  }
+
   const primaryCondition: RuleCondition = {
     condition_field: rule.condition_field,
     condition_operator: rule.condition_operator,
@@ -173,12 +179,21 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Fetch target category type for type guard
+    const { supabaseAdmin } = createSupabaseServices();
+    const { data: targetCategory } = await supabaseAdmin
+      .from('categories')
+      .select('type')
+      .eq('id', rule.target_category_id)
+      .maybeSingle();
+
     // Fetch extra conditions
     const extraConditionsRaw = await automationRepo.findConditionsByRuleIds([rule_id]);
 
     const fullRule: FullRule = {
       id: rule.id,
       target_category_id: rule.target_category_id,
+      target_category_type: targetCategory?.type || '',
       user_id: rule.user_id,
       match_count: rule.match_count || 0,
       condition_field: rule.condition_field,

@@ -206,6 +206,13 @@ Réponds UNIQUEMENT au format JSON suivant, sans aucun texte avant ou après:
       );
 
       if (category) {
+        // Type guard: ensure category type matches transaction type
+        const transaction = transactions.find(t => t.id === suggestion.id);
+        if (transaction && category.type !== transaction.type) {
+          console.warn(`[categorize-transaction] Type mismatch: category "${category.name}" (${category.type}) vs transaction ${suggestion.id} (${transaction.type}), skipping`);
+          continue;
+        }
+
         try {
           await transactionRepo.updateWithOwnerCheck(suggestion.id, user.id, {
             category_id: category.id,
