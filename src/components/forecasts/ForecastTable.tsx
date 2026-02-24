@@ -665,17 +665,6 @@ export function ForecastTable() {
                 )}
                 onClick={() => !isEditing && !showingCopyForThis && handleCellClick(categoryId, monthIndex, forecast)}
               >
-                {/* Payables indicator */}
-                {hasPayables && !isEditing && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <FileText className="w-3 h-3 text-amber-600 absolute top-1 right-1 opacity-70" />
-                    </TooltipTrigger>
-                    <TooltipContent side="top" className="text-xs">
-                      Inclut {formatValue(payableForCategory)} de factures fournisseurs
-                    </TooltipContent>
-                  </Tooltip>
-                )}
                 {isBpSource && forecast > 0 && !isEditing && !hasPayables && (
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -696,6 +685,23 @@ export function ForecastTable() {
                     onKeyDown={(e) => handleKeyDown(e, categoryId, monthIndex, type)}
                     className="w-full bg-background border border-primary rounded px-2 py-0.5 text-right text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                   />
+                ) : hasPayables ? (
+                  <div className="flex flex-col items-end gap-0.5">
+                    <span className={cn("text-muted-foreground", forecast > 0 && "text-foreground")}>
+                      {forecast > 0 ? formatValue(forecast) : '—'}
+                    </span>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="text-[10px] text-amber-600 flex items-center gap-0.5">
+                          <FileText className="w-2.5 h-2.5" />
+                          +{formatValue(payableForCategory)}
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="text-xs">
+                        Factures fournisseurs en attente
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                 ) : (
                   <span className={cn(
                     "text-muted-foreground",
@@ -810,17 +816,6 @@ export function ForecastTable() {
                 )}
                 onClick={() => !isEditing && !showingCopyForThis && handleCellClick(categoryId, monthIndex, forecast)}
               >
-                {/* Payables indicator */}
-                {hasPayables && !isEditing && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <FileText className="w-3 h-3 text-amber-600 absolute top-1 right-1 opacity-70" />
-                    </TooltipTrigger>
-                    <TooltipContent side="top" className="text-xs">
-                      Inclut {formatValue(payableForCategory)} de factures fournisseurs
-                    </TooltipContent>
-                  </Tooltip>
-                )}
                 {isBpSource && forecast > 0 && !isEditing && !hasPayables && (
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -841,6 +836,23 @@ export function ForecastTable() {
                     onKeyDown={(e) => handleKeyDown(e, categoryId, monthIndex, type)}
                     className="w-full bg-background border border-primary rounded px-2 py-0.5 text-right text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                   />
+                ) : hasPayables ? (
+                  <div className="flex flex-col items-end gap-0.5">
+                    <span className={cn("text-muted-foreground", forecast > 0 && "text-foreground")}>
+                      {forecast > 0 ? formatValue(forecast) : '—'}
+                    </span>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="text-[10px] text-amber-600 flex items-center gap-0.5">
+                          <FileText className="w-2.5 h-2.5" />
+                          +{formatValue(payableForCategory)}
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="text-xs">
+                        Factures fournisseurs en attente
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                 ) : (
                   <span className={cn(
                     "text-muted-foreground",
