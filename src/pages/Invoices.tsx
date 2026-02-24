@@ -47,6 +47,7 @@ export default function Invoices() {
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
   const [tabFilter, setTabFilter] = useState<TabFilter>('all');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('pending');
+  const [partnerFilter, setPartnerFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
   // Filter invoices
@@ -54,6 +55,7 @@ export default function Invoices() {
     return invoices.filter(invoice => {
       if (tabFilter !== 'all' && invoice.type !== tabFilter) return false;
       if (statusFilter !== 'all' && invoice.status !== statusFilter) return false;
+      if (partnerFilter !== 'all' && invoice.partner_name !== partnerFilter) return false;
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
         const matchesPartner = invoice.partner_name.toLowerCase().includes(query);
@@ -62,7 +64,7 @@ export default function Invoices() {
       }
       return true;
     });
-  }, [invoices, tabFilter, statusFilter, searchQuery]);
+  }, [invoices, tabFilter, statusFilter, partnerFilter, searchQuery]);
 
   const handleOpenDialog = (invoice?: Invoice) => {
     setEditingInvoice(invoice || null);
@@ -126,7 +128,7 @@ export default function Invoices() {
           </TabsList>
         </Tabs>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -136,12 +138,25 @@ export default function Invoices() {
               className="pl-9 w-[200px]"
             />
           </div>
+          <Select value={partnerFilter} onValueChange={setPartnerFilter}>
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Tous fournisseurs" />
+            </SelectTrigger>
+            <SelectContent className="bg-popover border-border z-50 max-h-[300px]">
+              <SelectItem value="all">Tous fournisseurs</SelectItem>
+              {partnerNames.map((name) => (
+                <SelectItem key={name} value={name}>
+                  {name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Filter className="h-4 w-4 text-muted-foreground" />
           <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
             <SelectTrigger className="w-[150px]">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="bg-popover border-border z-50">
               <SelectItem value="all">Tous statuts</SelectItem>
               <SelectItem value="pending">En attente</SelectItem>
               <SelectItem value="overdue">Échues</SelectItem>
