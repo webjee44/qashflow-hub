@@ -1,50 +1,58 @@
 
 
-## Diagnostic : Bug de double-comptage dans le solde de fin de mois
+## Analyse comparative Fygr vs Qashflow - Recommandations
 
-### Probleme identifie
+### Ce que Fygr fait bien et que nous n'avons pas
 
-Le solde previsionnel de fin de mois est faux car les **factures fournisseurs (payables)** sont **additionnees** aux previsions manuelles au lieu de les **remplacer** dans le calcul du solde.
+Apres analyse du site fygr.io et de notre Landing page, voici les elements manquants classes par impact sur la conversion :
 
-**Exemple concret avec Toutatis en fevrier :**
-- Prevision manuelle saisie : **2 000 EUR**
-- Factures fournisseurs en attente : **102 973 EUR**
-- Ce que le calcul fait actuellement : **2 000 + 102 973 = 104 973 EUR** comptabilises en depenses
-- Ce qui devrait etre fait : prendre le **maximum** des deux (102 973 EUR), car les payables representent la realite des engagements et rendent le forecast manuel redondant
+### 1. Social Proof avec logos clients (IMPACT FORT)
+Fygr affiche une barre de logos de clients connus (Optical Center, Biocoop, Toulouse FC, Selency, Lifen, MWM...) avec le texte "Plus de 3 000 PME utilisent Fygr". Notre landing page n'a **aucun logo client** ni chiffre d'utilisateurs credible. La mention "+150 entrepreneurs ce mois-ci" sur la page Tarifs est insuffisante.
 
-Ce double-comptage se produit dans la fonction `getMonthNetForecast` (useForecasts.ts, ligne 524-554) qui est utilisee pour calculer le "Solde de fin de mois" previsionnel.
+**Action** : Ajouter une section "logo bar" scrollante juste sous le hero avec des logos partenaires/clients. Meme sans vrais logos, afficher des badges de confiance (note Google, Capterra, etc.).
 
-### Pourquoi le probleme est structural
+### 2. Notes et avis clients avec avatars (IMPACT FORT)
+Fygr affiche des avis reels avec photo + nom + titre court ("Un vrai gain de temps", "Logiciel tres pratique et intuitif") dans un carrousel defilant. Egalement une note agrégée : "Google: 4,9 | Capterra: 4,8" directement dans le hero.
 
-La fonction `getMonthNetForecast` parcourt chaque categorie de depenses et fait :
-```text
-expenseTtc += forecast TTC       (prevision manuelle)
-expenseTtc += payable             (factures en attente)
-```
+**Action** : Ajouter un carrousel de temoignages avec photo, nom, entreprise et citation courte. Ajouter une note agrégée pres du CTA hero.
 
-Quand les deux existent pour la meme categorie/mois, les depenses sont gonflees artificiellement, ce qui fait plonger le solde previsionnel en negatif alors que le solde reel est positif.
+### 3. Repetition du CTA a chaque section (IMPACT MOYEN)
+Fygr place "Essai gratuit" + "Demander une demo" apres CHAQUE section de fonctionnalites (6 fois sur la page). Notre landing n'a qu'un CTA hero + un CTA final.
 
-### Correction proposee
+**Action** : Ajouter un bouton CTA secondaire apres chaque bloc de fonctionnalites (Pilier 1, 2, 3 et Business Plan).
 
-Modifier la logique dans `getMonthNetForecast` (useForecasts.ts) : quand des factures fournisseurs existent pour une categorie donnee sur un mois, utiliser le **montant le plus eleve** entre le forecast et les payables, au lieu de les additionner.
+### 4. Section app mobile (IMPACT MOYEN)
+Fygr a une section dediee "Fygr dans votre poche" avec un mockup mobile montrant l'acces aux soldes, categorisation, et photo de justificatifs.
 
-```text
-Pour chaque categorie de depenses :
-  forecast_ttc = forecast HT + TVA
-  payables = factures fournisseurs en attente
-  depense_reelle = max(forecast_ttc, payables)   // au lieu de forecast_ttc + payables
-```
+**Action** : Si l'app n'est pas responsive/mobile-first, au minimum montrer un screenshot mobile dans la landing.
 
-La meme correction doit etre appliquee dans `renderNetRow` (ForecastTable.tsx, ligne 1689-1700) pour que la "Variation nette du mois" affichee soit coherente avec le solde.
+### 5. Section securite plus detaillee (IMPACT MOYEN)
+Fygr detaille ses partenaires bancaires (Bridge, Budget Insight, Fintecture) et son hebergement (AWS Francfort). Notre section securite est correcte mais moins specifique.
 
-### Fichiers a modifier
+**Action** : Mentionner explicitement Bridge comme partenaire bancaire dans la section securite.
 
-1. **`src/hooks/useForecasts.ts`** - Fonction `getMonthNetForecast` (lignes 524-554) : remplacer l'addition forecast + payables par `Math.max(forecastTtc, payables)` par categorie
-2. **`src/components/forecasts/ForecastTable.tsx`** - Fonction `renderNetRow` (lignes 1689-1700) : appliquer la meme logique max() pour la variation nette affichee
+### 6. FAQ plus orientee objections (IMPACT FAIBLE-MOYEN)
+Fygr a 8 FAQ directement sur la home, orientees objections metier ("J'ai deja un comptable", "J'ai deja un logiciel comptable"). Notre FAQ n'est que sur la page Tarifs.
 
-### Impact
+**Action** : Ajouter une section FAQ directement sur la Landing page, avec des questions orientees objections business.
 
-- Le solde previsionnel de fin de mois refletera correctement la realite
-- La variation nette affichee sera coherente avec le solde
-- L'affichage separe des previsions et payables dans les cellules individuelles reste inchange (comme demande precedemment)
+---
+
+### Details techniques d'implementation
+
+Les modifications porteraient sur un seul fichier principal :
+- **`src/pages/Landing.tsx`** : Ajout de 4 nouvelles sections (logo bar, temoignages, FAQ, CTA repetes)
+
+Composants potentiellement reutilisables :
+- Un composant `TestimonialCarousel` avec animation framer-motion
+- Un composant `LogoBar` avec scroll anime CSS
+
+Aucune modification backend necessaire. Pas de nouvelles dependances.
+
+### Priorites recommandees
+1. Temoignages + notes (le plus impactant pour la conversion)
+2. Logo bar clients
+3. CTA repetes apres chaque section
+4. FAQ sur la landing
+5. Section mobile (optionnel)
 
