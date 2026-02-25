@@ -25,6 +25,10 @@ import { toast } from 'sonner';
 import { z } from 'zod';
 import { PublicNavbar } from '@/components/layout/PublicNavbar';
 import { SEOHead, generateOrganizationSchema, generateBreadcrumbSchema } from '@/components/seo/SEOHead';
+import { LogoBar } from '@/components/landing/LogoBar';
+import { TestimonialCarousel } from '@/components/landing/TestimonialCarousel';
+import { LandingFAQ } from '@/components/landing/LandingFAQ';
+import { SectionCTA } from '@/components/landing/SectionCTA';
 import logo from '@/assets/logo.png';
 import screenshotDashboard from '@/assets/screenshot-previsions.png';
 import screenshotPnl from '@/assets/screenshot-pnl.png';
@@ -264,6 +268,9 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* ─── Testimonials ─── */}
+      <TestimonialCarousel />
+
       {/* ─── Section 3 : Les 3 Piliers ─── */}
       <section className="py-20 px-4 sm:px-6 lg:px-8 bg-muted/30">
         <div className="max-w-7xl mx-auto">
@@ -348,6 +355,8 @@ export default function Landing() {
               </Card>
             </motion.div>
           </div>
+
+          <SectionCTA />
         </div>
       </section>
 
@@ -394,6 +403,9 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* ─── Section 4b : CTA after BP ─── */}
+      <SectionCTA />
+
       {/* ─── Section 5 : Réassurance & Sécurité ─── */}
       <section className="py-20 px-4 sm:px-6 lg:px-8 bg-muted/30">
         <div className="max-w-7xl mx-auto">
@@ -428,6 +440,9 @@ export default function Landing() {
           </motion.div>
         </div>
       </section>
+
+      {/* ─── FAQ ─── */}
+      <LandingFAQ />
 
       {/* ─── Section 7 : CTA Final ─── */}
       <section className="py-20 px-4 sm:px-6 lg:px-8">
