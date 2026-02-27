@@ -396,14 +396,15 @@ export function ForecastTable() {
     }
   }, [editingCell]);
 
-  // Calculate totals for a month (HT - before VAT)
+  // Calculate totals for a month (TTC - including VAT for forecasts, already TTC for actuals)
   const getMonthTotal = useCallback((type: 'income' | 'expense', monthIndex: number, valueType: 'forecast' | 'actual') => {
     const cats = type === 'income' ? incomeCategories : expenseCategories;
     return cats.reduce((sum, cat) => {
-      const value = valueType === 'forecast' 
-        ? getForecast(cat.id, months[monthIndex])
-        : getActual(cat.id, months[monthIndex]);
-      return sum + Math.abs(value);
+      if (valueType === 'forecast') {
+        const forecastHt = getForecast(cat.id, months[monthIndex]);
+        return sum + forecastHt * (1 + cat.vat_rate);
+      }
+      return sum + Math.abs(getActual(cat.id, months[monthIndex]));
     }, 0);
   }, [incomeCategories, expenseCategories, getForecast, getActual, months]);
 
@@ -432,7 +433,9 @@ export function ForecastTable() {
     
     // For expenses, include payable invoices for this category
     const payableForCategory = type === 'expense' ? getPayableOutflowByCategory(categoryId, months[monthIndex]) : 0;
-    const totalForecast = forecast + payableForCategory;
+    // Display TTC: forecast is HT, multiply by (1 + vat_rate) for display
+    const forecastTtc = forecast * (1 + category.vat_rate);
+    const totalForecast = forecastTtc + payableForCategory;
     const hasPayables = payableForCategory > 0;
     
     const periodType = getMonthPeriodType(months[monthIndex]);
@@ -485,7 +488,7 @@ export function ForecastTable() {
 
       const variableTooltip = hasOverride
         ? "Valeur manuelle — clic droit pour revenir en auto"
-        : `${forecastPercent}% × ${formatValue(incomeForecastTotal)} (CA prévu HT) = ${formatValue(forecast)}`;
+        : `${forecastPercent}% × ${formatValue(incomeForecastTotal)} (CA prévu HT) = ${formatValue(forecast)} HT → ${formatValue(forecastTtc)} TTC`;
       
       if (periodType === 'future') {
         return (
@@ -936,13 +939,14 @@ export function ForecastTable() {
     );
   };
 
-  // Calculate group total
+  // Calculate group total (TTC for forecasts, already TTC for actuals)
   const getGroupTotal = useCallback((group: CategoryGroup, monthIndex: number, valueType: 'forecast' | 'actual') => {
     return group.children.reduce((sum, cat) => {
-      const value = valueType === 'forecast' 
-        ? getForecast(cat.id, months[monthIndex])
-        : getActual(cat.id, months[monthIndex]);
-      return sum + Math.abs(value);
+      if (valueType === 'forecast') {
+        const forecastHt = getForecast(cat.id, months[monthIndex]);
+        return sum + forecastHt * (1 + cat.vat_rate);
+      }
+      return sum + Math.abs(getActual(cat.id, months[monthIndex]));
     }, 0);
   }, [getForecast, getActual, months]);
 
@@ -1268,19 +1272,14 @@ export function ForecastTable() {
           {label}
         </td>
         {months.map((month, monthIndex) => {
-          const forecastHt = getMonthTotal(type, monthIndex, 'forecast');
-          const actualHt = getMonthTotal(type, monthIndex, 'actual');
-          const forecastVat = getMonthVat(type, monthIndex, 'forecast');
-          
-          // Actuals are already TTC (bank amounts include VAT) - don't add VAT again
-          let forecastTtc = forecastHt + forecastVat;
-          let actualTtc = actualHt; // Already TTC!
+          // getMonthTotal now returns TTC for forecasts, already TTC for actuals
+          let forecastTtc = getMonthTotal(type, monthIndex, 'forecast');
+          let actualTtc = getMonthTotal(type, monthIndex, 'actual');
           
           // For expenses, add net VAT to pay (only for forecasts, not actuals)
           if (type === 'expense') {
             const netVatForecast = getNetVatForecast(months[monthIndex]);
             if (netVatForecast > 0) forecastTtc += netVatForecast;
-            // Don't add net VAT to actuals - already included in bank amounts
           }
           
           const periodType = getMonthPeriodType(month);
@@ -1347,13 +1346,9 @@ export function ForecastTable() {
           </div>
         </td>
         {months.map((month, monthIndex) => {
-          const forecastHt = getMonthTotal(type, monthIndex, 'forecast');
-          const actualHt = getMonthTotal(type, monthIndex, 'actual');
-          const forecastVat = getMonthVat(type, monthIndex, 'forecast');
-          
-          // Actuals are already TTC - don't add VAT
-          let forecastTtc = forecastHt + forecastVat;
-          let actualTtc = actualHt; // Already TTC!
+          // getMonthTotal now returns TTC for forecasts, already TTC for actuals
+          let forecastTtc = getMonthTotal(type, monthIndex, 'forecast');
+          let actualTtc = getMonthTotal(type, monthIndex, 'actual');
           
           if (type === 'expense') {
             const netVatForecast = getNetVatForecast(months[monthIndex]);
@@ -1674,21 +1669,22 @@ export function ForecastTable() {
           Variation nette du mois
         </td>
         {months.map((month, monthIndex) => {
-          const incomeHt = getMonthTotal('income', monthIndex, 'actual');
-          const expenseHt = getMonthTotal('expense', monthIndex, 'actual');
+          // Actuals are already TTC
+          const incomeActual = getMonthTotal('income', monthIndex, 'actual');
+          const expenseActual = getMonthTotal('expense', monthIndex, 'actual');
           
           // Include uncategorized actual transactions so variation matches balance rows
           const uncatIncome = getUncategorized('income', months[monthIndex]);
           const uncatExpense = getUncategorized('expense', months[monthIndex]);
           
-          const incomeForecastHt = getMonthTotal('income', monthIndex, 'forecast');
-          const incomeForecastVat = getMonthVat('income', monthIndex, 'forecast');
+          // getMonthTotal now returns TTC for forecasts
+          const incomeForecastTtc = getMonthTotal('income', monthIndex, 'forecast');
           
           // Per-category max(forecast TTC, payables) to avoid double-counting
           let expenseForecastTtcAdjusted = 0;
           expenseCategories.forEach(cat => {
             const forecastHt = getForecast(cat.id, months[monthIndex]);
-            const forecastTtc = forecastHt + forecastHt * cat.vat_rate;
+            const forecastTtc = forecastHt * (1 + cat.vat_rate);
             const payable = getPayableOutflowByCategory(cat.id, months[monthIndex]);
             expenseForecastTtcAdjusted += Math.max(forecastTtc, payable);
           });
@@ -1700,17 +1696,15 @@ export function ForecastTable() {
           const vatForecastToDeduct = Math.max(0, netVatForecast);
           expenseForecastTtcAdjusted += vatForecastToDeduct;
           
-          // Actuals are already TTC - no VAT to add
-          const incomeTtc = incomeHt + uncatIncome;
-          const expenseTtc = expenseHt + uncatExpense;
-          const incomeForecastTtc = incomeForecastHt + incomeForecastVat;
+          const incomeTtc = incomeActual + uncatIncome;
+          const expenseTtc = expenseActual + uncatExpense;
           const expenseForecastTtc = expenseForecastTtcAdjusted;
           
           const netActual = incomeTtc - expenseTtc;
           const netForecast = incomeForecastTtc - expenseForecastTtc;
           
-          const hasActual = incomeHt > 0 || expenseHt > 0 || uncatIncome > 0 || uncatExpense > 0;
-          const hasForecast = incomeForecastHt > 0 || expenseForecastTtcAdjusted > 0 || vatForecastToDeduct > 0;
+          const hasActual = incomeActual > 0 || expenseActual > 0 || uncatIncome > 0 || uncatExpense > 0;
+          const hasForecast = incomeForecastTtc > 0 || expenseForecastTtcAdjusted > 0 || vatForecastToDeduct > 0;
           const periodType = getMonthPeriodType(month);
           
           if (periodType === 'past') {
@@ -1867,7 +1861,7 @@ export function ForecastTable() {
         <div className="flex-1">
           <h3 className="text-lg font-semibold text-foreground">Prévisions par catégorie</h3>
           <p className="text-sm text-muted-foreground">
-            Cliquez sur une cellule "Prévu" pour modifier • Les montants sont HT, la TVA est calculée automatiquement
+            Cliquez sur une cellule "Prévu" pour modifier le montant HT • Les montants affichés sont TTC
           </p>
         </div>
         
