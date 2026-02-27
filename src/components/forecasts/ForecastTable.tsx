@@ -396,13 +396,12 @@ export function ForecastTable() {
     }
   }, [editingCell]);
 
-  // Calculate totals for a month (TTC - including VAT for forecasts, already TTC for actuals)
+  // Calculate totals for a month (amounts are used as entered, without HT/TTC conversion)
   const getMonthTotal = useCallback((type: 'income' | 'expense', monthIndex: number, valueType: 'forecast' | 'actual') => {
     const cats = type === 'income' ? incomeCategories : expenseCategories;
     return cats.reduce((sum, cat) => {
       if (valueType === 'forecast') {
-        const forecastHt = getForecast(cat.id, months[monthIndex]);
-        return sum + forecastHt * (1 + cat.vat_rate);
+        return sum + getForecast(cat.id, months[monthIndex]);
       }
       return sum + Math.abs(getActual(cat.id, months[monthIndex]));
     }, 0);
@@ -433,9 +432,7 @@ export function ForecastTable() {
     
     // For expenses, include payable invoices for this category
     const payableForCategory = type === 'expense' ? getPayableOutflowByCategory(categoryId, months[monthIndex]) : 0;
-    // Display TTC: forecast is HT, multiply by (1 + vat_rate) for display
-    const forecastTtc = forecast * (1 + category.vat_rate);
-    const totalForecast = forecastTtc + payableForCategory;
+    const totalForecast = forecast + payableForCategory;
     const hasPayables = payableForCategory > 0;
     
     const periodType = getMonthPeriodType(months[monthIndex]);
@@ -488,7 +485,7 @@ export function ForecastTable() {
 
       const variableTooltip = hasOverride
         ? "Valeur manuelle — clic droit pour revenir en auto"
-        : `${forecastPercent}% × ${formatValue(incomeForecastTotal)} (CA prévu HT) = ${formatValue(forecast)} HT → ${formatValue(forecastTtc)} TTC`;
+        : `${forecastPercent}% × ${formatValue(incomeForecastTotal)} (CA prévu) = ${formatValue(forecast)}`;
       
       if (periodType === 'future') {
         return (
@@ -939,12 +936,11 @@ export function ForecastTable() {
     );
   };
 
-  // Calculate group total (TTC for forecasts, already TTC for actuals)
+  // Calculate group total
   const getGroupTotal = useCallback((group: CategoryGroup, monthIndex: number, valueType: 'forecast' | 'actual') => {
     return group.children.reduce((sum, cat) => {
       if (valueType === 'forecast') {
-        const forecastHt = getForecast(cat.id, months[monthIndex]);
-        return sum + forecastHt * (1 + cat.vat_rate);
+        return sum + getForecast(cat.id, months[monthIndex]);
       }
       return sum + Math.abs(getActual(cat.id, months[monthIndex]));
     }, 0);
@@ -1677,16 +1673,15 @@ export function ForecastTable() {
           const uncatIncome = getUncategorized('income', months[monthIndex]);
           const uncatExpense = getUncategorized('expense', months[monthIndex]);
           
-          // getMonthTotal now returns TTC for forecasts
+          // getMonthTotal returns displayed forecast amounts as entered
           const incomeForecastTtc = getMonthTotal('income', monthIndex, 'forecast');
           
-          // Per-category max(forecast TTC, payables) to avoid double-counting
+          // Per-category max(forecast, payables) to avoid double-counting
           let expenseForecastTtcAdjusted = 0;
           expenseCategories.forEach(cat => {
-            const forecastHt = getForecast(cat.id, months[monthIndex]);
-            const forecastTtc = forecastHt * (1 + cat.vat_rate);
+            const forecastAmount = getForecast(cat.id, months[monthIndex]);
             const payable = getPayableOutflowByCategory(cat.id, months[monthIndex]);
-            expenseForecastTtcAdjusted += Math.max(forecastTtc, payable);
+            expenseForecastTtcAdjusted += Math.max(forecastAmount, payable);
           });
           // Add uncategorized payables
           expenseForecastTtcAdjusted += getPayableOutflowUncategorized(months[monthIndex]);
@@ -1845,7 +1840,6 @@ export function ForecastTable() {
       <ForecastChart 
         months={months}
         getMonthTotal={getMonthTotal}
-        getMonthVat={getMonthVat}
         getPayableOutflow={getPayableOutflow}
         getClosingBalance={getClosingBalance}
       />
@@ -1861,7 +1855,7 @@ export function ForecastTable() {
         <div className="flex-1">
           <h3 className="text-lg font-semibold text-foreground">Prévisions par catégorie</h3>
           <p className="text-sm text-muted-foreground">
-            Cliquez sur une cellule "Prévu" pour modifier le montant HT • Les montants affichés sont TTC
+            Cliquez sur une cellule "Prévu" pour modifier le montant (sans conversion HT/TTC)
           </p>
         </div>
         
