@@ -26,12 +26,11 @@ interface ClosingBalanceData {
 interface ForecastChartProps {
   months: Date[];
   getMonthTotal: (type: 'income' | 'expense', monthIndex: number, valueType: 'forecast' | 'actual') => number;
-  getMonthVat: (type: 'income' | 'expense', monthIndex: number, valueType: 'forecast' | 'actual') => number;
   getPayableOutflow?: (month: Date) => number;
   getClosingBalance: (month: Date) => ClosingBalanceData;
 }
 
-export function ForecastChart({ months, getMonthTotal, getMonthVat, getPayableOutflow, getClosingBalance }: ForecastChartProps) {
+export function ForecastChart({ months, getMonthTotal, getPayableOutflow, getClosingBalance }: ForecastChartProps) {
   const today = startOfMonth(new Date());
 
   const data = useMemo(() => {
@@ -39,16 +38,11 @@ export function ForecastChart({ months, getMonthTotal, getMonthVat, getPayableOu
       const isPast = isBefore(month, today);
       const isCurrent = isSameMonth(month, today);
       
-      const incomeHt = getMonthTotal('income', index, isPast ? 'actual' : 'forecast');
-      const expenseHt = getMonthTotal('expense', index, isPast ? 'actual' : 'forecast');
-      const incomeVat = getMonthVat('income', index, isPast ? 'actual' : 'forecast');
-      const expenseVat = getMonthVat('expense', index, isPast ? 'actual' : 'forecast');
-      
-      const incomeTtc = incomeHt + incomeVat;
-      let expenseTtc = expenseHt + expenseVat;
+      const income = getMonthTotal('income', index, isPast ? 'actual' : 'forecast');
+      let expense = getMonthTotal('expense', index, isPast ? 'actual' : 'forecast');
       
       if (!isPast && getPayableOutflow) {
-        expenseTtc += getPayableOutflow(month);
+        expense += getPayableOutflow(month);
       }
 
       // Get real closing balance from the forecast engine
@@ -60,13 +54,13 @@ export function ForecastChart({ months, getMonthTotal, getMonthVat, getPayableOu
       return {
         month: format(month, 'MMM', { locale: fr }),
         fullMonth: format(month, 'MMMM yyyy', { locale: fr }),
-        income: incomeTtc,
-        expense: expenseTtc,
+        income,
+        expense,
         endBalance,
         isPast: isPast || isCurrent,
       };
     });
-  }, [months, getMonthTotal, getMonthVat, getPayableOutflow, getClosingBalance, today]);
+  }, [months, getMonthTotal, getPayableOutflow, getClosingBalance, today]);
 
   const formatValue = (value: number) => {
     if (Math.abs(value) >= 1000) {
