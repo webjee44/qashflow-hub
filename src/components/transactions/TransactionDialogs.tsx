@@ -48,6 +48,13 @@ interface TransactionDialogsProps {
   onCategorizationSelect: (categoryId: string) => Promise<void>;
   onRemoveCategory: () => void;
   onCreateCategoryFromModal: () => void;
+  onInlineCreateCategory?: (data: {
+    name: string;
+    color: string;
+    icon: string;
+    type: 'income' | 'expense';
+    vat_rate: number;
+  }) => Promise<any>;
 }
 
 export const TransactionDialogs = memo(function TransactionDialogs({
@@ -62,7 +69,7 @@ export const TransactionDialogs = memo(function TransactionDialogs({
   incomeCategories, expenseCategories,
   showCategorizationModal, onShowCategorizationModalChange,
   transactionToCategorize, onCategorizationSelect,
-  onRemoveCategory, onCreateCategoryFromModal,
+  onRemoveCategory, onCreateCategoryFromModal, onInlineCreateCategory,
 }: TransactionDialogsProps) {
   return (
     <>
@@ -118,6 +125,7 @@ export const TransactionDialogs = memo(function TransactionDialogs({
         onSelectCategory={onCategorizationSelect}
         onRemoveCategory={onRemoveCategory}
         onCreateCategory={onCreateCategoryFromModal}
+        onInlineCreateCategory={onInlineCreateCategory}
       />
     </>
   );
