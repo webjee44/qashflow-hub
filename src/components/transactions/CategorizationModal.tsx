@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { 
@@ -19,9 +20,12 @@ import {
   ChevronRight,
   ArrowDownRight,
   ArrowUpRight,
+  ArrowLeft,
   PlusCircle,
   XCircle,
   Lock,
+  TrendingUp,
+  TrendingDown,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
@@ -40,6 +44,13 @@ interface CategorizationModalProps {
   onSelectCategory: (categoryId: string) => void;
   onRemoveCategory?: () => void;
   onCreateCategory?: () => void;
+  onInlineCreateCategory?: (data: {
+    name: string;
+    color: string;
+    icon: string;
+    type: 'income' | 'expense';
+    vat_rate: number;
+  }) => Promise<any>;
 }
 
 interface AISuggestion {
@@ -112,11 +123,20 @@ export function CategorizationModal({
   onSelectCategory,
   onRemoveCategory,
   onCreateCategory,
+  onInlineCreateCategory,
 }: CategorizationModalProps) {
   const [search, setSearch] = useState('');
   const [aiSuggestion, setAiSuggestion] = useState<AISuggestion | null>(null);
   const [loadingAI, setLoadingAI] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [creatingCategory, setCreatingCategory] = useState(false);
+  const [newCategoryForm, setNewCategoryForm] = useState({
+    name: '',
+    color: 'hsl(221, 83%, 53%)',
+    type: 'expense' as 'income' | 'expense',
+    vat_rate: 0.20,
+  });
 
   // Determine which categories to show based on transaction type
   // System category "Virement intercompte" is shown for both types
@@ -136,6 +156,13 @@ export function CategorizationModal({
       setAiSuggestion(null);
       setAiError(null);
       setSearch('');
+      setShowCreateForm(false);
+      setNewCategoryForm({
+        name: '',
+        color: 'hsl(221, 83%, 53%)',
+        type: 'expense',
+        vat_rate: 0.20,
+      });
     }
   }, [open, transaction?.id]);
 
@@ -215,6 +242,44 @@ export function CategorizationModal({
     // Don't close here - let the parent handle closing to avoid race conditions with the suggestion dialog
   };
 
+  const colorOptions = [
+    { value: 'hsl(142, 76%, 36%)', label: 'Vert' },
+    { value: 'hsl(200, 80%, 50%)', label: 'Bleu' },
+    { value: 'hsl(173, 80%, 40%)', label: 'Turquoise' },
+    { value: 'hsl(0, 84%, 60%)', label: 'Rouge' },
+    { value: 'hsl(280, 60%, 50%)', label: 'Violet' },
+    { value: 'hsl(38, 92%, 50%)', label: 'Orange' },
+    { value: 'hsl(320, 70%, 50%)', label: 'Rose' },
+    { value: 'hsl(221, 83%, 53%)', label: 'Indigo' },
+  ];
+
+  const vatOptions = [
+    { value: 0, label: '0%' },
+    { value: 0.055, label: '5.5%' },
+    { value: 0.10, label: '10%' },
+    { value: 0.20, label: '20%' },
+  ];
+
+  const handleInlineCreate = async () => {
+    if (!newCategoryForm.name.trim() || !onInlineCreateCategory) return;
+    setCreatingCategory(true);
+    const result = await onInlineCreateCategory({
+      name: newCategoryForm.name.trim(),
+      color: newCategoryForm.color,
+      icon: 'Tag',
+      type: newCategoryForm.type,
+      vat_rate: newCategoryForm.vat_rate,
+    });
+    setCreatingCategory(false);
+    if (result) {
+      setShowCreateForm(false);
+      setNewCategoryForm({ name: '', color: 'hsl(221, 83%, 53%)', type: 'expense', vat_rate: 0.20 });
+      if (result.id) {
+        handleSelectCategory(result.id);
+      }
+    }
+  };
+
   const formatAmount = (amount: number) => {
     return new Intl.NumberFormat('fr-FR', {
       style: 'currency',
@@ -230,183 +295,307 @@ export function CategorizationModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md p-0 gap-0">
         <DialogHeader className="p-4 pb-3 border-b">
-          <DialogTitle className="text-lg">Catégoriser la transaction</DialogTitle>
+          <DialogTitle className="text-lg flex items-center gap-2">
+            {showCreateForm && (
+              <button onClick={() => setShowCreateForm(false)} className="hover:bg-muted rounded-md p-1 -ml-1 transition-colors">
+                <ArrowLeft className="w-4 h-4" />
+              </button>
+            )}
+            {showCreateForm ? 'Nouvelle catégorie' : 'Catégoriser la transaction'}
+          </DialogTitle>
           <DialogDescription className="sr-only">
-            Choisissez une catégorie pour cette transaction
+            {showCreateForm ? 'Créez une nouvelle catégorie' : 'Choisissez une catégorie pour cette transaction'}
           </DialogDescription>
         </DialogHeader>
 
-        {/* Transaction info */}
-        {transaction && (
-          <div className="px-4 py-3 bg-muted/50 border-b">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  {transaction.type === 'income' ? (
-                    <ArrowUpRight className="w-4 h-4 text-success shrink-0" />
-                  ) : (
-                    <ArrowDownRight className="w-4 h-4 text-destructive shrink-0" />
+        {showCreateForm ? (
+          <div className="p-4 space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="inline-cat-name">Nom</Label>
+              <Input
+                id="inline-cat-name"
+                placeholder="Ex: Abonnements"
+                value={newCategoryForm.name}
+                onChange={(e) => setNewCategoryForm(prev => ({ ...prev, name: e.target.value }))}
+                maxLength={50}
+                autoFocus
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Type</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setNewCategoryForm(prev => ({ ...prev, type: 'expense' }))}
+                  className={cn(
+                    "flex items-center justify-center gap-2 p-2.5 rounded-lg border-2 transition-all text-sm",
+                    newCategoryForm.type === 'expense'
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border hover:border-primary/50"
                   )}
-                  <span className="font-medium text-sm truncate">
-                    {transaction.description}
-                  </span>
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {new Date(transaction.date).toLocaleDateString('fr-FR', {
-                    day: 'numeric',
-                    month: 'long',
-                    year: 'numeric',
-                  })}
-                </p>
-              </div>
-              <span className={cn(
-                "font-semibold text-sm shrink-0",
-                transaction.type === 'income' ? 'text-success' : 'text-foreground'
-              )}>
-                {transaction.type === 'income' ? '+' : '-'}{formatAmount(Number(transaction.amount))}
-              </span>
-            </div>
-          </div>
-        )}
-
-        {/* AI Suggestion */}
-        <div className="px-4 py-3 border-b">
-          {loadingAI ? (
-            <div className="flex items-center gap-3 py-2">
-              <div className="relative">
-                <div className="w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center">
-                  <Sparkles className="w-4 h-4 text-accent" />
-                </div>
-                <div className="absolute inset-0 rounded-full border-2 border-accent/30 border-t-accent animate-spin" />
-              </div>
-              <div>
-                <p className="text-sm font-medium">Analyse IA en cours...</p>
-                <p className="text-xs text-muted-foreground">Suggestion optimale</p>
+                >
+                  <TrendingDown className="w-4 h-4" />
+                  <span className="font-medium">Dépense</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNewCategoryForm(prev => ({ ...prev, type: 'income' }))}
+                  className={cn(
+                    "flex items-center justify-center gap-2 p-2.5 rounded-lg border-2 transition-all text-sm",
+                    newCategoryForm.type === 'income'
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border hover:border-primary/50"
+                  )}
+                >
+                  <TrendingUp className="w-4 h-4" />
+                  <span className="font-medium">Revenu</span>
+                </button>
               </div>
             </div>
-          ) : aiSuggestion && suggestedCategory ? (
-            <button
-              onClick={() => handleSelectCategory(aiSuggestion.categoryId)}
-              className="w-full text-left group"
-            >
-              <div className="flex items-center gap-3 p-2 -mx-2 rounded-lg hover:bg-accent/10 transition-colors">
-                <div className="w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center shrink-0">
-                  <Sparkles className="w-4 h-4 text-accent" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">Suggestion IA</span>
-                    <Badge variant="secondary" className="text-xs">
-                      {Math.round(aiSuggestion.confidence * 100)}%
-                    </Badge>
-                  </div>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span
-                      className="w-2.5 h-2.5 rounded-full shrink-0"
-                      style={{ backgroundColor: suggestedCategory.color }}
-                    />
-                    <span className="text-sm text-muted-foreground truncate">
-                      {suggestedCategory.name}
-                    </span>
-                  </div>
-                </div>
-                <Check className="w-5 h-5 text-accent opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
-              </div>
-            </button>
-          ) : aiError ? (
-            <div className="flex items-center gap-3 py-2 text-muted-foreground">
-              <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
-                <Sparkles className="w-4 h-4" />
-              </div>
-              <p className="text-sm">{aiError}</p>
-            </div>
-          ) : null}
-        </div>
 
-        {/* Search */}
-        <div className="px-4 py-3 border-b">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Rechercher une catégorie..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 h-9"
-            />
-          </div>
-        </div>
-
-        {/* Category List */}
-        <ScrollArea className="max-h-[40vh]">
-          <div className="p-2">
-            {/* Remove category (for already-categorized transactions) */}
-            {transaction?.category_id && onRemoveCategory && (
-              <button
-                onClick={() => {
-                  onRemoveCategory();
-                  onOpenChange(false);
-                }}
-                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:bg-destructive/10 hover:text-destructive rounded-md transition-colors mb-1"
-              >
-                <XCircle className="w-4 h-4" />
-                Retirer la catégorie
-              </button>
-            )}
-
-            {/* Create new category */}
-            {onCreateCategory && (
-              <button
-                onClick={() => {
-                  onCreateCategory();
-                  onOpenChange(false);
-                }}
-                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-primary hover:bg-primary/5 rounded-md transition-colors"
-              >
-                <PlusCircle className="w-4 h-4" />
-                Créer une catégorie
-              </button>
-            )}
-
-            {/* Grouped categories */}
-            {filteredGroups.map((group, idx) => (
-              <div key={group.group?.id || 'ungrouped'}>
-                {group.group && (
-                  <div className="px-3 py-1.5 text-xs font-semibold text-muted-foreground flex items-center gap-2 mt-2">
-                    {group.group.name}
-                  </div>
-                )}
-                {group.children.map(cat => (
+            <div className="space-y-1.5">
+              <Label>TVA</Label>
+              <div className="grid grid-cols-4 gap-2">
+                {vatOptions.map((opt) => (
                   <button
-                    key={cat.id}
-                    onClick={() => handleSelectCategory(cat.id)}
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setNewCategoryForm(prev => ({ ...prev, vat_rate: opt.value }))}
                     className={cn(
-                      "w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted rounded-md transition-colors",
-                      group.group && "pl-6"
+                      "flex items-center justify-center p-2 rounded-lg border-2 transition-all text-sm font-medium",
+                      newCategoryForm.vat_rate === opt.value
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-border hover:border-primary/50"
                     )}
                   >
-                    {group.group && (
-                      <ChevronRight className="w-3 h-3 text-muted-foreground" />
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Couleur</Label>
+              <div className="flex gap-2">
+                {colorOptions.map((color) => (
+                  <button
+                    key={color.value}
+                    type="button"
+                    onClick={() => setNewCategoryForm(prev => ({ ...prev, color: color.value }))}
+                    className={cn(
+                      "w-8 h-8 rounded-lg transition-all flex items-center justify-center",
+                      newCategoryForm.color === color.value
+                        ? 'ring-2 ring-primary ring-offset-2 scale-110'
+                        : 'hover:scale-105'
                     )}
-                    <span
-                      className="w-2.5 h-2.5 rounded-full shrink-0"
-                      style={{ backgroundColor: cat.color }}
-                    />
-                    <span className="truncate">{cat.name}</span>
-                    {cat.is_system && (
-                      <Lock className="w-3 h-3 text-muted-foreground shrink-0 ml-auto" />
+                    style={{ backgroundColor: color.value }}
+                    title={color.label}
+                  >
+                    {newCategoryForm.color === color.value && (
+                      <Check className="w-4 h-4 text-white drop-shadow-md" />
                     )}
                   </button>
                 ))}
               </div>
-            ))}
+            </div>
 
-            {filteredGroups.length === 0 && search && (
-              <p className="text-center text-sm text-muted-foreground py-6">
-                Aucune catégorie "{search}"
-              </p>
-            )}
+            <div className="flex justify-end gap-3 pt-2">
+              <Button type="button" variant="ghost" size="sm" onClick={() => setShowCreateForm(false)}>
+                Annuler
+              </Button>
+              <Button
+                size="sm"
+                className="gradient-primary"
+                disabled={creatingCategory || !newCategoryForm.name.trim()}
+                onClick={handleInlineCreate}
+              >
+                {creatingCategory ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                Créer et appliquer
+              </Button>
+            </div>
           </div>
-        </ScrollArea>
+        ) : (
+          <>
+            {/* Transaction info */}
+            {transaction && (
+              <div className="px-4 py-3 bg-muted/50 border-b">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      {transaction.type === 'income' ? (
+                        <ArrowUpRight className="w-4 h-4 text-success shrink-0" />
+                      ) : (
+                        <ArrowDownRight className="w-4 h-4 text-destructive shrink-0" />
+                      )}
+                      <span className="font-medium text-sm truncate">
+                        {transaction.description}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {new Date(transaction.date).toLocaleDateString('fr-FR', {
+                        day: 'numeric',
+                        month: 'long',
+                        year: 'numeric',
+                      })}
+                    </p>
+                  </div>
+                  <span className={cn(
+                    "font-semibold text-sm shrink-0",
+                    transaction.type === 'income' ? 'text-success' : 'text-foreground'
+                  )}>
+                    {transaction.type === 'income' ? '+' : '-'}{formatAmount(Number(transaction.amount))}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* AI Suggestion */}
+            <div className="px-4 py-3 border-b">
+              {loadingAI ? (
+                <div className="flex items-center gap-3 py-2">
+                  <div className="relative">
+                    <div className="w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center">
+                      <Sparkles className="w-4 h-4 text-accent" />
+                    </div>
+                    <div className="absolute inset-0 rounded-full border-2 border-accent/30 border-t-accent animate-spin" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Analyse IA en cours...</p>
+                    <p className="text-xs text-muted-foreground">Suggestion optimale</p>
+                  </div>
+                </div>
+              ) : aiSuggestion && suggestedCategory ? (
+                <button
+                  onClick={() => handleSelectCategory(aiSuggestion.categoryId)}
+                  className="w-full text-left group"
+                >
+                  <div className="flex items-center gap-3 p-2 -mx-2 rounded-lg hover:bg-accent/10 transition-colors">
+                    <div className="w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center shrink-0">
+                      <Sparkles className="w-4 h-4 text-accent" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium">Suggestion IA</span>
+                        <Badge variant="secondary" className="text-xs">
+                          {Math.round(aiSuggestion.confidence * 100)}%
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span
+                          className="w-2.5 h-2.5 rounded-full shrink-0"
+                          style={{ backgroundColor: suggestedCategory.color }}
+                        />
+                        <span className="text-sm text-muted-foreground truncate">
+                          {suggestedCategory.name}
+                        </span>
+                      </div>
+                    </div>
+                    <Check className="w-5 h-5 text-accent opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                  </div>
+                </button>
+              ) : aiError ? (
+                <div className="flex items-center gap-3 py-2 text-muted-foreground">
+                  <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
+                    <Sparkles className="w-4 h-4" />
+                  </div>
+                  <p className="text-sm">{aiError}</p>
+                </div>
+              ) : null}
+            </div>
+
+            {/* Search */}
+            <div className="px-4 py-3 border-b">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="Rechercher une catégorie..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-9 h-9"
+                />
+              </div>
+            </div>
+
+            {/* Category List */}
+            <ScrollArea className="max-h-[40vh]">
+              <div className="p-2">
+                {transaction?.category_id && onRemoveCategory && (
+                  <button
+                    onClick={() => {
+                      onRemoveCategory();
+                      onOpenChange(false);
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:bg-destructive/10 hover:text-destructive rounded-md transition-colors mb-1"
+                  >
+                    <XCircle className="w-4 h-4" />
+                    Retirer la catégorie
+                  </button>
+                )}
+
+                {(onInlineCreateCategory || onCreateCategory) && (
+                  <button
+                    onClick={() => {
+                      if (onInlineCreateCategory) {
+                        setNewCategoryForm(prev => ({
+                          ...prev,
+                          type: transaction?.type === 'income' ? 'income' : 'expense',
+                          name: search,
+                        }));
+                        setShowCreateForm(true);
+                      } else {
+                        onCreateCategory?.();
+                        onOpenChange(false);
+                      }
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-primary hover:bg-primary/5 rounded-md transition-colors"
+                  >
+                    <PlusCircle className="w-4 h-4" />
+                    Créer une catégorie
+                  </button>
+                )}
+
+                {filteredGroups.map((group, idx) => (
+                  <div key={group.group?.id || 'ungrouped'}>
+                    {group.group && (
+                      <div className="px-3 py-1.5 text-xs font-semibold text-muted-foreground flex items-center gap-2 mt-2">
+                        {group.group.name}
+                      </div>
+                    )}
+                    {group.children.map(cat => (
+                      <button
+                        key={cat.id}
+                        onClick={() => handleSelectCategory(cat.id)}
+                        className={cn(
+                          "w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted rounded-md transition-colors",
+                          group.group && "pl-6"
+                        )}
+                      >
+                        {group.group && (
+                          <ChevronRight className="w-3 h-3 text-muted-foreground" />
+                        )}
+                        <span
+                          className="w-2.5 h-2.5 rounded-full shrink-0"
+                          style={{ backgroundColor: cat.color }}
+                        />
+                        <span className="truncate">{cat.name}</span>
+                        {cat.is_system && (
+                          <Lock className="w-3 h-3 text-muted-foreground shrink-0 ml-auto" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                ))}
+
+                {filteredGroups.length === 0 && search && (
+                  <p className="text-center text-sm text-muted-foreground py-6">
+                    Aucune catégorie "{search}"
+                  </p>
+                )}
+              </div>
+            </ScrollArea>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   );

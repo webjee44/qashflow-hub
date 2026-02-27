@@ -211,6 +211,7 @@ export function TransactionsView() {
             handlers.onCreateCategoryForTransaction(handlers.transactionToCategorize.id);
           }
         }}
+        onInlineCreateCategory={handlers.handleCreateCategory}
       />
     </div>
   );
