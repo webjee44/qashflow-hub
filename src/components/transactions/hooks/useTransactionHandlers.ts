@@ -55,7 +55,16 @@ export function useTransactionHandlers({
       toast({ title: 'Catégorie mise à jour', description: 'La transaction a été catégorisée avec succès' });
 
       if (categoryId && !previousCategoryId && transaction) {
-        const category = categoryMap.get(categoryId);
+        let category = categoryMap.get(categoryId);
+        // If category not yet in cache (e.g. just created inline), fetch it
+        if (!category) {
+          const { data: fetchedCat } = await supabase
+            .from('categories')
+            .select('*')
+            .eq('id', categoryId)
+            .single();
+          if (fetchedCat) category = fetchedCat as Category;
+        }
         if (category && currentCompany) {
           const { data: existingRules } = await supabase
             .from('automation_rules')
