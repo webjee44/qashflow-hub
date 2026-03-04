@@ -15,6 +15,7 @@ export function BalanceChart() {
     getPayableOutflow,
     getForecast,
     getActual,
+    getUncategorized,
   } = useForecasts();
 
   const { categories } = useCategories();
@@ -118,6 +119,7 @@ export function BalanceChart() {
         getMonthTotal={getMonthTotal}
         getPayableOutflow={getPayableOutflow}
         getClosingBalance={getClosingBalance}
+        getUncategorized={getUncategorized}
       />
 
       {/* Quick Stats */}

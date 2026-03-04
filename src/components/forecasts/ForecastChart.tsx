@@ -28,20 +28,28 @@ interface ForecastChartProps {
   getMonthTotal: (type: 'income' | 'expense', monthIndex: number, valueType: 'forecast' | 'actual') => number;
   getPayableOutflow?: (month: Date) => number;
   getClosingBalance: (month: Date) => ClosingBalanceData;
+  getUncategorized?: (type: 'income' | 'expense', month: Date) => number;
 }
 
-export function ForecastChart({ months, getMonthTotal, getPayableOutflow, getClosingBalance }: ForecastChartProps) {
+export function ForecastChart({ months, getMonthTotal, getPayableOutflow, getClosingBalance, getUncategorized }: ForecastChartProps) {
   const today = startOfMonth(new Date());
 
   const data = useMemo(() => {
     return months.map((month, index) => {
       const isPast = isBefore(month, today);
       const isCurrent = isSameMonth(month, today);
+      const isActualPeriod = isPast || isCurrent;
       
-      const income = getMonthTotal('income', index, isPast ? 'actual' : 'forecast');
-      let expense = getMonthTotal('expense', index, isPast ? 'actual' : 'forecast');
+      let income = getMonthTotal('income', index, isActualPeriod ? 'actual' : 'forecast');
+      let expense = getMonthTotal('expense', index, isActualPeriod ? 'actual' : 'forecast');
       
-      if (!isPast && getPayableOutflow) {
+      // Include uncategorized transactions in actual bars
+      if (isActualPeriod && getUncategorized) {
+        income += getUncategorized('income', month);
+        expense += getUncategorized('expense', month);
+      }
+      
+      if (!isActualPeriod && getPayableOutflow) {
         expense += getPayableOutflow(month);
       }
 
@@ -57,10 +65,10 @@ export function ForecastChart({ months, getMonthTotal, getPayableOutflow, getClo
         income,
         expense,
         endBalance,
-        isPast: isPast || isCurrent,
+        isPast: isActualPeriod,
       };
     });
-  }, [months, getMonthTotal, getPayableOutflow, getClosingBalance, today]);
+  }, [months, getMonthTotal, getPayableOutflow, getClosingBalance, getUncategorized, today]);
 
   const formatValue = (value: number) => {
     if (Math.abs(value) >= 1000) {
