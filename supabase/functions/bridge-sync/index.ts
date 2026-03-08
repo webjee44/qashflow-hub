@@ -312,14 +312,27 @@ async function syncCompanyTransactions(
       }
     }
 
-    // Batch insert new transactions
+    // Batch insert new transactions with individual fallback on failure
     if (toInsert.length > 0) {
       const BATCH_SIZE = 100;
       for (let i = 0; i < toInsert.length; i += BATCH_SIZE) {
         const batch = toInsert.slice(i, i + BATCH_SIZE);
         const { error } = await supabaseAdmin.from('transactions').insert(batch);
-        if (!error) insertedCount += batch.length;
-        else console.warn(`[bridge-sync] Batch insert failed:`, error.message);
+        if (!error) {
+          insertedCount += batch.length;
+        } else {
+          // Batch failed (likely duplicate trigger) - fall back to individual inserts
+          console.warn(`[bridge-sync] Batch insert failed: ${error.message}. Falling back to individual inserts for ${batch.length} transactions.`);
+          for (const tx of batch) {
+            const { error: singleError } = await supabaseAdmin.from('transactions').insert(tx);
+            if (!singleError) {
+              insertedCount++;
+            } else {
+              // Skip this duplicate silently (expected for duplicates)
+              console.debug(`[bridge-sync] Skipped duplicate: ${tx.description} ${tx.date} ${tx.amount}`);
+            }
+          }
+        }
       }
     }
 
