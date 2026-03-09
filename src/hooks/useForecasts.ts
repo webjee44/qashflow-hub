@@ -745,6 +745,8 @@ export function useForecasts() {
     // Period controls
     extendBefore,
     extendAfter,
+    shrinkBefore,
+    shrinkAfter,
     resetPeriod,
     monthsBefore,
     monthsAfter,
