@@ -1768,13 +1768,14 @@ export function ForecastTable() {
           const periodType = getMonthPeriodType(month);
           
           if (periodType === 'past') {
+            const isEstimated = (closingData as any).isEstimated;
             return (
               <td key={monthIndex} className="p-0 border-r border-border min-w-[90px]">
                 <div className={cn(
                   "px-3 py-2 text-right font-bold",
                   balance >= 0 ? "text-primary" : "text-foreground"
-                )}>
-                  {formatValue(balance)}
+                )} title={isEstimated ? "Solde estimé (pas de snapshot disponible)" : undefined}>
+                  {isEstimated ? '~' : ''}{formatValue(balance)}
                 </div>
               </td>
             );
