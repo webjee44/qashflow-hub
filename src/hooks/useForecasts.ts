@@ -772,7 +772,7 @@ export function useForecasts() {
       projectedBalance += monthNet;
     }
     return { balance: projectedBalance, isActual: false };
-  }, [currentCompany, liveBankBalance, allTransactions, balanceSnapshots, getSnapshotForEndOfMonth, getMonthNetForecast]);
+  }, [currentCompany, liveBankBalance, allTransactions, balanceSnapshots, getSnapshotForEndOfMonth, getMonthNetForecast, getBalanceOverride]);
 
   // Helper to get total income forecast (HT) for a month - used for variable charge tooltips
   const getIncomeForecastTotal = useCallback((month: Date): number => {
