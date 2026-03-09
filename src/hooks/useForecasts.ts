@@ -442,7 +442,7 @@ export function useForecasts() {
     queryKey: ['balance-snapshots', currentCompany?.id],
     queryFn: async () => {
       if (!currentCompany?.id) return [];
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from('bank_balance_snapshots')
         .select('bridge_account_id, balance, snapshot_date')
         .eq('company_id', currentCompany.id)
@@ -452,6 +452,24 @@ export function useForecasts() {
     },
     enabled: !!currentCompany?.id,
   });
+
+  // Helper: get total snapshot balance for the last day of a given month
+  const getSnapshotForEndOfMonth = useCallback((month: Date): number | null => {
+    const monthStart = format(startOfMonth(month), 'yyyy-MM-dd');
+    const monthEnd = format(endOfMonth(month), 'yyyy-MM-dd');
+    
+    // Find all snapshots within this month, take the latest one (already sorted desc)
+    const monthSnapshots = balanceSnapshots.filter(
+      s => s.snapshot_date >= monthStart && s.snapshot_date <= monthEnd
+    );
+    
+    if (monthSnapshots.length === 0) return null;
+    
+    // Group by the latest date and sum all accounts for that date
+    const latestDate = monthSnapshots[0].snapshot_date;
+    const latestSnapshots = monthSnapshots.filter(s => s.snapshot_date === latestDate);
+    return latestSnapshots.reduce((sum, s) => sum + Number(s.balance), 0);
+  }, [balanceSnapshots]);
 
   // Helper to get payable outflow for a specific month
   // Rule: overdue invoices (due_date < today) -> placed at end of current month
@@ -593,7 +611,7 @@ export function useForecasts() {
   // Anchored on the current Bridge bank balance (most reliable reference point)
   // Past months: walk backwards by subtracting transactions between target and now
   // Future months: walk forwards by adding net forecasts
-  const getOpeningBalance = useCallback((month: Date): { balance: number; isActual: boolean } => {
+  const getOpeningBalance = useCallback((month: Date): { balance: number; isActual: boolean; isEstimated?: boolean } => {
     // Use live bank balance from bridge_accounts, fallback to companies.bank_balance
     const currentBankBalance = liveBankBalance ?? (currentCompany?.bank_balance != null ? Number(currentCompany.bank_balance) : null);
     const hasBankBalance = currentBankBalance != null;
@@ -604,7 +622,6 @@ export function useForecasts() {
     // If no Bridge connection, fall back to initial_balance + cumulative transactions
     if (!hasBankBalance) {
       if (isBefore(targetMonth, addMonths(todayMonth, 1))) {
-        // Past or current: initial_balance + transactions before target
         const transactionsBeforeTarget = allTransactions.filter(tx => {
           const txDate = new Date(tx.date);
           return txDate < targetMonth;
@@ -615,7 +632,6 @@ export function useForecasts() {
         }, 0);
         return { balance: initialBalance + netBefore, isActual: !isBefore(todayMonth, targetMonth) };
       }
-      // Future: initial_balance + all past transactions + forecasts
       const allPastNet = allTransactions.reduce((sum, tx) => {
         const amount = Number(tx.amount);
         return sum + (tx.type === 'income' ? amount : -amount);
@@ -642,15 +658,23 @@ export function useForecasts() {
     }
     
     if (isBefore(targetMonth, todayMonth)) {
-      // Past month: first check if we have a balance snapshot
+      // Past month: check if we have a snapshot for the PREVIOUS month's end
+      // Opening balance of month M = closing balance of month M-1
+      const prevMonth = addMonths(targetMonth, -1);
+      const prevSnapshot = getSnapshotForEndOfMonth(prevMonth);
+      if (prevSnapshot !== null) {
+        return { balance: prevSnapshot, isActual: true };
+      }
+      
+      // Also check if we have a snapshot for the first day of this month
       const targetDateStr = format(targetMonth, 'yyyy-MM-dd');
-      const snapshotsForDate = balanceSnapshots.filter(s => s.snapshot_date === targetDateStr);
-      if (snapshotsForDate.length > 0) {
-        const snapshotBalance = snapshotsForDate.reduce((sum, s) => sum + Number(s.balance), 0);
+      const firstDaySnapshots = balanceSnapshots.filter(s => s.snapshot_date === targetDateStr);
+      if (firstDaySnapshots.length > 0) {
+        const snapshotBalance = firstDaySnapshots.reduce((sum, s) => sum + Number(s.balance), 0);
         return { balance: snapshotBalance, isActual: true };
       }
       
-      // Fallback: walk backwards from current balance
+      // Fallback: walk backwards from current balance (mark as estimated)
       const transactionsBetween = allTransactions.filter(tx => {
         const txDate = new Date(tx.date);
         return txDate >= targetMonth && txDate < todayMonth;
@@ -659,7 +683,7 @@ export function useForecasts() {
         const amount = Number(tx.amount);
         return sum + (tx.type === 'income' ? amount : -amount);
       }, 0);
-      return { balance: currentBankBalance - netBetween, isActual: true };
+      return { balance: currentBankBalance - netBetween, isActual: true, isEstimated: true };
     }
     
     // Future month: calculate projected balance
@@ -669,7 +693,7 @@ export function useForecasts() {
       projectedBalance += monthNet;
     }
     return { balance: projectedBalance, isActual: false };
-  }, [currentCompany, liveBankBalance, allTransactions, balanceSnapshots, getMonthNetForecast]);
+  }, [currentCompany, liveBankBalance, allTransactions, balanceSnapshots, getSnapshotForEndOfMonth, getMonthNetForecast]);
 
   // Helper to get total income forecast (HT) for a month - used for variable charge tooltips
   const getIncomeForecastTotal = useCallback((month: Date): number => {
@@ -683,7 +707,7 @@ export function useForecasts() {
   }, [categories, forecasts]);
 
   // Helper to get closing balance (end of month) = opening balance + month net variation
-  const getClosingBalance = useCallback((month: Date): { balance: number; forecastBalance?: number; isActual: boolean } => {
+  const getClosingBalance = useCallback((month: Date): { balance: number; forecastBalance?: number; isActual: boolean; isEstimated?: boolean } => {
     const opening = getOpeningBalance(month);
     const periodType = (() => {
       const todayMonth = startOfMonth(new Date());
@@ -694,16 +718,20 @@ export function useForecasts() {
     })();
 
     if (periodType === 'past') {
+      // Check if we have a snapshot for this month's end
+      const snapshot = getSnapshotForEndOfMonth(month);
+      if (snapshot !== null) {
+        return { balance: snapshot, isActual: true };
+      }
+      // Fallback to next month's opening (retro-calculated, mark as estimated)
       const nextMonth = addMonths(startOfMonth(month), 1);
       const nextOpening = getOpeningBalance(nextMonth);
-      return { balance: nextOpening.balance, isActual: true };
+      return { balance: nextOpening.balance, isActual: true, isEstimated: nextOpening.isEstimated };
     }
 
     if (periodType === 'current') {
-      // Actual: opening of next month (based on real transactions so far)
       const nextMonth = addMonths(startOfMonth(month), 1);
       const nextOpening = getOpeningBalance(nextMonth);
-      // Forecast: opening + net forecast for the full month
       const netForecast = getMonthNetForecast(month);
       return { balance: nextOpening.balance, forecastBalance: opening.balance + netForecast, isActual: false };
     }
@@ -711,7 +739,7 @@ export function useForecasts() {
     // Future: opening + net forecast
     const netForecast = getMonthNetForecast(month);
     return { balance: opening.balance + netForecast, isActual: false };
-  }, [getOpeningBalance, getMonthNetForecast]);
+  }, [getOpeningBalance, getMonthNetForecast, getSnapshotForEndOfMonth]);
 
   return {
     months,
