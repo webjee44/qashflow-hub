@@ -453,6 +453,74 @@ export function useForecasts() {
     enabled: !!currentCompany?.id,
   });
 
+  // Fetch manual balance overrides
+  const { data: balanceOverrides = [] } = useQuery({
+    queryKey: ['balance-overrides', currentCompany?.id],
+    queryFn: async () => {
+      if (!currentCompany?.id) return [];
+      const { data, error } = await supabase
+        .from('balance_overrides')
+        .select('id, month, balance')
+        .eq('company_id', currentCompany.id);
+      if (error) throw error;
+      return (data || []) as { id: string; month: string; balance: number }[];
+    },
+    enabled: !!currentCompany?.id,
+  });
+
+  // Upsert balance override
+  const upsertBalanceOverride = useMutation({
+    mutationFn: async ({ month, balance }: { month: Date; balance: number }) => {
+      if (!user?.id || !currentCompany?.id) throw new Error('Non authentifié');
+      const monthStr = format(month, 'yyyy-MM-01');
+      const { error } = await supabase
+        .from('balance_overrides')
+        .upsert({
+          company_id: currentCompany.id,
+          user_id: currentCompany.user_id,
+          month: monthStr,
+          balance,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'company_id,month' });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['balance-overrides'] });
+      toast.success('Solde de fin de mois mis à jour');
+    },
+    onError: (error) => {
+      toast.error('Erreur: ' + error.message);
+    },
+  });
+
+  // Delete balance override
+  const deleteBalanceOverride = useMutation({
+    mutationFn: async ({ month }: { month: Date }) => {
+      if (!currentCompany?.id) throw new Error('Non authentifié');
+      const monthStr = format(month, 'yyyy-MM-01');
+      const { error } = await supabase
+        .from('balance_overrides')
+        .delete()
+        .eq('company_id', currentCompany.id)
+        .eq('month', monthStr);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['balance-overrides'] });
+      toast.success('Override supprimé, calcul automatique rétabli');
+    },
+    onError: (error) => {
+      toast.error('Erreur: ' + error.message);
+    },
+  });
+
+  // Helper to get balance override for a month
+  const getBalanceOverride = useCallback((month: Date): number | null => {
+    const monthStr = format(month, 'yyyy-MM-01');
+    const override = balanceOverrides.find(o => o.month === monthStr);
+    return override ? Number(override.balance) : null;
+  }, [balanceOverrides]);
+
   // Helper: get total snapshot balance for the last day of a given month
   const getSnapshotForEndOfMonth = useCallback((month: Date): number | null => {
     const monthStart = format(startOfMonth(month), 'yyyy-MM-dd');
