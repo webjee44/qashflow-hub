@@ -193,7 +193,8 @@ export function useForecasts() {
         .gte('date', startMonthStr)
         .lt('date', endMonthPlusOne)
         .is('category_id', null)
-        .is('deleted_at', null);
+        .is('deleted_at', null)
+        .or('is_ignored.is.null,is_ignored.eq.false');
       
       if (error) throw error;
       
