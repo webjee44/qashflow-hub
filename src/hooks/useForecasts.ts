@@ -611,7 +611,7 @@ export function useForecasts() {
   // Anchored on the current Bridge bank balance (most reliable reference point)
   // Past months: walk backwards by subtracting transactions between target and now
   // Future months: walk forwards by adding net forecasts
-  const getOpeningBalance = useCallback((month: Date): { balance: number; isActual: boolean } => {
+  const getOpeningBalance = useCallback((month: Date): { balance: number; isActual: boolean; isEstimated?: boolean } => {
     // Use live bank balance from bridge_accounts, fallback to companies.bank_balance
     const currentBankBalance = liveBankBalance ?? (currentCompany?.bank_balance != null ? Number(currentCompany.bank_balance) : null);
     const hasBankBalance = currentBankBalance != null;
@@ -622,7 +622,6 @@ export function useForecasts() {
     // If no Bridge connection, fall back to initial_balance + cumulative transactions
     if (!hasBankBalance) {
       if (isBefore(targetMonth, addMonths(todayMonth, 1))) {
-        // Past or current: initial_balance + transactions before target
         const transactionsBeforeTarget = allTransactions.filter(tx => {
           const txDate = new Date(tx.date);
           return txDate < targetMonth;
@@ -633,7 +632,6 @@ export function useForecasts() {
         }, 0);
         return { balance: initialBalance + netBefore, isActual: !isBefore(todayMonth, targetMonth) };
       }
-      // Future: initial_balance + all past transactions + forecasts
       const allPastNet = allTransactions.reduce((sum, tx) => {
         const amount = Number(tx.amount);
         return sum + (tx.type === 'income' ? amount : -amount);
@@ -660,15 +658,23 @@ export function useForecasts() {
     }
     
     if (isBefore(targetMonth, todayMonth)) {
-      // Past month: first check if we have a balance snapshot
+      // Past month: check if we have a snapshot for the PREVIOUS month's end
+      // Opening balance of month M = closing balance of month M-1
+      const prevMonth = addMonths(targetMonth, -1);
+      const prevSnapshot = getSnapshotForEndOfMonth(prevMonth);
+      if (prevSnapshot !== null) {
+        return { balance: prevSnapshot, isActual: true };
+      }
+      
+      // Also check if we have a snapshot for the first day of this month
       const targetDateStr = format(targetMonth, 'yyyy-MM-dd');
-      const snapshotsForDate = balanceSnapshots.filter(s => s.snapshot_date === targetDateStr);
-      if (snapshotsForDate.length > 0) {
-        const snapshotBalance = snapshotsForDate.reduce((sum, s) => sum + Number(s.balance), 0);
+      const firstDaySnapshots = balanceSnapshots.filter(s => s.snapshot_date === targetDateStr);
+      if (firstDaySnapshots.length > 0) {
+        const snapshotBalance = firstDaySnapshots.reduce((sum, s) => sum + Number(s.balance), 0);
         return { balance: snapshotBalance, isActual: true };
       }
       
-      // Fallback: walk backwards from current balance
+      // Fallback: walk backwards from current balance (mark as estimated)
       const transactionsBetween = allTransactions.filter(tx => {
         const txDate = new Date(tx.date);
         return txDate >= targetMonth && txDate < todayMonth;
@@ -677,7 +683,7 @@ export function useForecasts() {
         const amount = Number(tx.amount);
         return sum + (tx.type === 'income' ? amount : -amount);
       }, 0);
-      return { balance: currentBankBalance - netBetween, isActual: true };
+      return { balance: currentBankBalance - netBetween, isActual: true, isEstimated: true };
     }
     
     // Future month: calculate projected balance
@@ -687,7 +693,7 @@ export function useForecasts() {
       projectedBalance += monthNet;
     }
     return { balance: projectedBalance, isActual: false };
-  }, [currentCompany, liveBankBalance, allTransactions, balanceSnapshots, getMonthNetForecast]);
+  }, [currentCompany, liveBankBalance, allTransactions, balanceSnapshots, getSnapshotForEndOfMonth, getMonthNetForecast]);
 
   // Helper to get total income forecast (HT) for a month - used for variable charge tooltips
   const getIncomeForecastTotal = useCallback((month: Date): number => {
