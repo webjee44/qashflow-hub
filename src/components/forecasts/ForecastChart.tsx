@@ -250,6 +250,23 @@ export function ForecastChart({ months, getMonthTotal, getPayableOutflow, getClo
                 stroke="hsl(var(--primary))"
                 strokeWidth={2.5}
                 name="Solde fin de mois"
+                label={({ x, y, value }: any) => {
+                  const formatted = Math.abs(value) >= 1000
+                    ? `${(value / 1000).toFixed(0)}k`
+                    : `${value.toFixed(0)}`;
+                  return (
+                    <text
+                      x={x}
+                      y={y - 12}
+                      textAnchor="middle"
+                      fill={value < 0 ? 'hsl(var(--destructive))' : 'hsl(var(--primary))'}
+                      fontSize={10}
+                      fontWeight={600}
+                    >
+                      {formatted} €
+                    </text>
+                  );
+                }}
                 dot={(props: any) => {
                   const { cx, cy, payload } = props;
                   const isNegative = payload.endBalance < 0;
