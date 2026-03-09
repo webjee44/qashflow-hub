@@ -712,6 +712,12 @@ export function useForecasts() {
     }
     
     if (isSameMonth(month, new Date())) {
+      // Check if previous month has a balance override
+      const prevMonth = addMonths(targetMonth, -1);
+      const prevOverride = getBalanceOverride(prevMonth);
+      if (prevOverride !== null) {
+        return { balance: prevOverride, isActual: true };
+      }
       // Current month: opening = currentBalance - net of all transactions this month
       const monthStart = startOfMonth(month);
       const transactionsThisMonth = allTransactions.filter(tx => {
