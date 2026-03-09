@@ -90,6 +90,14 @@ export function useForecasts() {
     setMonthsAfterState(prev => prev + 1);
   }, []);
 
+  const shrinkBefore = useCallback(() => {
+    setMonthsBeforeState(prev => Math.max(0, prev - 1));
+  }, []);
+
+  const shrinkAfter = useCallback(() => {
+    setMonthsAfterState(prev => Math.max(0, prev - 1));
+  }, []);
+
   const resetPeriod = useCallback(() => {
     setMonthsBeforeState(0);
     setMonthsAfterState(5);
