@@ -17,10 +17,31 @@ Deno.serve(async (req) => {
 
     const today = new Date().toISOString().split('T')[0];
 
-    // Fetch all active bridge accounts with their balances
+    // Use company_bridge_accounts as source of truth for account-company mapping
+    const { data: assignments, error: assignError } = await supabase
+      .from('company_bridge_accounts')
+      .select('company_id, bridge_account_id');
+
+    if (assignError) {
+      console.error('[snapshot-balances] Assignment fetch error:', assignError);
+      throw assignError;
+    }
+
+    if (!assignments || assignments.length === 0) {
+      console.info('[snapshot-balances] No account assignments found');
+      return new Response(JSON.stringify({ success: true, snapshots: 0 }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Get all assigned bridge_account_ids
+    const assignedIds = assignments.map(a => a.bridge_account_id);
+
+    // Fetch balances for assigned accounts only
     const { data: accounts, error: fetchError } = await supabase
       .from('bridge_accounts')
-      .select('bridge_account_id, company_id, balance')
+      .select('bridge_account_id, balance')
+      .in('bridge_account_id', assignedIds)
       .eq('status', 'active');
 
     if (fetchError) {
@@ -29,19 +50,34 @@ Deno.serve(async (req) => {
     }
 
     if (!accounts || accounts.length === 0) {
-      console.info('[snapshot-balances] No active accounts found');
+      console.info('[snapshot-balances] No active assigned accounts found');
       return new Response(JSON.stringify({ success: true, snapshots: 0 }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    // Upsert snapshots for today (one per account)
-    const snapshots = accounts.map((acc) => ({
-      bridge_account_id: acc.bridge_account_id,
-      company_id: acc.company_id,
-      balance: acc.balance ?? 0,
-      snapshot_date: today,
-    }));
+    // Build a map of bridge_account_id -> company_id from assignments
+    const accountToCompany = new Map<number, string>();
+    for (const a of assignments) {
+      accountToCompany.set(a.bridge_account_id, a.company_id);
+    }
+
+    // Create snapshots using the company_id from assignments (not from bridge_accounts)
+    const snapshots = accounts
+      .filter(acc => accountToCompany.has(acc.bridge_account_id))
+      .map((acc) => ({
+        bridge_account_id: acc.bridge_account_id,
+        company_id: accountToCompany.get(acc.bridge_account_id)!,
+        balance: acc.balance ?? 0,
+        snapshot_date: today,
+      }));
+
+    if (snapshots.length === 0) {
+      console.info('[snapshot-balances] No snapshots to create');
+      return new Response(JSON.stringify({ success: true, snapshots: 0 }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
     const { error: upsertError, count } = await supabase
       .from('bank_balance_snapshots')
