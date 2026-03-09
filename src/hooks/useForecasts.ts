@@ -145,7 +145,8 @@ export function useForecasts() {
         .eq('company_id', currentCompany.id)
         .gte('date', startMonthStr)
         .lt('date', endMonthPlusOne)
-        .is('deleted_at', null);
+        .is('deleted_at', null)
+        .or('is_ignored.is.null,is_ignored.eq.false');
       
       if (error) throw error;
       
