@@ -1939,11 +1939,11 @@ export function ForecastTable() {
         )}
       </div>
 
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto max-h-[calc(100vh-280px)] overflow-y-auto">
         <table className="w-full min-w-[900px] text-[13px]">
-          <thead>
-            <tr className="border-b border-border bg-muted/30">
-              <th className="text-left p-3 font-semibold text-foreground sticky left-0 z-10 bg-muted/30 border-r border-border min-w-[200px]">
+          <thead className="sticky top-0 z-20">
+            <tr className="border-b border-border bg-card">
+              <th className="text-left p-3 font-semibold text-foreground sticky left-0 z-30 bg-card border-r border-border min-w-[200px]">
                 Catégorie
               </th>
               {months.map((month, index) => {
@@ -1952,7 +1952,7 @@ export function ForecastTable() {
                 
                 if (periodType === 'past') {
                   return (
-                    <th key={index} className={cn("p-0 border-r border-border", minWidth)}>
+                    <th key={index} className={cn("p-0 border-r border-border bg-card", minWidth)}>
                       <div className="text-center p-2 border-b border-border/50 font-semibold text-foreground capitalize">
                         {formatMonth(month)}
                       </div>
@@ -1965,7 +1965,7 @@ export function ForecastTable() {
                 
                 if (periodType === 'future') {
                   return (
-                    <th key={index} className={cn("p-0 border-r border-border", minWidth)}>
+                    <th key={index} className={cn("p-0 border-r border-border bg-card", minWidth)}>
                       <div className="text-center p-2 border-b border-border/50 font-semibold text-foreground capitalize">
                         {formatMonth(month)}
                       </div>
