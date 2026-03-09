@@ -117,6 +117,11 @@ export function ForecastTable() {
     isLoading: forecastsLoading,
     extendBefore,
     extendAfter,
+    shrinkBefore,
+    shrinkAfter,
+    resetPeriod,
+    monthsBefore,
+    monthsAfter,
   } = useForecasts();
   
   // Track if user has been warned about override (per session)
