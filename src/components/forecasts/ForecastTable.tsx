@@ -137,6 +137,9 @@ export function ForecastTable() {
   const [growthPercent, setGrowthPercent] = useState<string>('5');
   const [showGrowthInput, setShowGrowthInput] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [editingBalanceMonth, setEditingBalanceMonth] = useState<number | null>(null);
+  const [balanceEditValue, setBalanceEditValue] = useState<string>('');
+  const balanceInputRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   
   // Category edit/delete state
