@@ -735,6 +735,11 @@ export function useForecasts() {
       // Past month: check if we have a snapshot for the PREVIOUS month's end
       // Opening balance of month M = closing balance of month M-1
       const prevMonth = addMonths(targetMonth, -1);
+      // Past month: check balance override for previous month first
+      const prevOverride = getBalanceOverride(prevMonth);
+      if (prevOverride !== null) {
+        return { balance: prevOverride, isActual: true };
+      }
       const prevSnapshot = getSnapshotForEndOfMonth(prevMonth);
       if (prevSnapshot !== null) {
         return { balance: prevSnapshot, isActual: true };
