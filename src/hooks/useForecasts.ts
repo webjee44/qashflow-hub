@@ -145,7 +145,8 @@ export function useForecasts() {
         .eq('company_id', currentCompany.id)
         .gte('date', startMonthStr)
         .lt('date', endMonthPlusOne)
-        .is('deleted_at', null);
+        .is('deleted_at', null)
+        .or('is_ignored.is.null,is_ignored.eq.false');
       
       if (error) throw error;
       
@@ -192,7 +193,8 @@ export function useForecasts() {
         .gte('date', startMonthStr)
         .lt('date', endMonthPlusOne)
         .is('category_id', null)
-        .is('deleted_at', null);
+        .is('deleted_at', null)
+        .or('is_ignored.is.null,is_ignored.eq.false');
       
       if (error) throw error;
       
@@ -425,6 +427,7 @@ export function useForecasts() {
           .select('amount, date, type')
           .eq('company_id', currentCompany.id)
           .is('deleted_at', null)
+          .or('is_ignored.is.null,is_ignored.eq.false')
           .range(offset, offset + batchSize - 1);
         if (error) throw error;
         allData = allData.concat(data || []);
