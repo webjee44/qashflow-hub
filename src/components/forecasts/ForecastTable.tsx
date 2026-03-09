@@ -114,6 +114,9 @@ export function ForecastTable() {
     getOpeningBalance,
     getClosingBalance,
     upsertForecast, 
+    upsertBalanceOverride,
+    deleteBalanceOverride,
+    getBalanceOverride,
     isLoading: forecastsLoading,
     extendBefore,
     extendAfter,
@@ -134,6 +137,9 @@ export function ForecastTable() {
   const [growthPercent, setGrowthPercent] = useState<string>('5');
   const [showGrowthInput, setShowGrowthInput] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [editingBalanceMonth, setEditingBalanceMonth] = useState<number | null>(null);
+  const [balanceEditValue, setBalanceEditValue] = useState<string>('');
+  const balanceInputRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   
   // Category edit/delete state
@@ -1769,14 +1775,69 @@ export function ForecastTable() {
           
           if (periodType === 'past') {
             const isEstimated = (closingData as any).isEstimated;
+            const hasOverride = getBalanceOverride(month) !== null;
+            const isEditingThis = editingBalanceMonth === monthIndex;
+            
+            if (isEditingThis) {
+              return (
+                <td key={monthIndex} className="p-0 border-r border-border min-w-[90px]">
+                  <input
+                    ref={balanceInputRef}
+                    type="text"
+                    inputMode="decimal"
+                    className="w-full px-3 py-2 text-right font-bold bg-background border-2 border-primary rounded outline-none text-sm"
+                    value={balanceEditValue}
+                    onChange={(e) => setBalanceEditValue(e.target.value)}
+                    onBlur={() => {
+                      const parsed = parseFloat(balanceEditValue.replace(/[^0-9.,-]/g, '').replace(',', '.'));
+                      if (!isNaN(parsed)) {
+                        upsertBalanceOverride.mutate({ month, balance: parsed });
+                      }
+                      setEditingBalanceMonth(null);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        (e.target as HTMLInputElement).blur();
+                      } else if (e.key === 'Escape') {
+                        setEditingBalanceMonth(null);
+                      }
+                    }}
+                    autoFocus
+                  />
+                </td>
+              );
+            }
+            
             return (
               <td key={monthIndex} className="p-0 border-r border-border min-w-[90px]">
-                <div className={cn(
-                  "px-3 py-2 text-right font-bold",
-                  balance >= 0 ? "text-primary" : "text-foreground"
-                )} title={isEstimated ? "Solde estimé (pas de snapshot disponible)" : undefined}>
-                  {isEstimated ? '~' : ''}{formatValue(balance)}
-                </div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <div className={cn(
+                      "px-3 py-2 text-right font-bold cursor-pointer hover:bg-primary/20 transition-colors",
+                      balance >= 0 ? "text-primary" : "text-foreground",
+                      hasOverride && "border-l-2 border-l-primary"
+                    )} title={hasOverride ? "Solde modifié manuellement (cliquer pour éditer)" : isEstimated ? "Solde estimé (cliquer pour corriger)" : "Cliquer pour modifier"}>
+                      {hasOverride && <Edit3 className="w-3 h-3 inline mr-1 text-primary" />}
+                      {isEstimated && !hasOverride ? '~' : ''}{formatValue(balance)}
+                    </div>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => {
+                      setEditingBalanceMonth(monthIndex);
+                      setBalanceEditValue(Math.round(balance).toString());
+                      setTimeout(() => balanceInputRef.current?.select(), 50);
+                    }}>
+                      <Edit3 className="w-4 h-4 mr-2" />
+                      Modifier le solde
+                    </DropdownMenuItem>
+                    {hasOverride && (
+                      <DropdownMenuItem onClick={() => deleteBalanceOverride.mutate({ month })} className="text-destructive">
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Rétablir le calcul auto
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </td>
             );
           }
