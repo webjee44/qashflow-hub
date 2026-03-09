@@ -846,6 +846,10 @@ export function useForecasts() {
     getIncomeForecastTotal,
     // Closing balance
     getClosingBalance,
+    // Balance overrides
+    upsertBalanceOverride,
+    deleteBalanceOverride,
+    getBalanceOverride,
     // Payables
     payableInvoices,
     getPayableOutflow,
