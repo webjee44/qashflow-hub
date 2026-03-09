@@ -1952,7 +1952,7 @@ export function ForecastTable() {
                 
                 if (periodType === 'past') {
                   return (
-                    <th key={index} className={cn("p-0 border-r border-border", minWidth)}>
+                    <th key={index} className={cn("p-0 border-r border-border bg-card", minWidth)}>
                       <div className="text-center p-2 border-b border-border/50 font-semibold text-foreground capitalize">
                         {formatMonth(month)}
                       </div>
