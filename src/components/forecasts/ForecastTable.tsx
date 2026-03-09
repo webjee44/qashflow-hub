@@ -1939,9 +1939,9 @@ export function ForecastTable() {
         )}
       </div>
 
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto max-h-[calc(100vh-280px)] overflow-y-auto">
         <table className="w-full min-w-[900px] text-[13px]">
-          <thead>
+          <thead className="sticky top-0 z-20">
             <tr className="border-b border-border bg-muted/30">
               <th className="text-left p-3 font-semibold text-foreground sticky left-0 z-10 bg-muted/30 border-r border-border min-w-[200px]">
                 Catégorie
