@@ -797,6 +797,11 @@ export function useForecasts() {
     })();
 
     if (periodType === 'past') {
+      // Check manual override first
+      const override = getBalanceOverride(month);
+      if (override !== null) {
+        return { balance: override, isActual: true };
+      }
       // Check if we have a snapshot for this month's end
       const snapshot = getSnapshotForEndOfMonth(month);
       if (snapshot !== null) {
