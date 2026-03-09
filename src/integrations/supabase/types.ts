@@ -151,6 +151,41 @@ export type Database = {
           },
         ]
       }
+      bank_balance_snapshots: {
+        Row: {
+          balance: number
+          bridge_account_id: number
+          company_id: string
+          created_at: string
+          id: string
+          snapshot_date: string
+        }
+        Insert: {
+          balance?: number
+          bridge_account_id: number
+          company_id: string
+          created_at?: string
+          id?: string
+          snapshot_date: string
+        }
+        Update: {
+          balance?: number
+          bridge_account_id?: number
+          company_id?: string
+          created_at?: string
+          id?: string
+          snapshot_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bank_balance_snapshots_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bp_bonuses: {
         Row: {
           amount: number
