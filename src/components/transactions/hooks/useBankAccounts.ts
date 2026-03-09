@@ -18,7 +18,10 @@ export function useBankAccounts() {
   const bankAccountDisplayMap = useMemo(() => {
     const map = new Map<string, string>();
     bridgeAccounts.forEach(acc => {
-      if (acc.name) map.set(acc.name, acc.name);
+      if (acc.name) {
+        const display = acc.bank_name && acc.bank_name.toLowerCase() !== 'bridge' ? acc.bank_name : acc.name;
+        map.set(acc.name, display);
+      }
     });
     return map;
   }, [bridgeAccounts]);
