@@ -823,7 +823,7 @@ export function useForecasts() {
     // Future: opening + net forecast
     const netForecast = getMonthNetForecast(month);
     return { balance: opening.balance + netForecast, isActual: false };
-  }, [getOpeningBalance, getMonthNetForecast, getSnapshotForEndOfMonth]);
+  }, [getOpeningBalance, getMonthNetForecast, getSnapshotForEndOfMonth, getBalanceOverride]);
 
   return {
     months,
