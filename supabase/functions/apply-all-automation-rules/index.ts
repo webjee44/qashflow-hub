@@ -117,16 +117,20 @@ Deno.serve(async (req) => {
         global: { headers: { Authorization: authHeader } }
       });
 
-      const token = authHeader.replace('Bearer ', '');
-      const { data: claimsData, error: claimsError } = await supabaseUser.auth.getClaims(token);
-
-      if (!claimsError && claimsData?.claims) {
-        userFilter = claimsData.claims.sub as string;
-        try {
-          const body = await req.json();
-          companyFilter = body.company_id || null;
-        } catch { /* No body */ }
-        console.log(`[apply-all-automation-rules] User-initiated: ${userFilter}, company: ${companyFilter || 'all'}`);
+      try {
+        const { data: { user }, error: userError } = await supabaseUser.auth.getUser();
+        if (!userError && user) {
+          userFilter = user.id;
+          try {
+            const body = await req.json();
+            companyFilter = body.company_id || null;
+          } catch { /* No body */ }
+          console.log(`[apply-all-automation-rules] User-initiated: ${userFilter}, company: ${companyFilter || 'all'}`);
+        } else {
+          console.log('[apply-all-automation-rules] CRON/anon call - processing all rules');
+        }
+      } catch (e) {
+        console.log('[apply-all-automation-rules] Auth check failed, processing all rules:', e);
       }
     }
 
