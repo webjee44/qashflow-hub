@@ -707,7 +707,7 @@ export function useForecasts() {
   }, [categories, forecasts]);
 
   // Helper to get closing balance (end of month) = opening balance + month net variation
-  const getClosingBalance = useCallback((month: Date): { balance: number; forecastBalance?: number; isActual: boolean } => {
+  const getClosingBalance = useCallback((month: Date): { balance: number; forecastBalance?: number; isActual: boolean; isEstimated?: boolean } => {
     const opening = getOpeningBalance(month);
     const periodType = (() => {
       const todayMonth = startOfMonth(new Date());
@@ -718,16 +718,20 @@ export function useForecasts() {
     })();
 
     if (periodType === 'past') {
+      // Check if we have a snapshot for this month's end
+      const snapshot = getSnapshotForEndOfMonth(month);
+      if (snapshot !== null) {
+        return { balance: snapshot, isActual: true };
+      }
+      // Fallback to next month's opening (retro-calculated, mark as estimated)
       const nextMonth = addMonths(startOfMonth(month), 1);
       const nextOpening = getOpeningBalance(nextMonth);
-      return { balance: nextOpening.balance, isActual: true };
+      return { balance: nextOpening.balance, isActual: true, isEstimated: nextOpening.isEstimated };
     }
 
     if (periodType === 'current') {
-      // Actual: opening of next month (based on real transactions so far)
       const nextMonth = addMonths(startOfMonth(month), 1);
       const nextOpening = getOpeningBalance(nextMonth);
-      // Forecast: opening + net forecast for the full month
       const netForecast = getMonthNetForecast(month);
       return { balance: nextOpening.balance, forecastBalance: opening.balance + netForecast, isActual: false };
     }
@@ -735,7 +739,7 @@ export function useForecasts() {
     // Future: opening + net forecast
     const netForecast = getMonthNetForecast(month);
     return { balance: opening.balance + netForecast, isActual: false };
-  }, [getOpeningBalance, getMonthNetForecast]);
+  }, [getOpeningBalance, getMonthNetForecast, getSnapshotForEndOfMonth]);
 
   return {
     months,
