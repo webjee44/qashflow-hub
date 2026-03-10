@@ -2184,4 +2184,4 @@ export const ForecastTable = forwardRef<ForecastTableRef>(function ForecastTable
       </AlertDialog>
     </div>
   );
-}
+});
