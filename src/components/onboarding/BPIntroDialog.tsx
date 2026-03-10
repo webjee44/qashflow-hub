@@ -15,15 +15,21 @@ export function BPIntroDialog() {
 
   useEffect(() => {
     if (!currentCompany?.id || !user?.id) return;
+    
+    // Fast path: if localStorage already says bp_enabled, skip DB query entirely
+    if (localStorage.getItem('bp_enabled') === 'true') return;
+    
     // Check bp_enabled from DB - if already activated, never show
     supabase
       .from('profiles')
       .select('bp_enabled')
       .eq('id', user.id)
       .single()
-      .then(({ data }) => {
+      .then(({ data, error }) => {
+        if (error) return; // Don't show modal on query failure
         if (data?.bp_enabled) {
-          // Already activated in DB, never show again
+          // Sync localStorage so we skip DB next time
+          localStorage.setItem('bp_enabled', 'true');
           return;
         }
         setOpen(true);
