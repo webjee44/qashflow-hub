@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowRight, TrendingUp, RefreshCw, BarChart3, Shield, CheckCircle2, AlertTriangle, Clock, XCircle, Zap, Lock, CreditCard } from 'lucide-react';
+import { ArrowRight, TrendingUp, RefreshCw, BarChart3, Shield, CheckCircle2, AlertTriangle, Clock, XCircle, Zap, Lock, CreditCard, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
@@ -8,6 +8,8 @@ import { SEOHead } from '@/components/seo/SEOHead';
 import logo from '@/assets/logo-white.png';
 import felixPhoto from '@/assets/felix.png';
 import { BankSlider } from '@/components/landing/BankSlider';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 const fadeUp = {
   hidden: { opacity: 0, y: 30 },
@@ -20,7 +22,6 @@ const stagger = {
 
 // ── Config ────────────────────────────────────────
 const TOTAL_LICENSES = 30;
-const CHECKOUT_URL = '#'; // TODO: replace with Stripe Checkout link
 const DEADLINE = '31 mars 2025';
 
 
@@ -63,9 +64,23 @@ const faqs = [
 
 export default function Flow() {
   const [licensesRemaining] = useState(27);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const ctaClick = () => {
-    window.open(CHECKOUT_URL, '_blank', 'noopener');
+  const ctaClick = async () => {
+    if (isLoading) return;
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('create-flow-checkout');
+      if (error) throw error;
+      if (data?.url) {
+        window.location.href = data.url;
+      } else {
+        throw new Error('URL de paiement non reçue');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Erreur lors de la création du paiement');
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -113,10 +128,12 @@ export default function Flow() {
             <Button
               size="lg"
               onClick={ctaClick}
+              disabled={isLoading}
               className="bg-emerald-500 hover:bg-emerald-600 text-gray-950 font-semibold text-base px-8 h-12"
             >
+              {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
               Obtenir ma licence à vie — 497 €
-              <ArrowRight className="ml-2 h-5 w-5" />
+              {!isLoading && <ArrowRight className="ml-2 h-5 w-5" />}
             </Button>
             <span className="text-sm text-gray-500">Jusqu'au {DEADLINE} · Satisfait ou remboursé 7j</span>
           </motion.div>
@@ -282,10 +299,12 @@ export default function Flow() {
             <Button
               size="lg"
               onClick={ctaClick}
+              disabled={isLoading}
               className="w-full sm:w-auto bg-emerald-500 hover:bg-emerald-600 text-gray-950 font-semibold text-base px-10 h-13"
             >
+              {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
               Obtenir ma licence à vie — 497 €
-              <ArrowRight className="ml-2 h-5 w-5" />
+              {!isLoading && <ArrowRight className="ml-2 h-5 w-5" />}
             </Button>
 
             <div className="flex items-center justify-center gap-4 mt-5 text-xs text-gray-500">
@@ -374,10 +393,12 @@ export default function Flow() {
             <Button
               size="lg"
               onClick={ctaClick}
+              disabled={isLoading}
               className="bg-emerald-500 hover:bg-emerald-600 text-gray-950 font-semibold text-base px-8 h-12"
             >
+              {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
               Obtenir ma licence à vie — 497 €
-              <ArrowRight className="ml-2 h-5 w-5" />
+              {!isLoading && <ArrowRight className="ml-2 h-5 w-5" />}
             </Button>
           </motion.div>
         </motion.div>
