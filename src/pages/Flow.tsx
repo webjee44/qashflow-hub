@@ -160,7 +160,7 @@ export default function Flow() {
                 key={bank.name}
                 src={bank.logo}
                 alt={`Logo ${bank.name}`}
-                className="h-8 sm:h-10 object-contain opacity-60 hover:opacity-100 transition-opacity brightness-0 invert"
+                className="h-12 sm:h-14 object-contain opacity-60 hover:opacity-100 transition-opacity brightness-0 invert"
                 title={bank.name}
               />
             ))}
