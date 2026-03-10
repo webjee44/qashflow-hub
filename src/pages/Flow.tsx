@@ -25,16 +25,6 @@ const TOTAL_LICENSES = 30;
 const CHECKOUT_URL = '#'; // TODO: replace with Stripe Checkout link
 const DEADLINE = '31 mars 2025';
 
-const compatibleBanks = [
-  { name: 'CIC', logo: bankCic },
-  
-  { name: 'Crédit Agricole', logo: bankCreditAgricole },
-  { name: 'Société Générale', logo: bankSocieteGenerale },
-  { name: 'BNP Paribas', logo: bankBnpParibas },
-  { name: 'LCL', logo: bankLcl },
-  { name: 'Caisse d\'Épargne', logo: bankCaisseEpargne },
-  { name: 'La Banque Postale', logo: bankBanquePostale },
-];
 
 const features = [
   { icon: RefreshCw, title: 'Synchronisation bancaire automatique', desc: 'Vos comptes se mettent à jour toutes les heures. Zéro saisie manuelle.' },
