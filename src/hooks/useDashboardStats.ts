@@ -362,7 +362,7 @@ export function useCategoryBreakdown() {
       const monthEnd = format(endOfMonth(now), 'yyyy-MM-dd');
 
       try {
-        // Fetch transactions with categories for current month (exclude deleted)
+        // Fetch transactions with categories for current month (exclude deleted and ignored)
         let query = supabase
           .from('transactions')
           .select(`
@@ -377,7 +377,8 @@ export function useCategoryBreakdown() {
           .eq('type', 'expense')
           .gte('date', monthStart)
           .lte('date', monthEnd)
-          .is('deleted_at', null);
+          .is('deleted_at', null)
+          .or('is_ignored.is.null,is_ignored.eq.false');
 
         if (currentCompany?.id) {
           query = query.eq('company_id', currentCompany.id);
