@@ -1984,6 +1984,14 @@ export const ForecastTable = forwardRef<ForecastTableRef>(function ForecastTable
           if (periodType === 'past') {
             const isEstimated = (closingData as any).isEstimated;
             const noData = (closingData as any).noData;
+            if (noData) {
+              return (
+                <td key={monthIndex} className="p-0 border-r border-border min-w-[90px]">
+                  <div className="px-3 py-2 text-right font-bold text-muted-foreground/50 italic">—</div>
+                </td>
+              );
+            }
+
             const hasOverride = getBalanceOverride(month) !== null;
             const isEditingThis = editingBalanceMonth === monthIndex;
             
