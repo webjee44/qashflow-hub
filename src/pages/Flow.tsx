@@ -393,10 +393,12 @@ export default function Flow() {
             <Button
               size="lg"
               onClick={ctaClick}
+              disabled={isLoading}
               className="bg-emerald-500 hover:bg-emerald-600 text-gray-950 font-semibold text-base px-8 h-12"
             >
+              {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
               Obtenir ma licence à vie — 497 €
-              <ArrowRight className="ml-2 h-5 w-5" />
+              {!isLoading && <ArrowRight className="ml-2 h-5 w-5" />}
             </Button>
           </motion.div>
         </motion.div>
