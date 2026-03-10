@@ -9,14 +9,7 @@ import logo from '@/assets/logo-white.png';
 import screenshotDashboard from '@/assets/screenshot-dashboard.png';
 import screenshotPrevisions from '@/assets/screenshot-previsions.png';
 import screenshotPnl from '@/assets/screenshot-pnl.png';
-import bankCic from '@/assets/banks/cic.png';
-
-import bankCreditAgricole from '@/assets/banks/credit-agricole.png';
-import bankSocieteGenerale from '@/assets/banks/societe-generale.png';
-import bankBnpParibas from '@/assets/banks/bnp-paribas.png';
-import bankLcl from '@/assets/banks/lcl.png';
-import bankCaisseEpargne from '@/assets/banks/caisse-epargne.png';
-import bankBanquePostale from '@/assets/banks/la-banque-postale.png';
+import { BankSlider } from '@/components/landing/BankSlider';
 
 const fadeUp = {
   hidden: { opacity: 0, y: 30 },
