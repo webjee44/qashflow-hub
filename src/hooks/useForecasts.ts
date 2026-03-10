@@ -640,11 +640,10 @@ export function useForecasts() {
     return dateSnapshots.reduce((sum, s) => sum + Number(s.balance), 0);
   }, [balanceSnapshots]);
 
-  // Calculate the opening balance for a given month — FORWARD-ONLY / LEDGER approach
-  // Past & current: read snapshot at 1st of the month (populated by backfill + daily CRON)
-  // Future: snapshot of current month + Σ net forecasts
-  const getOpeningBalance = useCallback((month: Date): { balance: number; isActual: boolean; isEstimated?: boolean } => {
-    const initialBalance = currentCompany?.initial_balance ?? 0;
+  // Calculate the opening balance — Point Zéro forward-only approach
+  // Past & current: read snapshot. If absent → null (pre-enrollment)
+  // Future: current month anchor + Σ net forecasts
+  const getOpeningBalance = useCallback((month: Date): { balance: number; isActual: boolean; isEstimated?: boolean; noData?: boolean } => {
     const todayMonth = startOfMonth(new Date());
     const targetMonth = startOfMonth(month);
     const targetDateStr = format(targetMonth, 'yyyy-MM-01');
@@ -656,56 +655,27 @@ export function useForecasts() {
       return { balance: prevOverride, isActual: true };
     }
 
-    // 2. For past & current months: look up snapshot at 1st of this month
+    // 2. Past & current months: read snapshot directly
     if (isBefore(targetMonth, addMonths(todayMonth, 1))) {
-      // Try snapshot at 1st of target month
       const snapshot = getSnapshotForDate(targetDateStr);
       if (snapshot !== null) {
         return { balance: snapshot, isActual: true };
       }
-
-      // Try end-of-previous-month snapshot as fallback
-      const prevSnapshot = getSnapshotForEndOfMonth(prevMonth);
-      if (prevSnapshot !== null) {
-        return { balance: prevSnapshot, isActual: true };
-      }
-
-      // Last resort for current month: use live bank balance minus this month's transactions
-      if (isSameMonth(month, new Date()) && liveBankBalance != null) {
-        // We still have actuals data from the actuals query — compute net from that
-        return { balance: liveBankBalance, isActual: true, isEstimated: true };
-      }
-
-      // No snapshot available at all — use initial_balance (should only happen before backfill)
-      return { balance: initialBalance, isActual: true, isEstimated: true };
+      // No snapshot = pre-enrollment month
+      return { balance: 0, isActual: true, noData: true };
     }
 
-    // 3. Future months: find the best anchor (current month snapshot or live balance) and walk forward
-    let anchorBalance: number;
-    let anchorMonth: Date;
-
-    // Try current month snapshot first
+    // 3. Future: find anchor and walk forward
     const currentMonthStr = format(todayMonth, 'yyyy-MM-01');
     const currentSnapshot = getSnapshotForDate(currentMonthStr);
-    if (currentSnapshot !== null) {
-      anchorBalance = currentSnapshot;
-      anchorMonth = todayMonth;
-    } else if (liveBankBalance != null) {
-      // Fallback: use live balance as "current month" anchor (less precise but works)
-      anchorBalance = liveBankBalance;
-      anchorMonth = todayMonth;
-    } else {
-      anchorBalance = initialBalance;
-      anchorMonth = todayMonth;
-    }
+    const anchorBalance = currentSnapshot ?? liveBankBalance ?? 0;
 
-    // Walk forward from anchor month to target month
     let projectedBalance = anchorBalance;
-    for (let m = anchorMonth; isBefore(m, targetMonth); m = addMonths(m, 1)) {
+    for (let m = todayMonth; isBefore(m, targetMonth); m = addMonths(m, 1)) {
       projectedBalance += getMonthNetForecast(m);
     }
     return { balance: projectedBalance, isActual: false };
-  }, [currentCompany, liveBankBalance, balanceSnapshots, getSnapshotForDate, getSnapshotForEndOfMonth, getMonthNetForecast, getBalanceOverride]);
+  }, [liveBankBalance, balanceSnapshots, getSnapshotForDate, getMonthNetForecast, getBalanceOverride]);
 
   // Helper to get total income forecast (HT) for a month - used for variable charge tooltips
   const getIncomeForecastTotal = useCallback((month: Date): number => {
