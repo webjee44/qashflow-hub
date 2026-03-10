@@ -780,7 +780,7 @@ export function useForecasts() {
     actuals,
     uncategorized,
     categories,
-    isLoading: forecastsLoading || actualsLoading || uncategorizedLoading || payablesLoading || transactionsLoading,
+    isLoading: forecastsLoading || actualsLoading || uncategorizedLoading || payablesLoading,
     upsertForecast,
     getForecast,
     getForecastSource,
