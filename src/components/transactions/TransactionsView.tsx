@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Loader2, RefreshCw } from 'lucide-react';
+import { Loader2, RefreshCw, Bot } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
