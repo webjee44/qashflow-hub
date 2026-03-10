@@ -149,7 +149,7 @@ export default function Flow() {
           </motion.div>
 
           <motion.blockquote variants={fadeUp} className="relative max-w-2xl mx-auto text-center">
-            <img src={felixPhoto} alt="Félix C." className="w-14 h-14 rounded-full object-cover mx-auto mb-4" />
+            <img src={felixPhoto} alt="Félix C." className="w-20 h-20 rounded-full object-cover mx-auto mb-4" />
             <p className="text-lg italic text-gray-300 leading-relaxed">
               "Je gère 7 sociétés. Avant Qashflow, je passais 3h par semaine à mettre à jour des fichiers Excel
               qui cassaient un mois sur deux. Aujourd'hui, j'ai une vision claire en 10 minutes."
