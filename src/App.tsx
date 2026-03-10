@@ -39,6 +39,7 @@ import StartVerify from "./pages/StartVerify";
 import StartWelcome from "./pages/StartWelcome";
 import JoinInvitation from "./pages/JoinInvitation";
 import ImpersonateLanding from "./pages/ImpersonateLanding";
+import Flow from "./pages/Flow";
 
 // ============================================
 // Comparison pages (lazy loading)
@@ -131,6 +132,7 @@ const App = () => (
                 <Route path="/contact" element={<Contact />} />
                 <Route path="/mentions-legales" element={<MentionsLegales />} />
                 <Route path="/confidentialite" element={<Confidentialite />} />
+                <Route path="/flow" element={<Flow />} />
                 <Route path="/auth" element={<Navigate to="/sign-in" replace />} />
                 <Route path="/sign-in" element={<SignIn />} />
                 <Route path="/sign-up" element={<SignUp />} />

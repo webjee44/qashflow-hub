@@ -1,39 +1,30 @@
 
 
-# Landing Page "Offre Flow" — `/flow`
+## Simplification "Point Zéro" — Forward-Only — ✅ TERMINÉ
 
-## Objectif
-Créer une landing page dédiée à l'offre communauté Flow (497€ licence à vie, 30 places), accessible uniquement via `/flow`, non liée au menu de navigation. Design dark/premium avec accent vert électrique, ton direct (Félix parle en première personne).
+### Ce qui a été fait
 
-## Structure de la page
+1. **`bridge-sync` — Snapshot initial "Point Zéro"** : Après chaque full-sync, si aucun snapshot n'existe pour la company, le système calcule `Live Balance - Σ transactions depuis le 1er du mois` et insère un snapshot unique au 1er du mois courant. Cela se fait une seule fois, au moment de la première connexion bancaire.
 
-### Fichier : `src/pages/Flow.tsx`
-Page standalone avec ses propres styles inline/Tailwind (fond sombre `bg-gray-950`, texte blanc, accent `emerald-400`). Pas de `PublicNavbar` classique — juste le logo Qashflow en haut.
+2. **`useForecasts.ts` — `getOpeningBalance` simplifié** :
+   - **Passé/Courant** : Lecture directe du snapshot. Si absent → `{ noData: true }` (mois pré-inscription)
+   - **Futur** : Snapshot courant + Σ net forecasts en marche avant
+   - ❌ Supprimé : `getSnapshotForEndOfMonth`, fallback `liveBankBalance` dans le calcul d'ouverture, `initialBalance`
 
-**Blocs dans l'ordre du brief :**
+3. **`useForecasts.ts` — `getClosingBalance` simplifié** :
+   - Utilise `getOpeningBalance(nextMonth)` comme fermeture
+   - Propage `noData` pour les mois sans snapshot
+   - Override manuel toujours supporté
 
-1. **Hero** — "Vous pilotez encore votre tréso sur Excel ?" + sous-titre personnel de Félix + Badge "Réservé abonnés Flow" + Compteur licences (27/30 en dur, modifiable) + CTA "Obtenir ma licence à vie — 497€" + mention deadline 31 mars
-2. **Crédibilité** — "CEO de 7 sociétés" / "Top 1% mondial Lovable" / citation de Félix + initiales stylisées (pas de photo dispo)
-3. **Le Problème** — Storytelling Félix (perte de CA fin 2024, 3h/semaine sur Excel) avec les 3 bullets (données pas à jour, fichiers qui cassent, décisions à l'aveugle)
-4. **La Solution** — "Ce que Qashflow fait concrètement" : 4 features avec icônes + screenshots existants (`screenshot-dashboard`, `screenshot-previsions`, `screenshot-pnl`)
-5. **L'Offre** — Bloc visuellement dominant : prix barré 1 068€/an → 497€ une fois, liste des inclus, badge Flow, compteur, deadline, gros CTA + texte réassurance (paiement sécurisé, remboursement 7j)
-6. **FAQ** — 4 questions spécifiques du brief (disparition, taille entreprise, vs Agicap, comptable/DAF)
-7. **Footer CTA** — Dernier rappel + CTA final
+4. **UI `ForecastTable.tsx`** : Les mois sans snapshot (pré-inscription) affichent `—` en gris italique au lieu de `0 €`.
 
-### Fichier : `src/App.tsx`
-Ajouter une route publique `/flow` pointant vers le composant `Flow`.
+### Architecture résultante
 
-## Détails techniques
+```
+Point Zéro = Live Balance au moment de l'inscription - Σ transactions du mois
+Passé       → Snapshot au 1er du mois (ou "—" si pré-inscription)
+Courant     → Snapshot au 1er du mois
+Futur       → Snapshot courant + Σ forecasts nets (walk forward)
+```
 
-- Le lien CTA pointe vers `#` (placeholder Stripe, commentaire pour remplacement)
-- Compteur de licences : state local `useState(27)`, facilement remplaçable par une valeur dynamique plus tard
-- Deadline : affichage "Jusqu'au 31 mars 2025" en dur
-- Animations : `framer-motion` fadeUp comme sur la landing existante
-- Responsive : mobile-first, mêmes breakpoints que le reste du site
-- Dark theme forcé sur cette page uniquement (classes Tailwind directes, pas de modification du thème global)
-- Réutilise les screenshots existants dans `src/assets/`
-
-## Fichiers impactés
-1. **`src/pages/Flow.tsx`** — Nouveau fichier (~350 lignes)
-2. **`src/App.tsx`** — +1 route publique
-
+Aucune reconstitution rétroactive. Aucun chargement massif de transactions. Aucun fallback complexe.
