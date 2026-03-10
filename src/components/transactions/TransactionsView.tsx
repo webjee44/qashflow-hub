@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Loader2, RefreshCw } from 'lucide-react';
+import { Loader2, RefreshCw, Bot } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -20,7 +20,7 @@ import { TransactionTable } from './TransactionTable';
 import { TransactionDialogs } from './TransactionDialogs';
 
 export function TransactionsView() {
-  const { createRule } = useAutomationRules();
+  const { createRule, rules } = useAutomationRules();
   const {
     transactions, isLoading,
     updateCategory, bulkUpdateCategory, bulkSetIgnored, splitTransaction,
@@ -59,6 +59,27 @@ export function TransactionsView() {
     [filters.filteredTransactions, handlers.selectedTransactionIds]
   );
 
+  // Last AI sync date from automation rules
+  const lastAiSync = useMemo(() => {
+    const rulesWithMatches = (rules || []).filter(r => r.match_count > 0 && r.updated_at);
+    if (rulesWithMatches.length === 0) return null;
+    const latest = rulesWithMatches.reduce((a, b) => 
+      new Date(a.updated_at) > new Date(b.updated_at) ? a : b
+    );
+    return new Date(latest.updated_at);
+  }, [rules]);
+
+  const formatRelativeDate = useCallback((date: Date) => {
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMin = Math.floor(diffMs / 60000);
+    if (diffMin < 1) return "à l'instant";
+    if (diffMin < 60) return `il y a ${diffMin} min`;
+    const diffH = Math.floor(diffMin / 60);
+    if (diffH < 24) return `il y a ${diffH}h`;
+    return new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(date);
+  }, []);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -85,7 +106,13 @@ export function TransactionsView() {
             {formatAmount(bankBalance)}
           </span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          {lastAiSync && (
+            <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Bot className="w-3.5 h-3.5" />
+              Dernière synchro IA {formatRelativeDate(lastAiSync)}
+            </span>
+          )}
           <Button
             onClick={handlers.applyAutomationRules}
             disabled={handlers.applyingRules}
