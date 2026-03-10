@@ -296,6 +296,32 @@ export default function Flow() {
         </motion.div>
       </section>
 
+      {/* ── Garantie ── */}
+      <section className="py-16 px-4 sm:px-6">
+        <motion.div
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true }}
+          variants={stagger}
+          className="max-w-2xl mx-auto"
+        >
+          <motion.div variants={fadeUp} className="bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-8 sm:p-10 text-center">
+            <Shield className="h-10 w-10 text-emerald-400 mx-auto mb-4" />
+            <h2 className="text-2xl sm:text-3xl font-bold mb-3">
+              Garantie satisfait ou remboursé — <span className="text-emerald-400">7 jours</span>
+            </h2>
+            <p className="text-gray-400 leading-relaxed max-w-lg mx-auto mb-4">
+              Vous payez, vous testez l'outil avec vos vraies données bancaires.
+              Si Qashflow ne vous convient pas, un simple email dans les 7 jours
+              et vous êtes remboursé intégralement. Sans justification, sans friction.
+            </p>
+            <p className="text-sm text-gray-500">
+              Zéro risque pour vous. Tout le risque est de notre côté — et on l'assume.
+            </p>
+          </motion.div>
+        </motion.div>
+      </section>
+
       {/* ── FAQ ── */}
       <section className="py-20 px-4 sm:px-6 bg-gray-900/30">
         <motion.div
