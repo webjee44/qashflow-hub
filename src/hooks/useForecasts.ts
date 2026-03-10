@@ -688,45 +688,33 @@ export function useForecasts() {
       }, 0);
   }, [categories, forecasts]);
 
-  // Helper to get closing balance (end of month) = opening balance + month net variation
-  const getClosingBalance = useCallback((month: Date): { balance: number; forecastBalance?: number; isActual: boolean; isEstimated?: boolean } => {
+  // Closing balance = next month's opening (which reads the snapshot or walks forward)
+  const getClosingBalance = useCallback((month: Date): { balance: number; forecastBalance?: number; isActual: boolean; isEstimated?: boolean; noData?: boolean } => {
     const opening = getOpeningBalance(month);
-    const periodType = (() => {
-      const todayMonth = startOfMonth(new Date());
-      const target = startOfMonth(month);
-      if (isBefore(target, todayMonth)) return 'past';
-      if (isSameMonth(month, new Date())) return 'current';
-      return 'future';
-    })();
-
-    if (periodType === 'past') {
-      // Check manual override first
-      const override = getBalanceOverride(month);
-      if (override !== null) {
-        return { balance: override, isActual: true };
-      }
-      // Check if we have a snapshot for this month's end
-      const snapshot = getSnapshotForEndOfMonth(month);
-      if (snapshot !== null) {
-        return { balance: snapshot, isActual: true };
-      }
-      // Fallback to next month's opening (retro-calculated, mark as estimated)
-      const nextMonth = addMonths(startOfMonth(month), 1);
-      const nextOpening = getOpeningBalance(nextMonth);
-      return { balance: nextOpening.balance, isActual: true, isEstimated: nextOpening.isEstimated };
+    
+    // If opening has no data, closing has no data either
+    if (opening.noData) {
+      return { balance: 0, isActual: true, noData: true };
     }
 
-    if (periodType === 'current') {
-      const nextMonth = addMonths(startOfMonth(month), 1);
-      const nextOpening = getOpeningBalance(nextMonth);
+    // Check manual override
+    const override = getBalanceOverride(month);
+    if (override !== null) {
+      return { balance: override, isActual: true };
+    }
+
+    // Use next month's opening as closing (it reads the snapshot or walks forward)
+    const nextMonth = addMonths(startOfMonth(month), 1);
+    const nextOpening = getOpeningBalance(nextMonth);
+    
+    // For current month, also provide forecast-based balance
+    if (isSameMonth(month, new Date())) {
       const netForecast = getMonthNetForecast(month);
       return { balance: nextOpening.balance, forecastBalance: opening.balance + netForecast, isActual: false };
     }
 
-    // Future: opening + net forecast
-    const netForecast = getMonthNetForecast(month);
-    return { balance: opening.balance + netForecast, isActual: false };
-  }, [getOpeningBalance, getMonthNetForecast, getSnapshotForEndOfMonth, getBalanceOverride]);
+    return { balance: nextOpening.balance, isActual: nextOpening.isActual, noData: nextOpening.noData };
+  }, [getOpeningBalance, getMonthNetForecast, getBalanceOverride]);
 
   return {
     months,
