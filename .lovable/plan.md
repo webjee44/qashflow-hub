@@ -1,27 +1,30 @@
 
 
-## Refactoring Prévisions : Approche "Ledger" (Forward-Only) — ✅ TERMINÉ
+## Simplification "Point Zéro" — Forward-Only — ✅ TERMINÉ
 
 ### Ce qui a été fait
 
-1. **Edge Function `backfill-snapshots`** — Créée et exécutée. Génère les snapshots au 1er de chaque mois passé pour toutes les sociétés en marchant en arrière depuis le snapshot le plus récent.
+1. **`bridge-sync` — Snapshot initial "Point Zéro"** : Après chaque full-sync, si aucun snapshot n'existe pour la company, le système calcule `Live Balance - Σ transactions depuis le 1er du mois` et insère un snapshot unique au 1er du mois courant. Cela se fait une seule fois, au moment de la première connexion bancaire.
 
-2. **Refactoring `useForecasts.ts`** — Simplifié radicalement :
-   - ❌ Supprimé la requête `allTransactions` (milliers de lignes chargées en batches)
-   - ✅ `getOpeningBalance` réécrit en ~35 lignes (vs ~90 avant) : lecture directe des snapshots pour le passé/courant, walk forward pour le futur
-   - ✅ `getClosingBalance` inchangé (consomme déjà `getOpeningBalance`)
-   - ✅ `isLoading` ne dépend plus de `transactionsLoading`
+2. **`useForecasts.ts` — `getOpeningBalance` simplifié** :
+   - **Passé/Courant** : Lecture directe du snapshot. Si absent → `{ noData: true }` (mois pré-inscription)
+   - **Futur** : Snapshot courant + Σ net forecasts en marche avant
+   - ❌ Supprimé : `getSnapshotForEndOfMonth`, fallback `liveBankBalance` dans le calcul d'ouverture, `initialBalance`
 
-3. **Infrastructure** :
-   - ✅ Index ajouté sur `bank_balance_snapshots(company_id, snapshot_date)`
-   - ✅ `snapshot-balances` mis à jour pour enregistrer un snapshot au 1er du mois (le 1er de chaque mois)
-   - ✅ `config.toml` mis à jour avec `backfill-snapshots`
+3. **`useForecasts.ts` — `getClosingBalance` simplifié** :
+   - Utilise `getOpeningBalance(nextMonth)` comme fermeture
+   - Propage `noData` pour les mois sans snapshot
+   - Override manuel toujours supporté
+
+4. **UI `ForecastTable.tsx`** : Les mois sans snapshot (pré-inscription) affichent `—` en gris italique au lieu de `0 €`.
 
 ### Architecture résultante
 
 ```
-Passé/Courant → Snapshot au 1er du mois (DB lookup direct)
-Futur → Snapshot courant + Σ forecasts nets (walk forward)
+Point Zéro = Live Balance au moment de l'inscription - Σ transactions du mois
+Passé       → Snapshot au 1er du mois (ou "—" si pré-inscription)
+Courant     → Snapshot au 1er du mois
+Futur       → Snapshot courant + Σ forecasts nets (walk forward)
 ```
 
-Aucune reconstruction rétroactive. Aucun chargement massif de transactions.
+Aucune reconstitution rétroactive. Aucun chargement massif de transactions. Aucun fallback complexe.
