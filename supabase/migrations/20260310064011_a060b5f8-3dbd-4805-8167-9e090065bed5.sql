@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS idx_bank_balance_snapshots_company_date ON public.bank_balance_snapshots (company_id, snapshot_date);
