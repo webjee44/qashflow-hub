@@ -39,6 +39,7 @@ import StartVerify from "./pages/StartVerify";
 import StartWelcome from "./pages/StartWelcome";
 import JoinInvitation from "./pages/JoinInvitation";
 import ImpersonateLanding from "./pages/ImpersonateLanding";
+import Flow from "./pages/Flow";
 
 // ============================================
 // Comparison pages (lazy loading)
