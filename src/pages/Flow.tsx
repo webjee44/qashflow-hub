@@ -22,7 +22,6 @@ const stagger = {
 
 // ── Config ────────────────────────────────────────
 const TOTAL_LICENSES = 30;
-const CHECKOUT_URL = '#'; // TODO: replace with Stripe Checkout link
 const DEADLINE = '31 mars 2025';
 
 
