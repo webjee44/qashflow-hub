@@ -9,14 +9,7 @@ import logo from '@/assets/logo-white.png';
 import screenshotDashboard from '@/assets/screenshot-dashboard.png';
 import screenshotPrevisions from '@/assets/screenshot-previsions.png';
 import screenshotPnl from '@/assets/screenshot-pnl.png';
-import bankCic from '@/assets/banks/cic.png';
-
-import bankCreditAgricole from '@/assets/banks/credit-agricole.png';
-import bankSocieteGenerale from '@/assets/banks/societe-generale.png';
-import bankBnpParibas from '@/assets/banks/bnp-paribas.png';
-import bankLcl from '@/assets/banks/lcl.png';
-import bankCaisseEpargne from '@/assets/banks/caisse-epargne.png';
-import bankBanquePostale from '@/assets/banks/la-banque-postale.png';
+import { BankSlider } from '@/components/landing/BankSlider';
 
 const fadeUp = {
   hidden: { opacity: 0, y: 30 },
@@ -32,16 +25,6 @@ const TOTAL_LICENSES = 30;
 const CHECKOUT_URL = '#'; // TODO: replace with Stripe Checkout link
 const DEADLINE = '31 mars 2025';
 
-const compatibleBanks = [
-  { name: 'CIC', logo: bankCic },
-  
-  { name: 'Crédit Agricole', logo: bankCreditAgricole },
-  { name: 'Société Générale', logo: bankSocieteGenerale },
-  { name: 'BNP Paribas', logo: bankBnpParibas },
-  { name: 'LCL', logo: bankLcl },
-  { name: 'Caisse d\'Épargne', logo: bankCaisseEpargne },
-  { name: 'La Banque Postale', logo: bankBanquePostale },
-];
 
 const features = [
   { icon: RefreshCw, title: 'Synchronisation bancaire automatique', desc: 'Vos comptes se mettent à jour toutes les heures. Zéro saisie manuelle.' },
@@ -143,32 +126,7 @@ export default function Flow() {
       </section>
 
       {/* ── Banques compatibles ── */}
-      <section className="py-10 px-4 sm:px-6 border-b border-gray-800/50 overflow-hidden">
-        <motion.div
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true }}
-          variants={stagger}
-          className="max-w-4xl mx-auto text-center"
-        >
-          <motion.p variants={fadeUp} className="text-sm text-gray-500 font-medium uppercase tracking-wider mb-6">
-            Compatible avec +350 banques dont
-          </motion.p>
-          <motion.div variants={fadeUp} className="relative w-full">
-            <div className="flex w-max animate-[scroll_20s_linear_infinite] gap-12 sm:gap-16">
-              {[...compatibleBanks, ...compatibleBanks].map((bank, i) => (
-                <img
-                  key={`${bank.name}-${i}`}
-                  src={bank.logo}
-                  alt={`Logo ${bank.name}`}
-                  className="h-12 sm:h-14 object-contain shrink-0"
-                  title={bank.name}
-                />
-              ))}
-            </div>
-          </motion.div>
-        </motion.div>
-      </section>
+      <BankSlider variant="dark" />
 
       {/* ── Crédibilité ── */}
       <section className="py-16 px-4 sm:px-6 border-y border-gray-800/50">

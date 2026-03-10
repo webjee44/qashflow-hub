@@ -26,6 +26,7 @@ import { z } from 'zod';
 import { PublicNavbar } from '@/components/layout/PublicNavbar';
 import { SEOHead, generateOrganizationSchema, generateBreadcrumbSchema } from '@/components/seo/SEOHead';
 import { LogoBar } from '@/components/landing/LogoBar';
+import { BankSlider } from '@/components/landing/BankSlider';
 import { TestimonialCarousel } from '@/components/landing/TestimonialCarousel';
 import { LandingFAQ } from '@/components/landing/LandingFAQ';
 import { SectionCTA } from '@/components/landing/SectionCTA';
@@ -236,6 +237,9 @@ export default function Landing() {
           </motion.div>
         </div>
       </section>
+
+      {/* ─── Banques compatibles ─── */}
+      <BankSlider variant="light" />
 
       {/* ─── Section 2 : Pain Points ─── */}
       <section className="py-20 px-4 sm:px-6 lg:px-8">
