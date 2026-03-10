@@ -1,19 +1,21 @@
 import { useState, useEffect, useRef } from 'react';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { ForecastTable } from '@/components/forecasts/ForecastTable';
+import { ForecastTable, ForecastTableRef } from '@/components/forecasts/ForecastTable';
 import { ForecastDemoBanner } from '@/components/forecasts/ForecastDemoBanner';
 import { BPImportDialog } from '@/components/forecasts/BPImportDialog';
 import { Button } from '@/components/ui/button';
-import { FileDown } from 'lucide-react';
+import { FileDown, FileSpreadsheet } from 'lucide-react';
 import { useCompany } from '@/hooks/useCompany';
 import { PageLoader } from '@/components/ui/page-loader';
 import { supabase } from '@/integrations/supabase/client';
 import { logError } from '@/lib/logger';
+import { toast } from 'sonner';
 
 export default function Forecasts() {
   const [importOpen, setImportOpen] = useState(false);
   const { currentCompany, isLoading: companyLoading } = useCompany();
   const seedTriggered = useRef(false);
+  const tableRef = useRef<ForecastTableRef>(null);
 
   // Auto-seed demo data if no forecasts exist
   useEffect(() => {
@@ -53,6 +55,16 @@ export default function Forecasts() {
     })();
   }, [currentCompany?.id]);
 
+  const handleExport = async () => {
+    try {
+      await tableRef.current?.exportToExcel();
+      toast.success('Export Excel généré avec succès');
+    } catch (err) {
+      logError('Export Excel failed:', err);
+      toast.error("Erreur lors de l'export Excel");
+    }
+  };
+
   // Wait for company context to be ready before rendering ForecastTable
   if (companyLoading || !currentCompany) {
     return <PageLoader />;
@@ -65,20 +77,30 @@ export default function Forecasts() {
           title="Prévisions" 
           subtitle="Gérez vos projections de trésorerie par catégorie et par mois"
           actions={
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => setImportOpen(true)}
-              className="gap-2"
-            >
-              <FileDown className="w-4 h-4" />
-              Import depuis BP
-            </Button>
+            <div className="flex gap-2">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={handleExport}
+                className="gap-2"
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                Export Excel
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => setImportOpen(true)}
+                className="gap-2"
+              >
+                <FileDown className="w-4 h-4" />
+                Import depuis BP
+              </Button>
+            </div>
           }
         />
         <ForecastDemoBanner />
-        {/* Key forces re-mount when company changes, ensuring fresh data fetch */}
-        <ForecastTable key={currentCompany.id} />
+        <ForecastTable key={currentCompany.id} ref={tableRef} />
       </div>
       
       {importOpen && <BPImportDialog open={importOpen} onOpenChange={setImportOpen} />}
