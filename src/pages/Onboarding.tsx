@@ -541,20 +541,26 @@ export default function Onboarding() {
         .is('deleted_at', null);
 
       if (userCompanies?.length === 1 && userCompanies[0].bridge_user_uuid) {
-        // Trigger a bridge-sync first so accounts are in DB before auto-assigning
+        // Trigger a bridge-sync with proper params so accounts + Point Zéro are created
         try {
           const { data: { session: syncSession } } = await supabase.auth.getSession();
           if (syncSession) {
             logDebug('Triggering bridge-sync before auto-assign...');
             await supabase.functions.invoke('bridge-sync', {
               headers: { Authorization: `Bearer ${syncSession.access_token}` },
-              body: { action: 'full-sync' },
+              body: {
+                action: 'full-sync',
+                bridge_user_uuid: userCompanies[0].bridge_user_uuid,
+                company_id: userCompanies[0].id,
+              },
             });
-            logDebug('Bridge-sync completed, now auto-assigning accounts');
+            logDebug('Bridge-sync completed (accounts synced, Point Zéro created)');
           }
         } catch (syncErr) {
           logError('Bridge sync before auto-assign failed:', syncErr);
         }
+        // Auto-assign is now handled server-side in bridge-sync for single-company users,
+        // but run client-side as fallback
         await autoAssignBankAccounts(userCompanies[0].id);
       }
 
