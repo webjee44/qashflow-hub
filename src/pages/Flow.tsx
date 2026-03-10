@@ -64,9 +64,23 @@ const faqs = [
 
 export default function Flow() {
   const [licensesRemaining] = useState(27);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const ctaClick = () => {
-    window.open(CHECKOUT_URL, '_blank', 'noopener');
+  const ctaClick = async () => {
+    if (isLoading) return;
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('create-flow-checkout');
+      if (error) throw error;
+      if (data?.url) {
+        window.location.href = data.url;
+      } else {
+        throw new Error('URL de paiement non reçue');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Erreur lors de la création du paiement');
+      setIsLoading(false);
+    }
   };
 
   return (
