@@ -115,21 +115,36 @@ export function useDashboardStats() {
           .filter(t => t.type === 'expense')
           .reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
 
-        // Current balance: use LIVE bridge_accounts balance (not stale companies.bank_balance)
+        // Current balance: use LIVE bridge_accounts balance via company_bridge_accounts (source of truth)
         let currentBalance: number;
         
         if (currentCompany?.id) {
-          const { data: bridgeAccounts } = await supabase
-            .from('bridge_accounts')
-            .select('balance')
+          const { data: assignments } = await supabase
+            .from('company_bridge_accounts')
+            .select('bridge_account_id')
             .eq('company_id', currentCompany.id);
-          
-          if (bridgeAccounts && bridgeAccounts.length > 0) {
-            currentBalance = bridgeAccounts.reduce((sum, acc) => sum + Number(acc.balance || 0), 0);
-            logDebug('Using live bridge_accounts balance:', currentBalance);
+
+          const assignedIds = (assignments || []).map(a => a.bridge_account_id);
+
+          if (assignedIds.length > 0) {
+            const { data: bridgeAccounts } = await supabase
+              .from('bridge_accounts')
+              .select('balance')
+              .in('bridge_account_id', assignedIds);
+
+            if (bridgeAccounts && bridgeAccounts.length > 0) {
+              currentBalance = bridgeAccounts.reduce((sum, acc) => sum + Number(acc.balance || 0), 0);
+              logDebug('Using live bridge_accounts balance (via assignments):', currentBalance);
+            } else if (currentCompany.bank_balance !== null && currentCompany.bank_balance !== undefined) {
+              currentBalance = Number(currentCompany.bank_balance);
+              logDebug('Fallback to companies.bank_balance:', currentBalance);
+            } else {
+              currentBalance = currentCompany.initial_balance || 0;
+              logDebug('Fallback to initial_balance:', currentBalance);
+            }
           } else if (currentCompany.bank_balance !== null && currentCompany.bank_balance !== undefined) {
             currentBalance = Number(currentCompany.bank_balance);
-            logDebug('Fallback to companies.bank_balance:', currentBalance);
+            logDebug('No assigned accounts, fallback to companies.bank_balance:', currentBalance);
           } else {
             const initialBalance = currentCompany.initial_balance || 0;
             const transactionsBalance = transactions?.reduce((acc, t) => {
@@ -242,17 +257,24 @@ export function useBalanceChartData() {
 
         const { data: forecasts } = await forecastsQuery;
 
-        // Calculate current balance: use LIVE bridge_accounts balance
+        // Calculate current balance: use LIVE bridge_accounts balance via company_bridge_accounts
         let currentBalance: number;
         
         if (currentCompany?.id) {
-          const { data: bridgeAccounts } = await supabase
-            .from('bridge_accounts')
-            .select('balance')
+          const { data: assignments } = await supabase
+            .from('company_bridge_accounts')
+            .select('bridge_account_id')
             .eq('company_id', currentCompany.id);
-          
-          if (bridgeAccounts && bridgeAccounts.length > 0) {
-            currentBalance = bridgeAccounts.reduce((sum, acc) => sum + Number(acc.balance || 0), 0);
+
+          const assignedIds = (assignments || []).map(a => a.bridge_account_id);
+
+          if (assignedIds.length > 0) {
+            const { data: bridgeAccounts } = await supabase
+              .from('bridge_accounts')
+              .select('balance')
+              .in('bridge_account_id', assignedIds);
+
+            currentBalance = bridgeAccounts?.reduce((sum, acc) => sum + Number(acc.balance || 0), 0) || 0;
           } else if (currentCompany.bank_balance !== null && currentCompany.bank_balance !== undefined) {
             currentBalance = Number(currentCompany.bank_balance);
           } else {

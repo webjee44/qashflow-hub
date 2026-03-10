@@ -485,17 +485,30 @@ export default function Onboarding() {
         await supabase.from('company_bridge_accounts').insert(newAssignments);
       }
 
-      // Update company balance & count
-      const { data: allAccounts } = await supabase
-        .from('bridge_accounts')
-        .select('balance')
+      // Update company balance & count using company_bridge_accounts as source of truth
+      const { data: finalAssignments } = await supabase
+        .from('company_bridge_accounts')
+        .select('bridge_account_id')
         .eq('company_id', companyId);
 
-      const totalBalance = (allAccounts || []).reduce((sum, a) => sum + (Number(a.balance) || 0), 0);
+      const finalIds = (finalAssignments || []).map(a => a.bridge_account_id);
+      let totalBalance = 0;
+      let accountCount = 0;
+
+      if (finalIds.length > 0) {
+        const { data: assignedAccounts } = await supabase
+          .from('bridge_accounts')
+          .select('balance')
+          .in('bridge_account_id', finalIds);
+
+        totalBalance = (assignedAccounts || []).reduce((sum, a) => sum + (Number(a.balance) || 0), 0);
+        accountCount = assignedAccounts?.length || 0;
+      }
+
       await supabase
         .from('companies')
         .update({
-          bridge_accounts_count: allAccounts?.length || 0,
+          bridge_accounts_count: accountCount,
           bank_balance: totalBalance,
           bank_balance_updated_at: new Date().toISOString(),
         })
