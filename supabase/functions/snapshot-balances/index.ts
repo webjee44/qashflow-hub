@@ -15,7 +15,11 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+
+    // Also record a snapshot for the 1st of the current month (for the ledger approach)
+    const firstOfMonth = `${today.getUTCFullYear()}-${String(today.getUTCMonth() + 1).padStart(2, '0')}-01`;
 
     // Use company_bridge_accounts as source of truth for account-company mapping
     const { data: assignments, error: assignError } = await supabase
@@ -62,17 +66,35 @@ Deno.serve(async (req) => {
       accountToCompany.set(a.bridge_account_id, a.company_id);
     }
 
-    // Create snapshots using the company_id from assignments (not from bridge_accounts)
-    const snapshots = accounts
+    // Create snapshots for today AND for the 1st of the month (if not already there)
+    const snapshotsToday = accounts
       .filter(acc => accountToCompany.has(acc.bridge_account_id))
       .map((acc) => ({
         bridge_account_id: acc.bridge_account_id,
         company_id: accountToCompany.get(acc.bridge_account_id)!,
         balance: acc.balance ?? 0,
-        snapshot_date: today,
+        snapshot_date: todayStr,
       }));
 
-    if (snapshots.length === 0) {
+    // Also upsert 1st-of-month snapshots (key for the ledger approach)
+    const snapshotsFirstOfMonth = accounts
+      .filter(acc => accountToCompany.has(acc.bridge_account_id))
+      .map((acc) => ({
+        bridge_account_id: acc.bridge_account_id,
+        company_id: accountToCompany.get(acc.bridge_account_id)!,
+        balance: acc.balance ?? 0,
+        snapshot_date: firstOfMonth,
+      }));
+
+    const allSnapshots = [...snapshotsToday];
+
+    // Only add 1st-of-month snapshots if today IS the 1st (to get precise opening balance)
+    // On other days, the backfill function handles retroactive 1st-of-month snapshots
+    if (today.getUTCDate() === 1) {
+      allSnapshots.push(...snapshotsFirstOfMonth);
+    }
+
+    if (allSnapshots.length === 0) {
       console.info('[snapshot-balances] No snapshots to create');
       return new Response(JSON.stringify({ success: true, snapshots: 0 }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -81,7 +103,7 @@ Deno.serve(async (req) => {
 
     const { error: upsertError, count } = await supabase
       .from('bank_balance_snapshots')
-      .upsert(snapshots, {
+      .upsert(allSnapshots, {
         onConflict: 'bridge_account_id,snapshot_date',
         count: 'exact',
       });
@@ -91,10 +113,10 @@ Deno.serve(async (req) => {
       throw upsertError;
     }
 
-    console.info(`[snapshot-balances] Saved ${count ?? snapshots.length} snapshots for ${today}`);
+    console.info(`[snapshot-balances] Saved ${count ?? allSnapshots.length} snapshots for ${todayStr}`);
 
     return new Response(
-      JSON.stringify({ success: true, date: today, snapshots: count ?? snapshots.length }),
+      JSON.stringify({ success: true, date: todayStr, snapshots: count ?? allSnapshots.length }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
