@@ -1,22 +1,27 @@
 
 
-## Correctif : Badge sidebar transactions
+## Refactoring Prévisions : Approche "Ledger" (Forward-Only) — ✅ TERMINÉ
 
-Le badge "181" affiche le total des transactions non catégorisées **y compris les ignorées**. Il faut exclure les transactions ignorées du comptage.
+### Ce qui a été fait
 
-### Modification
+1. **Edge Function `backfill-snapshots`** — Créée et exécutée. Génère les snapshots au 1er de chaque mois passé pour toutes les sociétés en marchant en arrière depuis le snapshot le plus récent.
 
-**`src/components/layout/Sidebar.tsx`** (ligne ~146) : Ajouter un filtre `.or('is_ignored.is.null,is_ignored.eq.false')` à la requête de comptage pour exclure les transactions ignorées.
+2. **Refactoring `useForecasts.ts`** — Simplifié radicalement :
+   - ❌ Supprimé la requête `allTransactions` (milliers de lignes chargées en batches)
+   - ✅ `getOpeningBalance` réécrit en ~35 lignes (vs ~90 avant) : lecture directe des snapshots pour le passé/courant, walk forward pour le futur
+   - ✅ `getClosingBalance` inchangé (consomme déjà `getOpeningBalance`)
+   - ✅ `isLoading` ne dépend plus de `transactionsLoading`
 
-```typescript
-const { count, error } = await supabase
-  .from('transactions')
-  .select('id', { count: 'exact', head: true })
-  .eq('company_id', currentCompany.id)
-  .is('category_id', null)
-  .is('deleted_at', null)
-  .or('is_ignored.is.null,is_ignored.eq.false');  // ← ajout
+3. **Infrastructure** :
+   - ✅ Index ajouté sur `bank_balance_snapshots(company_id, snapshot_date)`
+   - ✅ `snapshot-balances` mis à jour pour enregistrer un snapshot au 1er du mois (le 1er de chaque mois)
+   - ✅ `config.toml` mis à jour avec `backfill-snapshots`
+
+### Architecture résultante
+
+```
+Passé/Courant → Snapshot au 1er du mois (DB lookup direct)
+Futur → Snapshot courant + Σ forecasts nets (walk forward)
 ```
 
-Une seule ligne ajoutée, un seul fichier modifié.
-
+Aucune reconstruction rétroactive. Aucun chargement massif de transactions.
