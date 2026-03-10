@@ -217,11 +217,12 @@ export function useBalanceChartData() {
       const now = new Date();
       
       try {
-        // Fetch all transactions (exclude deleted)
+        // Fetch all transactions (exclude deleted and ignored)
         let transactionsQuery = supabase
           .from('transactions')
           .select('amount, type, date')
-          .is('deleted_at', null);
+          .is('deleted_at', null)
+          .or('is_ignored.is.null,is_ignored.eq.false');
 
         if (currentCompany?.id) {
           transactionsQuery = transactionsQuery.eq('company_id', currentCompany.id);
