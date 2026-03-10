@@ -495,23 +495,7 @@ export function useForecasts() {
     return override ? Number(override.balance) : null;
   }, [balanceOverrides]);
 
-  // Helper: get total snapshot balance for the last day of a given month
-  const getSnapshotForEndOfMonth = useCallback((month: Date): number | null => {
-    const monthStart = format(startOfMonth(month), 'yyyy-MM-dd');
-    const monthEnd = format(endOfMonth(month), 'yyyy-MM-dd');
-    
-    // Find all snapshots within this month, take the latest one (already sorted desc)
-    const monthSnapshots = balanceSnapshots.filter(
-      s => s.snapshot_date >= monthStart && s.snapshot_date <= monthEnd
-    );
-    
-    if (monthSnapshots.length === 0) return null;
-    
-    // Group by the latest date and sum all accounts for that date
-    const latestDate = monthSnapshots[0].snapshot_date;
-    const latestSnapshots = monthSnapshots.filter(s => s.snapshot_date === latestDate);
-    return latestSnapshots.reduce((sum, s) => sum + Number(s.balance), 0);
-  }, [balanceSnapshots]);
+  // getSnapshotForEndOfMonth REMOVED — Point Zéro forward-only approach
 
   // Helper to get payable outflow for a specific month
   // Rule: overdue invoices (due_date < today) -> placed at end of current month
