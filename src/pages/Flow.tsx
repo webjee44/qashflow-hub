@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { SEOHead } from '@/components/seo/SEOHead';
 import logo from '@/assets/logo-white.png';
+import felixPhoto from '@/assets/felix.png';
 import { BankSlider } from '@/components/landing/BankSlider';
 
 const fadeUp = {
@@ -148,9 +149,7 @@ export default function Flow() {
           </motion.div>
 
           <motion.blockquote variants={fadeUp} className="relative max-w-2xl mx-auto text-center">
-            <div className="w-14 h-14 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-lg font-bold mx-auto mb-4">
-              FC
-            </div>
+            <img src={felixPhoto} alt="Félix C." className="w-14 h-14 rounded-full object-cover mx-auto mb-4" />
             <p className="text-lg italic text-gray-300 leading-relaxed">
               "Je gère 7 sociétés. Avant Qashflow, je passais 3h par semaine à mettre à jour des fichiers Excel
               qui cassaient un mois sur deux. Aujourd'hui, j'ai une vision claire en 10 minutes."
