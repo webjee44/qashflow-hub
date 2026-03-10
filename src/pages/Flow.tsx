@@ -34,7 +34,7 @@ const DEADLINE = '31 mars 2025';
 
 const compatibleBanks = [
   { name: 'CIC', logo: bankCic },
-  { name: 'Banque Populaire', logo: bankBanquePopulaire },
+  
   { name: 'Crédit Agricole', logo: bankCreditAgricole },
   { name: 'Société Générale', logo: bankSocieteGenerale },
   { name: 'BNP Paribas', logo: bankBnpParibas },
