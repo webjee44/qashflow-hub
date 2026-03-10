@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowRight, TrendingUp, RefreshCw, BarChart3, Shield, CheckCircle2, AlertTriangle, Clock, XCircle, Zap, Lock, CreditCard } from 'lucide-react';
+import { ArrowRight, TrendingUp, RefreshCw, BarChart3, Shield, CheckCircle2, AlertTriangle, Clock, XCircle, Zap, Lock, CreditCard, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
@@ -8,6 +8,8 @@ import { SEOHead } from '@/components/seo/SEOHead';
 import logo from '@/assets/logo-white.png';
 import felixPhoto from '@/assets/felix.png';
 import { BankSlider } from '@/components/landing/BankSlider';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 const fadeUp = {
   hidden: { opacity: 0, y: 30 },
