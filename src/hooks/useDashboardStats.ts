@@ -61,11 +61,12 @@ export function useDashboardStats() {
           (catRows || []).filter((c: any) => c.name === 'Virement intercompte').map((c: any) => c.id)
         );
 
-        // Fetch all transactions for calculations (exclude deleted)
+        // Fetch all transactions for calculations (exclude deleted and ignored)
         let query = supabase
           .from('transactions')
           .select('amount, type, date, category_id')
-          .is('deleted_at', null);
+          .is('deleted_at', null)
+          .or('is_ignored.is.null,is_ignored.eq.false');
 
         if (currentCompany?.id) {
           query = query.eq('company_id', currentCompany.id);
@@ -216,11 +217,12 @@ export function useBalanceChartData() {
       const now = new Date();
       
       try {
-        // Fetch all transactions (exclude deleted)
+        // Fetch all transactions (exclude deleted and ignored)
         let transactionsQuery = supabase
           .from('transactions')
           .select('amount, type, date')
-          .is('deleted_at', null);
+          .is('deleted_at', null)
+          .or('is_ignored.is.null,is_ignored.eq.false');
 
         if (currentCompany?.id) {
           transactionsQuery = transactionsQuery.eq('company_id', currentCompany.id);
@@ -360,7 +362,7 @@ export function useCategoryBreakdown() {
       const monthEnd = format(endOfMonth(now), 'yyyy-MM-dd');
 
       try {
-        // Fetch transactions with categories for current month (exclude deleted)
+        // Fetch transactions with categories for current month (exclude deleted and ignored)
         let query = supabase
           .from('transactions')
           .select(`
@@ -375,7 +377,8 @@ export function useCategoryBreakdown() {
           .eq('type', 'expense')
           .gte('date', monthStart)
           .lte('date', monthEnd)
-          .is('deleted_at', null);
+          .is('deleted_at', null)
+          .or('is_ignored.is.null,is_ignored.eq.false');
 
         if (currentCompany?.id) {
           query = query.eq('company_id', currentCompany.id);
