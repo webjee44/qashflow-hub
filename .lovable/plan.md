@@ -1,30 +1,50 @@
 
 
-## Simplification "Point Zéro" — Forward-Only — ✅ TERMINÉ
+# Plan: Brancher le CTA "Obtenir ma licence à vie" sur Stripe Checkout
 
-### Ce qui a été fait
+## Contexte
+- Produit Stripe créé : `price_1T9RL4Itjz0ztyfF4Ho7cX0d` (497 € one-time)
+- Edge function `create-checkout` existante — utilise un ancien price ID et redirige vers `/parametres`
+- La page `/flow` a `CHECKOUT_URL = '#'` et ouvre dans un nouvel onglet
 
-1. **`bridge-sync` — Snapshot initial "Point Zéro"** : Après chaque full-sync, si aucun snapshot n'existe pour la company, le système calcule `Live Balance - Σ transactions depuis le 1er du mois` et insère un snapshot unique au 1er du mois courant. Cela se fait une seule fois, au moment de la première connexion bancaire.
+## Ce qui va être fait
 
-2. **`useForecasts.ts` — `getOpeningBalance` simplifié** :
-   - **Passé/Courant** : Lecture directe du snapshot. Si absent → `{ noData: true }` (mois pré-inscription)
-   - **Futur** : Snapshot courant + Σ net forecasts en marche avant
-   - ❌ Supprimé : `getSnapshotForEndOfMonth`, fallback `liveBankBalance` dans le calcul d'ouverture, `initialBalance`
+### 1. Créer une edge function `create-flow-checkout`
+- Dédiée à l'offre Flow (ne touche pas à l'existant `create-checkout`)
+- Ne nécessite **pas** d'authentification (les visiteurs Flow ne sont pas forcément connectés)
+- Si l'utilisateur est authentifié (header Authorization présent), on récupère son email pour pré-remplir Stripe
+- Sinon, Stripe Checkout demandera l'email
+- Price ID : `price_1T9RL4Itjz0ztyfF4Ho7cX0d`
+- `success_url` → `/onboarding?source=flow` (redirige vers l'inscription/onboarding après paiement)
+- `cancel_url` → `/flow`
 
-3. **`useForecasts.ts` — `getClosingBalance` simplifié** :
-   - Utilise `getOpeningBalance(nextMonth)` comme fermeture
-   - Propage `noData` pour les mois sans snapshot
-   - Override manuel toujours supporté
+### 2. Mettre à jour `src/pages/Flow.tsx`
+- Remplacer le `ctaClick` pour appeler `supabase.functions.invoke('create-flow-checkout')` au lieu d'ouvrir un lien statique
+- Ajouter un état loading sur les boutons CTA pendant l'appel
+- En cas de succès, rediriger vers l'URL Stripe Checkout
+- En cas d'erreur, afficher un toast
 
-4. **UI `ForecastTable.tsx`** : Les mois sans snapshot (pré-inscription) affichent `—` en gris italique au lieu de `0 €`.
+### 3. Configurer `supabase/config.toml`
+- Ajouter `verify_jwt = false` pour `create-flow-checkout` (accès sans auth obligatoire)
 
-### Architecture résultante
+## Détails techniques
 
+```text
+Visiteur clique CTA
+       │
+       ▼
+invoke('create-flow-checkout')
+       │
+       ▼
+Edge Function → Stripe Checkout Session (payment)
+       │
+       ▼
+Stripe hébergé (paiement 497€)
+       │
+       ▼
+success_url → /onboarding?source=flow
 ```
-Point Zéro = Live Balance au moment de l'inscription - Σ transactions du mois
-Passé       → Snapshot au 1er du mois (ou "—" si pré-inscription)
-Courant     → Snapshot au 1er du mois
-Futur       → Snapshot courant + Σ forecasts nets (walk forward)
-```
 
-Aucune reconstitution rétroactive. Aucun chargement massif de transactions. Aucun fallback complexe.
+- L'edge function tente de lire le token auth si présent, sinon laisse Stripe collecter l'email
+- Pas de webhook nécessaire pour l'instant
+
