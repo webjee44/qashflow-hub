@@ -30,7 +30,16 @@ export function BPIntroDialog() {
       });
   }, [currentCompany?.id, user?.id]);
 
-  const dismiss = () => {
+  const dismiss = async () => {
+    // Persist activation even on dismiss (backdrop click) so modal never returns
+    if (user?.id) {
+      await supabase
+        .from('profiles')
+        .update({ bp_enabled: true })
+        .eq('id', user.id);
+      localStorage.setItem('bp_enabled', 'true');
+      window.dispatchEvent(new Event('bp-enabled-changed'));
+    }
     setOpen(false);
   };
 
