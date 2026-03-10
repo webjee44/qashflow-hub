@@ -1983,6 +1983,7 @@ export const ForecastTable = forwardRef<ForecastTableRef>(function ForecastTable
           
           if (periodType === 'past') {
             const isEstimated = (closingData as any).isEstimated;
+            const noData = (closingData as any).noData;
             const hasOverride = getBalanceOverride(month) !== null;
             const isEditingThis = editingBalanceMonth === monthIndex;
             
