@@ -93,7 +93,11 @@ const ProgressBar = ({ actual, forecast, type }: { actual: number; forecast: num
   );
 };
 
-export function ForecastTable() {
+export interface ForecastTableRef {
+  exportToExcel: () => Promise<void>;
+}
+
+export const ForecastTable = forwardRef<ForecastTableRef>(function ForecastTable(_props, ref) {
   const { currentCompany, isLoading: companyLoading } = useCompany();
   const { categories, loading: categoriesLoading, getGroupedCategories, updateCategory, deleteCategory } = useCategories();
   const { 
