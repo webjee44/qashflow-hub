@@ -4,7 +4,7 @@ import { useAuth } from './useAuth';
 import { useCompany } from './useCompany';
 import { useCategories, Category } from './useCategories';
 import { toast } from 'sonner';
-import { addMonths, startOfMonth, endOfMonth, format, differenceInMonths, isBefore, isSameMonth } from 'date-fns';
+import { addMonths, startOfMonth, endOfMonth, format, isBefore, isSameMonth } from 'date-fns';
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 
 export interface PayableInvoice {
