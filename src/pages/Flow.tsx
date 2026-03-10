@@ -229,17 +229,17 @@ export default function Flow() {
             ))}
           </motion.div>
 
-          {/* Screenshots */}
-          <motion.div variants={fadeUp} className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {[
-              { src: screenshotDashboard, alt: 'Dashboard Qashflow' },
-              { src: screenshotPrevisions, alt: 'Prévisions de trésorerie' },
-              { src: screenshotPnl, alt: 'Compte de résultat' },
-            ].map((img) => (
-              <div key={img.alt} className="rounded-xl overflow-hidden border border-gray-800/50 bg-gray-900/40">
-                <img src={img.src} alt={img.alt} className="w-full h-auto" loading="lazy" />
-              </div>
-            ))}
+          {/* Vidéo démo */}
+          <motion.div variants={fadeUp} className="rounded-2xl overflow-hidden border border-gray-800/50 bg-gray-900/40 aspect-video">
+            {/* TODO: remplacer VIDEO_EMBED_URL par l'URL embed de la vidéo */}
+            <iframe
+              src="about:blank"
+              data-src="VIDEO_EMBED_URL"
+              className="w-full h-full"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+              title="Démo Qashflow"
+            />
           </motion.div>
         </motion.div>
       </section>
