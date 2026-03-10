@@ -142,6 +142,31 @@ export default function Flow() {
         </motion.div>
       </section>
 
+      {/* ── Banques compatibles ── */}
+      <section className="py-10 px-4 sm:px-6 border-b border-gray-800/50">
+        <motion.div
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true }}
+          variants={stagger}
+          className="max-w-4xl mx-auto text-center"
+        >
+          <motion.p variants={fadeUp} className="text-sm text-gray-500 font-medium uppercase tracking-wider mb-6">
+            Compatible avec +350 banques dont
+          </motion.p>
+          <motion.div variants={fadeUp} className="flex items-center justify-center gap-6 sm:gap-8 flex-wrap">
+            {compatibleBanks.map((bank) => (
+              <img
+                key={bank.name}
+                src={bank.logo}
+                alt={`Logo ${bank.name}`}
+                className="h-8 sm:h-10 object-contain opacity-60 hover:opacity-100 transition-opacity brightness-0 invert"
+                title={bank.name}
+              />
+            ))}
+          </motion.div>
+        </motion.div>
+
       {/* ── Crédibilité ── */}
       <section className="py-16 px-4 sm:px-6 border-y border-gray-800/50">
         <motion.div
