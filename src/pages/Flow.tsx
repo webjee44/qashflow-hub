@@ -9,6 +9,14 @@ import logo from '@/assets/logo.png';
 import screenshotDashboard from '@/assets/screenshot-dashboard.png';
 import screenshotPrevisions from '@/assets/screenshot-previsions.png';
 import screenshotPnl from '@/assets/screenshot-pnl.png';
+import bankCic from '@/assets/banks/cic.png';
+import bankBanquePopulaire from '@/assets/banks/banque-populaire.png';
+import bankCreditAgricole from '@/assets/banks/credit-agricole.png';
+import bankSocieteGenerale from '@/assets/banks/societe-generale.png';
+import bankBnpParibas from '@/assets/banks/bnp-paribas.png';
+import bankLcl from '@/assets/banks/lcl.png';
+import bankCaisseEpargne from '@/assets/banks/caisse-epargne.png';
+import bankBanquePostale from '@/assets/banks/la-banque-postale.png';
 
 const fadeUp = {
   hidden: { opacity: 0, y: 30 },
@@ -23,6 +31,17 @@ const stagger = {
 const TOTAL_LICENSES = 30;
 const CHECKOUT_URL = '#'; // TODO: replace with Stripe Checkout link
 const DEADLINE = '31 mars 2025';
+
+const compatibleBanks = [
+  { name: 'CIC', logo: bankCic },
+  { name: 'Banque Populaire', logo: bankBanquePopulaire },
+  { name: 'Crédit Agricole', logo: bankCreditAgricole },
+  { name: 'Société Générale', logo: bankSocieteGenerale },
+  { name: 'BNP Paribas', logo: bankBnpParibas },
+  { name: 'LCL', logo: bankLcl },
+  { name: 'Caisse d\'Épargne', logo: bankCaisseEpargne },
+  { name: 'La Banque Postale', logo: bankBanquePostale },
+];
 
 const features = [
   { icon: RefreshCw, title: 'Synchronisation bancaire automatique', desc: 'Vos comptes se mettent à jour toutes les heures. Zéro saisie manuelle.' },
@@ -119,6 +138,32 @@ export default function Flow() {
               <ArrowRight className="ml-2 h-5 w-5" />
             </Button>
             <span className="text-sm text-gray-500">Jusqu'au {DEADLINE} · Satisfait ou remboursé 7j</span>
+          </motion.div>
+        </motion.div>
+      </section>
+
+      {/* ── Banques compatibles ── */}
+      <section className="py-10 px-4 sm:px-6 border-b border-gray-800/50">
+        <motion.div
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true }}
+          variants={stagger}
+          className="max-w-4xl mx-auto text-center"
+        >
+          <motion.p variants={fadeUp} className="text-sm text-gray-500 font-medium uppercase tracking-wider mb-6">
+            Compatible avec +350 banques dont
+          </motion.p>
+          <motion.div variants={fadeUp} className="flex items-center justify-center gap-6 sm:gap-8 flex-wrap">
+            {compatibleBanks.map((bank) => (
+              <img
+                key={bank.name}
+                src={bank.logo}
+                alt={`Logo ${bank.name}`}
+                className="h-8 sm:h-10 object-contain opacity-60 hover:opacity-100 transition-opacity brightness-0 invert"
+                title={bank.name}
+              />
+            ))}
           </motion.div>
         </motion.div>
       </section>
