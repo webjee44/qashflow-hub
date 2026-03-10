@@ -67,6 +67,28 @@ export function TransactionsView() {
     );
   }
 
+  // Last AI sync date from automation rules
+  const { rules } = useAutomationRules();
+  const lastAiSync = useMemo(() => {
+    const rulesWithMatches = (rules || []).filter(r => r.match_count > 0 && r.updated_at);
+    if (rulesWithMatches.length === 0) return null;
+    const latest = rulesWithMatches.reduce((a, b) => 
+      new Date(a.updated_at) > new Date(b.updated_at) ? a : b
+    );
+    return new Date(latest.updated_at);
+  }, [rules]);
+
+  const formatRelativeDate = useCallback((date: Date) => {
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMin = Math.floor(diffMs / 60000);
+    if (diffMin < 1) return "à l'instant";
+    if (diffMin < 60) return `il y a ${diffMin} min`;
+    const diffH = Math.floor(diffMin / 60);
+    if (diffH < 24) return `il y a ${diffH}h`;
+    return new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(date);
+  }, []);
+
   return (
     <div className="space-y-6">
       {/* Compact header: title + stats + actions on one line */}
@@ -85,7 +107,13 @@ export function TransactionsView() {
             {formatAmount(bankBalance)}
           </span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          {lastAiSync && (
+            <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Bot className="w-3.5 h-3.5" />
+              Dernière synchro IA {formatRelativeDate(lastAiSync)}
+            </span>
+          )}
           <Button
             onClick={handlers.applyAutomationRules}
             disabled={handlers.applyingRules}
