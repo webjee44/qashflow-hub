@@ -257,17 +257,24 @@ export function useBalanceChartData() {
 
         const { data: forecasts } = await forecastsQuery;
 
-        // Calculate current balance: use LIVE bridge_accounts balance
+        // Calculate current balance: use LIVE bridge_accounts balance via company_bridge_accounts
         let currentBalance: number;
         
         if (currentCompany?.id) {
-          const { data: bridgeAccounts } = await supabase
-            .from('bridge_accounts')
-            .select('balance')
+          const { data: assignments } = await supabase
+            .from('company_bridge_accounts')
+            .select('bridge_account_id')
             .eq('company_id', currentCompany.id);
-          
-          if (bridgeAccounts && bridgeAccounts.length > 0) {
-            currentBalance = bridgeAccounts.reduce((sum, acc) => sum + Number(acc.balance || 0), 0);
+
+          const assignedIds = (assignments || []).map(a => a.bridge_account_id);
+
+          if (assignedIds.length > 0) {
+            const { data: bridgeAccounts } = await supabase
+              .from('bridge_accounts')
+              .select('balance')
+              .in('bridge_account_id', assignedIds);
+
+            currentBalance = bridgeAccounts?.reduce((sum, acc) => sum + Number(acc.balance || 0), 0) || 0;
           } else if (currentCompany.bank_balance !== null && currentCompany.bank_balance !== undefined) {
             currentBalance = Number(currentCompany.bank_balance);
           } else {
