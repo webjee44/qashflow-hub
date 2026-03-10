@@ -1760,7 +1760,8 @@ export const ForecastTable = forwardRef<ForecastTableRef>(function ForecastTable
           Solde de début de mois
         </td>
         {months.map((month, monthIndex) => {
-          const { balance, isActual } = getOpeningBalance(month);
+          const openingData = getOpeningBalance(month);
+          const { balance, noData } = openingData as any;
           const periodType = getMonthPeriodType(month);
           
           if (periodType === 'past') {
@@ -1768,9 +1769,9 @@ export const ForecastTable = forwardRef<ForecastTableRef>(function ForecastTable
               <td key={monthIndex} className="p-0 border-r border-border min-w-[90px]">
                 <div className={cn(
                   "px-3 py-2 text-right font-bold",
-                  balance >= 0 ? "text-primary" : "text-foreground"
+                  noData ? "text-muted-foreground/50 italic" : balance >= 0 ? "text-primary" : "text-foreground"
                 )}>
-                  {formatValue(balance)}
+                  {noData ? '—' : formatValue(balance)}
                 </div>
               </td>
             );
@@ -1982,6 +1983,15 @@ export const ForecastTable = forwardRef<ForecastTableRef>(function ForecastTable
           
           if (periodType === 'past') {
             const isEstimated = (closingData as any).isEstimated;
+            const noData = (closingData as any).noData;
+            if (noData) {
+              return (
+                <td key={monthIndex} className="p-0 border-r border-border min-w-[90px]">
+                  <div className="px-3 py-2 text-right font-bold text-muted-foreground/50 italic">—</div>
+                </td>
+              );
+            }
+
             const hasOverride = getBalanceOverride(month) !== null;
             const isEditingThis = editingBalanceMonth === monthIndex;
             

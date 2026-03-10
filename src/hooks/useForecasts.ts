@@ -4,7 +4,7 @@ import { useAuth } from './useAuth';
 import { useCompany } from './useCompany';
 import { useCategories, Category } from './useCategories';
 import { toast } from 'sonner';
-import { addMonths, startOfMonth, endOfMonth, format, differenceInMonths, isBefore, isSameMonth } from 'date-fns';
+import { addMonths, startOfMonth, endOfMonth, format, isBefore, isSameMonth } from 'date-fns';
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 
 export interface PayableInvoice {
@@ -495,23 +495,7 @@ export function useForecasts() {
     return override ? Number(override.balance) : null;
   }, [balanceOverrides]);
 
-  // Helper: get total snapshot balance for the last day of a given month
-  const getSnapshotForEndOfMonth = useCallback((month: Date): number | null => {
-    const monthStart = format(startOfMonth(month), 'yyyy-MM-dd');
-    const monthEnd = format(endOfMonth(month), 'yyyy-MM-dd');
-    
-    // Find all snapshots within this month, take the latest one (already sorted desc)
-    const monthSnapshots = balanceSnapshots.filter(
-      s => s.snapshot_date >= monthStart && s.snapshot_date <= monthEnd
-    );
-    
-    if (monthSnapshots.length === 0) return null;
-    
-    // Group by the latest date and sum all accounts for that date
-    const latestDate = monthSnapshots[0].snapshot_date;
-    const latestSnapshots = monthSnapshots.filter(s => s.snapshot_date === latestDate);
-    return latestSnapshots.reduce((sum, s) => sum + Number(s.balance), 0);
-  }, [balanceSnapshots]);
+  // getSnapshotForEndOfMonth REMOVED — Point Zéro forward-only approach
 
   // Helper to get payable outflow for a specific month
   // Rule: overdue invoices (due_date < today) -> placed at end of current month
@@ -656,11 +640,10 @@ export function useForecasts() {
     return dateSnapshots.reduce((sum, s) => sum + Number(s.balance), 0);
   }, [balanceSnapshots]);
 
-  // Calculate the opening balance for a given month — FORWARD-ONLY / LEDGER approach
-  // Past & current: read snapshot at 1st of the month (populated by backfill + daily CRON)
-  // Future: snapshot of current month + Σ net forecasts
-  const getOpeningBalance = useCallback((month: Date): { balance: number; isActual: boolean; isEstimated?: boolean } => {
-    const initialBalance = currentCompany?.initial_balance ?? 0;
+  // Calculate the opening balance — Point Zéro forward-only approach
+  // Past & current: read snapshot. If absent → null (pre-enrollment)
+  // Future: current month anchor + Σ net forecasts
+  const getOpeningBalance = useCallback((month: Date): { balance: number; isActual: boolean; isEstimated?: boolean; noData?: boolean } => {
     const todayMonth = startOfMonth(new Date());
     const targetMonth = startOfMonth(month);
     const targetDateStr = format(targetMonth, 'yyyy-MM-01');
@@ -672,56 +655,27 @@ export function useForecasts() {
       return { balance: prevOverride, isActual: true };
     }
 
-    // 2. For past & current months: look up snapshot at 1st of this month
+    // 2. Past & current months: read snapshot directly
     if (isBefore(targetMonth, addMonths(todayMonth, 1))) {
-      // Try snapshot at 1st of target month
       const snapshot = getSnapshotForDate(targetDateStr);
       if (snapshot !== null) {
         return { balance: snapshot, isActual: true };
       }
-
-      // Try end-of-previous-month snapshot as fallback
-      const prevSnapshot = getSnapshotForEndOfMonth(prevMonth);
-      if (prevSnapshot !== null) {
-        return { balance: prevSnapshot, isActual: true };
-      }
-
-      // Last resort for current month: use live bank balance minus this month's transactions
-      if (isSameMonth(month, new Date()) && liveBankBalance != null) {
-        // We still have actuals data from the actuals query — compute net from that
-        return { balance: liveBankBalance, isActual: true, isEstimated: true };
-      }
-
-      // No snapshot available at all — use initial_balance (should only happen before backfill)
-      return { balance: initialBalance, isActual: true, isEstimated: true };
+      // No snapshot = pre-enrollment month
+      return { balance: 0, isActual: true, noData: true };
     }
 
-    // 3. Future months: find the best anchor (current month snapshot or live balance) and walk forward
-    let anchorBalance: number;
-    let anchorMonth: Date;
-
-    // Try current month snapshot first
+    // 3. Future: find anchor and walk forward
     const currentMonthStr = format(todayMonth, 'yyyy-MM-01');
     const currentSnapshot = getSnapshotForDate(currentMonthStr);
-    if (currentSnapshot !== null) {
-      anchorBalance = currentSnapshot;
-      anchorMonth = todayMonth;
-    } else if (liveBankBalance != null) {
-      // Fallback: use live balance as "current month" anchor (less precise but works)
-      anchorBalance = liveBankBalance;
-      anchorMonth = todayMonth;
-    } else {
-      anchorBalance = initialBalance;
-      anchorMonth = todayMonth;
-    }
+    const anchorBalance = currentSnapshot ?? liveBankBalance ?? 0;
 
-    // Walk forward from anchor month to target month
     let projectedBalance = anchorBalance;
-    for (let m = anchorMonth; isBefore(m, targetMonth); m = addMonths(m, 1)) {
+    for (let m = todayMonth; isBefore(m, targetMonth); m = addMonths(m, 1)) {
       projectedBalance += getMonthNetForecast(m);
     }
     return { balance: projectedBalance, isActual: false };
-  }, [currentCompany, liveBankBalance, balanceSnapshots, getSnapshotForDate, getSnapshotForEndOfMonth, getMonthNetForecast, getBalanceOverride]);
+  }, [liveBankBalance, balanceSnapshots, getSnapshotForDate, getMonthNetForecast, getBalanceOverride]);
 
   // Helper to get total income forecast (HT) for a month - used for variable charge tooltips
   const getIncomeForecastTotal = useCallback((month: Date): number => {
@@ -734,45 +688,33 @@ export function useForecasts() {
       }, 0);
   }, [categories, forecasts]);
 
-  // Helper to get closing balance (end of month) = opening balance + month net variation
-  const getClosingBalance = useCallback((month: Date): { balance: number; forecastBalance?: number; isActual: boolean; isEstimated?: boolean } => {
+  // Closing balance = next month's opening (which reads the snapshot or walks forward)
+  const getClosingBalance = useCallback((month: Date): { balance: number; forecastBalance?: number; isActual: boolean; isEstimated?: boolean; noData?: boolean } => {
     const opening = getOpeningBalance(month);
-    const periodType = (() => {
-      const todayMonth = startOfMonth(new Date());
-      const target = startOfMonth(month);
-      if (isBefore(target, todayMonth)) return 'past';
-      if (isSameMonth(month, new Date())) return 'current';
-      return 'future';
-    })();
-
-    if (periodType === 'past') {
-      // Check manual override first
-      const override = getBalanceOverride(month);
-      if (override !== null) {
-        return { balance: override, isActual: true };
-      }
-      // Check if we have a snapshot for this month's end
-      const snapshot = getSnapshotForEndOfMonth(month);
-      if (snapshot !== null) {
-        return { balance: snapshot, isActual: true };
-      }
-      // Fallback to next month's opening (retro-calculated, mark as estimated)
-      const nextMonth = addMonths(startOfMonth(month), 1);
-      const nextOpening = getOpeningBalance(nextMonth);
-      return { balance: nextOpening.balance, isActual: true, isEstimated: nextOpening.isEstimated };
+    
+    // If opening has no data, closing has no data either
+    if (opening.noData) {
+      return { balance: 0, isActual: true, noData: true };
     }
 
-    if (periodType === 'current') {
-      const nextMonth = addMonths(startOfMonth(month), 1);
-      const nextOpening = getOpeningBalance(nextMonth);
+    // Check manual override
+    const override = getBalanceOverride(month);
+    if (override !== null) {
+      return { balance: override, isActual: true };
+    }
+
+    // Use next month's opening as closing (it reads the snapshot or walks forward)
+    const nextMonth = addMonths(startOfMonth(month), 1);
+    const nextOpening = getOpeningBalance(nextMonth);
+    
+    // For current month, also provide forecast-based balance
+    if (isSameMonth(month, new Date())) {
       const netForecast = getMonthNetForecast(month);
       return { balance: nextOpening.balance, forecastBalance: opening.balance + netForecast, isActual: false };
     }
 
-    // Future: opening + net forecast
-    const netForecast = getMonthNetForecast(month);
-    return { balance: opening.balance + netForecast, isActual: false };
-  }, [getOpeningBalance, getMonthNetForecast, getSnapshotForEndOfMonth, getBalanceOverride]);
+    return { balance: nextOpening.balance, isActual: nextOpening.isActual, noData: nextOpening.noData };
+  }, [getOpeningBalance, getMonthNetForecast, getBalanceOverride]);
 
   return {
     months,
