@@ -10,7 +10,7 @@ import screenshotDashboard from '@/assets/screenshot-dashboard.png';
 import screenshotPrevisions from '@/assets/screenshot-previsions.png';
 import screenshotPnl from '@/assets/screenshot-pnl.png';
 import bankCic from '@/assets/banks/cic.png';
-import bankBanquePopulaire from '@/assets/banks/banque-populaire.png';
+
 import bankCreditAgricole from '@/assets/banks/credit-agricole.png';
 import bankSocieteGenerale from '@/assets/banks/societe-generale.png';
 import bankBnpParibas from '@/assets/banks/bnp-paribas.png';
