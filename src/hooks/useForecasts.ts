@@ -409,36 +409,7 @@ export function useForecasts() {
     enabled: !!user?.id,
   });
 
-  // Fetch all transactions for opening balance calculation (need ALL transactions for proper balance)
-  const { data: allTransactions = [], isLoading: transactionsLoading } = useQuery({
-    queryKey: ['all-transactions-for-balance', user?.id, currentCompany?.id],
-    queryFn: async () => {
-      if (!user?.id || !currentCompany?.id) return [];
-      
-      // Fetch in batches to avoid the 1000 row default limit
-      const batchSize = 1000;
-      let allData: { amount: number; date: string; type: string }[] = [];
-      let offset = 0;
-      let hasMore = true;
-      
-      while (hasMore) {
-        const { data, error } = await supabase
-          .from('transactions')
-          .select('amount, date, type')
-          .eq('company_id', currentCompany.id)
-          .is('deleted_at', null)
-          .or('is_ignored.is.null,is_ignored.eq.false')
-          .range(offset, offset + batchSize - 1);
-        if (error) throw error;
-        allData = allData.concat(data || []);
-        hasMore = (data?.length ?? 0) === batchSize;
-        offset += batchSize;
-      }
-      
-      return allData;
-    },
-    enabled: !!user?.id && !!currentCompany?.id,
-  });
+  // allTransactions query REMOVED — replaced by snapshot-based forward-only approach
 
   // Fetch balance snapshots for past months (use real recorded balances instead of retroactive calc)
   const { data: balanceSnapshots = [] } = useQuery({

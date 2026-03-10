@@ -83,3 +83,6 @@ verify_jwt = false
 
 [functions.snapshot-balances]
 verify_jwt = false
+
+[functions.backfill-snapshots]
+verify_jwt = false
