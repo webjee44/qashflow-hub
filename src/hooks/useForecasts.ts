@@ -714,31 +714,27 @@ export function useForecasts() {
       return { balance: projected, isActual: false };
     }
     
+    // 1. Calculate opening balance of CURRENT month (single anchor point)
+    const transactionsThisMonth = allTransactions.filter(tx => new Date(tx.date) >= todayMonth);
+    const netThisMonth = transactionsThisMonth.reduce((sum, tx) => {
+      const amount = Number(tx.amount);
+      return sum + (tx.type === 'income' ? amount : -amount);
+    }, 0);
+    const currentMonthOpening = currentBankBalance - netThisMonth;
+
+    // 2. Current month
     if (isSameMonth(month, new Date())) {
-      // Check if previous month has a balance override
       const prevMonth = addMonths(targetMonth, -1);
       const prevOverride = getBalanceOverride(prevMonth);
       if (prevOverride !== null) {
         return { balance: prevOverride, isActual: true };
       }
-      // Current month: opening = currentBalance - net of all transactions this month
-      const monthStart = startOfMonth(month);
-      const transactionsThisMonth = allTransactions.filter(tx => {
-        const txDate = new Date(tx.date);
-        return txDate >= monthStart;
-      });
-      const netThisMonth = transactionsThisMonth.reduce((sum, tx) => {
-        const amount = Number(tx.amount);
-        return sum + (tx.type === 'income' ? amount : -amount);
-      }, 0);
-      return { balance: currentBankBalance - netThisMonth, isActual: true };
+      return { balance: currentMonthOpening, isActual: true };
     }
     
+    // 3. Past months
     if (isBefore(targetMonth, todayMonth)) {
-      // Past month: check if we have a snapshot for the PREVIOUS month's end
-      // Opening balance of month M = closing balance of month M-1
       const prevMonth = addMonths(targetMonth, -1);
-      // Past month: check balance override for previous month first
       const prevOverride = getBalanceOverride(prevMonth);
       if (prevOverride !== null) {
         return { balance: prevOverride, isActual: true };
@@ -748,7 +744,6 @@ export function useForecasts() {
         return { balance: prevSnapshot, isActual: true };
       }
       
-      // Also check if we have a snapshot for the first day of this month
       const targetDateStr = format(targetMonth, 'yyyy-MM-dd');
       const firstDaySnapshots = balanceSnapshots.filter(s => s.snapshot_date === targetDateStr);
       if (firstDaySnapshots.length > 0) {
@@ -756,7 +751,7 @@ export function useForecasts() {
         return { balance: snapshotBalance, isActual: true };
       }
       
-      // Fallback: walk backwards from current balance (mark as estimated)
+      // Fallback: walk backwards from current month opening (not live balance)
       const transactionsBetween = allTransactions.filter(tx => {
         const txDate = new Date(tx.date);
         return txDate >= targetMonth && txDate < todayMonth;
@@ -765,11 +760,11 @@ export function useForecasts() {
         const amount = Number(tx.amount);
         return sum + (tx.type === 'income' ? amount : -amount);
       }, 0);
-      return { balance: currentBankBalance - netBetween, isActual: true, isEstimated: true };
+      return { balance: currentMonthOpening - netBetween, isActual: true, isEstimated: true };
     }
     
-    // Future month: calculate projected balance
-    let projectedBalance = currentBankBalance;
+    // 4. Future months: walk forward from current month opening
+    let projectedBalance = currentMonthOpening;
     for (let m = todayMonth; isBefore(m, targetMonth); m = addMonths(m, 1)) {
       const monthNet = getMonthNetForecast(m);
       projectedBalance += monthNet;
