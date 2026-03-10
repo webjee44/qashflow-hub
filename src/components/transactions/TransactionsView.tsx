@@ -20,7 +20,7 @@ import { TransactionTable } from './TransactionTable';
 import { TransactionDialogs } from './TransactionDialogs';
 
 export function TransactionsView() {
-  const { createRule } = useAutomationRules();
+  const { createRule, rules } = useAutomationRules();
   const {
     transactions, isLoading,
     updateCategory, bulkUpdateCategory, bulkSetIgnored, splitTransaction,
@@ -59,16 +59,7 @@ export function TransactionsView() {
     [filters.filteredTransactions, handlers.selectedTransactionIds]
   );
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
   // Last AI sync date from automation rules
-  const { rules } = useAutomationRules();
   const lastAiSync = useMemo(() => {
     const rulesWithMatches = (rules || []).filter(r => r.match_count > 0 && r.updated_at);
     if (rulesWithMatches.length === 0) return null;
@@ -88,6 +79,14 @@ export function TransactionsView() {
     if (diffH < 24) return `il y a ${diffH}h`;
     return new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(date);
   }, []);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
