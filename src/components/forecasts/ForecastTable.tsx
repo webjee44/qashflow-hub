@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo, forwardRef, useImperativeHandle } from 'react';
+import ExcelJS from 'exceljs';
 import { useCategories, CategoryGroup, Category } from '@/hooks/useCategories';
 import { useCompany } from '@/hooks/useCompany';
 import { useForecasts } from '@/hooks/useForecasts';
@@ -92,7 +93,11 @@ const ProgressBar = ({ actual, forecast, type }: { actual: number; forecast: num
   );
 };
 
-export function ForecastTable() {
+export interface ForecastTableRef {
+  exportToExcel: () => Promise<void>;
+}
+
+export const ForecastTable = forwardRef<ForecastTableRef>(function ForecastTable(_props, ref) {
   const { currentCompany, isLoading: companyLoading } = useCompany();
   const { categories, loading: categoriesLoading, getGroupedCategories, updateCategory, deleteCategory } = useCategories();
   const { 
@@ -418,7 +423,209 @@ export function ForecastTable() {
     }, 0);
   }, [incomeCategories, expenseCategories, getForecast, getActual, months]);
 
-  // Get VAT for a month
+  // Excel export via ref
+  useImperativeHandle(ref, () => ({
+    exportToExcel: async () => {
+      const wb = new ExcelJS.Workbook();
+      const ws = wb.addWorksheet('Prévisions');
+
+      // Header row
+      const headers = ['', ...months.map(m => format(m, 'MMM yyyy', { locale: fr }))];
+      const headerRow = ws.addRow(headers);
+      headerRow.font = { bold: true };
+      headerRow.alignment = { horizontal: 'center' };
+
+      // Helper to get best value for a month (actual for past/current, forecast for future)
+      const getBestValue = (monthIndex: number, actualFn: () => number, forecastFn: () => number) => {
+        const periodType = getMonthPeriodType(months[monthIndex]);
+        if (periodType === 'past') return actualFn();
+        if (periodType === 'future') return forecastFn();
+        // Current: actual if non-zero, otherwise forecast
+        const actual = actualFn();
+        return actual !== 0 ? actual : forecastFn();
+      };
+
+      // Opening balance
+      const openingRow = ws.addRow([
+        'Solde de début de mois',
+        ...months.map((m) => getOpeningBalance(m).balance),
+      ]);
+      openingRow.font = { bold: true };
+      openingRow.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8F0FE' } };
+
+      // Income categories
+      ws.addRow([]);
+      const incomeHeaderRow = ws.addRow([
+        'ENCAISSEMENTS',
+        ...months.map((_, mi) => {
+          let forecastTtc = getMonthTotal('income', mi, 'forecast');
+          let actualTtc = getMonthTotal('income', mi, 'actual');
+          return getBestValue(mi, () => actualTtc, () => forecastTtc);
+        }),
+      ]);
+      incomeHeaderRow.font = { bold: true, color: { argb: 'FF16A34A' } };
+      incomeHeaderRow.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDCFCE7' } };
+
+      incomeGroups.forEach(group => {
+        if (group.group) {
+          const gRow = ws.addRow([
+            `  ${group.group.name}`,
+            ...months.map((_, mi) => {
+              const total = group.children.reduce((sum, cat) => {
+                return sum + getBestValue(mi,
+                  () => Math.abs(getActual(cat.id, months[mi])),
+                  () => getForecast(cat.id, months[mi])
+                );
+              }, 0);
+              return total || '';
+            }),
+          ]);
+          gRow.font = { bold: true };
+        }
+        group.children.forEach(cat => {
+          ws.addRow([
+            group.group ? `    ${cat.name}` : `  ${cat.name}`,
+            ...months.map((_, mi) => {
+              const val = getBestValue(mi,
+                () => Math.abs(getActual(cat.id, months[mi])),
+                () => getForecast(cat.id, months[mi])
+              );
+              return val || '';
+            }),
+          ]);
+        });
+      });
+
+      // Uncategorized income
+      const hasUncatIncome = months.some(m => getUncategorized('income', m) > 0);
+      if (hasUncatIncome) {
+        ws.addRow([
+          '  Non catégorisés',
+          ...months.map(m => getUncategorized('income', m) || ''),
+        ]);
+      }
+
+      // Expense categories
+      ws.addRow([]);
+      const expenseHeaderRow = ws.addRow([
+        'DÉCAISSEMENTS',
+        ...months.map((_, mi) => {
+          let forecastTtc = getMonthTotal('expense', mi, 'forecast');
+          const netVat = getNetVatForecast(months[mi]);
+          if (netVat > 0) forecastTtc += netVat;
+          let actualTtc = getMonthTotal('expense', mi, 'actual');
+          return getBestValue(mi, () => actualTtc, () => forecastTtc);
+        }),
+      ]);
+      expenseHeaderRow.font = { bold: true, color: { argb: 'FFDC2626' } };
+      expenseHeaderRow.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEE2E2' } };
+
+      expenseGroups.forEach(group => {
+        if (group.group) {
+          const gRow = ws.addRow([
+            `  ${group.group.name}`,
+            ...months.map((_, mi) => {
+              const total = group.children.reduce((sum, cat) => {
+                return sum + getBestValue(mi,
+                  () => Math.abs(getActual(cat.id, months[mi])),
+                  () => getForecast(cat.id, months[mi])
+                );
+              }, 0);
+              return total || '';
+            }),
+          ]);
+          gRow.font = { bold: true };
+        }
+        group.children.forEach(cat => {
+          ws.addRow([
+            group.group ? `    ${cat.name}` : `  ${cat.name}`,
+            ...months.map((_, mi) => {
+              const val = getBestValue(mi,
+                () => Math.abs(getActual(cat.id, months[mi])),
+                () => getForecast(cat.id, months[mi])
+              );
+              return val || '';
+            }),
+          ]);
+        });
+      });
+
+      // Uncategorized expense
+      const hasUncatExpense = months.some(m => getUncategorized('expense', m) > 0);
+      if (hasUncatExpense) {
+        ws.addRow([
+          '  Non catégorisés',
+          ...months.map(m => getUncategorized('expense', m) || ''),
+        ]);
+      }
+
+      // VAT row
+      ws.addRow([
+        '  TVA à décaisser',
+        ...months.map((m, mi) => {
+          const val = getBestValue(mi,
+            () => Math.max(0, getNetVatActual(m)),
+            () => Math.max(0, getNetVatForecast(m))
+          );
+          return val || '';
+        }),
+      ]);
+
+      // Net variation
+      ws.addRow([]);
+      const netRow = ws.addRow([
+        'Variation nette du mois',
+        ...months.map((m, mi) => {
+          const incActual = getMonthTotal('income', mi, 'actual') + getUncategorized('income', m);
+          const expActual = getMonthTotal('expense', mi, 'actual') + getUncategorized('expense', m);
+          const incForecast = getMonthTotal('income', mi, 'forecast');
+          let expForecast = 0;
+          expenseCategories.forEach(cat => {
+            const f = getForecast(cat.id, m);
+            const p = getPayableOutflowByCategory(cat.id, m);
+            expForecast += Math.max(f, p);
+          });
+          expForecast += getPayableOutflowUncategorized(m);
+          const netVat = getNetVatForecast(m);
+          if (netVat > 0) expForecast += netVat;
+
+          return getBestValue(mi,
+            () => incActual - expActual,
+            () => incForecast - expForecast
+          );
+        }),
+      ]);
+      netRow.font = { bold: true };
+
+      // Closing balance
+      const closingRow = ws.addRow([
+        'Solde de fin de mois',
+        ...months.map(m => getClosingBalance(m).balance),
+      ]);
+      closingRow.font = { bold: true };
+      closingRow.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8F0FE' } };
+
+      // Format number columns
+      for (let col = 2; col <= months.length + 1; col++) {
+        ws.getColumn(col).numFmt = '#,##0';
+        ws.getColumn(col).width = 14;
+        ws.getColumn(col).alignment = { horizontal: 'right' };
+      }
+      ws.getColumn(1).width = 30;
+
+      // Download
+      const buf = await wb.xlsx.writeBuffer();
+      const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `previsions-tresorerie-${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    },
+  }), [months, incomeGroups, expenseGroups, incomeCategories, expenseCategories, getOpeningBalance, getClosingBalance, getForecast, getActual, getUncategorized, getMonthTotal, getNetVatForecast, getNetVatActual, getPayableOutflowByCategory, getPayableOutflowUncategorized]);
+
+
   const getMonthVat = useCallback((type: 'income' | 'expense', monthIndex: number, valueType: 'forecast' | 'actual') => {
     return valueType === 'forecast'
       ? getVatForecast(type, months[monthIndex])
@@ -2179,4 +2386,4 @@ export function ForecastTable() {
       </AlertDialog>
     </div>
   );
-}
+});
