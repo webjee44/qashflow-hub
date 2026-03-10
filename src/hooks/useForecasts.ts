@@ -641,7 +641,7 @@ export function useForecasts() {
   }, [balanceSnapshots]);
 
   // Calculate the opening balance — Point Zéro forward-only approach
-  // Past & current: read snapshot. If absent → null (pre-enrollment)
+  // Past & current: read snapshot. If absent → use initial_balance for current month, noData for past
   // Future: current month anchor + Σ net forecasts
   const getOpeningBalance = useCallback((month: Date): { balance: number; isActual: boolean; isEstimated?: boolean; noData?: boolean } => {
     const todayMonth = startOfMonth(new Date());
@@ -661,21 +661,26 @@ export function useForecasts() {
       if (snapshot !== null) {
         return { balance: snapshot, isActual: true };
       }
-      // No snapshot = pre-enrollment month
+      // Current month with no snapshot: use initial_balance as fallback (company without bank)
+      if (isSameMonth(targetMonth, todayMonth)) {
+        const fallback = liveBankBalance ?? currentCompany?.initial_balance ?? 0;
+        return { balance: fallback, isActual: true };
+      }
+      // Past month with no snapshot = pre-enrollment
       return { balance: 0, isActual: true, noData: true };
     }
 
     // 3. Future: find anchor and walk forward
     const currentMonthStr = format(todayMonth, 'yyyy-MM-01');
     const currentSnapshot = getSnapshotForDate(currentMonthStr);
-    const anchorBalance = currentSnapshot ?? liveBankBalance ?? 0;
+    const anchorBalance = currentSnapshot ?? liveBankBalance ?? currentCompany?.initial_balance ?? 0;
 
     let projectedBalance = anchorBalance;
     for (let m = todayMonth; isBefore(m, targetMonth); m = addMonths(m, 1)) {
       projectedBalance += getMonthNetForecast(m);
     }
     return { balance: projectedBalance, isActual: false };
-  }, [liveBankBalance, balanceSnapshots, getSnapshotForDate, getMonthNetForecast, getBalanceOverride]);
+  }, [liveBankBalance, currentCompany, balanceSnapshots, getSnapshotForDate, getMonthNetForecast, getBalanceOverride]);
 
   // Helper to get total income forecast (HT) for a month - used for variable charge tooltips
   const getIncomeForecastTotal = useCallback((month: Date): number => {
