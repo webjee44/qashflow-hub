@@ -26,6 +26,7 @@ import { z } from 'zod';
 import { PublicNavbar } from '@/components/layout/PublicNavbar';
 import { SEOHead, generateOrganizationSchema, generateBreadcrumbSchema } from '@/components/seo/SEOHead';
 import { LogoBar } from '@/components/landing/LogoBar';
+import { BankSlider } from '@/components/landing/BankSlider';
 import { TestimonialCarousel } from '@/components/landing/TestimonialCarousel';
 import { LandingFAQ } from '@/components/landing/LandingFAQ';
 import { SectionCTA } from '@/components/landing/SectionCTA';
