@@ -166,6 +166,7 @@ export default function Flow() {
             ))}
           </motion.div>
         </motion.div>
+      </section>
 
       {/* ── Crédibilité ── */}
       <section className="py-16 px-4 sm:px-6 border-y border-gray-800/50">
