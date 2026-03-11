@@ -46,7 +46,7 @@ export default function Invoices() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
   const [tabFilter, setTabFilter] = useState<TabFilter>('all');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('pending');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [partnerFilter, setPartnerFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
