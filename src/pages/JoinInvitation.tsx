@@ -72,7 +72,7 @@ export default function JoinInvitation() {
     try {
       await acceptInvitation.mutateAsync(token);
       // Default to Business Plan after joining (Treasury can still be accessed if enabled later)
-      navigate('/bp/revenus');
+      navigate('/previsions');
     } catch (error) {
       // Error handled in hook
     }
