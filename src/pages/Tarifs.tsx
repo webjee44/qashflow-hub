@@ -50,7 +50,7 @@ export default function Tarifs() {
 
   const handleStartTrial = () => {
     if (!user) { navigate('/sign-up'); return; }
-    navigate('/bp/revenus');
+    navigate('/previsions');
     toast.success('Bienvenue ! Votre essai gratuit de 7 jours est actif.');
   };
 
