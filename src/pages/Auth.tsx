@@ -104,7 +104,7 @@ export default function Auth() {
           navigate('/superadmin');
         } else {
           // Utilisateur normal -> application
-          navigate('/bp/revenus');
+          navigate('/previsions');
         }
       }
     };
