@@ -627,144 +627,139 @@ Deno.serve(async (req) => {
         console.info('[bridge-sync] Company balance updated successfully');
       }
 
-      if (action === 'sync-accounts') {
-        return successResponse({
-          accounts: allAccounts.length,
-          syncedAccounts,
-          assignedCount,
-          totalBalance: assignedBalance,
-        });
-      }
-
-      // Get transactions - limit to 3 months before company creation
-      const { data: companyForCutoff } = await supabaseAdmin
-        .from('companies')
-        .select('created_at')
-        .eq('id', company_id)
-        .single();
-      
-      let cutoffDateStr: string | undefined;
-      if (companyForCutoff?.created_at) {
-        const cutoff = new Date(companyForCutoff.created_at);
-        cutoff.setMonth(cutoff.getMonth() - 3);
-        cutoffDateStr = cutoff.toISOString().split('T')[0];
-        console.info(`[bridge-sync] Full-sync cutoff date: ${cutoffDateStr} (company created: ${companyForCutoff.created_at})`);
-      }
-
-      const allTransactions = await bridgeClient.fetchAllTransactions(90, cutoffDateStr);
-
-      // Build account→company map for proper transaction assignment
-      const accountToCompanyMap = await getAccountToCompanyMap(supabaseAdmin, bridge_user_uuid);
-
-      // Sync transactions with correct company assignments
-      const { inserted, updated } = await syncCompanyTransactions(
-        supabaseAdmin,
-        bridgeClient,
-        company_id,
-        userId,
-        allAccounts,
-        allTransactions,
-        accountToCompanyMap
-      );
-
-      console.info(`[bridge-sync] Full sync complete: ${allAccounts.length} accounts, ${inserted} new, ${updated} updated transactions`);
-
       // ============================================
-      // Point Zéro: Create initial snapshot if none exists
+      // Heavy transaction sync: run in background via waitUntil
+      // Return account data immediately to avoid CPU timeout
       // ============================================
-      try {
-        const { data: existingSnapshots } = await supabaseAdmin
-          .from('bank_balance_snapshots')
-          .select('id')
-          .eq('company_id', company_id)
-          .limit(1);
+      const backgroundSync = async () => {
+        try {
+          // Get transactions - limit to 3 months before company creation
+          const { data: companyForCutoff } = await supabaseAdmin
+            .from('companies')
+            .select('created_at')
+            .eq('id', company_id)
+            .single();
+          
+          let cutoffDateStr: string | undefined;
+          if (companyForCutoff?.created_at) {
+            const cutoff = new Date(companyForCutoff.created_at);
+            cutoff.setMonth(cutoff.getMonth() - 3);
+            cutoffDateStr = cutoff.toISOString().split('T')[0];
+            console.info(`[bridge-sync] Full-sync cutoff date: ${cutoffDateStr} (company created: ${companyForCutoff.created_at})`);
+          }
 
-        if (!existingSnapshots || existingSnapshots.length === 0) {
-          console.info(`[bridge-sync] No snapshots found for company ${company_id}, creating Point Zéro...`);
-          
-          // Get assigned account IDs for this company
-          const { data: companyAssignments } = await supabaseAdmin
-            .from('company_bridge_accounts')
-            .select('bridge_account_id')
-            .eq('company_id', company_id);
-          
-          const assignedAccountIds = (companyAssignments || []).map((a: any) => a.bridge_account_id);
-          
-          if (assignedAccountIds.length > 0) {
-            // Calculate net transactions from 1st of current month to today
-            const now = new Date();
-            const firstOfMonth = `${now.toISOString().substring(0, 7)}-01`;
-            const todayStr = now.toISOString().split('T')[0];
+          const allTxs = await bridgeClient.fetchAllTransactions(90, cutoffDateStr);
+
+          // Build account→company map for proper transaction assignment
+          const acctToCompanyMap = await getAccountToCompanyMap(supabaseAdmin, bridge_user_uuid!);
+
+          // Sync transactions with correct company assignments
+          const { inserted, updated } = await syncCompanyTransactions(
+            supabaseAdmin,
+            bridgeClient,
+            company_id!,
+            userId,
+            allAccounts,
+            allTxs,
+            acctToCompanyMap
+          );
+
+          console.info(`[bridge-sync] Background sync complete: ${inserted} new, ${updated} updated transactions`);
+
+          // ============================================
+          // Point Zéro: Create initial snapshot if none exists
+          // ============================================
+          const { data: existingSnapshots } = await supabaseAdmin
+            .from('bank_balance_snapshots')
+            .select('id')
+            .eq('company_id', company_id)
+            .limit(1);
+
+          if (!existingSnapshots || existingSnapshots.length === 0) {
+            console.info(`[bridge-sync] No snapshots found for company ${company_id}, creating Point Zéro...`);
             
-            const { data: monthTxs } = await supabaseAdmin
-              .from('transactions')
-              .select('amount, type')
-              .eq('company_id', company_id)
-              .gte('date', firstOfMonth)
-              .lte('date', todayStr)
-              .is('deleted_at', null)
-              .or('is_ignored.is.null,is_ignored.eq.false');
+            const { data: companyAssignments } = await supabaseAdmin
+              .from('company_bridge_accounts')
+              .select('bridge_account_id')
+              .eq('company_id', company_id);
             
-            const netThisMonth = (monthTxs || []).reduce((sum: number, tx: any) => {
-              const amt = Number(tx.amount);
-              return sum + (tx.type === 'income' ? amt : -amt);
-            }, 0);
+            const assignedAccountIds = (companyAssignments || []).map((a: any) => a.bridge_account_id);
             
-            // Point Zéro = Live balance - net transactions since 1st
-            const pointZeroBalance = Math.round((assignedBalance - netThisMonth) * 100) / 100;
-            
-            // Use the first assigned account as the primary for snapshot
-            const primaryAccountId = assignedAccountIds[0];
-            
-            const { error: snapError } = await supabaseAdmin
-              .from('bank_balance_snapshots')
-              .upsert({
-                company_id: company_id,
-                bridge_account_id: primaryAccountId,
-                balance: pointZeroBalance,
-                snapshot_date: firstOfMonth,
-              }, { onConflict: 'bridge_account_id,snapshot_date' });
-            
-            if (snapError) {
-              console.error(`[bridge-sync] Failed to create Point Zéro snapshot:`, snapError);
-            } else {
-              console.info(`[bridge-sync] Point Zéro created: ${pointZeroBalance}€ at ${firstOfMonth}`);
+            if (assignedAccountIds.length > 0) {
+              const now = new Date();
+              const firstOfMonth = `${now.toISOString().substring(0, 7)}-01`;
+              const todayStr = now.toISOString().split('T')[0];
+              
+              const { data: monthTxs } = await supabaseAdmin
+                .from('transactions')
+                .select('amount, type')
+                .eq('company_id', company_id)
+                .gte('date', firstOfMonth)
+                .lte('date', todayStr)
+                .is('deleted_at', null)
+                .or('is_ignored.is.null,is_ignored.eq.false');
+              
+              const netThisMonth = (monthTxs || []).reduce((sum: number, tx: any) => {
+                const amt = Number(tx.amount);
+                return sum + (tx.type === 'income' ? amt : -amt);
+              }, 0);
+              
+              const pointZeroBalance = Math.round((assignedBalance - netThisMonth) * 100) / 100;
+              const primaryAccountId = assignedAccountIds[0];
+              
+              const { error: snapError } = await supabaseAdmin
+                .from('bank_balance_snapshots')
+                .upsert({
+                  company_id: company_id,
+                  bridge_account_id: primaryAccountId,
+                  balance: pointZeroBalance,
+                  snapshot_date: firstOfMonth,
+                }, { onConflict: 'bridge_account_id,snapshot_date' });
+              
+              if (snapError) {
+                console.error(`[bridge-sync] Failed to create Point Zéro snapshot:`, snapError);
+              } else {
+                console.info(`[bridge-sync] Point Zéro created: ${pointZeroBalance}€ at ${firstOfMonth}`);
+              }
             }
           }
-        }
-      } catch (snapErr) {
-        console.error(`[bridge-sync] Point Zéro error (non-blocking):`, snapErr);
-      }
 
-      // Apply automation rules after full-sync if new transactions were inserted
-      if (inserted > 0) {
-        try {
-          console.info(`[bridge-sync] Applying automation rules after full-sync for company ${company_id}...`);
-          const applyRes = await fetch(
-            `${supabaseUrl}/functions/v1/apply-all-automation-rules`,
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${supabaseServiceKey}`,
-              },
-              body: JSON.stringify({ company_id }),
+          // Apply automation rules after full-sync if new transactions were inserted
+          if (inserted > 0) {
+            try {
+              console.info(`[bridge-sync] Applying automation rules after full-sync for company ${company_id}...`);
+              const applyRes = await fetch(
+                `${supabaseUrl}/functions/v1/apply-all-automation-rules`,
+                {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${supabaseServiceKey}`,
+                  },
+                  body: JSON.stringify({ company_id }),
+                }
+              );
+              const applyData = await applyRes.json();
+              console.info(`[bridge-sync] Auto-categorized ${applyData.updated || 0} transactions`);
+            } catch (autoErr) {
+              console.error(`[bridge-sync] Failed to apply automation rules:`, autoErr);
             }
-          );
-          const applyData = await applyRes.json();
-          console.info(`[bridge-sync] Auto-categorized ${applyData.updated || 0} transactions`);
-        } catch (autoErr) {
-          console.error(`[bridge-sync] Failed to apply automation rules:`, autoErr);
+          }
+        } catch (bgErr) {
+          console.error(`[bridge-sync] Background sync error:`, bgErr);
         }
-      }
+      };
+
+      // Start background processing - response returns immediately
+      (globalThis as any).EdgeRuntime?.waitUntil?.(backgroundSync()) 
+        ?? backgroundSync(); // Fallback: run inline if waitUntil not available
 
       return successResponse({ 
         accounts: allAccounts.length,
         syncedAccounts,
         assignedCount,
         totalBalance: assignedBalance,
-        inserted, 
-        updated 
+        backgroundSync: true,
       });
     }
 
