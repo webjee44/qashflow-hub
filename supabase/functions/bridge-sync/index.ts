@@ -336,13 +336,19 @@ async function syncCompanyTransactions(
       }
     }
 
-    // Batch update existing transactions
-    for (const item of toUpdate) {
-      const { error } = await supabaseAdmin
-        .from('transactions')
-        .update(item.data)
-        .eq('id', item.id);
-      if (!error) updatedCount++;
+    // Batch update existing transactions in parallel chunks
+    const UPDATE_BATCH_SIZE = 50;
+    for (let i = 0; i < toUpdate.length; i += UPDATE_BATCH_SIZE) {
+      const batch = toUpdate.slice(i, i + UPDATE_BATCH_SIZE);
+      const results = await Promise.all(
+        batch.map(item =>
+          supabaseAdmin
+            .from('transactions')
+            .update(item.data)
+            .eq('id', item.id)
+        )
+      );
+      updatedCount += results.filter(r => !r.error).length;
     }
 
     console.info(`[bridge-sync] Company ${correctCompanyId}: ${toInsert.length} new, ${toUpdate.length} updated`);
