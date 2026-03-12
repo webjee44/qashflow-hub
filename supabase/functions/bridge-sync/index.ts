@@ -627,6 +627,15 @@ Deno.serve(async (req) => {
         console.info('[bridge-sync] Company balance updated successfully');
       }
 
+      if (action === 'sync-accounts') {
+        return successResponse({
+          accounts: allAccounts.length,
+          syncedAccounts,
+          assignedCount,
+          totalBalance: assignedBalance,
+        });
+      }
+
       // ============================================
       // Heavy transaction sync: run in background via waitUntil
       // Return account data immediately to avoid CPU timeout
