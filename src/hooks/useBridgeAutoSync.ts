@@ -7,6 +7,7 @@ import { logError, logInfo } from '@/lib/logger';
 
 const SYNC_STORAGE_KEY = 'bridge_last_auto_sync';
 const SYNC_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes cooldown
+const UUID_REGEX = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
 export function useBridgeAutoSync() {
   const { currentCompany, refetch } = useCompany();
@@ -14,8 +15,9 @@ export function useBridgeAutoSync() {
   const hasSynced = useRef(false);
 
   useEffect(() => {
-    // Only run once per mount and if company has Bridge connected
-    if (hasSynced.current || !currentCompany?.bridge_user_uuid) {
+    // Only run once per mount and if company has a valid Bridge UUID
+    const bridgeUuid = currentCompany?.bridge_user_uuid;
+    if (hasSynced.current || !bridgeUuid || !UUID_REGEX.test(bridgeUuid)) {
       return;
     }
 
