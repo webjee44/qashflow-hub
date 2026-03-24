@@ -457,9 +457,9 @@ export const ForecastTable = forwardRef<ForecastTableRef>(function ForecastTable
       ws.addRow([]);
       const incomeHeaderRow = ws.addRow([
         'ENCAISSEMENTS',
-        ...months.map((_, mi) => {
+        ...months.map((m, mi) => {
           let forecastTtc = getMonthTotal('income', mi, 'forecast');
-          let actualTtc = getMonthTotal('income', mi, 'actual');
+          let actualTtc = getMonthTotal('income', mi, 'actual') + getUncategorized('income', m);
           return getBestValue(mi, () => actualTtc, () => forecastTtc);
         }),
       ]);
@@ -509,11 +509,11 @@ export const ForecastTable = forwardRef<ForecastTableRef>(function ForecastTable
       ws.addRow([]);
       const expenseHeaderRow = ws.addRow([
         'DÉCAISSEMENTS',
-        ...months.map((_, mi) => {
+        ...months.map((m, mi) => {
           let forecastTtc = getMonthTotal('expense', mi, 'forecast');
           const netVat = getNetVatForecast(months[mi]);
           if (netVat > 0) forecastTtc += netVat;
-          let actualTtc = getMonthTotal('expense', mi, 'actual');
+          let actualTtc = getMonthTotal('expense', mi, 'actual') + getUncategorized('expense', m);
           return getBestValue(mi, () => actualTtc, () => forecastTtc);
         }),
       ]);
@@ -1386,7 +1386,9 @@ export const ForecastTable = forwardRef<ForecastTableRef>(function ForecastTable
         </td>
         {months.map((month, monthIndex) => {
           const forecastTotal = getMonthTotal(type, monthIndex, 'forecast');
-          const actualTotal = getMonthTotal(type, monthIndex, 'actual');
+          // Include uncategorized transactions in the actual total — an income/expense
+          // remains an income/expense regardless of categorization
+          const actualTotal = getMonthTotal(type, monthIndex, 'actual') + getUncategorized(type, month);
           const periodType = getMonthPeriodType(month);
           
           if (periodType === 'past') {
