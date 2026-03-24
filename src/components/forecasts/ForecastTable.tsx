@@ -1562,9 +1562,10 @@ export const ForecastTable = forwardRef<ForecastTableRef>(function ForecastTable
           </div>
         </td>
         {months.map((month, monthIndex) => {
-          // getMonthTotal now returns TTC for forecasts, already TTC for actuals
+          // Section totals must include uncategorized actual transactions,
+          // otherwise actual section headers diverge from net cash movement
           let forecastTtc = getMonthTotal(type, monthIndex, 'forecast');
-          let actualTtc = getMonthTotal(type, monthIndex, 'actual');
+          let actualTtc = getMonthTotal(type, monthIndex, 'actual') + getUncategorized(type, month);
           
           if (type === 'expense') {
             const netVatForecast = getNetVatForecast(months[monthIndex]);
