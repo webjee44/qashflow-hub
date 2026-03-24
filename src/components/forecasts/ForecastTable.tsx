@@ -1386,7 +1386,9 @@ export const ForecastTable = forwardRef<ForecastTableRef>(function ForecastTable
         </td>
         {months.map((month, monthIndex) => {
           const forecastTotal = getMonthTotal(type, monthIndex, 'forecast');
-          const actualTotal = getMonthTotal(type, monthIndex, 'actual');
+          // Include uncategorized transactions in the actual total — an income/expense
+          // remains an income/expense regardless of categorization
+          const actualTotal = getMonthTotal(type, monthIndex, 'actual') + getUncategorized(type, month);
           const periodType = getMonthPeriodType(month);
           
           if (periodType === 'past') {
