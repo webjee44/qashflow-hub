@@ -68,10 +68,10 @@ Deno.serve(async (req) => {
       .eq("company_id", company_id);
 
     if (!categories || categories.length === 0) {
-      return new Response(JSON.stringify({ error: "Aucune catégorie trouvée" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ success: true, message: "Aucune catégorie trouvée", count: 0 }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     // Define demo amounts by category name pattern (case-insensitive match)
