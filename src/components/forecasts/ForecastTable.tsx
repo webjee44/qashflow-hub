@@ -509,11 +509,11 @@ export const ForecastTable = forwardRef<ForecastTableRef>(function ForecastTable
       ws.addRow([]);
       const expenseHeaderRow = ws.addRow([
         'DÉCAISSEMENTS',
-        ...months.map((_, mi) => {
+        ...months.map((m, mi) => {
           let forecastTtc = getMonthTotal('expense', mi, 'forecast');
           const netVat = getNetVatForecast(months[mi]);
           if (netVat > 0) forecastTtc += netVat;
-          let actualTtc = getMonthTotal('expense', mi, 'actual');
+          let actualTtc = getMonthTotal('expense', mi, 'actual') + getUncategorized('expense', m);
           return getBestValue(mi, () => actualTtc, () => forecastTtc);
         }),
       ]);
