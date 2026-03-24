@@ -457,9 +457,9 @@ export const ForecastTable = forwardRef<ForecastTableRef>(function ForecastTable
       ws.addRow([]);
       const incomeHeaderRow = ws.addRow([
         'ENCAISSEMENTS',
-        ...months.map((_, mi) => {
+        ...months.map((m, mi) => {
           let forecastTtc = getMonthTotal('income', mi, 'forecast');
-          let actualTtc = getMonthTotal('income', mi, 'actual');
+          let actualTtc = getMonthTotal('income', mi, 'actual') + getUncategorized('income', m);
           return getBestValue(mi, () => actualTtc, () => forecastTtc);
         }),
       ]);
