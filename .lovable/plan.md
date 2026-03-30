@@ -1,30 +1,40 @@
 
 
-## Simplification "Point Zéro" — Forward-Only — ✅ TERMINÉ
+# Fix: Solde de fin de mois — actual vs forecast pour le mois courant
 
-### Ce qui a été fait
+## Cause racine
 
-1. **`bridge-sync` — Snapshot initial "Point Zéro"** : Après chaque full-sync, si aucun snapshot n'existe pour la company, le système calcule `Live Balance - Σ transactions depuis le 1er du mois` et insère un snapshot unique au 1er du mois courant. Cela se fait une seule fois, au moment de la première connexion bancaire.
+Pour le mois courant, `getClosingBalance` dans `useForecasts.ts` calcule **deux valeurs identiques** car les deux chemins utilisent `getMonthNetForecast()` qui ne regarde que les **prévisions** :
 
-2. **`useForecasts.ts` — `getOpeningBalance` simplifié** :
-   - **Passé/Courant** : Lecture directe du snapshot. Si absent → `{ noData: true }` (mois pré-inscription)
-   - **Futur** : Snapshot courant + Σ net forecasts en marche avant
-   - ❌ Supprimé : `getSnapshotForEndOfMonth`, fallback `liveBankBalance` dans le calcul d'ouverture, `initialBalance`
+- `balance` (colonne réel) = ouverture d'avril = `anchorBalance + getMonthNetForecast(mars)` → forecast
+- `forecastBalance` (colonne prévisionnel) = `ouverture mars + getMonthNetForecast(mars)` → forecast
 
-3. **`useForecasts.ts` — `getClosingBalance` simplifié** :
-   - Utilise `getOpeningBalance(nextMonth)` comme fermeture
-   - Propage `noData` pour les mois sans snapshot
-   - Override manuel toujours supporté
+Résultat : les deux colonnes affichent le même solde (-25 742 €), alors que la "Variation nette" montre bien une différence (-54 825 réel vs -39 554 prévisionnel).
 
-4. **UI `ForecastTable.tsx`** : Les mois sans snapshot (pré-inscription) affichent `—` en gris italique au lieu de `0 €`.
+## Solution
 
-### Architecture résultante
+Modifier `getClosingBalance` pour que le solde "réel" du mois courant soit calculé à partir de la **variation nette réelle** (transactions bancaires), pas des prévisions.
 
-```
-Point Zéro = Live Balance au moment de l'inscription - Σ transactions du mois
-Passé       → Snapshot au 1er du mois (ou "—" si pré-inscription)
-Courant     → Snapshot au 1er du mois
-Futur       → Snapshot courant + Σ forecasts nets (walk forward)
-```
+### Fichier : `src/hooks/useForecasts.ts`
 
-Aucune reconstitution rétroactive. Aucun chargement massif de transactions. Aucun fallback complexe.
+1. **Créer une fonction `getMonthNetActual`** qui calcule la variation nette réelle du mois :
+   - Somme des encaissements réels (catégorisés + non catégorisés) TTC
+   - Moins la somme des décaissements réels (catégorisés + non catégorisés) TTC
+   - Utilise les mêmes sources que la ligne "Variation nette du mois" dans le tableau
+
+2. **Modifier `getClosingBalance` pour le mois courant** :
+   - `balance` (réel) = `opening.balance + getMonthNetActual(month)` — basé sur les transactions réelles
+   - `forecastBalance` (prévisionnel) = `opening.balance + getMonthNetForecast(month)` — inchangé
+
+Cela garantit que :
+- Le solde réel reflète les flux bancaires constatés (cohérent avec la ligne "Variation nette")
+- Le solde prévisionnel reflète les projections par catégorie
+- La logique est systémique et s'applique à toutes les sociétés
+
+### Impact
+
+- `getClosingBalance` est consommé par : `ForecastTable`, `ForecastChart`, `BalanceChart` (dashboard)
+- Le changement est transparent : le contrat de l'objet retourné ne change pas (`balance`, `forecastBalance`)
+- Les mois futurs ne sont pas affectés (ils utilisent déjà les forecasts correctement)
+- Les mois passés ne sont pas affectés (ils lisent les snapshots)
+
