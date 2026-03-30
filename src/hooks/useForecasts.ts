@@ -693,6 +693,23 @@ export function useForecasts() {
       }, 0);
   }, [categories, forecasts]);
 
+  // Helper to calculate month net actual (real bank transactions) for a given month
+  // Uses the same sources as the "Variation nette du mois" row in the forecast table
+  const getMonthNetActual = useCallback((month: Date): number => {
+    const incomeCategories = categories.filter(c => c.type === 'income');
+    const expenseCategories = categories.filter(c => c.type === 'expense');
+
+    // Categorized actuals
+    const incomeActual = incomeCategories.reduce((sum, cat) => sum + Math.abs(getActual(cat.id, month)), 0);
+    const expenseActual = expenseCategories.reduce((sum, cat) => sum + Math.abs(getActual(cat.id, month)), 0);
+
+    // Uncategorized actuals
+    const uncatIncome = getUncategorized('income', month);
+    const uncatExpense = getUncategorized('expense', month);
+
+    return (incomeActual + uncatIncome) - (expenseActual + uncatExpense);
+  }, [categories, getActual, getUncategorized]);
+
   // Closing balance = next month's opening (which reads the snapshot or walks forward)
   const getClosingBalance = useCallback((month: Date): { balance: number; forecastBalance?: number; isActual: boolean; isEstimated?: boolean; noData?: boolean } => {
     const opening = getOpeningBalance(month);
@@ -712,14 +729,19 @@ export function useForecasts() {
     const nextMonth = addMonths(startOfMonth(month), 1);
     const nextOpening = getOpeningBalance(nextMonth);
     
-    // For current month, also provide forecast-based balance
+    // For current month: actual balance from real transactions, forecast from projections
     if (isSameMonth(month, new Date())) {
+      const netActual = getMonthNetActual(month);
       const netForecast = getMonthNetForecast(month);
-      return { balance: nextOpening.balance, forecastBalance: opening.balance + netForecast, isActual: false };
+      return {
+        balance: opening.balance + netActual,
+        forecastBalance: opening.balance + netForecast,
+        isActual: false,
+      };
     }
 
     return { balance: nextOpening.balance, isActual: nextOpening.isActual, noData: nextOpening.noData };
-  }, [getOpeningBalance, getMonthNetForecast, getBalanceOverride]);
+  }, [getOpeningBalance, getMonthNetForecast, getMonthNetActual, getBalanceOverride]);
 
   return {
     months,
