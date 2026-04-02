@@ -1495,7 +1495,7 @@ export const ForecastTable = forwardRef<ForecastTableRef>(function ForecastTable
         {months.map((month, monthIndex) => {
           // getMonthTotal now returns TTC for forecasts, already TTC for actuals
           let forecastTtc = getMonthTotal(type, monthIndex, 'forecast');
-          let actualTtc = getMonthTotal(type, monthIndex, 'actual');
+          const actualTtc = getMonthTotal(type, monthIndex, 'actual');
           
           // For expenses, add net VAT to pay (only for forecasts, not actuals)
           if (type === 'expense') {
@@ -1761,7 +1761,7 @@ export const ForecastTable = forwardRef<ForecastTableRef>(function ForecastTable
         </td>
         {months.map((month, monthIndex) => {
           const openingData = getOpeningBalance(month);
-          const { balance, noData } = openingData as any;
+          const { balance, noData } = openingData;
           const periodType = getMonthPeriodType(month);
           
           if (periodType === 'past') {
@@ -1952,8 +1952,7 @@ export const ForecastTable = forwardRef<ForecastTableRef>(function ForecastTable
           const periodType = getMonthPeriodType(month);
           
           if (periodType === 'past') {
-            const isEstimated = (closingData as any).isEstimated;
-            const noData = (closingData as any).noData;
+            const { isEstimated, noData } = closingData;
             if (noData) {
               return (
                 <td key={monthIndex} className="p-0 border-r border-border min-w-[90px]">
