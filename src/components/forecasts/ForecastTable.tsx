@@ -37,6 +37,7 @@ import { ForecastChart } from './ForecastChart';
 import { PeriodSelector } from './PeriodSelector';
 import { TransactionDetailDialog } from './TransactionDetailDialog';
 import { supabase } from '@/integrations/supabase/client';
+import { getDisplayedNetVariation, getDisplayedSectionTotals } from '@/lib/forecastDisplayTotals';
 
 const COLLAPSED_GROUPS_KEY = 'forecast-collapsed-groups';
 const SHOW_ALL_CATEGORIES_KEY = 'forecast-show-all-categories';
@@ -423,6 +424,25 @@ export const ForecastTable = forwardRef<ForecastTableRef>(function ForecastTable
     }, 0);
   }, [incomeCategories, expenseCategories, getForecast, getActual, months]);
 
+  const getDisplayedSectionTotalsForMonth = useCallback((type: 'income' | 'expense', monthIndex: number) => {
+    const month = months[monthIndex];
+
+    return getDisplayedSectionTotals({
+      type,
+      categorizedActual: getMonthTotal(type, monthIndex, 'actual'),
+      uncategorizedActual: getUncategorized(type, month),
+      categorizedForecast: getMonthTotal(type, monthIndex, 'forecast'),
+      netVatForecast: getNetVatForecast(month),
+    });
+  }, [getMonthTotal, getNetVatForecast, getUncategorized, months]);
+
+  const getDisplayedNetTotalsForMonth = useCallback((monthIndex: number) => {
+    const incomeTotals = getDisplayedSectionTotalsForMonth('income', monthIndex);
+    const expenseTotals = getDisplayedSectionTotalsForMonth('expense', monthIndex);
+
+    return getDisplayedNetVariation(incomeTotals, expenseTotals);
+  }, [getDisplayedSectionTotalsForMonth]);
+
   // Excel export via ref
   useImperativeHandle(ref, () => ({
     exportToExcel: async () => {
@@ -457,10 +477,9 @@ export const ForecastTable = forwardRef<ForecastTableRef>(function ForecastTable
       ws.addRow([]);
       const incomeHeaderRow = ws.addRow([
         'ENCAISSEMENTS',
-        ...months.map((m, mi) => {
-          let forecastTtc = getMonthTotal('income', mi, 'forecast');
-          let actualTtc = getMonthTotal('income', mi, 'actual') + getUncategorized('income', m);
-          return getBestValue(mi, () => actualTtc, () => forecastTtc);
+        ...months.map((_, mi) => {
+          const totals = getDisplayedSectionTotalsForMonth('income', mi);
+          return getBestValue(mi, () => totals.actual, () => totals.forecast);
         }),
       ]);
       incomeHeaderRow.font = { bold: true, color: { argb: 'FF16A34A' } };
@@ -509,12 +528,9 @@ export const ForecastTable = forwardRef<ForecastTableRef>(function ForecastTable
       ws.addRow([]);
       const expenseHeaderRow = ws.addRow([
         'DÉCAISSEMENTS',
-        ...months.map((m, mi) => {
-          let forecastTtc = getMonthTotal('expense', mi, 'forecast');
-          const netVat = getNetVatForecast(months[mi]);
-          if (netVat > 0) forecastTtc += netVat;
-          let actualTtc = getMonthTotal('expense', mi, 'actual') + getUncategorized('expense', m);
-          return getBestValue(mi, () => actualTtc, () => forecastTtc);
+        ...months.map((_, mi) => {
+          const totals = getDisplayedSectionTotalsForMonth('expense', mi);
+          return getBestValue(mi, () => totals.actual, () => totals.forecast);
         }),
       ]);
       expenseHeaderRow.font = { bold: true, color: { argb: 'FFDC2626' } };
@@ -575,23 +591,12 @@ export const ForecastTable = forwardRef<ForecastTableRef>(function ForecastTable
       ws.addRow([]);
       const netRow = ws.addRow([
         'Variation nette du mois',
-        ...months.map((m, mi) => {
-          const incActual = getMonthTotal('income', mi, 'actual') + getUncategorized('income', m);
-          const expActual = getMonthTotal('expense', mi, 'actual') + getUncategorized('expense', m);
-          const incForecast = getMonthTotal('income', mi, 'forecast');
-          let expForecast = 0;
-          expenseCategories.forEach(cat => {
-            const f = getForecast(cat.id, m);
-            const p = getPayableOutflowByCategory(cat.id, m);
-            expForecast += Math.max(f, p);
-          });
-          expForecast += getPayableOutflowUncategorized(m);
-          const netVat = getNetVatForecast(m);
-          if (netVat > 0) expForecast += netVat;
+        ...months.map((_, mi) => {
+          const totals = getDisplayedNetTotalsForMonth(mi);
 
           return getBestValue(mi,
-            () => incActual - expActual,
-            () => incForecast - expForecast
+            () => totals.actual,
+            () => totals.forecast,
           );
         }),
       ]);
@@ -623,7 +628,7 @@ export const ForecastTable = forwardRef<ForecastTableRef>(function ForecastTable
       a.click();
       URL.revokeObjectURL(url);
     },
-  }), [months, incomeGroups, expenseGroups, incomeCategories, expenseCategories, getOpeningBalance, getClosingBalance, getForecast, getActual, getUncategorized, getMonthTotal, getNetVatForecast, getNetVatActual, getPayableOutflowByCategory, getPayableOutflowUncategorized]);
+  }), [months, incomeGroups, expenseGroups, getOpeningBalance, getClosingBalance, getForecast, getActual, getUncategorized, getNetVatActual, getDisplayedSectionTotalsForMonth, getDisplayedNetTotalsForMonth]);
 
 
   const getMonthVat = useCallback((type: 'income' | 'expense', monthIndex: number, valueType: 'forecast' | 'actual') => {
@@ -1538,7 +1543,7 @@ export const ForecastTable = forwardRef<ForecastTableRef>(function ForecastTable
     );
   };
 
-  // Collapsible section header row with inline TTC totals
+  // Collapsible section header row with displayed totals
   const renderSectionHeaderRow = (label: string, type: 'income' | 'expense', sectionId: string) => {
     const isCollapsed = collapsedSections.has(sectionId);
     const bgClass = type === 'income' ? 'bg-success/10' : 'bg-destructive/10';
@@ -1562,15 +1567,7 @@ export const ForecastTable = forwardRef<ForecastTableRef>(function ForecastTable
           </div>
         </td>
         {months.map((month, monthIndex) => {
-          // Section totals must include uncategorized actual transactions,
-          // otherwise actual section headers diverge from net cash movement
-          let forecastTtc = getMonthTotal(type, monthIndex, 'forecast');
-          let actualTtc = getMonthTotal(type, monthIndex, 'actual') + getUncategorized(type, month);
-          
-          if (type === 'expense') {
-            const netVatForecast = getNetVatForecast(months[monthIndex]);
-            if (netVatForecast > 0) forecastTtc += netVatForecast;
-          }
+          const { actual: actualTtc, forecast: forecastTtc } = getDisplayedSectionTotalsForMonth(type, monthIndex);
           
           const periodType = getMonthPeriodType(month);
           
@@ -1887,41 +1884,11 @@ export const ForecastTable = forwardRef<ForecastTableRef>(function ForecastTable
           Variation nette du mois
         </td>
         {months.map((month, monthIndex) => {
-          // Actuals are already TTC
-          const incomeActual = getMonthTotal('income', monthIndex, 'actual');
-          const expenseActual = getMonthTotal('expense', monthIndex, 'actual');
-          
-          // Include uncategorized actual transactions so variation matches balance rows
-          const uncatIncome = getUncategorized('income', months[monthIndex]);
-          const uncatExpense = getUncategorized('expense', months[monthIndex]);
-          
-          // getMonthTotal returns displayed forecast amounts as entered
-          const incomeForecastTtc = getMonthTotal('income', monthIndex, 'forecast');
-          
-          // Per-category max(forecast, payables) to avoid double-counting
-          let expenseForecastTtcAdjusted = 0;
-          expenseCategories.forEach(cat => {
-            const forecastAmount = getForecast(cat.id, months[monthIndex]);
-            const payable = getPayableOutflowByCategory(cat.id, months[monthIndex]);
-            expenseForecastTtcAdjusted += Math.max(forecastAmount, payable);
-          });
-          // Add uncategorized payables
-          expenseForecastTtcAdjusted += getPayableOutflowUncategorized(months[monthIndex]);
-          
-          // Add net VAT to pay (only for forecasts, not actuals)
-          const netVatForecast = getNetVatForecast(months[monthIndex]);
-          const vatForecastToDeduct = Math.max(0, netVatForecast);
-          expenseForecastTtcAdjusted += vatForecastToDeduct;
-          
-          const incomeTtc = incomeActual + uncatIncome;
-          const expenseTtc = expenseActual + uncatExpense;
-          const expenseForecastTtc = expenseForecastTtcAdjusted;
-          
-          const netActual = incomeTtc - expenseTtc;
-          const netForecast = incomeForecastTtc - expenseForecastTtc;
-          
-          const hasActual = incomeActual > 0 || expenseActual > 0 || uncatIncome > 0 || uncatExpense > 0;
-          const hasForecast = incomeForecastTtc > 0 || expenseForecastTtcAdjusted > 0 || vatForecastToDeduct > 0;
+          const { actual: netActual, forecast: netForecast } = getDisplayedNetTotalsForMonth(monthIndex);
+          const incomeTotals = getDisplayedSectionTotalsForMonth('income', monthIndex);
+          const expenseTotals = getDisplayedSectionTotalsForMonth('expense', monthIndex);
+          const hasActual = incomeTotals.actual > 0 || expenseTotals.actual > 0;
+          const hasForecast = incomeTotals.forecast > 0 || expenseTotals.forecast > 0;
           const periodType = getMonthPeriodType(month);
           
           if (periodType === 'past') {
