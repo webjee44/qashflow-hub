@@ -35,6 +35,7 @@ export function TransactionsView() {
 
   const handlers = useTransactionHandlers({
     transactions,
+    rules,
     categoryMap: filters.categoryMap,
     updateCategory,
     bulkUpdateCategory,

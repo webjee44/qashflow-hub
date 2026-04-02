@@ -6,11 +6,14 @@ import { useQueryClient } from '@tanstack/react-query';
 import { logError } from '@/lib/logger';
 import { Tables } from '@/integrations/supabase/types';
 import { Category } from '@/hooks/useCategories';
+import type { AutomationRule } from '@/hooks/useAutomationRules';
+import { hasMatchingActiveCategorizationRule } from '@/lib/automationRuleMatching';
 
 type Transaction = Tables<'transactions'>;
 
 interface UseTransactionHandlersParams {
   transactions: Transaction[];
+  rules: AutomationRule[];
   categoryMap: Map<string, Category>;
   updateCategory: (args: { transactionId: string; categoryId: string | null }) => Promise<unknown>;
   bulkUpdateCategory: (args: { transactionIds: string[]; categoryId: string | null }) => Promise<unknown>;
@@ -21,6 +24,7 @@ interface UseTransactionHandlersParams {
 
 export function useTransactionHandlers({
   transactions,
+  rules,
   categoryMap,
   updateCategory,
   bulkUpdateCategory,
@@ -66,15 +70,17 @@ export function useTransactionHandlers({
           if (fetchedCat) category = fetchedCat as Category;
         }
         if (category && currentCompany) {
-          const { data: existingRules } = await supabase
-            .from('automation_rules')
-            .select('id')
-            .eq('company_id', currentCompany.id)
-            .eq('is_active', true)
-            .ilike('condition_value', `%${transaction.description.substring(0, 10)}%`)
-            .limit(1);
+          const hasExistingMatchingRule = hasMatchingActiveCategorizationRule(
+            rules,
+            {
+              description: transaction.description,
+              amount: transaction.amount,
+              type: transaction.type,
+            },
+            categoryId,
+          );
 
-          if (!existingRules || existingRules.length === 0) {
+          if (!hasExistingMatchingRule) {
             setLastCategorizedTransaction({ ...transaction, category_id: categoryId });
             setLastSelectedCategory(category);
             setShowSuggestDialog(true);
@@ -84,7 +90,7 @@ export function useTransactionHandlers({
     } catch {
       toast({ title: 'Erreur', description: 'Impossible de mettre à jour la catégorie', variant: 'destructive' });
     }
-  }, [transactions, updateCategory, categoryMap, toast, currentCompany]);
+  }, [transactions, rules, updateCategory, categoryMap, toast, currentCompany]);
 
   const handleBulkUpdateCategory = useCallback(async (categoryId: string | null) => {
     if (selectedTransactionIds.size === 0) return;
