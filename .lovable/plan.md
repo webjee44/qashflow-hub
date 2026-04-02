@@ -1,40 +1,67 @@
 
 
-# Fix: Solde de fin de mois — actual vs forecast pour le mois courant
+# Fix: Variation nette du mois ≠ Encaissements - Décaissements
 
 ## Cause racine
 
-Pour le mois courant, `getClosingBalance` dans `useForecasts.ts` calcule **deux valeurs identiques** car les deux chemins utilisent `getMonthNetForecast()` qui ne regarde que les **prévisions** :
+La ligne **"Variation nette du mois"** et les lignes **"Encaissements" / "Décaissements"** utilisent des formules **différentes** pour le prévisionnel :
 
-- `balance` (colonne réel) = ouverture d'avril = `anchorBalance + getMonthNetForecast(mars)` → forecast
-- `forecastBalance` (colonne prévisionnel) = `ouverture mars + getMonthNetForecast(mars)` → forecast
+- **Décaissements (header)** : `getMonthTotal('expense', mi, 'forecast') + netVat`
+- **Variation nette** : `Σ max(forecast, payable) par catégorie + payables non catégorisées + netVat`
 
-Résultat : les deux colonnes affichent le même solde (-25 742 €), alors que la "Variation nette" montre bien une différence (-54 825 réel vs -39 554 prévisionnel).
+La variation nette intègre les factures fournisseurs (payables) dans son calcul d'expenses, mais pas la ligne Décaissements. Résultat : les trois lignes sont incohérentes.
+
+Exemple du screenshot :
+- Encaissements prévisionnel : 296 472 €
+- Décaissements prévisionnel : 266 400 €
+- Attendu : 296 472 - 266 400 = **+30 072 €**
+- Affiché : **-5 672 €** (car le calcul interne des dépenses inclut les payables)
 
 ## Solution
 
-Modifier `getClosingBalance` pour que le solde "réel" du mois courant soit calculé à partir de la **variation nette réelle** (transactions bancaires), pas des prévisions.
+**Principe** : une seule formule pour chaque total, réutilisée partout. La "Variation nette" doit strictement être `Encaissements_affiché - Décaissements_affiché`.
 
-### Fichier : `src/hooks/useForecasts.ts`
+### Fichier : `src/components/forecasts/ForecastTable.tsx`
 
-1. **Créer une fonction `getMonthNetActual`** qui calcule la variation nette réelle du mois :
-   - Somme des encaissements réels (catégorisés + non catégorisés) TTC
-   - Moins la somme des décaissements réels (catégorisés + non catégorisés) TTC
-   - Utilise les mêmes sources que la ligne "Variation nette du mois" dans le tableau
+1. **Extraire deux fonctions de calcul** pour les totaux de section (income/expense) forecast, identiques à celles utilisées dans `renderSectionHeaderRow` :
 
-2. **Modifier `getClosingBalance` pour le mois courant** :
-   - `balance` (réel) = `opening.balance + getMonthNetActual(month)` — basé sur les transactions réelles
-   - `forecastBalance` (prévisionnel) = `opening.balance + getMonthNetForecast(month)` — inchangé
+```typescript
+const getSectionForecastTotal = (type: 'income' | 'expense', monthIndex: number): number => {
+  let total = getMonthTotal(type, monthIndex, 'forecast');
+  if (type === 'expense') {
+    const netVat = getNetVatForecast(months[monthIndex]);
+    if (netVat > 0) total += netVat;
+  }
+  return total;
+};
 
-Cela garantit que :
-- Le solde réel reflète les flux bancaires constatés (cohérent avec la ligne "Variation nette")
-- Le solde prévisionnel reflète les projections par catégorie
-- La logique est systémique et s'applique à toutes les sociétés
+const getSectionActualTotal = (type: 'income' | 'expense', monthIndex: number): number => {
+  return getMonthTotal(type, monthIndex, 'actual') + getUncategorized(type, months[monthIndex]);
+};
+```
+
+2. **Utiliser ces fonctions dans `renderSectionHeaderRow`** au lieu du calcul inline (pas de changement de comportement, juste factorisation).
+
+3. **Modifier `renderNetRow`** pour utiliser exactement ces mêmes fonctions :
+
+```typescript
+const incomeActual = getSectionActualTotal('income', monthIndex);
+const expenseActual = getSectionActualTotal('expense', monthIndex);
+const netActual = incomeActual - expenseActual;
+
+const incomeForecast = getSectionForecastTotal('income', monthIndex);
+const expenseForecast = getSectionForecastTotal('expense', monthIndex);
+const netForecast = incomeForecast - expenseForecast;
+```
+
+4. **Supprimer le calcul dédoublé** avec `expenseForecastTtcAdjusted` (boucle sur les catégories avec max(forecast, payable)) dans `renderNetRow`.
+
+5. **Même refactoring dans l'export Excel** (lignes ~576-600) pour garantir la cohérence dans les fichiers exportés.
 
 ### Impact
 
-- `getClosingBalance` est consommé par : `ForecastTable`, `ForecastChart`, `BalanceChart` (dashboard)
-- Le changement est transparent : le contrat de l'objet retourné ne change pas (`balance`, `forecastBalance`)
-- Les mois futurs ne sont pas affectés (ils utilisent déjà les forecasts correctement)
-- Les mois passés ne sont pas affectés (ils lisent les snapshots)
+- La variation nette sera toujours = Encaissements - Décaissements, tel qu'affiché
+- Les payables continuent d'être visibles dans leurs lignes dédiées par catégorie et dans la ligne "Dettes non catégorisées"
+- Le calcul du solde de fin de mois (`getClosingBalance`) dans `useForecasts.ts` n'est PAS affecté (il a sa propre logique)
+- Pas de régression sur les mois passés (qui n'utilisent que les actuals) ni futurs
 
