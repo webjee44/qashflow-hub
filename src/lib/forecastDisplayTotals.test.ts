@@ -56,8 +56,8 @@ describe('forecast display totals', () => {
     expect(getDisplayedNetVariation(incomeTotals, expenseTotals)).toEqual({
       actual: -6168,
       forecast: 30072,
+    });
   });
-
   it('guarantees opening + net = closing (Cloud Vapor regression)', () => {
     // Cloud Vapor case: opening = 14332, net forecast = 30072
     // Expected closing = 14332 + 30072 = 44404
