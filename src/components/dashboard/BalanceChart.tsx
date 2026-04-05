@@ -12,10 +12,10 @@ export function BalanceChart() {
     months,
     isLoading,
     getClosingBalance,
-    getPayableOutflow,
     getForecast,
     getActual,
     getUncategorized,
+    getNetVatForecast,
   } = useForecasts();
 
   const { categories } = useCategories();
