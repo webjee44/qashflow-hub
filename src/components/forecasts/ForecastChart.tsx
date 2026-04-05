@@ -31,7 +31,7 @@ interface ForecastChartProps {
   getNetVatForecast?: (month: Date) => number;
 }
 
-export function ForecastChart({ months, getMonthTotal, getPayableOutflow, getClosingBalance, getUncategorized }: ForecastChartProps) {
+export function ForecastChart({ months, getMonthTotal, getClosingBalance, getUncategorized, getNetVatForecast }: ForecastChartProps) {
   const today = startOfMonth(new Date());
 
   const data = useMemo(() => {
