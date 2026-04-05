@@ -6,6 +6,7 @@ import { useCategories, Category } from './useCategories';
 import { toast } from 'sonner';
 import { addMonths, startOfMonth, endOfMonth, format, isBefore, isSameMonth } from 'date-fns';
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import { getDisplayedSectionTotals, getDisplayedNetVariation } from '@/lib/forecastDisplayTotals';
 
 export interface PayableInvoice {
   id: string;
