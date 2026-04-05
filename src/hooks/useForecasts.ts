@@ -573,37 +573,40 @@ export function useForecasts() {
       .reduce((sum, inv) => sum + Number(inv.amount_ttc), 0);
   }, [payableInvoices]);
 
-  // Helper to calculate month net forecast (for projected balance calculation)
-  const getMonthNetForecast = useCallback((month: Date): number => {
-    // Income TTC - Expense TTC - TVA nette à décaisser
-    let incomeTtc = 0;
-    let expenseTtc = 0;
-    
-    categories.filter(c => !c.is_system).forEach(cat => {
-      const forecast = getForecast(cat.id, month);
-      const vatAmount = forecast * cat.vat_rate;
-      const ttc = forecast + vatAmount;
-      
-      if (cat.type === 'income') {
-        incomeTtc += ttc;
-      } else {
-        // Use max(forecast, payables) to avoid double-counting
-        const payable = getPayableOutflowByCategory(cat.id, month);
-        expenseTtc += Math.max(ttc, payable);
+  // === Displayed totals helpers (single source of truth for table, chart, balance engine) ===
+  // These use forecastDisplayTotals.ts to guarantee the invariant:
+  //   opening(m) + displayedNet(m) = closing(m) = opening(m+1)
+
+  const getMonthTotalForType = useCallback((type: 'income' | 'expense', month: Date, valueType: 'forecast' | 'actual'): number => {
+    const cats = categories.filter(c => c.type === type && !c.is_system);
+    return cats.reduce((sum, cat) => {
+      if (valueType === 'forecast') {
+        return sum + getForecast(cat.id, month);
       }
+      return sum + Math.abs(getActual(cat.id, month));
+    }, 0);
+  }, [categories, getForecast, getActual]);
+
+  const getDisplayedSectionTotalsForMonth = useCallback((type: 'income' | 'expense', month: Date) => {
+    return getDisplayedSectionTotals({
+      type,
+      categorizedActual: getMonthTotalForType(type, month, 'actual'),
+      uncategorizedActual: getUncategorized(type, month),
+      categorizedForecast: getMonthTotalForType(type, month, 'forecast'),
+      netVatForecast: getNetVatForecast(month),
     });
-    
-    // Add uncategorized payables
-    expenseTtc += getPayableOutflowUncategorized(month);
-    
-    // Add net VAT to pay (only if positive = amount to pay to state)
-    const netVat = getNetVatForecast(month);
-    if (netVat > 0) {
-      expenseTtc += netVat;
-    }
-    
-    return incomeTtc - expenseTtc;
-  }, [categories, getForecast, getPayableOutflowByCategory, getPayableOutflowUncategorized, getNetVatForecast]);
+  }, [getMonthTotalForType, getNetVatForecast, getUncategorized]);
+
+  const getDisplayedNetTotalsForMonth = useCallback((month: Date) => {
+    const incomeTotals = getDisplayedSectionTotalsForMonth('income', month);
+    const expenseTotals = getDisplayedSectionTotalsForMonth('expense', month);
+    return getDisplayedNetVariation(incomeTotals, expenseTotals);
+  }, [getDisplayedSectionTotalsForMonth]);
+
+  // Net forecast delta used by the balance engine — same as displayed net forecast
+  const getMonthNetForecast = useCallback((month: Date): number => {
+    return getDisplayedNetTotalsForMonth(month).forecast;
+  }, [getDisplayedNetTotalsForMonth]);
 
   // Fetch live bank balance from bridge_accounts (assigned to this company)
   const { data: liveBankBalance } = useQuery({
