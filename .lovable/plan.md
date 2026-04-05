@@ -1,67 +1,88 @@
 
+Objectif
 
-# Fix: Variation nette du mois ≠ Encaissements - Décaissements
+Rétablir l’invariant métier du module prévisions :
+`Solde de début de mois + Variation nette du mois = Solde de fin de mois`
+pour la colonne Réel comme pour la colonne Prévu.
 
-## Cause racine
+Cause racine
 
-La ligne **"Variation nette du mois"** et les lignes **"Encaissements" / "Décaissements"** utilisent des formules **différentes** pour le prévisionnel :
+Le problème n’est plus la ligne “Variation nette du mois”.
+Elle est désormais calculée correctement.
 
-- **Décaissements (header)** : `getMonthTotal('expense', mi, 'forecast') + netVat`
-- **Variation nette** : `Σ max(forecast, payable) par catégorie + payables non catégorisées + netVat`
+Le vrai bug est plus profond :
+- `ForecastTable` affiche les totaux via `forecastDisplayTotals.ts`
+- mais `useForecasts.getOpeningBalance()` / `getClosingBalance()` continuent d’utiliser une autre logique historique (`getMonthNetForecast`)
+- cette logique historique réinjecte les factures fournisseurs / payables et applique une logique TTC différente
+- `ForecastChart` ajoute aussi les payables dans les barres futures
 
-La variation nette intègre les factures fournisseurs (payables) dans son calcul d'expenses, mais pas la ligne Décaissements. Résultat : les trois lignes sont incohérentes.
+Résultat : l’UI affiche une variation nette prévisionnelle de `30 072 €`, mais le moteur de solde utilise un autre delta mensuel, donc il calcule un solde de fin incohérent (`-23 388 €`).
 
-Exemple du screenshot :
-- Encaissements prévisionnel : 296 472 €
-- Décaissements prévisionnel : 266 400 €
-- Attendu : 296 472 - 266 400 = **+30 072 €**
-- Affiché : **-5 672 €** (car le calcul interne des dépenses inclut les payables)
+Approche retenue
 
-## Solution
+Ne surtout pas patcher uniquement la ligne “Solde de fin de mois”.
+Ce serait une rustine locale.
 
-**Principe** : une seule formule pour chaque total, réutilisée partout. La "Variation nette" doit strictement être `Encaissements_affiché - Décaissements_affiché`.
+La correction propre consiste à remettre une seule source de vérité au niveau du moteur de prévisions, puis à faire consommer cette même logique par :
+- le tableau
+- le calcul des soldes
+- le graphe
+- l’export Excel
 
-### Fichier : `src/components/forecasts/ForecastTable.tsx`
+Plan d’implémentation
 
-1. **Extraire deux fonctions de calcul** pour les totaux de section (income/expense) forecast, identiques à celles utilisées dans `renderSectionHeaderRow` :
+1. Centraliser les totaux affichés dans le hook métier
+- déplacer la logique “displayed totals” au niveau de `useForecasts`
+- exposer des helpers du style :
+  - `getDisplayedSectionTotalsForMonth(type, month)`
+  - `getDisplayedNetTotalsForMonth(month)`
+- réutiliser `forecastDisplayTotals.ts` au lieu de recalculer localement dans `ForecastTable`
 
-```typescript
-const getSectionForecastTotal = (type: 'income' | 'expense', monthIndex: number): number => {
-  let total = getMonthTotal(type, monthIndex, 'forecast');
-  if (type === 'expense') {
-    const netVat = getNetVatForecast(months[monthIndex]);
-    if (netVat > 0) total += netVat;
-  }
-  return total;
-};
+2. Réécrire le moteur de solde prévisionnel sur cette source de vérité
+- remplacer l’usage de `getMonthNetForecast()` dans `getOpeningBalance()` et `getClosingBalance()`
+- calculer les ouvertures futures par chaînage :
+  `opening(m+1) = opening(m) + displayedNetForecast(m)`
+- calculer la clôture prévisionnelle du mois courant avec ce même delta affiché
+- conserver le chemin “réel”, qui est déjà cohérent dans ton screenshot
 
-const getSectionActualTotal = (type: 'income' | 'expense', monthIndex: number): number => {
-  return getMonthTotal(type, monthIndex, 'actual') + getUncategorized(type, months[monthIndex]);
-};
-```
+3. Aligner tous les consommateurs visuels
+- `ForecastTable` : utiliser les helpers du hook pour les headers, la variation nette et le solde de fin
+- export Excel : utiliser exactement les mêmes helpers
+- `ForecastChart` / `BalanceChart` : supprimer la logique parallèle qui réajoute les payables dans les flux principaux
 
-2. **Utiliser ces fonctions dans `renderSectionHeaderRow`** au lieu du calcul inline (pas de changement de comportement, juste factorisation).
+4. Garder les payables, mais à la bonne place
+- conserver l’affichage informatif des factures fournisseurs dans les cellules / indicateurs dédiés
+- ne plus les laisser modifier en douce le calcul principal du solde affiché
+- si on veut garder une vision “liquidité prudente” plus tard, elle devra être une métrique séparée et explicitement nommée, pas le `Solde de fin de mois` principal
 
-3. **Modifier `renderNetRow`** pour utiliser exactement ces mêmes fonctions :
+Détails techniques
 
-```typescript
-const incomeActual = getSectionActualTotal('income', monthIndex);
-const expenseActual = getSectionActualTotal('expense', monthIndex);
-const netActual = incomeActual - expenseActual;
+Fichiers concernés :
+- `src/hooks/useForecasts.ts`
+- `src/components/forecasts/ForecastTable.tsx`
+- `src/components/forecasts/ForecastChart.tsx`
+- `src/components/dashboard/BalanceChart.tsx`
+- `src/lib/forecastDisplayTotals.ts` (ou utilitaire voisin si on factorise davantage)
 
-const incomeForecast = getSectionForecastTotal('income', monthIndex);
-const expenseForecast = getSectionForecastTotal('expense', monthIndex);
-const netForecast = incomeForecast - expenseForecast;
-```
+Tests à ajouter / renforcer :
+- cas de régression exact Cloud Vapor :
+  `14 332 + 30 072 = 44 404`
+- continuité inter-mois :
+  `closing(M) = opening(M+1)`
+- parité tableau / graphe / export
+- non-régression sur le calcul Réel
 
-4. **Supprimer le calcul dédoublé** avec `expenseForecastTtcAdjusted` (boucle sur les catégories avec max(forecast, payable)) dans `renderNetRow`.
+Impact attendu
 
-5. **Même refactoring dans l'export Excel** (lignes ~576-600) pour garantir la cohérence dans les fichiers exportés.
+- les soldes prévisionnels affichés vont changer, car ils cesseront d’utiliser l’ancienne logique “liquidity/payables”
+- en échange, le produit redeviendra arithmétiquement cohérent et compréhensible
+- aucun changement base de données
+- correction purement applicative et structurelle
 
-### Impact
+Pourquoi cette approche est meilleure qu’un patch rapide
 
-- La variation nette sera toujours = Encaissements - Décaissements, tel qu'affiché
-- Les payables continuent d'être visibles dans leurs lignes dédiées par catégorie et dans la ligne "Dettes non catégorisées"
-- Le calcul du solde de fin de mois (`getClosingBalance`) dans `useForecasts.ts` n'est PAS affecté (il a sa propre logique)
-- Pas de régression sur les mois passés (qui n'utilisent que les actuals) ni futurs
+Un patch dans la ligne de clôture masquerait seulement le symptôme.
+Le graphe, les ouvertures futures et l’export resteraient faux.
 
+Ici on corrige la cause racine :
+il ne restera plus deux moteurs de calcul concurrents pour la même information métier.
