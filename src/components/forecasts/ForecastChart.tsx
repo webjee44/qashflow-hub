@@ -70,7 +70,7 @@ export function ForecastChart({ months, getMonthTotal, getClosingBalance, getUnc
         isPast: isActualPeriod,
       };
     });
-  }, [months, getMonthTotal, getPayableOutflow, getClosingBalance, getUncategorized, today]);
+  }, [months, getMonthTotal, getClosingBalance, getUncategorized, getNetVatForecast, today]);
 
   const formatValue = (value: number) => {
     if (Math.abs(value) >= 1000) {

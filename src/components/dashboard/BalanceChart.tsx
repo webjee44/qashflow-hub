@@ -117,9 +117,9 @@ export function BalanceChart() {
       <ForecastChart
         months={months}
         getMonthTotal={getMonthTotal}
-        getPayableOutflow={getPayableOutflow}
         getClosingBalance={getClosingBalance}
         getUncategorized={getUncategorized}
+        getNetVatForecast={getNetVatForecast}
       />
 
       {/* Quick Stats */}
