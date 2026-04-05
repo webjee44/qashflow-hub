@@ -26,12 +26,12 @@ interface ClosingBalanceData {
 interface ForecastChartProps {
   months: Date[];
   getMonthTotal: (type: 'income' | 'expense', monthIndex: number, valueType: 'forecast' | 'actual') => number;
-  getPayableOutflow?: (month: Date) => number;
   getClosingBalance: (month: Date) => ClosingBalanceData;
   getUncategorized?: (type: 'income' | 'expense', month: Date) => number;
+  getNetVatForecast?: (month: Date) => number;
 }
 
-export function ForecastChart({ months, getMonthTotal, getPayableOutflow, getClosingBalance, getUncategorized }: ForecastChartProps) {
+export function ForecastChart({ months, getMonthTotal, getClosingBalance, getUncategorized, getNetVatForecast }: ForecastChartProps) {
   const today = startOfMonth(new Date());
 
   const data = useMemo(() => {
@@ -48,9 +48,11 @@ export function ForecastChart({ months, getMonthTotal, getPayableOutflow, getClo
         income += getUncategorized('income', month);
         expense += getUncategorized('expense', month);
       }
-      
-      if (!isActualPeriod && getPayableOutflow) {
-        expense += getPayableOutflow(month);
+
+      // For future months, include net VAT in expenses (same as displayed totals)
+      if (!isActualPeriod && getNetVatForecast) {
+        const netVat = getNetVatForecast(month);
+        if (netVat > 0) expense += netVat;
       }
 
       // Get real closing balance from the forecast engine
@@ -68,7 +70,7 @@ export function ForecastChart({ months, getMonthTotal, getPayableOutflow, getClo
         isPast: isActualPeriod,
       };
     });
-  }, [months, getMonthTotal, getPayableOutflow, getClosingBalance, getUncategorized, today]);
+  }, [months, getMonthTotal, getClosingBalance, getUncategorized, getNetVatForecast, today]);
 
   const formatValue = (value: number) => {
     if (Math.abs(value) >= 1000) {
