@@ -48,9 +48,11 @@ export function ForecastChart({ months, getMonthTotal, getClosingBalance, getUnc
         income += getUncategorized('income', month);
         expense += getUncategorized('expense', month);
       }
-      
-      if (!isActualPeriod && getPayableOutflow) {
-        expense += getPayableOutflow(month);
+
+      // For future months, include net VAT in expenses (same as displayed totals)
+      if (!isActualPeriod && getNetVatForecast) {
+        const netVat = getNetVatForecast(month);
+        if (netVat > 0) expense += netVat;
       }
 
       // Get real closing balance from the forecast engine
