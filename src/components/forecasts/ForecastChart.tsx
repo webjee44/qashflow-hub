@@ -26,9 +26,9 @@ interface ClosingBalanceData {
 interface ForecastChartProps {
   months: Date[];
   getMonthTotal: (type: 'income' | 'expense', monthIndex: number, valueType: 'forecast' | 'actual') => number;
-  getPayableOutflow?: (month: Date) => number;
   getClosingBalance: (month: Date) => ClosingBalanceData;
   getUncategorized?: (type: 'income' | 'expense', month: Date) => number;
+  getNetVatForecast?: (month: Date) => number;
 }
 
 export function ForecastChart({ months, getMonthTotal, getPayableOutflow, getClosingBalance, getUncategorized }: ForecastChartProps) {
