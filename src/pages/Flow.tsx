@@ -121,13 +121,13 @@ export default function Flow() {
           </motion.div>
 
           <motion.h1 variants={fadeUp} className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight leading-tight mb-6">
-            Vous pilotez encore votre tréso{' '}
-            <span className="text-emerald-400">sur Excel ?</span>
+            Vous pilotez encore votre trésorerie avec{' '}
+            <span className="text-emerald-400">Excel, des exports, et des données en retard ?</span>
           </motion.h1>
 
           <motion.p variants={fadeUp} className="text-lg sm:text-xl text-gray-400 max-w-2xl mx-auto mb-8 leading-relaxed">
-            J'ai perdu du CA fin 2024 parce que je n'avais pas de vision claire sur ma trésorerie.
-            Alors j'ai construit l'outil que j'aurais voulu avoir.
+            Fin 2025, mon manque de visibilité sur le cash m'a coûté du chiffre d'affaires.
+            Alors j'ai construit l'outil que j'aurais aimé avoir quand j'en avais besoin.
           </motion.p>
 
           <motion.div variants={fadeUp} className="flex flex-col sm:flex-row items-center justify-center gap-4">
