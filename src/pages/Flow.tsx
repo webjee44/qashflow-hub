@@ -115,8 +115,8 @@ export default function Flow() {
           className="max-w-3xl mx-auto text-center"
         >
           <motion.div variants={fadeUp}>
-            <Badge className="mb-6 bg-emerald-500/10 text-emerald-400 border-emerald-500/30 text-sm px-4 py-1.5 hover:bg-emerald-500/10">
-              🔒 {licensesRemaining}/{TOTAL_LICENSES} licences restantes
+            <Badge className="mb-6 bg-red-500/15 text-red-400 border-red-500/40 text-base font-semibold px-5 py-2 hover:bg-red-500/15 animate-pulse">
+              🔒 Plus que {licensesRemaining}/{TOTAL_LICENSES} licences restantes
             </Badge>
           </motion.div>
 
