@@ -102,11 +102,13 @@ export function SuggestAutomationDialog({
   // Find similar uncategorized transactions
   const findSimilarTransactions = (pattern: string) => {
     if (!transaction || !pattern) return [];
-    return allTransactions.filter(t => 
-      t.id !== transaction.id && 
-      !t.category_id &&
-      t.description.toUpperCase().includes(pattern.toUpperCase())
-    ).slice(0, 5);
+    const patternWords = pattern.toUpperCase().split(/\s+/).filter(Boolean);
+    if (patternWords.length === 0) return [];
+    return allTransactions.filter(t => {
+      if (t.id === transaction.id || t.category_id) return false;
+      const desc = t.description.toUpperCase();
+      return patternWords.every(word => desc.includes(word));
+    }).slice(0, 5);
   };
 
   useEffect(() => {
