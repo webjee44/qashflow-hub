@@ -2,7 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
 import { createSupabaseServices } from '../_shared/serviceFactory.ts';
 import { type RuleCondition } from '../_shared/repositories/AutomationRepository.ts';
-import { matchesAutomationCondition } from '../../../shared/automationRuleMatchingCore.ts';
+import { matchesAutomationCondition } from '../_shared/automationRuleMatchingCore.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
