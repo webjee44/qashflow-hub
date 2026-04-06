@@ -1,3 +1,8 @@
+import {
+  matchesAutomationCondition,
+  matchesTextCondition,
+} from '../../shared/automationRuleMatchingCore.ts';
+
 export interface AutomationRuleConditionLike {
   condition_field: string;
   condition_operator: string;
@@ -17,7 +22,7 @@ export interface TransactionLike {
   type: string;
 }
 
-const normalizeText = (value: string) => value.trim().toUpperCase();
+export { matchesTextCondition };
 
 const getRuleConditions = (rule: AutomationRuleLike): AutomationRuleConditionLike[] => {
   if (rule.conditions && rule.conditions.length > 0) {
@@ -33,74 +38,6 @@ const getRuleConditions = (rule: AutomationRuleLike): AutomationRuleConditionLik
   ];
 };
 
-const matchesTextCondition = (
-  fieldValue: string,
-  operator: string,
-  conditionValue: string,
-): boolean => {
-  const normalizedField = normalizeText(fieldValue);
-  const normalizedCondition = normalizeText(conditionValue);
-
-  switch (operator) {
-    case 'contains':
-      return normalizedField.includes(normalizedCondition);
-    case 'equals':
-      return normalizedField === normalizedCondition;
-    case 'starts_with':
-      return normalizedField.startsWith(normalizedCondition);
-    case 'ends_with':
-      return normalizedField.endsWith(normalizedCondition);
-    default:
-      return false;
-  }
-};
-
-const matchesAmountCondition = (
-  amount: number,
-  operator: string,
-  conditionValue: string,
-): boolean => {
-  if (operator === 'between') {
-    try {
-      const parsed = JSON.parse(conditionValue) as { min: number; max: number };
-      return amount >= parsed.min && amount <= parsed.max;
-    } catch {
-      return false;
-    }
-  }
-
-  const value = Number.parseFloat(conditionValue);
-  if (Number.isNaN(value)) {
-    return false;
-  }
-
-  switch (operator) {
-    case 'equals':
-      return Math.abs(amount - value) < 0.01;
-    case 'greater_than':
-      return amount > value;
-    case 'less_than':
-      return amount < value;
-    default:
-      return false;
-  }
-};
-
-const matchesCondition = (
-  condition: AutomationRuleConditionLike,
-  transaction: TransactionLike,
-): boolean => {
-  switch (condition.condition_field) {
-    case 'description':
-      return matchesTextCondition(transaction.description, condition.condition_operator, condition.condition_value);
-    case 'type':
-      return matchesTextCondition(transaction.type, condition.condition_operator, condition.condition_value);
-    case 'amount':
-      return matchesAmountCondition(Number(transaction.amount), condition.condition_operator, condition.condition_value);
-    default:
-      return false;
-  }
-};
 
 export const isMatchingActiveCategorizationRule = (
   rule: AutomationRuleLike,
@@ -119,7 +56,7 @@ export const isMatchingActiveCategorizationRule = (
     return false;
   }
 
-  return getRuleConditions(rule).every((condition) => matchesCondition(condition, transaction));
+  return getRuleConditions(rule).every((condition) => matchesAutomationCondition(condition, transaction));
 };
 
 export const hasMatchingActiveCategorizationRule = (

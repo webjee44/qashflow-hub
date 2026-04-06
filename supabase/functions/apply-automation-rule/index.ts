@@ -2,6 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
 import { createSupabaseServices } from '../_shared/serviceFactory.ts';
 import { type RuleCondition } from '../_shared/repositories/AutomationRepository.ts';
+import { matchesAutomationCondition } from '../../../shared/automationRuleMatchingCore.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -35,43 +36,7 @@ interface Transaction {
 
 // Match a single condition against a transaction
 function matchCondition(transaction: Transaction, condition: RuleCondition): boolean {
-  const { condition_field, condition_operator, condition_value } = condition;
-  
-  switch (condition_field) {
-    case 'description': {
-      const fieldValue = transaction.description.toLowerCase();
-      const compareValue = condition_value.toLowerCase();
-      
-      switch (condition_operator) {
-        case 'contains': return fieldValue.includes(compareValue);
-        case 'equals': return fieldValue === compareValue;
-        case 'starts_with': return fieldValue.startsWith(compareValue);
-        case 'ends_with': return fieldValue.endsWith(compareValue);
-        default: return false;
-      }
-    }
-    case 'amount': {
-      const amount = Math.abs(transaction.amount);
-      const value = parseFloat(condition_value);
-      
-      switch (condition_operator) {
-        case 'equals': return Math.abs(amount - value) < 0.01;
-        case 'greater_than': return amount > value;
-        case 'less_than': return amount < value;
-        case 'between': {
-          try {
-            const { min, max } = JSON.parse(condition_value);
-            return amount >= min && amount <= max;
-          } catch { return false; }
-        }
-        default: return false;
-      }
-    }
-    case 'type':
-      return transaction.type === condition_value;
-    default:
-      return false;
-  }
+  return matchesAutomationCondition(condition, transaction);
 }
 
 function matchesRule(transaction: Transaction, rule: FullRule): boolean {

@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Sparkles, Loader2, ArrowDownRight, ArrowUpRight, Wand2, Pencil, Check } from 'lucide-react';
 import { Tables } from '@/integrations/supabase/types';
+import { matchesTextCondition } from '@/lib/automationRuleMatching';
 import { cn } from '@/lib/utils';
 
 type Transaction = Tables<'transactions'>;
@@ -102,12 +103,11 @@ export function SuggestAutomationDialog({
   // Find similar uncategorized transactions
   const findSimilarTransactions = (pattern: string) => {
     if (!transaction || !pattern) return [];
-    const patternWords = pattern.toUpperCase().split(/\s+/).filter(Boolean);
-    if (patternWords.length === 0) return [];
+    const normalizedPattern = pattern.trim();
+    if (!normalizedPattern) return [];
     return allTransactions.filter(t => {
       if (t.id === transaction.id || t.category_id) return false;
-      const desc = t.description.toUpperCase();
-      return patternWords.every(word => desc.includes(word));
+      return matchesTextCondition(t.description, 'contains', normalizedPattern);
     }).slice(0, 5);
   };
 
