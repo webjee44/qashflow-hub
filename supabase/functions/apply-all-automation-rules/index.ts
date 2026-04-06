@@ -1,7 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { createSupabaseServices } from '../_shared/serviceFactory.ts';
 import { type RuleCondition } from '../_shared/repositories/AutomationRepository.ts';
-import { matchesAutomationCondition } from '../../../shared/automationRuleMatchingCore.ts';
+import { matchesAutomationCondition } from '../_shared/automationRuleMatchingCore.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
