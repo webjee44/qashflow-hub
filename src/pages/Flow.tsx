@@ -86,8 +86,8 @@ export default function Flow() {
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100 selection:bg-emerald-500/30">
       <SEOHead
-        title="Offre Flow — Licence à vie Qashflow | 497€"
-        description="Offre exclusive réservée aux abonnés Flow. Licence à vie Qashflow à 497€ au lieu de 1 068€/an. 30 places uniquement."
+        title="Offre Flow — Licence à vie Qashflow | 399€"
+        description="Offre exclusive réservée aux abonnés Flow. Licence à vie Qashflow à 399€ au lieu de 1 068€/an. 30 places uniquement."
       />
 
       {/* ── Topbar ── */}
@@ -138,7 +138,7 @@ export default function Flow() {
               className="bg-emerald-500 hover:bg-emerald-600 text-gray-950 font-semibold text-base px-8 h-12"
             >
               {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
-              Obtenir ma licence à vie — 497 €
+              Obtenir ma licence à vie — 399 €
               {!isLoading && <ArrowRight className="ml-2 h-5 w-5" />}
             </Button>
             <span className="text-sm text-gray-500">Jusqu'au {DEADLINE} · Satisfait ou remboursé 7j</span>
@@ -282,7 +282,7 @@ export default function Flow() {
 
             <div className="mb-6 relative">
               <p className="text-gray-500 line-through text-lg">1 068 €/an</p>
-              <p className="text-5xl sm:text-6xl font-bold text-emerald-400 mt-1">497 €</p>
+              <p className="text-5xl sm:text-6xl font-bold text-emerald-400 mt-1">399 €</p>
               <p className="text-gray-400 text-sm mt-1">Paiement unique · Licence à vie</p>
             </div>
 
@@ -309,7 +309,7 @@ export default function Flow() {
               className="w-full sm:w-auto bg-emerald-500 hover:bg-emerald-600 text-gray-950 font-semibold text-base px-10 h-13"
             >
               {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
-              Obtenir ma licence à vie — 497 €
+              Obtenir ma licence à vie — 399 €
               {!isLoading && <ArrowRight className="ml-2 h-5 w-5" />}
             </Button>
 
@@ -403,7 +403,7 @@ export default function Flow() {
               className="bg-emerald-500 hover:bg-emerald-600 text-gray-950 font-semibold text-base px-8 h-12"
             >
               {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
-              Obtenir ma licence à vie — 497 €
+              Obtenir ma licence à vie — 399 €
               {!isLoading && <ArrowRight className="ml-2 h-5 w-5" />}
             </Button>
           </motion.div>
