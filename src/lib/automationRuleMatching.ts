@@ -1,6 +1,7 @@
 import {
   matchesAutomationCondition,
   matchesTextCondition,
+  matchesAmountCondition,
 } from '../../shared/automationRuleMatchingCore.ts';
 
 export interface AutomationRuleConditionLike {
@@ -22,7 +23,7 @@ export interface TransactionLike {
   type: string;
 }
 
-export { matchesTextCondition };
+export { matchesTextCondition, matchesAmountCondition };
 
 const getRuleConditions = (rule: AutomationRuleLike): AutomationRuleConditionLike[] => {
   if (rule.conditions && rule.conditions.length > 0) {

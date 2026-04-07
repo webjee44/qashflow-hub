@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Sparkles, Loader2, ArrowDownRight, ArrowUpRight, Wand2, Pencil, Check, Euro, X } from 'lucide-react';
 import { Tables } from '@/integrations/supabase/types';
 import { matchesTextCondition } from '@/lib/automationRuleMatching';
-import { matchesAmountCondition } from '../../shared/automationRuleMatchingCore';
+import { matchesAmountCondition } from '@/lib/automationRuleMatching';
 import { cn } from '@/lib/utils';
 import {
   Select,
