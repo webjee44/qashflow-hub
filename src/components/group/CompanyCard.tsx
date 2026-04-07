@@ -13,6 +13,16 @@ const formatCurrency = (value: number) =>
     maximumFractionDigits: 0,
   }).format(value);
 
+const getAccountTypeLabel = (type: string | null) => {
+  switch (type) {
+    case 'checking': return 'Courant';
+    case 'savings': return 'Épargne';
+    case 'card': return 'Carte';
+    case 'loan': return 'Prêt';
+    default: return type || 'Compte';
+  }
+};
+
 function AlertBadge({ alert }: { alert: CompanyAlert }) {
   const config = {
     critical: {
@@ -55,7 +65,7 @@ export function CompanyCard({ company, index, onClick }: CompanyCardProps) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.06 }}
     >
-        <Card
+      <Card
         onClick={onClick}
         className={cn(
           'cursor-pointer transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 border',
@@ -66,7 +76,7 @@ export function CompanyCard({ company, index, onClick }: CompanyCardProps) {
       >
         <CardContent className="p-5">
           {/* Header */}
-          <div className="flex items-start justify-between mb-4">
+          <div className="flex items-start justify-between mb-3">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
                 <Building2 className="h-5 w-5 text-primary" />
@@ -79,17 +89,53 @@ export function CompanyCard({ company, index, onClick }: CompanyCardProps) {
                 </p>
               </div>
             </div>
-          </div>
-
-          {/* Balance */}
-          <div className="mb-3">
             <p className={cn(
-              'text-2xl font-bold tracking-tight',
+              'text-xl font-bold tracking-tight',
               company.totalBalance >= 0 ? 'text-foreground' : 'text-destructive'
             )}>
               {formatCurrency(company.totalBalance)}
             </p>
           </div>
+
+          {/* Sub-accounts list */}
+          {company.accounts.length > 0 && (
+            <div className="space-y-1.5 mb-3">
+              {company.accounts.map((account, i) => {
+                const isLow = account.balance > 0 && account.balance < 1000;
+                const isNegative = account.balance < 0;
+                return (
+                  <div
+                    key={i}
+                    className={cn(
+                      'flex items-center justify-between px-3 py-2 rounded-lg text-sm',
+                      isNegative ? 'bg-destructive/5' : isLow ? 'bg-amber-500/5' : 'bg-muted/50'
+                    )}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Landmark className={cn(
+                        'h-3.5 w-3.5 shrink-0',
+                        isNegative ? 'text-destructive' : isLow ? 'text-amber-500' : 'text-muted-foreground'
+                      )} />
+                      <span className="truncate text-foreground">
+                        {account.name || getAccountTypeLabel(account.accountType)}
+                      </span>
+                      {account.iban && (
+                        <span className="text-xs text-muted-foreground shrink-0">
+                          •••{account.iban.slice(-4)}
+                        </span>
+                      )}
+                    </div>
+                    <span className={cn(
+                      'font-medium tabular-nums shrink-0 ml-2',
+                      isNegative ? 'text-destructive' : isLow ? 'text-amber-600' : 'text-foreground'
+                    )}>
+                      {formatCurrency(account.balance)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
           {/* Alerts */}
           {company.alerts.length > 0 && (
