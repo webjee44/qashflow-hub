@@ -1,72 +1,70 @@
 
 
-## Diagnostic : supply@cloudvapor.com ne voit pas les transactions de Vapeflix
+## Vue consolidee groupe — Cockpit CEO
 
-### Cause racine identifiee
+### Objectif
 
-Le probleme est **systemique** dans le modele d'autorisation, pas specifique a un bug ponctuel.
+Creer une page `/groupe` (ou section du dashboard) qui affiche en un coup d'oeil :
+- Le solde consolide de toutes les societes accessibles
+- Le solde individuel de chaque societe avec indicateur visuel (vert/orange/rouge)
+- Les alertes critiques : solde negatif, connexion bancaire en erreur, pas de compte bancaire connecte
+- Navigation rapide vers le dashboard de chaque societe
 
-La fonction `has_company_access(_user_id, _company_id)` accorde l'acces selon 3 criteres (OR) :
-1. L'utilisateur est **proprietaire** de la societe (`companies.user_id`)
-2. L'utilisateur est dans **company_members** pour cette societe
-3. L'utilisateur est **admin ou owner** de l'organisation parente
+### Architecture
 
-`supply@cloudvapor.com` (ID `0c604ad0`) est **membre simple** (`role = 'member'`) de l'organisation GROUPE TRADEFLIX. Il n'est dans `company_members` que pour 4 societes (Vapostore Lanester, Vapostore Vannes, E-fumeur Internet, Cloud Vapor). **Vapeflix n'en fait pas partie.**
+**Pas de nouveau endpoint ni de nouvelle table.** Les donnees existent deja :
+- `companies` (filtrees par RLS via `has_company_access`) → noms des societes
+- `company_bridge_accounts` + `bridge_accounts` → soldes par societe et statut connexion (`item_status`)
+- Le hook `useCompany` fournit deja la liste des societes accessibles
 
-Donc `has_company_access` retourne `false` pour Vapeflix, et les RLS bloquent correctement l'acces aux transactions.
+### Composants a creer
 
-### Le vrai probleme : incoherence UX vs modele de donnees
+1. **`src/hooks/useGroupBalances.ts`** — Hook unique qui pour chaque societe accessible :
+   - Recupere les `company_bridge_accounts` → `bridge_accounts` (balance, item_status)
+   - Calcule le solde total par societe et le solde consolide global
+   - Detecte les alertes : `balance < 0`, `item_status !== 'ok'`, aucun compte assigne
 
-L'utilisateur voit probablement Vapeflix dans son selecteur de societes (car la query `useCompany` charge toutes les societes de l'organisation via `eq('organization_id', orgId)`), mais les RLS bloquent ensuite les donnees sous-jacentes. **L'UI montre une societe a laquelle l'utilisateur n'a en realite pas acces.**
+2. **`src/pages/GroupOverview.tsx`** — Page principale :
+   - Carte hero : solde consolide global + nombre de societes
+   - Grille de cartes par societe (nom, solde, nombre de comptes, badges d'alerte)
+   - Clic sur une carte → switch `currentCompany` + navigation vers `/dashboard`
+   - Bandeau d'alertes en haut si des problemes sont detectes
 
-C'est ca qui cree l'impression d'"instabilite" : l'utilisateur peut naviguer vers une societe mais ne voit rien dedans.
+3. **`src/components/group/CompanyCard.tsx`** — Carte individuelle par societe :
+   - Nom, solde formate, mini-liste des comptes bancaires
+   - Badge couleur selon le solde (vert positif, rouge negatif)
+   - Icone d'alerte si connexion bancaire en erreur ou pas de compte
 
-### Plan de correction
+### Regles d'alerte
 
-**Option A (rapide) : Ajouter supply dans `company_members` pour Vapeflix**
-- Simple insertion SQL. Resout le cas immediat mais ne corrige pas le probleme systemique.
+```text
+┌─────────────────────────┬──────────┬────────────────────────┐
+│ Condition               │ Severite │ Message                │
+├─────────────────────────┼──────────┼────────────────────────┤
+│ Solde societe < 0       │ Critique │ "Solde negatif"        │
+│ item_status = 'error'   │ Critique │ "Connexion en erreur"  │
+│ item_status = 'needs_   │ Warning  │ "Action requise"       │
+│   action'               │          │                        │
+│ 0 comptes bancaires     │ Info     │ "Pas de banque liee"   │
+└─────────────────────────┴──────────┴────────────────────────┘
+```
 
-**Option B (propre, recommandee) : Aligner le selecteur de societes sur les droits reels**
+### Integration navigation
 
-1. **Modifier `useCompany.tsx`** : Au lieu de charger toutes les societes de l'organisation, ne charger que celles auxquelles l'utilisateur a reellement acces. Puisque les RLS sur `companies` utilisent deja `has_company_access` pour le SELECT, il suffit de s'assurer que la policy SELECT de `companies` est coherente.
+- Ajout d'un lien dans la sidebar (icone `Building2`, label "Vue groupe") au-dessus du dashboard, visible uniquement si l'utilisateur a acces a 2+ societes
+- Route `/groupe` ajoutee dans `App.tsx` (protegee, lazy-loaded)
 
-   **Probleme** : la policy SELECT actuelle sur `companies` est :
-   ```
-   (deleted_at IS NULL) AND (user_id = auth.uid() OR EXISTS(company_members) OR EXISTS(org_members with owner/admin))
-   ```
-   Mais `useCompany` fait un `eq('organization_id', orgId)` sans filtre supplementaire. Si la RLS sur companies est correcte, le selecteur ne devrait deja montrer que les societes accessibles.
+### Respect du modele d'acces
 
-   **Verification necessaire** : la policy SELECT sur `companies` semble inclure aussi les simples membres via `company_members`. Donc si la RLS companies est bien appliquee, Vapeflix ne devrait PAS apparaitre pour supply... sauf si la policy est plus permissive qu'attendu.
+Le hook `useGroupBalances` s'appuie sur les RLS existantes : chaque requete passe par le client Supabase authentifie, donc seules les societes auxquelles l'utilisateur a acces (via `has_company_access`) sont retournees. Zero logique d'autorisation cote client.
 
-2. **Verifier la policy SELECT de `companies`** en detail (le contexte fourni est tronque). Si elle laisse passer tous les membres de l'org (y compris `member`), alors c'est la source du decalage.
+### Fichiers impactes
 
-3. **Solution architecturale propre** :
-   - La policy SELECT de `companies` doit etre **alignee** avec `has_company_access` : un membre simple ne voit que les societes ou il est dans `company_members`.
-   - Ou bien, `has_company_access` doit etre elargi pour inclure les membres simples de l'org (mais ca ouvre l'acces a toutes les donnees de toutes les societes pour tout membre).
-
-### Decision requise
-
-Le choix depend de la vision produit :
-
-- **Un membre de l'organisation doit-il voir TOUTES les societes ?** → Elargir `has_company_access` pour inclure le role `member`
-- **Un membre ne doit voir que les societes auxquelles il est explicitement assigne ?** → Corriger la policy SELECT de `companies` pour ne PAS montrer les societes non assignees, et ajouter Vapeflix dans `company_members` pour supply
-
-### Etapes d'implementation (selon la decision)
-
-**Si on garde l'assignation explicite (recommande)** :
-1. Verifier et corriger la policy SELECT de `companies` pour qu'elle ne montre aux membres simples que les societes ou ils sont dans `company_members`
-2. Creer une UI dans les reglages d'organisation pour assigner les membres aux societes
-3. En attendant, ajouter manuellement supply dans `company_members` pour Vapeflix
-
-**Si on ouvre l'acces a tous les membres de l'org** :
-1. Modifier `has_company_access` : ajouter un 4e critere `OR EXISTS (org_member with role = 'member')`
-2. Plus simple mais moins granulaire — tout membre voit tout
-
-### Details techniques
-
-- Vapeflix company_id : `9ab5b1fd-ec34-4d0b-ab92-cb9c7415cc35`
-- supply user_id : `0c604ad0-933e-491d-9f52-009f76033ad6`
-- Organisation GROUPE TRADEFLIX : `f8604bf2-3c95-45a8-b1fe-04fb4056ae52`
-- supply a `company_members` pour : Cloud Vapor, Vapostore Lanester, Vapostore Vannes, E-fumeur Internet
-- supply n'a PAS `company_members` pour : Vapeflix, Coachflix, Tradeflix, Vapeclub, SAS Vapeclub, Go Holding
+| Fichier | Action |
+|---------|--------|
+| `src/hooks/useGroupBalances.ts` | Creer |
+| `src/pages/GroupOverview.tsx` | Creer |
+| `src/components/group/CompanyCard.tsx` | Creer |
+| `src/components/layout/Sidebar.tsx` | Ajouter lien conditionnel |
+| `src/App.tsx` | Ajouter route `/groupe` |
 
