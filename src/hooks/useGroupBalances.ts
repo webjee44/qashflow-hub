@@ -20,6 +20,7 @@ export interface CompanyBalance {
     itemStatus: string | null;
     iban: string | null;
     accountType: string | null;
+    bankName: string | null;
   }>;
   alerts: CompanyAlert[];
 }
