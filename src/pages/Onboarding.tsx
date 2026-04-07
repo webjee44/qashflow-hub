@@ -535,11 +535,11 @@ export default function Onboarding() {
       supabase.functions.invoke('notify-onboarding-complete', {
         body: {
           user_id: user.id,
-          full_name: formData.firstName && formData.lastName
-            ? `${formData.firstName} ${formData.lastName}`
+          full_name: firstName && lastName
+            ? `${firstName} ${lastName}`
             : undefined,
           email: user.email,
-          company_name: formData.companyName || undefined,
+          company_name: companyName || undefined,
         },
       }).catch((err) => logError('Slack onboarding notification failed:', err));
 
