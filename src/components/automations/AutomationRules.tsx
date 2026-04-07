@@ -210,6 +210,12 @@ export function AutomationRules() {
                         )}
                       </div>
                       
+                      {rule.created_at && (
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Créée le {new Date(rule.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        </p>
+                      )}
+                      
                       {/* Rule Flow */}
                       <div className="flex items-center gap-2 mt-2 text-sm flex-wrap">
                         {Array.isArray(conditionTexts) ? (
