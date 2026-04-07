@@ -72,6 +72,12 @@ function CompactUserCard({ user, isActive, onClick }: { user: CRMUser; isActive:
     >
       <p className="text-sm font-medium truncate">{user.full_name || 'Sans nom'}</p>
       <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+      {user.last_active_at && (
+        <p className="text-xs text-muted-foreground mt-0.5">
+          <Clock className="inline h-3 w-3 mr-1" />
+          {format(new Date(user.last_active_at), 'dd/MM/yy HH:mm', { locale: fr })}
+        </p>
+      )}
     </button>
   );
 }
