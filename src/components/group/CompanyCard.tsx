@@ -117,7 +117,7 @@ export function CompanyCard({ company, index, onClick }: CompanyCardProps) {
                         isNegative ? 'text-destructive' : isLow ? 'text-amber-500' : 'text-muted-foreground'
                       )} />
                       <span className="truncate text-foreground">
-                        {account.name || getAccountTypeLabel(account.accountType)}
+                        {account.bankName || account.name || getAccountTypeLabel(account.accountType)}
                       </span>
                       {account.iban && (
                         <span className="text-xs text-muted-foreground shrink-0">
