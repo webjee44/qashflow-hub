@@ -83,7 +83,7 @@ export function useGroupBalances(): GroupBalancesResult {
       if (assignedIds.length > 0) {
         const { data: bridgeAccounts, error: baError } = await supabase
           .from('bridge_accounts')
-          .select('bridge_account_id, name, balance, item_status, iban, account_type')
+          .select('bridge_account_id, name, balance, item_status, iban, account_type, bank_name')
           .in('bridge_account_id', assignedIds);
 
         if (baError) throw baError;
@@ -98,6 +98,7 @@ export function useGroupBalances(): GroupBalancesResult {
               itemStatus: ba.item_status,
               iban: ba.iban,
               accountType: ba.account_type,
+              bankName: ba.bank_name,
             },
           ])
         );
