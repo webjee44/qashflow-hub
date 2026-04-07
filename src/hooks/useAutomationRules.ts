@@ -396,16 +396,17 @@ export function useAutomationRules() {
 
   const deleteRule = async (id: string, decategorize = false) => {
     try {
-      let decategorizedCount = 0;
-
       // Optionally decategorize matching transactions before deleting
+      let decategorized = 0;
       if (decategorize) {
-        const { data, error: decatError } = await supabase.functions.invoke(
-          'decategorize-rule-transactions',
-          { body: { rule_id: id } }
-        );
-        if (decatError) throw decatError;
-        decategorizedCount = data?.updated || 0;
+        const { data, error: decatError } = await supabase.functions.invoke('decategorize-rule-transactions', {
+          body: { rule_id: id }
+        });
+        if (decatError) {
+          logError('Error decategorizing transactions:', decatError);
+        } else {
+          decategorized = data?.decategorized || 0;
+        }
       }
 
       // Conditions will be deleted automatically due to CASCADE
@@ -417,9 +418,8 @@ export function useAutomationRules() {
       if (error) throw error;
       
       setRules(prev => prev.filter(r => r.id !== id));
-      
-      if (decategorize && decategorizedCount > 0) {
-        toast.success(`Règle supprimée, ${decategorizedCount} transaction${decategorizedCount > 1 ? 's' : ''} décatégorisée${decategorizedCount > 1 ? 's' : ''}`);
+      if (decategorized > 0) {
+        toast.success(`Règle supprimée — ${decategorized} transaction${decategorized > 1 ? 's' : ''} décatégorisée${decategorized > 1 ? 's' : ''}`);
       } else {
         toast.success('Règle supprimée');
       }

@@ -1,19 +1,12 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
+import { createClient } from "jsr:@supabase/supabase-js@2";
+import { corsHeaders } from "jsr:@supabase/supabase-js@2/cors";
 import {
   matchesAutomationCondition,
   type AutomationRuleConditionLikeCore,
   type TransactionLikeCore,
 } from "../_shared/automationRuleMatchingCore.ts";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
-  type AutomationRuleConditionLikeCore,
-  type TransactionLikeCore,
-} from "../_shared/automationRuleMatchingCore.ts";
-
-Deno.serve(async (req) => {
+Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -27,19 +20,16 @@ Deno.serve(async (req) => {
       });
     }
 
-    const supabaseAdmin = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Verify user from JWT
-    const supabaseUser = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader } } }
-    );
-    const { data: { user }, error: userError } = await supabaseUser.auth.getUser();
-    if (userError || !user) {
+    // Verify JWT
+    const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: { user }, error: authError } = await userClient.auth.getUser();
+    if (authError || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -54,10 +44,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Fetch the rule (with service role to bypass RLS since we'll verify access)
-    const { data: rule, error: ruleError } = await supabaseAdmin
+    // Fetch the rule
+    const { data: rule, error: ruleError } = await supabase
       .from("automation_rules")
-      .select("*, automation_rule_conditions(*)")
+      .select("*")
       .eq("id", rule_id)
       .single();
 
@@ -70,45 +60,44 @@ Deno.serve(async (req) => {
 
     // Verify user has access to this rule's company
     if (rule.company_id) {
-      const { data: hasAccess } = await supabaseAdmin.rpc("has_company_access", {
+      const { data: access } = await supabase.rpc("has_company_access", {
         _user_id: user.id,
         _company_id: rule.company_id,
       });
-      if (!hasAccess) {
+      if (!access) {
         return new Response(JSON.stringify({ error: "Access denied" }), {
           status: 403,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-    } else if (rule.user_id !== user.id) {
-      return new Response(JSON.stringify({ error: "Access denied" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
     }
 
+    // Fetch conditions for this rule
+    const { data: conditions } = await supabase
+      .from("automation_rule_conditions")
+      .select("condition_field, condition_operator, condition_value")
+      .eq("rule_id", rule_id);
+
+    const ruleConditions: AutomationRuleConditionLikeCore[] =
+      conditions && conditions.length > 0
+        ? conditions
+        : [
+            {
+              condition_field: rule.condition_field,
+              condition_operator: rule.condition_operator,
+              condition_value: rule.condition_value,
+            },
+          ];
+
+    // Fetch transactions categorized with this rule's target category
     if (!rule.target_category_id) {
-      return new Response(JSON.stringify({ updated: 0 }), {
+      return new Response(JSON.stringify({ decategorized: 0 }), {
+        status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Build conditions list: primary + additional conditions
-    const conditions: AutomationRuleConditionLikeCore[] = [
-      {
-        condition_field: rule.condition_field,
-        condition_operator: rule.condition_operator,
-        condition_value: rule.condition_value,
-      },
-      ...(rule.automation_rule_conditions || []).map((c: any) => ({
-        condition_field: c.condition_field,
-        condition_operator: c.condition_operator,
-        condition_value: c.condition_value,
-      })),
-    ];
-
-    // Fetch transactions with this category in this company
-    const query = supabaseAdmin
+    const query = supabase
       .from("transactions")
       .select("id, description, amount, type")
       .eq("category_id", rule.target_category_id)
@@ -116,57 +105,53 @@ Deno.serve(async (req) => {
 
     if (rule.company_id) {
       query.eq("company_id", rule.company_id);
-    } else {
-      query.eq("user_id", rule.user_id);
     }
 
     const { data: transactions, error: txError } = await query;
     if (txError) throw txError;
 
-    // Match transactions against rule conditions
+    // Filter transactions that match this rule's conditions
     const matchingIds: string[] = [];
     for (const tx of transactions || []) {
       const txLike: TransactionLikeCore = {
         amount: tx.amount,
-        description: tx.description || "",
+        description: tx.description,
         type: tx.type,
       };
-
-      const allMatch = conditions.every((cond) =>
-        matchesAutomationCondition(cond, txLike)
+      const allMatch = ruleConditions.every((c) =>
+        matchesAutomationCondition(c, txLike)
       );
-
       if (allMatch) {
         matchingIds.push(tx.id);
       }
     }
 
-    if (matchingIds.length === 0) {
-      return new Response(JSON.stringify({ updated: 0 }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
     // Decategorize in batches of 500
-    let totalUpdated = 0;
-    for (let i = 0; i < matchingIds.length; i += 500) {
-      const batch = matchingIds.slice(i, i + 500);
-      const { count, error: updateError } = await supabaseAdmin
+    let decategorized = 0;
+    const BATCH_SIZE = 500;
+    for (let i = 0; i < matchingIds.length; i += BATCH_SIZE) {
+      const batch = matchingIds.slice(i, i + BATCH_SIZE);
+      const { error: updateError, count } = await supabase
         .from("transactions")
         .update({ category_id: null })
         .in("id", batch);
 
       if (updateError) throw updateError;
-      totalUpdated += count || batch.length;
+      decategorized += count ?? batch.length;
     }
 
-    return new Response(JSON.stringify({ updated: totalUpdated }), {
+    return new Response(JSON.stringify({ decategorized }), {
+      status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+  } catch (err) {
+    console.error("decategorize-rule-transactions error:", err);
+    return new Response(
+      JSON.stringify({ error: err instanceof Error ? err.message : "Internal error" }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
+    );
   }
 });
