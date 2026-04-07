@@ -149,6 +149,7 @@ function UserDetailPanel({ user, onClose }: { user: CRMUser; onClose: () => void
                   <span>Dernière connexion : {format(new Date(user.last_active_at), 'dd MMMM yyyy à HH:mm', { locale: fr })}</span>
                 </div>
               )}
+            </div>
           </div>
 
           <Separator />
