@@ -21,7 +21,7 @@ function AlertBadge({ alert }: { alert: CompanyAlert }) {
     },
     warning: {
       icon: AlertTriangle,
-      className: 'bg-orange-500/10 text-orange-600 border-orange-500/20',
+      className: 'bg-amber-500/10 text-amber-600 border-amber-500/20',
     },
     info: {
       icon: Info,
