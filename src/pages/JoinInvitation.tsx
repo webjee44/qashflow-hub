@@ -92,7 +92,7 @@ export default function JoinInvitation() {
             invitation_token: token,
           },
           // After email confirmation, land in Business Plan by default.
-          emailRedirectTo: `${window.location.origin}/bp/revenus`,
+          emailRedirectTo: `${window.location.origin}/dashboard`,
         },
       });
 
