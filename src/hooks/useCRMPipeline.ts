@@ -13,6 +13,7 @@ export interface CRMUser {
   total_logins: number;
   has_automation: boolean;
   pipeline_stage: string;
+  last_active_at: string | null;
 }
 
 export const PIPELINE_STAGES = [
