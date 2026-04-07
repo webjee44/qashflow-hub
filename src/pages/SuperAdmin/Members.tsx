@@ -234,7 +234,7 @@ export default function SuperAdminMembers() {
               <TableBody>
                 {filteredMembers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={12} className="text-center text-muted-foreground py-8">
                       Aucun membre trouvé
                     </TableCell>
                   </TableRow>
