@@ -18,7 +18,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { Search, UserCog, Users, Loader2, Phone, Briefcase, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Search, UserCog, Users, Loader2, Phone, Briefcase, CheckCircle2, AlertCircle, Building2, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -221,6 +221,9 @@ export default function SuperAdminMembers() {
                   <TableHead>Nom</TableHead>
                   <TableHead>Téléphone</TableHead>
                   <TableHead>Fonction</TableHead>
+                  <TableHead>Activité</TableHead>
+                  <TableHead>CA</TableHead>
+                  <TableHead>Entités</TableHead>
                   <TableHead>Organisations</TableHead>
                   <TableHead>Sociétés</TableHead>
                   <TableHead>Onboarding</TableHead>
@@ -231,7 +234,7 @@ export default function SuperAdminMembers() {
               <TableBody>
                 {filteredMembers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={12} className="text-center text-muted-foreground py-8">
                       Aucun membre trouvé
                     </TableCell>
                   </TableRow>
@@ -259,6 +262,25 @@ export default function SuperAdminMembers() {
                             {member.job_title}
                           </span>
                         ) : <span className="text-muted-foreground">—</span>}
+                      </TableCell>
+                      <TableCell>
+                        {member.company_activity_type ? (
+                          <span className="flex items-center gap-1 text-sm">
+                            <Building2 className="h-3 w-3 text-muted-foreground" />
+                            {member.company_activity_type}
+                          </span>
+                        ) : <span className="text-muted-foreground">—</span>}
+                      </TableCell>
+                      <TableCell>
+                        {member.company_revenue_range ? (
+                          <span className="flex items-center gap-1 text-sm">
+                            <TrendingUp className="h-3 w-3 text-muted-foreground" />
+                            {member.company_revenue_range}
+                          </span>
+                        ) : <span className="text-muted-foreground">—</span>}
+                      </TableCell>
+                      <TableCell>
+                        {member.company_entity_count || <span className="text-muted-foreground">—</span>}
                       </TableCell>
                       <TableCell>{renderOrganizations(member.organizations)}</TableCell>
                       <TableCell>{renderCompanies(member.companies)}</TableCell>
