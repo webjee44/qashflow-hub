@@ -18,7 +18,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { Search, UserCog, Users, Loader2, Phone, Briefcase, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Search, UserCog, Users, Loader2, Phone, Briefcase, CheckCircle2, AlertCircle, Building2, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
