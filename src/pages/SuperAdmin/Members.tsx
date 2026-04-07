@@ -221,6 +221,9 @@ export default function SuperAdminMembers() {
                   <TableHead>Nom</TableHead>
                   <TableHead>Téléphone</TableHead>
                   <TableHead>Fonction</TableHead>
+                  <TableHead>Activité</TableHead>
+                  <TableHead>CA</TableHead>
+                  <TableHead>Entités</TableHead>
                   <TableHead>Organisations</TableHead>
                   <TableHead>Sociétés</TableHead>
                   <TableHead>Onboarding</TableHead>
