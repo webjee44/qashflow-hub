@@ -394,8 +394,20 @@ export function useAutomationRules() {
     }
   };
 
-  const deleteRule = async (id: string) => {
+  const deleteRule = async (id: string, decategorize = false) => {
     try {
+      let decategorizedCount = 0;
+
+      // Optionally decategorize matching transactions before deleting
+      if (decategorize) {
+        const { data, error: decatError } = await supabase.functions.invoke(
+          'decategorize-rule-transactions',
+          { body: { rule_id: id } }
+        );
+        if (decatError) throw decatError;
+        decategorizedCount = data?.updated || 0;
+      }
+
       // Conditions will be deleted automatically due to CASCADE
       const { error } = await supabase
         .from('automation_rules')
@@ -405,7 +417,12 @@ export function useAutomationRules() {
       if (error) throw error;
       
       setRules(prev => prev.filter(r => r.id !== id));
-      toast.success('Règle supprimée');
+      
+      if (decategorize && decategorizedCount > 0) {
+        toast.success(`Règle supprimée, ${decategorizedCount} transaction${decategorizedCount > 1 ? 's' : ''} décatégorisée${decategorizedCount > 1 ? 's' : ''}`);
+      } else {
+        toast.success('Règle supprimée');
+      }
     } catch (error) {
       logError('Error deleting rule:', error);
       toast.error('Erreur lors de la suppression');
