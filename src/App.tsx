@@ -58,6 +58,7 @@ const Invoices = lazy(() => import("./pages/Invoices"));
 const Categorisation = lazy(() => import("./pages/TreasurySettings"));
 const Automations = lazy(() => import("./pages/Automations"));
 const Settings = lazy(() => import("./pages/Settings"));
+const GroupOverview = lazy(() => import("./pages/GroupOverview"));
 
 // ============================================
 // Business Plan pages (lazy loading)
@@ -164,6 +165,7 @@ const App = () => (
                   }
                 >
                   {/* Treasury routes */}
+                  <Route path="/groupe" element={<Suspense fallback={<PageLoader />}><GroupOverview /></Suspense>} />
                   <Route path="/dashboard" element={<Suspense fallback={<PageLoader />}><Dashboard /></Suspense>} />
                   <Route path="/transactions" element={<Suspense fallback={<PageLoader />}><Transactions /></Suspense>} />
                   <Route path="/previsions" element={<Suspense fallback={<PageLoader />}><Forecasts /></Suspense>} />

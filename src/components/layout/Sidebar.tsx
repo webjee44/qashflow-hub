@@ -50,7 +50,7 @@ interface NavItem {
   prefetchKeys?: string[]; // Query keys to prefetch on hover
 }
 
-const treasuryNavItems: NavItem[] = [
+const treasuryNavItemsBase: NavItem[] = [
   { icon: LayoutDashboard, label: 'Tableau de bord', href: '/dashboard', prefetchKeys: ['dashboard-stats'] },
   { icon: TrendingUp, label: 'Prévisions', href: '/previsions', prefetchKeys: ['forecasts'] },
   { icon: ArrowLeftRight, label: 'Transactions', href: '/transactions', prefetchKeys: ['transactions'] },
