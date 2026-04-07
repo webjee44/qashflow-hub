@@ -128,7 +128,7 @@ export function SuggestAutomationDialog({
       if (t.id === transaction.id || t.category_id) return false;
       if (!matchesTextCondition(t.description, 'contains', normalizedPattern)) return false;
       if (amountOp && amountVal) {
-        if (!matchesAmountCondition(Number(t.amount), amountOp, amountVal.replace(',', '.'))) return false;
+        if (!matchesAmountCondition(Math.abs(Number(t.amount)), amountOp, amountVal.replace(',', '.'))) return false;
       }
       return true;
     }).slice(0, 5);
