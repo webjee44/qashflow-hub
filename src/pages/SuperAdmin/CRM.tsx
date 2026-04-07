@@ -143,7 +143,12 @@ function UserDetailPanel({ user, onClose }: { user: CRMUser; onClose: () => void
                 <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
                 <span>Inscrit le {format(new Date(user.created_at), 'dd MMMM yyyy', { locale: fr })}</span>
               </div>
-            </div>
+              {user.last_active_at && (
+                <div className="flex items-center gap-3 text-sm">
+                  <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <span>Dernière connexion : {format(new Date(user.last_active_at), 'dd MMMM yyyy à HH:mm', { locale: fr })}</span>
+                </div>
+              )}
           </div>
 
           <Separator />
