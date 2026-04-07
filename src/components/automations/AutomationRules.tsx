@@ -54,6 +54,7 @@ export function AutomationRules() {
   const { rules, categories, loading, stats, createRule, createCategory, updateRule, toggleRule, deleteRule } = useAutomationRules();
   const [editingRule, setEditingRule] = useState<AutomationRule | null>(null);
   const [search, setSearch] = useState('');
+  const [decategorizeOnDelete, setDecategorizeOnDelete] = useState(false);
 
   const filteredRules = useMemo(() => {
     if (!search.trim()) return rules;
