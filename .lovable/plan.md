@@ -1,88 +1,72 @@
 
-Objectif
 
-Rétablir l’invariant métier du module prévisions :
-`Solde de début de mois + Variation nette du mois = Solde de fin de mois`
-pour la colonne Réel comme pour la colonne Prévu.
+## Diagnostic : supply@cloudvapor.com ne voit pas les transactions de Vapeflix
 
-Cause racine
+### Cause racine identifiee
 
-Le problème n’est plus la ligne “Variation nette du mois”.
-Elle est désormais calculée correctement.
+Le probleme est **systemique** dans le modele d'autorisation, pas specifique a un bug ponctuel.
 
-Le vrai bug est plus profond :
-- `ForecastTable` affiche les totaux via `forecastDisplayTotals.ts`
-- mais `useForecasts.getOpeningBalance()` / `getClosingBalance()` continuent d’utiliser une autre logique historique (`getMonthNetForecast`)
-- cette logique historique réinjecte les factures fournisseurs / payables et applique une logique TTC différente
-- `ForecastChart` ajoute aussi les payables dans les barres futures
+La fonction `has_company_access(_user_id, _company_id)` accorde l'acces selon 3 criteres (OR) :
+1. L'utilisateur est **proprietaire** de la societe (`companies.user_id`)
+2. L'utilisateur est dans **company_members** pour cette societe
+3. L'utilisateur est **admin ou owner** de l'organisation parente
 
-Résultat : l’UI affiche une variation nette prévisionnelle de `30 072 €`, mais le moteur de solde utilise un autre delta mensuel, donc il calcule un solde de fin incohérent (`-23 388 €`).
+`supply@cloudvapor.com` (ID `0c604ad0`) est **membre simple** (`role = 'member'`) de l'organisation GROUPE TRADEFLIX. Il n'est dans `company_members` que pour 4 societes (Vapostore Lanester, Vapostore Vannes, E-fumeur Internet, Cloud Vapor). **Vapeflix n'en fait pas partie.**
 
-Approche retenue
+Donc `has_company_access` retourne `false` pour Vapeflix, et les RLS bloquent correctement l'acces aux transactions.
 
-Ne surtout pas patcher uniquement la ligne “Solde de fin de mois”.
-Ce serait une rustine locale.
+### Le vrai probleme : incoherence UX vs modele de donnees
 
-La correction propre consiste à remettre une seule source de vérité au niveau du moteur de prévisions, puis à faire consommer cette même logique par :
-- le tableau
-- le calcul des soldes
-- le graphe
-- l’export Excel
+L'utilisateur voit probablement Vapeflix dans son selecteur de societes (car la query `useCompany` charge toutes les societes de l'organisation via `eq('organization_id', orgId)`), mais les RLS bloquent ensuite les donnees sous-jacentes. **L'UI montre une societe a laquelle l'utilisateur n'a en realite pas acces.**
 
-Plan d’implémentation
+C'est ca qui cree l'impression d'"instabilite" : l'utilisateur peut naviguer vers une societe mais ne voit rien dedans.
 
-1. Centraliser les totaux affichés dans le hook métier
-- déplacer la logique “displayed totals” au niveau de `useForecasts`
-- exposer des helpers du style :
-  - `getDisplayedSectionTotalsForMonth(type, month)`
-  - `getDisplayedNetTotalsForMonth(month)`
-- réutiliser `forecastDisplayTotals.ts` au lieu de recalculer localement dans `ForecastTable`
+### Plan de correction
 
-2. Réécrire le moteur de solde prévisionnel sur cette source de vérité
-- remplacer l’usage de `getMonthNetForecast()` dans `getOpeningBalance()` et `getClosingBalance()`
-- calculer les ouvertures futures par chaînage :
-  `opening(m+1) = opening(m) + displayedNetForecast(m)`
-- calculer la clôture prévisionnelle du mois courant avec ce même delta affiché
-- conserver le chemin “réel”, qui est déjà cohérent dans ton screenshot
+**Option A (rapide) : Ajouter supply dans `company_members` pour Vapeflix**
+- Simple insertion SQL. Resout le cas immediat mais ne corrige pas le probleme systemique.
 
-3. Aligner tous les consommateurs visuels
-- `ForecastTable` : utiliser les helpers du hook pour les headers, la variation nette et le solde de fin
-- export Excel : utiliser exactement les mêmes helpers
-- `ForecastChart` / `BalanceChart` : supprimer la logique parallèle qui réajoute les payables dans les flux principaux
+**Option B (propre, recommandee) : Aligner le selecteur de societes sur les droits reels**
 
-4. Garder les payables, mais à la bonne place
-- conserver l’affichage informatif des factures fournisseurs dans les cellules / indicateurs dédiés
-- ne plus les laisser modifier en douce le calcul principal du solde affiché
-- si on veut garder une vision “liquidité prudente” plus tard, elle devra être une métrique séparée et explicitement nommée, pas le `Solde de fin de mois` principal
+1. **Modifier `useCompany.tsx`** : Au lieu de charger toutes les societes de l'organisation, ne charger que celles auxquelles l'utilisateur a reellement acces. Puisque les RLS sur `companies` utilisent deja `has_company_access` pour le SELECT, il suffit de s'assurer que la policy SELECT de `companies` est coherente.
 
-Détails techniques
+   **Probleme** : la policy SELECT actuelle sur `companies` est :
+   ```
+   (deleted_at IS NULL) AND (user_id = auth.uid() OR EXISTS(company_members) OR EXISTS(org_members with owner/admin))
+   ```
+   Mais `useCompany` fait un `eq('organization_id', orgId)` sans filtre supplementaire. Si la RLS sur companies est correcte, le selecteur ne devrait deja montrer que les societes accessibles.
 
-Fichiers concernés :
-- `src/hooks/useForecasts.ts`
-- `src/components/forecasts/ForecastTable.tsx`
-- `src/components/forecasts/ForecastChart.tsx`
-- `src/components/dashboard/BalanceChart.tsx`
-- `src/lib/forecastDisplayTotals.ts` (ou utilitaire voisin si on factorise davantage)
+   **Verification necessaire** : la policy SELECT sur `companies` semble inclure aussi les simples membres via `company_members`. Donc si la RLS companies est bien appliquee, Vapeflix ne devrait PAS apparaitre pour supply... sauf si la policy est plus permissive qu'attendu.
 
-Tests à ajouter / renforcer :
-- cas de régression exact Cloud Vapor :
-  `14 332 + 30 072 = 44 404`
-- continuité inter-mois :
-  `closing(M) = opening(M+1)`
-- parité tableau / graphe / export
-- non-régression sur le calcul Réel
+2. **Verifier la policy SELECT de `companies`** en detail (le contexte fourni est tronque). Si elle laisse passer tous les membres de l'org (y compris `member`), alors c'est la source du decalage.
 
-Impact attendu
+3. **Solution architecturale propre** :
+   - La policy SELECT de `companies` doit etre **alignee** avec `has_company_access` : un membre simple ne voit que les societes ou il est dans `company_members`.
+   - Ou bien, `has_company_access` doit etre elargi pour inclure les membres simples de l'org (mais ca ouvre l'acces a toutes les donnees de toutes les societes pour tout membre).
 
-- les soldes prévisionnels affichés vont changer, car ils cesseront d’utiliser l’ancienne logique “liquidity/payables”
-- en échange, le produit redeviendra arithmétiquement cohérent et compréhensible
-- aucun changement base de données
-- correction purement applicative et structurelle
+### Decision requise
 
-Pourquoi cette approche est meilleure qu’un patch rapide
+Le choix depend de la vision produit :
 
-Un patch dans la ligne de clôture masquerait seulement le symptôme.
-Le graphe, les ouvertures futures et l’export resteraient faux.
+- **Un membre de l'organisation doit-il voir TOUTES les societes ?** → Elargir `has_company_access` pour inclure le role `member`
+- **Un membre ne doit voir que les societes auxquelles il est explicitement assigne ?** → Corriger la policy SELECT de `companies` pour ne PAS montrer les societes non assignees, et ajouter Vapeflix dans `company_members` pour supply
 
-Ici on corrige la cause racine :
-il ne restera plus deux moteurs de calcul concurrents pour la même information métier.
+### Etapes d'implementation (selon la decision)
+
+**Si on garde l'assignation explicite (recommande)** :
+1. Verifier et corriger la policy SELECT de `companies` pour qu'elle ne montre aux membres simples que les societes ou ils sont dans `company_members`
+2. Creer une UI dans les reglages d'organisation pour assigner les membres aux societes
+3. En attendant, ajouter manuellement supply dans `company_members` pour Vapeflix
+
+**Si on ouvre l'acces a tous les membres de l'org** :
+1. Modifier `has_company_access` : ajouter un 4e critere `OR EXISTS (org_member with role = 'member')`
+2. Plus simple mais moins granulaire — tout membre voit tout
+
+### Details techniques
+
+- Vapeflix company_id : `9ab5b1fd-ec34-4d0b-ab92-cb9c7415cc35`
+- supply user_id : `0c604ad0-933e-491d-9f52-009f76033ad6`
+- Organisation GROUPE TRADEFLIX : `f8604bf2-3c95-45a8-b1fe-04fb4056ae52`
+- supply a `company_members` pour : Cloud Vapor, Vapostore Lanester, Vapostore Vannes, E-fumeur Internet
+- supply n'a PAS `company_members` pour : Vapeflix, Coachflix, Tradeflix, Vapeclub, SAS Vapeclub, Go Holding
+
