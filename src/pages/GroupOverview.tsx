@@ -34,7 +34,7 @@ export default function GroupOverview() {
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       <PageHeader
         title="Vue groupe"
-        description="Synthèse consolidée de toutes vos sociétés"
+        subtitle="Synthèse consolidée de toutes vos sociétés"
       />
 
       {/* Critical alerts banner */}
