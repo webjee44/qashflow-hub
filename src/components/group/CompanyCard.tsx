@@ -55,12 +55,12 @@ export function CompanyCard({ company, index, onClick }: CompanyCardProps) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.06 }}
     >
-      <Card
+        <Card
         onClick={onClick}
         className={cn(
           'cursor-pointer transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 border',
           hasCritical && 'border-destructive/30',
-          hasWarning && !hasCritical && 'border-orange-500/30',
+          hasWarning && !hasCritical && 'border-amber-500/30',
           !hasCritical && !hasWarning && 'border-border'
         )}
       >
