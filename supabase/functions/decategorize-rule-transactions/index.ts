@@ -1,7 +1,14 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
-import { corsHeaders } from "../_shared/cors.ts";
 import {
   matchesAutomationCondition,
+  type AutomationRuleConditionLikeCore,
+  type TransactionLikeCore,
+} from "../_shared/automationRuleMatchingCore.ts";
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
   type AutomationRuleConditionLikeCore,
   type TransactionLikeCore,
 } from "../_shared/automationRuleMatchingCore.ts";
