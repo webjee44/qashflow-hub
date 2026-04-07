@@ -192,6 +192,9 @@ export interface MemberStats {
   job_title: string | null;
   onboarding_completed: boolean;
   created_at: string;
+  company_activity_type: string | null;
+  company_entity_count: string | null;
+  company_revenue_range: string | null;
   organizations: {
     org_id: string;
     org_name: string;
