@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { 
@@ -15,6 +15,7 @@ import {
   Search
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -54,6 +55,7 @@ export function AutomationRules() {
   const { rules, categories, loading, stats, createRule, createCategory, updateRule, toggleRule, deleteRule } = useAutomationRules();
   const [editingRule, setEditingRule] = useState<AutomationRule | null>(null);
   const [search, setSearch] = useState('');
+  const [decategorizeOnDelete, setDecategorizeOnDelete] = useState(false);
 
   const filteredRules = useMemo(() => {
     if (!search.trim()) return rules;
@@ -262,7 +264,7 @@ export function AutomationRules() {
                         checked={rule.is_active}
                         onCheckedChange={() => toggleRule(rule.id)}
                       />
-                      <AlertDialog>
+                      <AlertDialog onOpenChange={(open) => { if (!open) setDecategorizeOnDelete(false); }}>
                         <AlertDialogTrigger asChild>
                           <button className="p-2 rounded-lg hover:bg-destructive/10 transition-colors text-muted-foreground hover:text-destructive">
                             <Trash2 className="w-4 h-4" />
@@ -275,10 +277,25 @@ export function AutomationRules() {
                               Cette action est irréversible. La règle "{rule.name}" sera définitivement supprimée.
                             </AlertDialogDescription>
                           </AlertDialogHeader>
+                          {rule.target_category_id && (
+                            <div className="flex items-start gap-3 py-2">
+                              <Checkbox
+                                id={`decategorize-${rule.id}`}
+                                checked={decategorizeOnDelete}
+                                onCheckedChange={(checked) => setDecategorizeOnDelete(!!checked)}
+                              />
+                              <label 
+                                htmlFor={`decategorize-${rule.id}`}
+                                className="text-sm text-muted-foreground leading-snug cursor-pointer"
+                              >
+                                Décatégoriser aussi les transactions qui avaient été classées par cette règle
+                              </label>
+                            </div>
+                          )}
                           <AlertDialogFooter>
                             <AlertDialogCancel>Annuler</AlertDialogCancel>
                             <AlertDialogAction 
-                              onClick={() => deleteRule(rule.id)}
+                              onClick={() => deleteRule(rule.id, decategorizeOnDelete)}
                               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                             >
                               Supprimer
