@@ -125,7 +125,7 @@ export const matchesAutomationCondition = (
       );
     case 'amount':
       return matchesAmountCondition(
-        Number(transaction.amount),
+        Math.abs(Number(transaction.amount)),
         condition.condition_operator,
         condition.condition_value,
       );
