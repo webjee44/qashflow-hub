@@ -1,70 +1,57 @@
 
 
-## Vue consolidee groupe — Cockpit CEO
+## Edge Function `check-clients`
 
 ### Objectif
 
-Creer une page `/groupe` (ou section du dashboard) qui affiche en un coup d'oeil :
-- Le solde consolide de toutes les societes accessibles
-- Le solde individuel de chaque societe avec indicateur visuel (vert/orange/rouge)
-- Les alertes critiques : solde negatif, connexion bancaire en erreur, pas de compte bancaire connecte
-- Navigation rapide vers le dashboard de chaque societe
+Pont entre Prospector et Qashflow : recevoir un batch d'emails, identifier lesquels correspondent a des utilisateurs existants, et retourner leurs infos organisation.
+
+### Donnees cles
+
+- `profiles` ne contient **pas** d'email — l'email est dans `auth.users`
+- La jointure est : `auth.users` (email) → `organization_members` (user_id) → `organizations` (name, subscription_status, created_at)
+- Le service role key permet de lire `auth.users` via l'API admin
 
 ### Architecture
 
-**Pas de nouveau endpoint ni de nouvelle table.** Les donnees existent deja :
-- `companies` (filtrees par RLS via `has_company_access`) → noms des societes
-- `company_bridge_accounts` + `bridge_accounts` → soldes par societe et statut connexion (`item_status`)
-- Le hook `useCompany` fournit deja la liste des societes accessibles
+**Fichier unique** : `supabase/functions/check-clients/index.ts`
 
-### Composants a creer
+**Flux** :
+1. Valider le body avec Zod (`emails`: array de strings, `secret`: string)
+2. Comparer `secret` contre `Deno.env.get("BRIDGE_SECRET")` — 401 si mismatch
+3. Via `supabaseAdmin.auth.admin.listUsers()`, recuperer tous les users puis filtrer par emails (lowercase match). Alternative plus efficace : query directe sur `auth.users` via le service role client SQL.
+4. Pour chaque email trouve, query `organization_members` + `organizations` pour recuperer `name`, `subscription_status`, `created_at`
+5. Retourner `{ "clients": { "email": { "org_name", "status", "since" } } }`
 
-1. **`src/hooks/useGroupBalances.ts`** — Hook unique qui pour chaque societe accessible :
-   - Recupere les `company_bridge_accounts` → `bridge_accounts` (balance, item_status)
-   - Calcule le solde total par societe et le solde consolide global
-   - Detecte les alertes : `balance < 0`, `item_status !== 'ok'`, aucun compte assigne
+**Securite** :
+- Pas de JWT utilisateur — auth uniquement via `BRIDGE_SECRET`
+- `verify_jwt = false` dans config.toml (deja le pattern du projet)
+- `SUPABASE_SERVICE_ROLE_KEY` pour les queries internes
+- Validation Zod du payload + limite de taille du batch (max 200 emails)
 
-2. **`src/pages/GroupOverview.tsx`** — Page principale :
-   - Carte hero : solde consolide global + nombre de societes
-   - Grille de cartes par societe (nom, solde, nombre de comptes, badges d'alerte)
-   - Clic sur une carte → switch `currentCompany` + navigation vers `/dashboard`
-   - Bandeau d'alertes en haut si des problemes sont detectes
+### Secret a creer
 
-3. **`src/components/group/CompanyCard.tsx`** — Carte individuelle par societe :
-   - Nom, solde formate, mini-liste des comptes bancaires
-   - Badge couleur selon le solde (vert positif, rouge negatif)
-   - Icone d'alerte si connexion bancaire en erreur ou pas de compte
-
-### Regles d'alerte
-
-```text
-┌─────────────────────────┬──────────┬────────────────────────┐
-│ Condition               │ Severite │ Message                │
-├─────────────────────────┼──────────┼────────────────────────┤
-│ Solde societe < 0       │ Critique │ "Solde negatif"        │
-│ item_status = 'error'   │ Critique │ "Connexion en erreur"  │
-│ item_status = 'needs_   │ Warning  │ "Action requise"       │
-│   action'               │          │                        │
-│ 0 comptes bancaires     │ Info     │ "Pas de banque liee"   │
-└─────────────────────────┴──────────┴────────────────────────┘
-```
-
-### Integration navigation
-
-- Ajout d'un lien dans la sidebar (icone `Building2`, label "Vue groupe") au-dessus du dashboard, visible uniquement si l'utilisateur a acces a 2+ societes
-- Route `/groupe` ajoutee dans `App.tsx` (protegee, lazy-loaded)
-
-### Respect du modele d'acces
-
-Le hook `useGroupBalances` s'appuie sur les RLS existantes : chaque requete passe par le client Supabase authentifie, donc seules les societes auxquelles l'utilisateur a acces (via `has_company_access`) sont retournees. Zero logique d'autorisation cote client.
+`BRIDGE_SECRET` — via l'outil `add_secret`, valeur random que l'utilisateur partagera avec Prospector.
 
 ### Fichiers impactes
 
 | Fichier | Action |
 |---------|--------|
-| `src/hooks/useGroupBalances.ts` | Creer |
-| `src/pages/GroupOverview.tsx` | Creer |
-| `src/components/group/CompanyCard.tsx` | Creer |
-| `src/components/layout/Sidebar.tsx` | Ajouter lien conditionnel |
-| `src/App.tsx` | Ajouter route `/groupe` |
+| `supabase/functions/check-clients/index.ts` | Creer |
+| `supabase/config.toml` | Ajouter bloc `[functions.check-clients]` |
+
+### Detail implementation
+
+```text
+POST /check-clients
+Body: { "emails": [...], "secret": "xxx" }
+
+1. Zod validation (emails: z.array(z.string().email()).max(200), secret: z.string())
+2. if secret !== BRIDGE_SECRET → 401
+3. supabaseAdmin query auth.users WHERE email IN (lowercase emails)
+4. Pour chaque user trouve → query organization_members → organizations
+5. Response 200: { clients: { [email]: { org_name, status, since } } }
+```
+
+La query efficace sera une requete SQL directe via le service role client sur `auth.users`, jointure avec `organization_members` et `organizations`, pour eviter le N+1.
 
