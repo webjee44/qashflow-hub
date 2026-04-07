@@ -107,7 +107,7 @@ export function Sidebar() {
   const { settings } = useBPSettings();
   const { isCompleted: onboardingCompleted } = useOnboarding();
   const { isCompleted: bpTourCompleted } = useBPOnboarding();
-  const { currentCompany } = useCompany();
+  const { currentCompany, companies: allCompanies } = useCompany();
   const { currentOrganization, organizations, setCurrentOrganization } = useOrganization();
   const location = useLocation();
   const navigate = useNavigate();
@@ -161,6 +161,17 @@ export function Sidebar() {
     navigate('/auth');
   };
   
+  // Build treasury nav items — prepend "Vue groupe" if 2+ companies
+  const treasuryNavItems = useMemo(() => {
+    if (allCompanies.length >= 2) {
+      return [
+        { icon: Building2, label: 'Vue groupe', href: '/groupe' } as NavItem,
+        ...treasuryNavItemsBase,
+      ];
+    }
+    return treasuryNavItemsBase;
+  }, [allCompanies.length]);
+
   // Filter BP nav items based on settings
   const filteredBPNavItems = useMemo(() => {
     return businessPlanNavItems.filter(item => {
