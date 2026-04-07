@@ -10,10 +10,19 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Sparkles, Loader2, ArrowDownRight, ArrowUpRight, Wand2, Pencil, Check } from 'lucide-react';
+import { Sparkles, Loader2, ArrowDownRight, ArrowUpRight, Wand2, Pencil, Check, Euro, X } from 'lucide-react';
 import { Tables } from '@/integrations/supabase/types';
 import { matchesTextCondition } from '@/lib/automationRuleMatching';
+import { matchesAmountCondition } from '../../shared/automationRuleMatchingCore';
 import { cn } from '@/lib/utils';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { RuleCondition } from '@/hooks/useAutomationRules';
 
 type Transaction = Tables<'transactions'>;
 type Category = Tables<'categories'>;
@@ -31,6 +40,7 @@ interface SuggestAutomationDialogProps {
     condition_value: string;
     action_type: string;
     target_category_id: string | null;
+    conditions?: RuleCondition[];
   }) => Promise<any>;
 }
 
@@ -39,6 +49,12 @@ interface SuggestionResult {
   operator: string;
   ruleName: string;
 }
+
+const amountOperators = [
+  { value: 'greater_than', label: 'est supérieur à' },
+  { value: 'less_than', label: 'est inférieur à' },
+  { value: 'equals', label: 'est égal à' },
+];
 
 export function SuggestAutomationDialog({
   open,
@@ -54,6 +70,9 @@ export function SuggestAutomationDialog({
   const [similarTransactions, setSimilarTransactions] = useState<Transaction[]>([]);
   const [isEditingPattern, setIsEditingPattern] = useState(false);
   const [editedPattern, setEditedPattern] = useState('');
+  const [showAmountCondition, setShowAmountCondition] = useState(false);
+  const [amountOperator, setAmountOperator] = useState('greater_than');
+  const [amountValue, setAmountValue] = useState('');
 
   // Calculate word frequency to detect recurring patterns (like company name)
   const getWordFrequency = () => {
@@ -101,13 +120,17 @@ export function SuggestAutomationDialog({
   };
 
   // Find similar uncategorized transactions
-  const findSimilarTransactions = (pattern: string) => {
+  const findSimilarTransactions = (pattern: string, amountOp?: string, amountVal?: string) => {
     if (!transaction || !pattern) return [];
     const normalizedPattern = pattern.trim();
     if (!normalizedPattern) return [];
     return allTransactions.filter(t => {
       if (t.id === transaction.id || t.category_id) return false;
-      return matchesTextCondition(t.description, 'contains', normalizedPattern);
+      if (!matchesTextCondition(t.description, 'contains', normalizedPattern)) return false;
+      if (amountOp && amountVal) {
+        if (!matchesAmountCondition(Number(t.amount), amountOp, amountVal.replace(',', '.'))) return false;
+      }
+      return true;
     }).slice(0, 5);
   };
 
@@ -120,12 +143,18 @@ export function SuggestAutomationDialog({
       setSimilarTransactions(findSimilarTransactions(localSuggestion.pattern));
       setInitialLoading(false);
       setIsEditingPattern(false);
+      setShowAmountCondition(false);
+      setAmountOperator('greater_than');
+      setAmountValue('');
     } else {
       setSuggestion(null);
       setSimilarTransactions([]);
       setInitialLoading(false);
       setIsEditingPattern(false);
       setEditedPattern('');
+      setShowAmountCondition(false);
+      setAmountOperator('greater_than');
+      setAmountValue('');
     }
   }, [open, transaction?.id, category?.id]);
 
@@ -133,8 +162,12 @@ export function SuggestAutomationDialog({
   const liveSimilarTransactions = useMemo(() => {
     const pattern = editedPattern.trim();
     if (!pattern || !transaction) return [];
-    return findSimilarTransactions(pattern);
-  }, [editedPattern, transaction?.id, allTransactions]);
+    return findSimilarTransactions(
+      pattern,
+      showAmountCondition ? amountOperator : undefined,
+      showAmountCondition ? amountValue : undefined,
+    );
+  }, [editedPattern, transaction?.id, allTransactions, showAmountCondition, amountOperator, amountValue]);
 
   const handlePatternConfirm = () => {
     if (suggestion && editedPattern.trim()) {
@@ -153,13 +186,35 @@ export function SuggestAutomationDialog({
 
     setCreating(true);
     try {
+      // Build conditions array
+      const conditions: RuleCondition[] = [
+        {
+          condition_field: 'description',
+          condition_operator: suggestion.operator,
+          condition_value: suggestion.pattern,
+        },
+      ];
+
+      if (showAmountCondition && amountValue.trim()) {
+        conditions.push({
+          condition_field: 'amount',
+          condition_operator: amountOperator,
+          condition_value: amountValue.trim().replace(',', '.'),
+        });
+      }
+
+      const ruleName = showAmountCondition && amountValue.trim()
+        ? `Auto: ${category.name} - ${suggestion.pattern} + ${amountValue} €`
+        : suggestion.ruleName;
+
       await onCreateRule({
-        name: suggestion.ruleName,
+        name: ruleName,
         condition_field: 'description',
         condition_operator: suggestion.operator,
         condition_value: suggestion.pattern,
         action_type: 'categorize',
         target_category_id: category.id,
+        conditions,
       });
       onOpenChange(false);
     } finally {
@@ -277,6 +332,65 @@ export function SuggestAutomationDialog({
                     </p>
                   )}
                 </div>
+
+                {/* Filtre montant optionnel */}
+                {showAmountCondition ? (
+                  <div className="border border-accent/30 bg-accent/5 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium flex items-center gap-2">
+                        <Euro className="w-4 h-4 text-accent" />
+                        ET le montant...
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-muted-foreground hover:text-destructive"
+                        onClick={() => {
+                          setShowAmountCondition(false);
+                          setAmountValue('');
+                        }}
+                      >
+                        <X className="w-3 h-3" />
+                      </Button>
+                    </div>
+                    <div className="flex gap-2 items-center">
+                      <Select value={amountOperator} onValueChange={setAmountOperator}>
+                        <SelectTrigger className="w-[160px] h-8 text-sm">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {amountOperators.map(op => (
+                            <SelectItem key={op.value} value={op.value}>
+                              {op.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <div className="relative flex-1">
+                        <Input
+                          type="text"
+                          inputMode="decimal"
+                          placeholder="100"
+                          value={amountValue}
+                          onChange={(e) => setAmountValue(e.target.value)}
+                          className="pr-8 h-8 text-sm"
+                          autoFocus
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">€</span>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowAmountCondition(true)}
+                    className="w-full border-dashed border-accent/30 text-accent hover:bg-accent/5 hover:border-accent"
+                  >
+                    <Euro className="w-4 h-4 mr-2" />
+                    + Ajouter un critère de montant
+                  </Button>
+                )}
 
                 {/* Transactions similaires */}
                 {liveSimilarTransactions.length > 0 ? (
