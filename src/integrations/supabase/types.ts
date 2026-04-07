@@ -2419,6 +2419,9 @@ export type Database = {
         Args: never
         Returns: {
           companies: Json
+          company_activity_type: string
+          company_entity_count: string
+          company_revenue_range: string
           created_at: string
           email: string
           first_name: string
