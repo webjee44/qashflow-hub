@@ -86,3 +86,6 @@ verify_jwt = false
 
 [functions.backfill-snapshots]
 verify_jwt = false
+
+[functions.check-clients]
+verify_jwt = false
