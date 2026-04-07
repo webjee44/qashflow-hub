@@ -276,10 +276,23 @@ export function AutomationRules() {
                               Cette action est irréversible. La règle "{rule.name}" sera définitivement supprimée.
                             </AlertDialogDescription>
                           </AlertDialogHeader>
+                          <div className="flex items-center gap-2 py-2">
+                            <Checkbox
+                              id={`decategorize-${rule.id}`}
+                              checked={decategorizeOnDelete}
+                              onCheckedChange={(v) => setDecategorizeOnDelete(!!v)}
+                            />
+                            <label htmlFor={`decategorize-${rule.id}`} className="text-sm cursor-pointer">
+                              Décatégoriser les transactions associées
+                            </label>
+                          </div>
                           <AlertDialogFooter>
-                            <AlertDialogCancel>Annuler</AlertDialogCancel>
+                            <AlertDialogCancel onClick={() => setDecategorizeOnDelete(false)}>Annuler</AlertDialogCancel>
                             <AlertDialogAction 
-                              onClick={() => deleteRule(rule.id)}
+                              onClick={() => {
+                                deleteRule(rule.id, decategorizeOnDelete);
+                                setDecategorizeOnDelete(false);
+                              }}
                               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                             >
                               Supprimer
