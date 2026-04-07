@@ -530,6 +530,19 @@ export default function Onboarding() {
           onboarding_step: 3,
         } as any)
         .eq('id', user.id);
+
+      // Notify Slack (fire & forget — don't block onboarding flow)
+      supabase.functions.invoke('notify-onboarding-complete', {
+        body: {
+          user_id: user.id,
+          full_name: formData.firstName && formData.lastName
+            ? `${formData.firstName} ${formData.lastName}`
+            : undefined,
+          email: user.email,
+          company_name: formData.companyName || undefined,
+        },
+      }).catch((err) => logError('Slack onboarding notification failed:', err));
+
       localStorage.setItem('highlight-first-categorize', 'true');
       // Clear sync cooldown so auto-sync triggers immediately on /transactions
       localStorage.removeItem('bridge_last_auto_sync');
