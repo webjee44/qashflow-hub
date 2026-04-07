@@ -263,6 +263,25 @@ export default function SuperAdminMembers() {
                           </span>
                         ) : <span className="text-muted-foreground">—</span>}
                       </TableCell>
+                      <TableCell>
+                        {member.company_activity_type ? (
+                          <span className="flex items-center gap-1 text-sm">
+                            <Building2 className="h-3 w-3 text-muted-foreground" />
+                            {member.company_activity_type}
+                          </span>
+                        ) : <span className="text-muted-foreground">—</span>}
+                      </TableCell>
+                      <TableCell>
+                        {member.company_revenue_range ? (
+                          <span className="flex items-center gap-1 text-sm">
+                            <TrendingUp className="h-3 w-3 text-muted-foreground" />
+                            {member.company_revenue_range}
+                          </span>
+                        ) : <span className="text-muted-foreground">—</span>}
+                      </TableCell>
+                      <TableCell>
+                        {member.company_entity_count || <span className="text-muted-foreground">—</span>}
+                      </TableCell>
                       <TableCell>{renderOrganizations(member.organizations)}</TableCell>
                       <TableCell>{renderCompanies(member.companies)}</TableCell>
                       <TableCell>
