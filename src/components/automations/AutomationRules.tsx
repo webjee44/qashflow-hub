@@ -53,6 +53,7 @@ const fieldLabels: Record<string, string> = {
 export function AutomationRules() {
   const { rules, categories, loading, stats, createRule, createCategory, updateRule, toggleRule, deleteRule } = useAutomationRules();
   const [editingRule, setEditingRule] = useState<AutomationRule | null>(null);
+  const [decategorizeOnDelete, setDecategorizeOnDelete] = useState(false);
   const [search, setSearch] = useState('');
 
   const filteredRules = useMemo(() => {
