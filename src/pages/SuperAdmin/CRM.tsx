@@ -81,10 +81,18 @@ function UserDetailPanel({ user, onClose }: { user: CRMUser; onClose: () => void
   const stage = PIPELINE_STAGES.find(s => s.key === user.pipeline_stage);
 
   const handleImpersonate = async () => {
-    const { data } = await supabase.functions.invoke('admin-impersonate', {
+    const { data, error } = await supabase.functions.invoke('admin-impersonate', {
       body: { targetUserId: user.user_id },
     });
-    if (data?.url) window.open(data.url, '_blank');
+    if (error || !data?.success) {
+      console.error('[Impersonate] Error:', error || data?.error);
+      return;
+    }
+    const params = new URLSearchParams();
+    params.set('email', data.email);
+    if (data.token_hash) params.set('token_hash', data.token_hash);
+    if (data.email_otp) params.set('email_otp', data.email_otp);
+    window.open(`${window.location.origin}/impersonate-landing?${params.toString()}`, '_blank');
   };
 
   const milestones = [
