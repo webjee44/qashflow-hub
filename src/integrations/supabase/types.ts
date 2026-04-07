@@ -2443,6 +2443,7 @@ export type Database = {
           has_automation: boolean
           has_bank: boolean
           has_categorized: boolean
+          last_active_at: string
           onboarding_completed: boolean
           pipeline_stage: string
           total_logins: number
