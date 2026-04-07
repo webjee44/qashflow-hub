@@ -92,6 +92,7 @@ const componentPreloaders: Record<string, () => Promise<unknown>> = {
   '/bp/tresorerie': () => import('@/pages/BusinessPlan/CashFlow'),
   '/bp/financement': () => import('@/pages/BusinessPlan/FundingPlan'),
   '/bp/scenarios': () => import('@/pages/BusinessPlan/Scenarios'),
+  '/groupe': () => import('@/pages/GroupOverview'),
   '/dashboard': () => import('@/pages/Dashboard'),
   '/transactions': () => import('@/pages/Transactions'),
   '/previsions': () => import('@/pages/Forecasts'),
