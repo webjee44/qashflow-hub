@@ -2445,9 +2445,12 @@ export type Database = {
           has_categorized: boolean
           last_active_at: string
           onboarding_completed: boolean
+          org_name: string
           pipeline_stage: string
+          subscription_status: string
           total_logins: number
           total_time_seconds: number
+          trial_ends_at: string
           user_id: string
         }[]
       }
