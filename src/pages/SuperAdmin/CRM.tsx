@@ -1,17 +1,18 @@
 import { useState } from 'react';
 import { SuperAdminLayout } from '@/components/superadmin/SuperAdminLayout';
-import { useCRMPipeline, PIPELINE_STAGES, type CRMUser, type PipelineStageKey } from '@/hooks/useCRMPipeline';
+import { useCRMPipeline, PIPELINE_STAGES, getTrialStatus, type CRMUser, type PipelineStageKey } from '@/hooks/useCRMPipeline';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Search, Clock, LogIn, ExternalLink, X, CheckCircle2, XCircle, User, Mail, Calendar, Shield, Database, Tag, Zap, ChevronRight } from 'lucide-react';
+import { Search, Clock, ExternalLink, X, CheckCircle2, XCircle, User, Mail, Calendar, Database, Tag, Zap, EyeOff, Eye } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
+import { Switch } from '@/components/ui/switch';
 
 function formatDuration(seconds: number) {
   if (seconds < 60) return `${seconds}s`;
@@ -20,6 +21,24 @@ function formatDuration(seconds: number) {
   const h = Math.floor(m / 60);
   const rm = m % 60;
   return rm > 0 ? `${h}h${rm}m` : `${h}h`;
+}
+
+// ── Trial Badge ──
+function TrialBadge({ user }: { user: CRMUser }) {
+  const status = getTrialStatus(user);
+  if (!status) return null;
+
+  const variantStyles = {
+    subscribed: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200',
+    trial: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200',
+    expired: 'bg-destructive/10 text-destructive',
+  };
+
+  return (
+    <Badge className={`text-[10px] px-1.5 py-0 leading-4 ${variantStyles[status.variant]}`}>
+      {status.label}
+    </Badge>
+  );
 }
 
 // ── Funnel Chart ──
@@ -70,8 +89,14 @@ function CompactUserCard({ user, isActive, onClick }: { user: CRMUser; isActive:
         isActive ? 'border-primary bg-primary/5 shadow-sm' : 'bg-card border-border'
       }`}
     >
-      <p className="text-sm font-medium truncate">{user.full_name || 'Sans nom'}</p>
+      <div className="flex items-center justify-between gap-1">
+        <p className="text-sm font-medium truncate flex-1">{user.full_name || 'Sans nom'}</p>
+        <TrialBadge user={user} />
+      </div>
       <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+      {user.org_name && (
+        <p className="text-xs text-muted-foreground truncate mt-0.5">{user.org_name}</p>
+      )}
       {user.last_active_at && (
         <p className="text-xs text-muted-foreground mt-0.5">
           <Clock className="inline h-3 w-3 mr-1" />
@@ -82,9 +107,10 @@ function CompactUserCard({ user, isActive, onClick }: { user: CRMUser; isActive:
   );
 }
 
-// ── Detail Panel (HubSpot-style) ──
+// ── Detail Panel ──
 function UserDetailPanel({ user, onClose }: { user: CRMUser; onClose: () => void }) {
   const stage = PIPELINE_STAGES.find(s => s.key === user.pipeline_stage);
+  const trialStatus = getTrialStatus(user);
 
   const handleImpersonate = async () => {
     const { data, error } = await supabase.functions.invoke('admin-impersonate', {
@@ -112,7 +138,6 @@ function UserDetailPanel({ user, onClose }: { user: CRMUser; onClose: () => void
 
   return (
     <div className="w-[400px] border-l border-border bg-card flex flex-col h-full">
-      {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-border">
         <h2 className="text-lg font-semibold truncate">{user.full_name || 'Sans nom'}</h2>
         <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={onClose}>
@@ -122,16 +147,17 @@ function UserDetailPanel({ user, onClose }: { user: CRMUser; onClose: () => void
 
       <ScrollArea className="flex-1">
         <div className="p-4 space-y-6">
-          {/* Stage badge + impersonate */}
-          <div className="flex items-center justify-between">
-            {stage && <Badge className={stage.color}>{stage.label}</Badge>}
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              {stage && <Badge className={stage.color}>{stage.label}</Badge>}
+              <TrialBadge user={user} />
+            </div>
             <Button variant="outline" size="sm" className="gap-2" onClick={handleImpersonate}>
               <ExternalLink className="h-3.5 w-3.5" />
               Impersonation
             </Button>
           </div>
 
-          {/* Contact info */}
           <div className="space-y-3">
             <h3 className="text-xs font-semibold uppercase text-muted-foreground tracking-wider">Contact</h3>
             <div className="space-y-2">
@@ -139,10 +165,25 @@ function UserDetailPanel({ user, onClose }: { user: CRMUser; onClose: () => void
                 <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
                 <span className="truncate">{user.email}</span>
               </div>
+              {user.org_name && (
+                <div className="flex items-center gap-3 text-sm">
+                  <Database className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <span className="truncate">{user.org_name}</span>
+                </div>
+              )}
               <div className="flex items-center gap-3 text-sm">
                 <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
                 <span>Inscrit le {format(new Date(user.created_at), 'dd MMMM yyyy', { locale: fr })}</span>
               </div>
+              {user.trial_ends_at && (
+                <div className="flex items-center gap-3 text-sm">
+                  <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <span>
+                    {trialStatus?.variant === 'expired' ? 'Essai expiré le' : 'Essai jusqu\'au'}{' '}
+                    {format(new Date(user.trial_ends_at), 'dd MMMM yyyy', { locale: fr })}
+                  </span>
+                </div>
+              )}
               {user.last_active_at && (
                 <div className="flex items-center gap-3 text-sm">
                   <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -154,7 +195,6 @@ function UserDetailPanel({ user, onClose }: { user: CRMUser; onClose: () => void
 
           <Separator />
 
-          {/* Engagement stats */}
           <div className="space-y-3">
             <h3 className="text-xs font-semibold uppercase text-muted-foreground tracking-wider">Engagement</h3>
             <div className="grid grid-cols-2 gap-3">
@@ -171,11 +211,10 @@ function UserDetailPanel({ user, onClose }: { user: CRMUser; onClose: () => void
 
           <Separator />
 
-          {/* Milestone timeline */}
           <div className="space-y-3">
             <h3 className="text-xs font-semibold uppercase text-muted-foreground tracking-wider">Progression</h3>
             <div className="space-y-1">
-              {milestones.map((m, i) => (
+              {milestones.map((m) => (
                 <div key={m.label} className="flex items-center gap-3 py-1.5">
                   <div className={`flex items-center justify-center w-7 h-7 rounded-full shrink-0 ${
                     m.done 
@@ -194,7 +233,6 @@ function UserDetailPanel({ user, onClose }: { user: CRMUser; onClose: () => void
 
           <Separator />
 
-          {/* Features status */}
           <div className="space-y-3">
             <h3 className="text-xs font-semibold uppercase text-muted-foreground tracking-wider">Fonctionnalités</h3>
             <div className="space-y-2">
@@ -255,7 +293,8 @@ function PipelineColumn({ stageKey, users, search, selectedUserId, onSelectUser 
 
 // ── Main Page ──
 export default function CRM() {
-  const { funnel, grouped, totalUsers, isLoading } = useCRMPipeline();
+  const [showTestAccounts, setShowTestAccounts] = useState(false);
+  const { funnel, grouped, totalUsers, testAccountCount, isLoading } = useCRMPipeline(showTestAccounts);
   const [search, setSearch] = useState('');
   const [selectedUser, setSelectedUser] = useState<CRMUser | null>(null);
   const normalizedSearch = search.toLowerCase().trim();
@@ -263,11 +302,19 @@ export default function CRM() {
   return (
     <SuperAdminLayout>
       <div className="flex h-[calc(100vh-64px)]">
-        {/* Main content */}
         <div className="flex-1 overflow-auto p-8 space-y-6">
-          <div>
-            <h1 className="text-2xl font-bold">CRM Pipeline</h1>
-            <p className="text-muted-foreground">Funnel d'engagement et progression des utilisateurs</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold">CRM Pipeline</h1>
+              <p className="text-muted-foreground">Funnel d'engagement et progression des utilisateurs</p>
+            </div>
+            <div className="flex items-center gap-2 text-sm">
+              <Switch checked={showTestAccounts} onCheckedChange={setShowTestAccounts} />
+              <label className="flex items-center gap-1.5 text-muted-foreground cursor-pointer" onClick={() => setShowTestAccounts(!showTestAccounts)}>
+                {showTestAccounts ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                Comptes de test ({testAccountCount})
+              </label>
+            </div>
           </div>
 
           {isLoading ? (
@@ -307,7 +354,6 @@ export default function CRM() {
           )}
         </div>
 
-        {/* Detail panel */}
         {selectedUser && (
           <UserDetailPanel user={selectedUser} onClose={() => setSelectedUser(null)} />
         )}

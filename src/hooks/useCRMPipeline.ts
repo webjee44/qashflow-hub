@@ -14,6 +14,9 @@ export interface CRMUser {
   has_automation: boolean;
   pipeline_stage: string;
   last_active_at: string | null;
+  subscription_status: string | null;
+  trial_ends_at: string | null;
+  org_name: string | null;
 }
 
 export const PIPELINE_STAGES = [
@@ -36,12 +39,56 @@ export interface FunnelStep {
   dropOffRate: number;
 }
 
+/** Heuristic: detect test/fake accounts */
+export function isTestAccount(user: CRMUser): boolean {
+  const name = (user.full_name || '').trim();
+  const email = user.email.toLowerCase();
+
+  // Internal team
+  if (email.endsWith('@cloudvapor.com')) return true;
+  // Test alias pattern (e.g. user+17@gmail.com)
+  if (/\+\d+@/.test(email)) return true;
+  // Email contains test/demo/fake
+  if (/(test|demo|fake)/i.test(email)) return true;
+  // Name too short (< 3 chars) or empty
+  if (name.length > 0 && name.length < 3) return true;
+  // Repetitive characters (e.g. "dda", "dzd dzdzd", "aaa")
+  const nameNoSpaces = name.replace(/\s/g, '').toLowerCase();
+  if (nameNoSpaces.length >= 2 && /^(.)\1+$/.test(nameNoSpaces)) return true;
+  // Alternating gibberish pattern (e.g. "dzdzdz", "ababab")
+  if (nameNoSpaces.length >= 4 && /^(.{1,2})\1{2,}$/.test(nameNoSpaces)) return true;
+
+  return false;
+}
+
+/** Get trial status info for a user */
+export function getTrialStatus(user: CRMUser): { label: string; variant: 'subscribed' | 'trial' | 'expired' } | null {
+  const { subscription_status, trial_ends_at } = user;
+  
+  if (subscription_status === 'active' || subscription_status === 'lifetime') {
+    return { label: 'Abonné', variant: 'subscribed' };
+  }
+  
+  if (trial_ends_at) {
+    const now = new Date();
+    const end = new Date(trial_ends_at);
+    const diffMs = end.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+    
+    if (diffDays > 0) {
+      return { label: `J-${diffDays}`, variant: 'trial' };
+    }
+    return { label: 'Expiré', variant: 'expired' };
+  }
+  
+  return null;
+}
+
 function computeCumulativeCounts(users: CRMUser[]): Map<PipelineStageKey, number> {
   const stageOrder: PipelineStageKey[] = PIPELINE_STAGES.map(s => s.key);
   const stageIndex: Record<string, number> = {};
   stageOrder.forEach((k, i) => stageIndex[k] = i);
 
-  // For cumulative: a user at stage N also "passed" stages 0..N
   const cumulative = new Map<PipelineStageKey, number>();
   stageOrder.forEach(k => cumulative.set(k, 0));
 
@@ -54,7 +101,7 @@ function computeCumulativeCounts(users: CRMUser[]): Map<PipelineStageKey, number
   return cumulative;
 }
 
-export function useCRMPipeline() {
+export function useCRMPipeline(showTestAccounts = false) {
   const query = useQuery({
     queryKey: ['crm-pipeline'],
     queryFn: async () => {
@@ -64,7 +111,9 @@ export function useCRMPipeline() {
     },
   });
 
-  const users = query.data || [];
+  const allUsers = query.data || [];
+  const users = showTestAccounts ? allUsers : allUsers.filter(u => !isTestAccount(u));
+  const testAccountCount = allUsers.length - allUsers.filter(u => !isTestAccount(u)).length;
   const totalUsers = users.length;
 
   // Group users by their current stage
@@ -96,5 +145,5 @@ export function useCRMPipeline() {
     };
   });
 
-  return { ...query, users, grouped, funnel, totalUsers };
+  return { ...query, users, grouped, funnel, totalUsers, testAccountCount };
 }
