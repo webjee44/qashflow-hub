@@ -50,6 +50,7 @@ const amountOperators = [
 ];
 
 export function EditRuleDialog({ open, onOpenChange, categories, rule, onUpdateRule }: EditRuleDialogProps) {
+  const bankAccounts = useBankAccountOptions();
   const [loading, setLoading] = useState(false);
   const [conditionValue, setConditionValue] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
@@ -60,20 +61,21 @@ export function EditRuleDialog({ open, onOpenChange, categories, rule, onUpdateR
   const [amountOperator, setAmountOperator] = useState('equals');
   const [amountValue, setAmountValue] = useState('');
 
+  // Bank account condition
+  const [showBankCondition, setShowBankCondition] = useState(false);
+  const [selectedBankAccount, setSelectedBankAccount] = useState('');
+
   // Reset form when rule changes
   useEffect(() => {
     if (rule) {
       setRuleName(rule.name);
       setSelectedCategoryId(rule.target_category_id);
       
-      // Parse conditions
       const conditions = rule.conditions || [];
       
-      // Find description condition
       const descCondition = conditions.find(c => c.condition_field === 'description');
       setConditionValue(descCondition?.condition_value || rule.condition_value || '');
       
-      // Find amount condition
       const amountCondition = conditions.find(c => c.condition_field === 'amount');
       if (amountCondition) {
         setShowAmountCondition(true);
@@ -83,6 +85,15 @@ export function EditRuleDialog({ open, onOpenChange, categories, rule, onUpdateR
         setShowAmountCondition(false);
         setAmountOperator('equals');
         setAmountValue('');
+      }
+
+      const bankCondition = conditions.find(c => c.condition_field === 'bank_account_name');
+      if (bankCondition) {
+        setShowBankCondition(true);
+        setSelectedBankAccount(bankCondition.condition_value || '');
+      } else {
+        setShowBankCondition(false);
+        setSelectedBankAccount('');
       }
     }
   }, [rule]);
