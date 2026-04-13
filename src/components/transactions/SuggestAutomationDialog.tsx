@@ -435,6 +435,51 @@ export function SuggestAutomationDialog({
                   </Button>
                 )}
 
+                {/* Bank Account Condition (optional) */}
+                {showBankCondition ? (
+                  <div className="border border-accent/30 bg-accent/5 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium flex items-center gap-2">
+                        <Landmark className="w-4 h-4 text-accent" />
+                        ET le compte bancaire...
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-muted-foreground hover:text-destructive"
+                        onClick={() => {
+                          setShowBankCondition(false);
+                          setSelectedBankAccount('');
+                        }}
+                      >
+                        <X className="w-3 h-3" />
+                      </Button>
+                    </div>
+                    <Select value={selectedBankAccount} onValueChange={setSelectedBankAccount}>
+                      <SelectTrigger className="h-8 text-sm">
+                        <SelectValue placeholder="Sélectionner un compte" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {bankAccounts.map(acc => (
+                          <SelectItem key={acc.name} value={acc.name}>
+                            {acc.display}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : bankAccounts.length > 0 ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowBankCondition(true)}
+                    className="w-full border-dashed border-accent/30 text-accent hover:bg-accent/5 hover:border-accent"
+                  >
+                    <Landmark className="w-4 h-4 mr-2" />
+                    + Ajouter un critère de compte bancaire
+                  </Button>
+                ) : null}
+
                 {/* Transactions similaires */}
                 {liveSimilarTransactions.length > 0 ? (
                   <div>
