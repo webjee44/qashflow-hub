@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Plus, Zap, PlusCircle, Lightbulb, Check, Euro, X, Search } from 'lucide-react';
+import { Plus, Zap, PlusCircle, Lightbulb, Check, Euro, X, Search, Landmark } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -20,6 +20,7 @@ import {
 import { Category, RuleCondition } from '@/hooks/useAutomationRules';
 import { CategoryDialog } from '@/components/categories/CategoryDialog';
 import { cn } from '@/lib/utils';
+import { useBankAccountOptions } from '@/hooks/useBankAccountOptions';
 
 interface CreateRuleDialogProps {
   categories: Category[];
