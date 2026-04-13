@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { RuleCondition } from '@/hooks/useAutomationRules';
+import { useBankAccountOptions } from '@/hooks/useBankAccountOptions';
 
 type Transaction = Tables<'transactions'>;
 type Category = Tables<'categories'>;
