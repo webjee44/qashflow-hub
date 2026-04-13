@@ -217,6 +217,14 @@ export function SuggestAutomationDialog({
         });
       }
 
+      if (showBankCondition && selectedBankAccount) {
+        conditions.push({
+          condition_field: 'bank_account_name',
+          condition_operator: 'equals',
+          condition_value: selectedBankAccount,
+        });
+      }
+
       const ruleName = showAmountCondition && amountValue.trim()
         ? `Auto: ${category.name} - ${suggestion.pattern} + ${amountValue} €`
         : suggestion.ruleName;
