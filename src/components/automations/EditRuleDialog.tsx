@@ -122,6 +122,15 @@ export function EditRuleDialog({ open, onOpenChange, categories, rule, onUpdateR
       });
     }
 
+    // Add bank account condition if enabled
+    if (showBankCondition && selectedBankAccount) {
+      conditions.push({
+        condition_field: 'bank_account_name',
+        condition_operator: 'equals',
+        condition_value: selectedBankAccount,
+      });
+    }
+
     // Auto-generate name if empty
     let finalName = ruleName.trim();
     if (!finalName) {
