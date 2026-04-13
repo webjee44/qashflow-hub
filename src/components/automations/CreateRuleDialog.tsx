@@ -56,6 +56,7 @@ const amountOperators = [
 ];
 
 export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, trigger, defaultAmount }: CreateRuleDialogProps) {
+  const bankAccounts = useBankAccountOptions();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showCategoryDialog, setShowCategoryDialog] = useState(false);
@@ -69,6 +70,10 @@ export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, t
   const [showAmountCondition, setShowAmountCondition] = useState(!!defaultAmount);
   const [amountOperator, setAmountOperator] = useState('equals');
   const [amountValue, setAmountValue] = useState(defaultAmount?.toString() || '');
+
+  // Bank account condition
+  const [showBankCondition, setShowBankCondition] = useState(false);
+  const [selectedBankAccount, setSelectedBankAccount] = useState('');
 
   // Category search
   const [categorySearch, setCategorySearch] = useState('');
