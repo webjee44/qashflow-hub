@@ -1,14 +1,14 @@
-import { memo } from 'react';
+import { memo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { Search, CalendarIcon, Tag, X } from 'lucide-react';
+import { Search, CalendarIcon, Tag, X, Check, ChevronsUpDown } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Category } from '@/hooks/useCategories';
 import { SortOption } from '@/hooks/useTransactions';
 import { SortDropdown } from './SortDropdown';
@@ -41,6 +41,8 @@ export const TransactionFiltersBar = memo(function TransactionFiltersBar({
   incomeCategories, expenseCategories,
   uniqueBankNames,
 }: TransactionFiltersBarProps) {
+  const [categoryOpen, setCategoryOpen] = useState(false);
+
   return (
     <motion.div
       initial={{ y: 20, opacity: 0 }}
@@ -87,29 +89,75 @@ export const TransactionFiltersBar = memo(function TransactionFiltersBar({
         </Button>
       )}
 
-      {/* Category filter */}
-      <Select value={selectedCategoryFilter || 'all'} onValueChange={(v) => onCategoryFilterChange(v === 'all' ? null : v)}>
-        <SelectTrigger className="w-auto min-w-[180px] gap-2">
-          <Tag className="w-4 h-4 text-muted-foreground" />
-          <SelectValue placeholder="Toutes les catégories" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">Toutes les catégories</SelectItem>
-          <SelectItem value="Non catégorisé">Non catégorisé</SelectItem>
-          {incomeCategories.length > 0 && (
-            <>
-              <SelectItem value="__header_income" disabled className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">— Encaissements —</SelectItem>
-              {incomeCategories.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}
-            </>
-          )}
-          {expenseCategories.length > 0 && (
-            <>
-              <SelectItem value="__header_expense" disabled className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">— Décaissements —</SelectItem>
-              {expenseCategories.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}
-            </>
-          )}
-        </SelectContent>
-      </Select>
+      {/* Category filter - searchable combobox */}
+      <Popover open={categoryOpen} onOpenChange={setCategoryOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            role="combobox"
+            aria-expanded={categoryOpen}
+            className={cn("w-auto min-w-[180px] justify-between gap-2", !selectedCategoryFilter && "text-muted-foreground")}
+          >
+            <Tag className="w-4 h-4 shrink-0" />
+            <span className="truncate">
+              {selectedCategoryFilter || 'Toutes les catégories'}
+            </span>
+            <ChevronsUpDown className="ml-auto h-4 w-4 shrink-0 opacity-50" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[260px] p-0" align="start">
+          <Command>
+            <CommandInput placeholder="Rechercher une catégorie..." />
+            <CommandList>
+              <CommandEmpty>Aucune catégorie trouvée.</CommandEmpty>
+              <CommandGroup>
+                <CommandItem
+                  value="all"
+                  onSelect={() => { onCategoryFilterChange(null); setCategoryOpen(false); }}
+                >
+                  <Check className={cn("mr-2 h-4 w-4", !selectedCategoryFilter ? "opacity-100" : "opacity-0")} />
+                  Toutes les catégories
+                </CommandItem>
+                <CommandItem
+                  value="Non catégorisé"
+                  onSelect={() => { onCategoryFilterChange('Non catégorisé'); setCategoryOpen(false); }}
+                >
+                  <Check className={cn("mr-2 h-4 w-4", selectedCategoryFilter === 'Non catégorisé' ? "opacity-100" : "opacity-0")} />
+                  Non catégorisé
+                </CommandItem>
+              </CommandGroup>
+              {incomeCategories.length > 0 && (
+                <CommandGroup heading="Encaissements">
+                  {incomeCategories.map(c => (
+                    <CommandItem
+                      key={c.id}
+                      value={c.name}
+                      onSelect={() => { onCategoryFilterChange(c.name); setCategoryOpen(false); }}
+                    >
+                      <Check className={cn("mr-2 h-4 w-4", selectedCategoryFilter === c.name ? "opacity-100" : "opacity-0")} />
+                      {c.name}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              )}
+              {expenseCategories.length > 0 && (
+                <CommandGroup heading="Décaissements">
+                  {expenseCategories.map(c => (
+                    <CommandItem
+                      key={c.id}
+                      value={c.name}
+                      onSelect={() => { onCategoryFilterChange(c.name); setCategoryOpen(false); }}
+                    >
+                      <Check className={cn("mr-2 h-4 w-4", selectedCategoryFilter === c.name ? "opacity-100" : "opacity-0")} />
+                      {c.name}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              )}
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
 
       <BankFilterDropdown value={bankFilter} onChange={onBankFilterChange} banks={uniqueBankNames} />
       <SortDropdown value={sortOption} onChange={onSortChange} />
