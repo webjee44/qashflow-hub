@@ -67,6 +67,7 @@ export function SuggestAutomationDialog({
   onCreateRule,
 }: SuggestAutomationDialogProps) {
   const navigate = useNavigate();
+  const bankAccounts = useBankAccountOptions();
   const [initialLoading, setInitialLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [createdRuleId, setCreatedRuleId] = useState<string | null>(null);
@@ -78,6 +79,8 @@ export function SuggestAutomationDialog({
   const [showAmountCondition, setShowAmountCondition] = useState(false);
   const [amountOperator, setAmountOperator] = useState('greater_than');
   const [amountValue, setAmountValue] = useState('');
+  const [showBankCondition, setShowBankCondition] = useState(false);
+  const [selectedBankAccount, setSelectedBankAccount] = useState('');
 
   // Calculate word frequency to detect recurring patterns (like company name)
   const getWordFrequency = () => {
