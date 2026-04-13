@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Zap, Lightbulb, Check, Euro, X } from 'lucide-react';
+import { Zap, Lightbulb, Check, Euro, X, Landmark } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/select';
 import { Category, RuleCondition } from '@/hooks/useAutomationRules';
 import { cn } from '@/lib/utils';
+import { useBankAccountOptions } from '@/hooks/useBankAccountOptions';
 
 interface EditRuleDialogProps {
   open: boolean;
