@@ -21,6 +21,7 @@ export interface TransactionLike {
   amount: number | string;
   description: string;
   type: string;
+  bank_account_name?: string | null;
 }
 
 export { matchesTextCondition, matchesAmountCondition };

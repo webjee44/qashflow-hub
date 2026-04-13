@@ -32,6 +32,7 @@ interface Transaction {
   amount: number;
   type: string;
   category_id: string | null;
+  bank_account_name: string | null;
 }
 
 // Match a single condition against a transaction

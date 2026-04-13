@@ -11,7 +11,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Sparkles, Loader2, ArrowDownRight, ArrowUpRight, Wand2, Pencil, Check, Euro, X, ExternalLink, CheckCircle2 } from 'lucide-react';
+import { Sparkles, Loader2, ArrowDownRight, ArrowUpRight, Wand2, Pencil, Check, Euro, X, ExternalLink, CheckCircle2, Landmark } from 'lucide-react';
 import { Tables } from '@/integrations/supabase/types';
 import { matchesTextCondition } from '@/lib/automationRuleMatching';
 import { matchesAmountCondition } from '@/lib/automationRuleMatching';
@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { RuleCondition } from '@/hooks/useAutomationRules';
+import { useBankAccountOptions } from '@/hooks/useBankAccountOptions';
 
 type Transaction = Tables<'transactions'>;
 type Category = Tables<'categories'>;
@@ -66,6 +67,7 @@ export function SuggestAutomationDialog({
   onCreateRule,
 }: SuggestAutomationDialogProps) {
   const navigate = useNavigate();
+  const bankAccounts = useBankAccountOptions();
   const [initialLoading, setInitialLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [createdRuleId, setCreatedRuleId] = useState<string | null>(null);
@@ -77,6 +79,8 @@ export function SuggestAutomationDialog({
   const [showAmountCondition, setShowAmountCondition] = useState(false);
   const [amountOperator, setAmountOperator] = useState('greater_than');
   const [amountValue, setAmountValue] = useState('');
+  const [showBankCondition, setShowBankCondition] = useState(false);
+  const [selectedBankAccount, setSelectedBankAccount] = useState('');
 
   // Calculate word frequency to detect recurring patterns (like company name)
   const getWordFrequency = () => {
@@ -151,6 +155,8 @@ export function SuggestAutomationDialog({
       setAmountValue('');
       setCreatedRuleId(null);
       setAppliedCount(0);
+      setShowBankCondition(false);
+      setSelectedBankAccount('');
     } else {
       setSuggestion(null);
       setSimilarTransactions([]);
@@ -162,6 +168,8 @@ export function SuggestAutomationDialog({
       setAmountValue('');
       setCreatedRuleId(null);
       setAppliedCount(0);
+      setShowBankCondition(false);
+      setSelectedBankAccount('');
     }
   }, [open, transaction?.id, category?.id]);
 
@@ -206,6 +214,14 @@ export function SuggestAutomationDialog({
           condition_field: 'amount',
           condition_operator: amountOperator,
           condition_value: amountValue.trim().replace(',', '.'),
+        });
+      }
+
+      if (showBankCondition && selectedBankAccount) {
+        conditions.push({
+          condition_field: 'bank_account_name',
+          condition_operator: 'equals',
+          condition_value: selectedBankAccount,
         });
       }
 
@@ -418,6 +434,51 @@ export function SuggestAutomationDialog({
                     + Ajouter un critère de montant
                   </Button>
                 )}
+
+                {/* Bank Account Condition (optional) */}
+                {showBankCondition ? (
+                  <div className="border border-accent/30 bg-accent/5 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium flex items-center gap-2">
+                        <Landmark className="w-4 h-4 text-accent" />
+                        ET le compte bancaire...
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-muted-foreground hover:text-destructive"
+                        onClick={() => {
+                          setShowBankCondition(false);
+                          setSelectedBankAccount('');
+                        }}
+                      >
+                        <X className="w-3 h-3" />
+                      </Button>
+                    </div>
+                    <Select value={selectedBankAccount} onValueChange={setSelectedBankAccount}>
+                      <SelectTrigger className="h-8 text-sm">
+                        <SelectValue placeholder="Sélectionner un compte" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {bankAccounts.map(acc => (
+                          <SelectItem key={acc.name} value={acc.name}>
+                            {acc.display}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : bankAccounts.length > 0 ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowBankCondition(true)}
+                    className="w-full border-dashed border-accent/30 text-accent hover:bg-accent/5 hover:border-accent"
+                  >
+                    <Landmark className="w-4 h-4 mr-2" />
+                    + Ajouter un critère de compte bancaire
+                  </Button>
+                ) : null}
 
                 {/* Transactions similaires */}
                 {liveSimilarTransactions.length > 0 ? (

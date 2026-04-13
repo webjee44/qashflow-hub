@@ -8,6 +8,7 @@ export interface TransactionLikeCore {
   amount: number | string;
   description: string;
   type: string;
+  bank_account_name?: string | null;
 }
 
 export const normalizeMatchableText = (value: string) =>
@@ -129,6 +130,9 @@ export const matchesAutomationCondition = (
         condition.condition_operator,
         condition.condition_value,
       );
+    case 'bank_account_name':
+      // Simple exact match on bank account name
+      return (transaction.bank_account_name || '') === condition.condition_value;
     default:
       return false;
   }

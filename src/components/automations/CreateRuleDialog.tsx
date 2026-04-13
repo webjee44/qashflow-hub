@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Plus, Zap, PlusCircle, Lightbulb, Check, Euro, X, Search } from 'lucide-react';
+import { Plus, Zap, PlusCircle, Lightbulb, Check, Euro, X, Search, Landmark } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -20,6 +20,7 @@ import {
 import { Category, RuleCondition } from '@/hooks/useAutomationRules';
 import { CategoryDialog } from '@/components/categories/CategoryDialog';
 import { cn } from '@/lib/utils';
+import { useBankAccountOptions } from '@/hooks/useBankAccountOptions';
 
 interface CreateRuleDialogProps {
   categories: Category[];
@@ -43,7 +44,7 @@ interface CreateRuleDialogProps {
 }
 
 interface ConditionInput {
-  field: 'description' | 'amount';
+  field: 'description' | 'amount' | 'bank_account_name';
   operator: string;
   value: string;
 }
@@ -55,6 +56,7 @@ const amountOperators = [
 ];
 
 export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, trigger, defaultAmount }: CreateRuleDialogProps) {
+  const bankAccounts = useBankAccountOptions();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showCategoryDialog, setShowCategoryDialog] = useState(false);
@@ -68,6 +70,10 @@ export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, t
   const [showAmountCondition, setShowAmountCondition] = useState(!!defaultAmount);
   const [amountOperator, setAmountOperator] = useState('equals');
   const [amountValue, setAmountValue] = useState(defaultAmount?.toString() || '');
+
+  // Bank account condition
+  const [showBankCondition, setShowBankCondition] = useState(false);
+  const [selectedBankAccount, setSelectedBankAccount] = useState('');
 
   // Category search
   const [categorySearch, setCategorySearch] = useState('');
@@ -105,6 +111,8 @@ export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, t
     setAmountOperator('equals');
     setAmountValue(defaultAmount?.toString() || '');
     setCategorySearch('');
+    setShowBankCondition(false);
+    setSelectedBankAccount('');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -126,6 +134,15 @@ export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, t
         condition_field: 'amount',
         condition_operator: amountOperator,
         condition_value: amountValue.trim().replace(',', '.'),
+      });
+    }
+
+    // Add bank account condition if enabled
+    if (showBankCondition && selectedBankAccount) {
+      conditions.push({
+        condition_field: 'bank_account_name',
+        condition_operator: 'equals',
+        condition_value: selectedBankAccount,
       });
     }
 
@@ -262,6 +279,52 @@ export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, t
               + Ajouter un critère de montant
             </Button>
           )}
+
+          {/* Bank Account Condition (optional) */}
+          {showBankCondition ? (
+            <div className="space-y-3 p-4 bg-accent/5 rounded-xl border border-accent/20">
+              <div className="flex items-center justify-between">
+                <Label className="text-base font-medium flex items-center gap-2">
+                  <Landmark className="w-4 h-4 text-accent" />
+                  ET le compte bancaire...
+                </Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setShowBankCondition(false);
+                    setSelectedBankAccount('');
+                  }}
+                  className="h-7 px-2 text-muted-foreground hover:text-destructive"
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+              <Select value={selectedBankAccount} onValueChange={setSelectedBankAccount}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Sélectionner un compte" />
+                </SelectTrigger>
+                <SelectContent>
+                  {bankAccounts.map(acc => (
+                    <SelectItem key={acc.name} value={acc.name}>
+                      {acc.display}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : bankAccounts.length > 0 ? (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowBankCondition(true)}
+              className="w-full border-dashed border-accent/30 text-accent hover:bg-accent/5 hover:border-accent"
+            >
+              <Landmark className="w-4 h-4 mr-2" />
+              + Ajouter un critère de compte bancaire
+            </Button>
+          ) : null}
 
           {/* Category Selection */}
           <div className="space-y-3 p-4 bg-primary/5 rounded-xl border border-primary/10">

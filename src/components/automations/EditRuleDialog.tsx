@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Zap, Lightbulb, Check, Euro, X } from 'lucide-react';
+import { Zap, Lightbulb, Check, Euro, X, Landmark } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/select';
 import { Category, RuleCondition } from '@/hooks/useAutomationRules';
 import { cn } from '@/lib/utils';
+import { useBankAccountOptions } from '@/hooks/useBankAccountOptions';
 
 interface EditRuleDialogProps {
   open: boolean;
@@ -49,6 +50,7 @@ const amountOperators = [
 ];
 
 export function EditRuleDialog({ open, onOpenChange, categories, rule, onUpdateRule }: EditRuleDialogProps) {
+  const bankAccounts = useBankAccountOptions();
   const [loading, setLoading] = useState(false);
   const [conditionValue, setConditionValue] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
@@ -59,20 +61,21 @@ export function EditRuleDialog({ open, onOpenChange, categories, rule, onUpdateR
   const [amountOperator, setAmountOperator] = useState('equals');
   const [amountValue, setAmountValue] = useState('');
 
+  // Bank account condition
+  const [showBankCondition, setShowBankCondition] = useState(false);
+  const [selectedBankAccount, setSelectedBankAccount] = useState('');
+
   // Reset form when rule changes
   useEffect(() => {
     if (rule) {
       setRuleName(rule.name);
       setSelectedCategoryId(rule.target_category_id);
       
-      // Parse conditions
       const conditions = rule.conditions || [];
       
-      // Find description condition
       const descCondition = conditions.find(c => c.condition_field === 'description');
       setConditionValue(descCondition?.condition_value || rule.condition_value || '');
       
-      // Find amount condition
       const amountCondition = conditions.find(c => c.condition_field === 'amount');
       if (amountCondition) {
         setShowAmountCondition(true);
@@ -82,6 +85,15 @@ export function EditRuleDialog({ open, onOpenChange, categories, rule, onUpdateR
         setShowAmountCondition(false);
         setAmountOperator('equals');
         setAmountValue('');
+      }
+
+      const bankCondition = conditions.find(c => c.condition_field === 'bank_account_name');
+      if (bankCondition) {
+        setShowBankCondition(true);
+        setSelectedBankAccount(bankCondition.condition_value || '');
+      } else {
+        setShowBankCondition(false);
+        setSelectedBankAccount('');
       }
     }
   }, [rule]);
@@ -107,6 +119,15 @@ export function EditRuleDialog({ open, onOpenChange, categories, rule, onUpdateR
         condition_field: 'amount',
         condition_operator: amountOperator,
         condition_value: amountValue.trim().replace(',', '.'),
+      });
+    }
+
+    // Add bank account condition if enabled
+    if (showBankCondition && selectedBankAccount) {
+      conditions.push({
+        condition_field: 'bank_account_name',
+        condition_operator: 'equals',
+        condition_value: selectedBankAccount,
       });
     }
 
@@ -230,6 +251,52 @@ export function EditRuleDialog({ open, onOpenChange, categories, rule, onUpdateR
               + Ajouter un critère de montant
             </Button>
           )}
+
+          {/* Bank Account Condition (optional) */}
+          {showBankCondition ? (
+            <div className="space-y-3 p-4 bg-accent/5 rounded-xl border border-accent/20">
+              <div className="flex items-center justify-between">
+                <Label className="text-base font-medium flex items-center gap-2">
+                  <Landmark className="w-4 h-4 text-accent" />
+                  ET le compte bancaire...
+                </Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setShowBankCondition(false);
+                    setSelectedBankAccount('');
+                  }}
+                  className="h-7 px-2 text-muted-foreground hover:text-destructive"
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+              <Select value={selectedBankAccount} onValueChange={setSelectedBankAccount}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Sélectionner un compte" />
+                </SelectTrigger>
+                <SelectContent>
+                  {bankAccounts.map(acc => (
+                    <SelectItem key={acc.name} value={acc.name}>
+                      {acc.display}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : bankAccounts.length > 0 ? (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowBankCondition(true)}
+              className="w-full border-dashed border-accent/30 text-accent hover:bg-accent/5 hover:border-accent"
+            >
+              <Landmark className="w-4 h-4 mr-2" />
+              + Ajouter un critère de compte bancaire
+            </Button>
+          ) : null}
 
           {/* Category Selection */}
           <div className="space-y-3 p-4 bg-primary/5 rounded-xl border border-primary/10">

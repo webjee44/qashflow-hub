@@ -49,6 +49,7 @@ const fieldLabels: Record<string, string> = {
   amount: 'Montant',
   source: 'Source',
   type: 'Type',
+  bank_account_name: 'Compte bancaire',
 };
 
 export function AutomationRules() {
@@ -74,6 +75,10 @@ export function AutomationRules() {
     
     if (condition.condition_field === 'amount') {
       return `${field} ${operator} ${parseFloat(condition.condition_value).toLocaleString('fr-FR')} €`;
+    }
+
+    if (condition.condition_field === 'bank_account_name') {
+      return `${field} = "${condition.condition_value}"`;
     }
     
     return `${field} ${operator} "${condition.condition_value}"`;
