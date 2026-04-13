@@ -65,8 +65,11 @@ export function SuggestAutomationDialog({
   allTransactions,
   onCreateRule,
 }: SuggestAutomationDialogProps) {
+  const navigate = useNavigate();
   const [initialLoading, setInitialLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [createdRuleId, setCreatedRuleId] = useState<string | null>(null);
+  const [appliedCount, setAppliedCount] = useState(0);
   const [suggestion, setSuggestion] = useState<SuggestionResult | null>(null);
   const [similarTransactions, setSimilarTransactions] = useState<Transaction[]>([]);
   const [isEditingPattern, setIsEditingPattern] = useState(false);
