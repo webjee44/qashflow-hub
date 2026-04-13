@@ -193,7 +193,6 @@ export function SuggestAutomationDialog({
 
     setCreating(true);
     try {
-      // Build conditions array
       const conditions: RuleCondition[] = [
         {
           condition_field: 'description',
@@ -214,7 +213,7 @@ export function SuggestAutomationDialog({
         ? `Auto: ${category.name} - ${suggestion.pattern} + ${amountValue} €`
         : suggestion.ruleName;
 
-      await onCreateRule({
+      const result = await onCreateRule({
         name: ruleName,
         condition_field: 'description',
         condition_operator: suggestion.operator,
@@ -223,7 +222,13 @@ export function SuggestAutomationDialog({
         target_category_id: category.id,
         conditions,
       });
-      onOpenChange(false);
+
+      if (result?.id) {
+        setCreatedRuleId(result.id);
+        setAppliedCount(result.match_count || 0);
+      } else {
+        onOpenChange(false);
+      }
     } finally {
       setCreating(false);
     }
