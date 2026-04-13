@@ -8,6 +8,7 @@ export interface TransactionLikeCore {
   amount: number | string;
   description: string;
   type: string;
+  bank_account_name?: string | null;
 }
 
 export const normalizeMatchableText = (value: string) =>
