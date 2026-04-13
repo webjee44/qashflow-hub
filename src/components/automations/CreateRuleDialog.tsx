@@ -44,7 +44,7 @@ interface CreateRuleDialogProps {
 }
 
 interface ConditionInput {
-  field: 'description' | 'amount';
+  field: 'description' | 'amount' | 'bank_account_name';
   operator: string;
   value: string;
 }
