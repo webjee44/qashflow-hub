@@ -140,7 +140,6 @@ export function SuggestAutomationDialog({
 
   useEffect(() => {
     if (open && transaction && category) {
-      // Use local pattern extraction (instant) instead of AI call
       const localSuggestion = extractLocalPattern(transaction.description);
       setSuggestion(localSuggestion);
       setEditedPattern(localSuggestion.pattern);
@@ -150,6 +149,8 @@ export function SuggestAutomationDialog({
       setShowAmountCondition(false);
       setAmountOperator('greater_than');
       setAmountValue('');
+      setCreatedRuleId(null);
+      setAppliedCount(0);
     } else {
       setSuggestion(null);
       setSimilarTransactions([]);
@@ -159,6 +160,8 @@ export function SuggestAutomationDialog({
       setShowAmountCondition(false);
       setAmountOperator('greater_than');
       setAmountValue('');
+      setCreatedRuleId(null);
+      setAppliedCount(0);
     }
   }, [open, transaction?.id, category?.id]);
 
