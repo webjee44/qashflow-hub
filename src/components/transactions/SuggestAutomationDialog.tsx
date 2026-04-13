@@ -155,6 +155,8 @@ export function SuggestAutomationDialog({
       setAmountValue('');
       setCreatedRuleId(null);
       setAppliedCount(0);
+      setShowBankCondition(false);
+      setSelectedBankAccount('');
     } else {
       setSuggestion(null);
       setSimilarTransactions([]);
@@ -166,6 +168,8 @@ export function SuggestAutomationDialog({
       setAmountValue('');
       setCreatedRuleId(null);
       setAppliedCount(0);
+      setShowBankCondition(false);
+      setSelectedBankAccount('');
     }
   }, [open, transaction?.id, category?.id]);
 
