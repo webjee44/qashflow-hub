@@ -30,6 +30,7 @@ interface Transaction {
   category_id: string | null;
   user_id: string;
   company_id: string | null;
+  bank_account_name: string | null;
 }
 
 // Match a single condition against a transaction
