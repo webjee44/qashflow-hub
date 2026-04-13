@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Dialog,
   DialogContent,
@@ -10,7 +11,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Sparkles, Loader2, ArrowDownRight, ArrowUpRight, Wand2, Pencil, Check, Euro, X } from 'lucide-react';
+import { Sparkles, Loader2, ArrowDownRight, ArrowUpRight, Wand2, Pencil, Check, Euro, X, ExternalLink, CheckCircle2 } from 'lucide-react';
 import { Tables } from '@/integrations/supabase/types';
 import { matchesTextCondition } from '@/lib/automationRuleMatching';
 import { matchesAmountCondition } from '@/lib/automationRuleMatching';
@@ -64,8 +65,11 @@ export function SuggestAutomationDialog({
   allTransactions,
   onCreateRule,
 }: SuggestAutomationDialogProps) {
+  const navigate = useNavigate();
   const [initialLoading, setInitialLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [createdRuleId, setCreatedRuleId] = useState<string | null>(null);
+  const [appliedCount, setAppliedCount] = useState(0);
   const [suggestion, setSuggestion] = useState<SuggestionResult | null>(null);
   const [similarTransactions, setSimilarTransactions] = useState<Transaction[]>([]);
   const [isEditingPattern, setIsEditingPattern] = useState(false);
@@ -136,7 +140,6 @@ export function SuggestAutomationDialog({
 
   useEffect(() => {
     if (open && transaction && category) {
-      // Use local pattern extraction (instant) instead of AI call
       const localSuggestion = extractLocalPattern(transaction.description);
       setSuggestion(localSuggestion);
       setEditedPattern(localSuggestion.pattern);
@@ -146,6 +149,8 @@ export function SuggestAutomationDialog({
       setShowAmountCondition(false);
       setAmountOperator('greater_than');
       setAmountValue('');
+      setCreatedRuleId(null);
+      setAppliedCount(0);
     } else {
       setSuggestion(null);
       setSimilarTransactions([]);
@@ -155,6 +160,8 @@ export function SuggestAutomationDialog({
       setShowAmountCondition(false);
       setAmountOperator('greater_than');
       setAmountValue('');
+      setCreatedRuleId(null);
+      setAppliedCount(0);
     }
   }, [open, transaction?.id, category?.id]);
 
@@ -186,7 +193,6 @@ export function SuggestAutomationDialog({
 
     setCreating(true);
     try {
-      // Build conditions array
       const conditions: RuleCondition[] = [
         {
           condition_field: 'description',
@@ -207,7 +213,7 @@ export function SuggestAutomationDialog({
         ? `Auto: ${category.name} - ${suggestion.pattern} + ${amountValue} €`
         : suggestion.ruleName;
 
-      await onCreateRule({
+      const result = await onCreateRule({
         name: ruleName,
         condition_field: 'description',
         condition_operator: suggestion.operator,
@@ -216,7 +222,13 @@ export function SuggestAutomationDialog({
         target_category_id: category.id,
         conditions,
       });
-      onOpenChange(false);
+
+      if (result?.id) {
+        setCreatedRuleId(result.id);
+        setAppliedCount(result.match_count || 0);
+      } else {
+        onOpenChange(false);
+      }
     } finally {
       setCreating(false);
     }
@@ -258,7 +270,22 @@ export function SuggestAutomationDialog({
 
           {/* Body (scroll) */}
           <div className="flex-1 overflow-y-auto px-6 pb-6">
-            {initialLoading ? (
+            {createdRuleId ? (
+              /* ── Success state ── */
+              <div className="flex flex-col items-center justify-center py-8 gap-4">
+                <div className="w-14 h-14 rounded-full bg-success/10 flex items-center justify-center">
+                  <CheckCircle2 className="w-7 h-7 text-success" />
+                </div>
+                <div className="text-center space-y-1">
+                  <p className="text-sm font-medium">Règle créée avec succès</p>
+                  {appliedCount > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      {appliedCount} transaction{appliedCount > 1 ? 's' : ''} catégorisée{appliedCount > 1 ? 's' : ''} automatiquement
+                    </p>
+                  )}
+                </div>
+              </div>
+            ) : initialLoading ? (
               <div className="flex flex-col items-center justify-center py-12 gap-4">
                 <div className="relative">
                   <div className="w-16 h-16 rounded-full bg-accent/10 flex items-center justify-center">
@@ -439,21 +466,41 @@ export function SuggestAutomationDialog({
           {/* Footer (always visible) */}
           <div className="border-t border-border bg-background p-4">
             <DialogFooter className="gap-2 sm:gap-0">
-              <Button variant="outline" onClick={() => onOpenChange(false)}>
-                Non merci
-              </Button>
-              <Button
-                onClick={handleCreateRule}
-                disabled={creating || !suggestion}
-                className="gap-2"
-              >
-                {creating ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Sparkles className="w-4 h-4" />
-                )}
-                Créer la règle
-              </Button>
+              {createdRuleId ? (
+                <>
+                  <Button variant="outline" onClick={() => onOpenChange(false)}>
+                    Fermer
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      onOpenChange(false);
+                      navigate('/automatisations');
+                    }}
+                    className="gap-2"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    Voir la règle
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button variant="outline" onClick={() => onOpenChange(false)}>
+                    Non merci
+                  </Button>
+                  <Button
+                    onClick={handleCreateRule}
+                    disabled={creating || !suggestion}
+                    className="gap-2"
+                  >
+                    {creating ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Sparkles className="w-4 h-4" />
+                    )}
+                    Créer la règle
+                  </Button>
+                </>
+              )}
             </DialogFooter>
           </div>
         </div>
