@@ -280,6 +280,52 @@ export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, t
             </Button>
           )}
 
+          {/* Bank Account Condition (optional) */}
+          {showBankCondition ? (
+            <div className="space-y-3 p-4 bg-accent/5 rounded-xl border border-accent/20">
+              <div className="flex items-center justify-between">
+                <Label className="text-base font-medium flex items-center gap-2">
+                  <Landmark className="w-4 h-4 text-accent" />
+                  ET le compte bancaire...
+                </Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setShowBankCondition(false);
+                    setSelectedBankAccount('');
+                  }}
+                  className="h-7 px-2 text-muted-foreground hover:text-destructive"
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+              <Select value={selectedBankAccount} onValueChange={setSelectedBankAccount}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Sélectionner un compte" />
+                </SelectTrigger>
+                <SelectContent>
+                  {bankAccounts.map(acc => (
+                    <SelectItem key={acc.name} value={acc.name}>
+                      {acc.display}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : bankAccounts.length > 0 ? (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowBankCondition(true)}
+              className="w-full border-dashed border-accent/30 text-accent hover:bg-accent/5 hover:border-accent"
+            >
+              <Landmark className="w-4 h-4 mr-2" />
+              + Ajouter un critère de compte bancaire
+            </Button>
+          ) : null}
+
           {/* Category Selection */}
           <div className="space-y-3 p-4 bg-primary/5 rounded-xl border border-primary/10">
             <Label className="text-base font-medium">
