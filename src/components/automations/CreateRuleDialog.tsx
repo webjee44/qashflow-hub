@@ -111,6 +111,8 @@ export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, t
     setAmountOperator('equals');
     setAmountValue(defaultAmount?.toString() || '');
     setCategorySearch('');
+    setShowBankCondition(false);
+    setSelectedBankAccount('');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
