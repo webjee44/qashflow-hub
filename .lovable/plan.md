@@ -1,80 +1,68 @@
 
 
-## Objectif
+## Confirmation : non, les 190 000 € ne sont pas du TTC
 
-Deux améliorations sur `/superadmin/crm` :
-1. **Filtrer les faux inscrits** (noms bidons type "dzd dzdzd", "dda", emails de test)
-2. **Afficher le statut de la période d'essai** sur chaque card (jours restants ou "Essai terminé")
+### Constat
 
----
+Sur `/previsions`, la ligne **Encaissements** affiche actuellement les montants **HT**, pas TTC.
 
-## Approche
+- Les cellules de saisie de chaque catégorie sont libellées "HT" (cf. `features/treasury/cash-flow-standard`).
+- `getMonthTotal('income', …, 'forecast')` (`ForecastTable.tsx` L417) fait juste la somme brute des `expected_amount` saisis → donc HT.
+- La ligne TTC additionne ces totaux + la TVA nette **uniquement côté dépenses** (L1500-1504). Côté encaissements, aucune TVA n'est rajoutée.
+- Conséquence : sur Cloud Vapor, les **190 000 €** d'avril 2026 = **190 000 € HT**, et la ligne ADNS à 50 % = 95 000 € (50 % × HT), ce qui est cohérent avec le moteur actuel mais **pas avec ta vision "trésorerie = TTC"**.
 
-### 1. Enrichir la RPC `get_superadmin_crm_pipeline`
+C'est précisément l'incohérence que tu pointais sur ADNS : le tableau est étiqueté/calculé en HT alors que tu le lis (à juste titre métier) comme un tableau de trésorerie en TTC.
 
-Ajouter 3 colonnes au retour :
-- `subscription_status` (text) — depuis `organizations`
-- `trial_ends_at` (timestamptz) — depuis `organizations`
-- `org_name` (text) — depuis `organizations`
+### Cause racine
 
-La jointure existe deja implicitement via `organization_members`. On ajoute un LEFT JOIN sur `organizations` dans le CTE `user_data`.
+Décision d'archi prise il y a ~7 semaines (memory `cash-flow-standard`) : tout en HT dans le tableau, TVA ajoutée seulement pour le solde net. Cela contredit la définition standard d'un plan de trésorerie (flux bancaires réels = TTC).
 
-**Migration SQL** : ALTER la function pour inclure ces champs.
+### Plan de correction (à valider avant implémentation)
 
-### 2. Filtrer les faux inscrits cote client
+**Objectif** : aligner le tableau Prévisions sur la convention trésorerie standard = **TTC** sur toutes les lignes de flux, comme tu l'attends.
 
-Plutot que de hardcoder une liste d'emails a exclure (anti-pattern), on applique des heuristiques generalisables :
-- Exclure les utilisateurs dont le domaine email est `@cloudvapor.com` (equipe interne) — sauf si souhaite
-- Exclure les superadmins (deja implicitement hors pipeline)
-- Exclure les noms de moins de 3 caracteres ou composes de caracteres repetitifs (regex)
-- Exclure les emails contenant `+` suivi de chiffres (pattern de test type `nixonshop+17@gmail.com`)
-- Ajouter un toggle "Afficher les comptes de test" pour ne pas perdre de visibilite
+#### 1. Source de vérité — convention de stockage
+- `category_forecasts.expected_amount` : ajouter une colonne `amount_basis` (`'ht' | 'ttc'`, défaut `'ttc'`) pour ne **pas casser** les données existantes (qui sont en HT) lors de la migration.
+- Migration : marquer toutes les lignes existantes `amount_basis = 'ht'` (état actuel préservé).
+- Nouvelles saisies : `'ttc'` par défaut.
 
-Cela se fait dans le hook `useCRMPipeline` via un filtre configurable.
+#### 2. Couche de calcul unifiée (`src/lib/forecastAmounts.ts` — nouveau)
+- Fonction unique `toTtc(amount, basis, vatRate)` et `toHt(...)`.
+- Utilisée par **toutes** les couches : `useForecasts`, `ForecastTable`, `BalanceChart`, export Excel, `useBPCashFlow` côté BP, edge functions.
 
-### 3. Afficher le trial sur les cards
+#### 3. UI — cellules de saisie
+- Label des cellules : "TTC" (au lieu de "HT").
+- Affichage : tout le tableau en TTC.
+- Tooltip / petit toggle global "Voir en HT" pour les utilisateurs qui veulent l'autre vue (lecture seule).
 
-Dans `CompactUserCard`, ajouter un petit badge :
-- **Essai actif** : badge jaune "J-X" (jours restants)
-- **Essai expiré** : badge rouge "Essai terminé"
-- **Abonné** : badge vert "Abonné" (si `subscription_status` = 'active' ou plan = 'lifetime')
-- **Pas d'org** : rien
+#### 4. Calcul "% du CA" (catégories en mode `percent_of_revenue`)
+- Base de calcul = **CA TTC du mois** (cohérent avec la nouvelle convention).
+- Sur Cloud Vapor : ADNS = 50 % × 228 000 € TTC (190 000 HT × 1,20) = **114 000 € TTC**.
 
-Dans `UserDetailPanel`, ajouter une ligne dans la section Contact avec la date de fin d'essai.
+#### 5. Ligne "TVA nette à payer"
+- Devient redondante côté encaissements/décaissements (déjà incluse dans le TTC).
+- Conservée uniquement comme ligne d'**information** (déclaration TVA), retirée du calcul de la trésorerie nette pour éviter le double comptage.
+- Le solde de clôture reste : `ouverture + (encaissements TTC − décaissements TTC) = clôture`. Invariant préservé.
 
----
+#### 6. Migration douce des données existantes
+- Script one-shot (admin) qui propose de convertir les `expected_amount` HT existants → TTC en multipliant par `1 + category.vat_rate`. Optionnel par société, déclenchable depuis Settings.
+- Tant que non migré : la colonne `amount_basis = 'ht'` permet au calcul unifié de continuer à afficher correctement (conversion à la volée).
 
-## Fichiers impactes
+#### 7. Tests
+- `forecastAmounts.test.ts` : conversions HT⇄TTC.
+- Mise à jour `forecastDisplayTotals.test.ts` : nouveaux cas TTC + invariant `ouverture + net = clôture`.
+- Test de non-régression sur Cloud Vapor : ADNS avril 2026 = 114 000 € TTC.
 
-| Fichier | Action |
-|---------|--------|
-| Migration SQL | Modifier `get_superadmin_crm_pipeline` pour retourner `subscription_status`, `trial_ends_at`, `org_name` |
-| `src/hooks/useCRMPipeline.ts` | Ajouter les champs au type `CRMUser`, ajouter filtre faux inscrits + toggle |
-| `src/pages/SuperAdmin/CRM.tsx` | Ajouter toggle "comptes de test", afficher badge trial sur `CompactUserCard` et `UserDetailPanel` |
+#### 8. Mémoire à mettre à jour
+- Réécrire `features/treasury/cash-flow-standard` : "Le tableau Prévisions affiche en TTC. La TVA nette à payer est une ligne informative séparée."
 
----
+### Impacts
+- **BP / Cash Flow BP** (`useBPCashFlow`) : reste en HT côté saisies BP, mais conversion TTC pour les flux trésorerie projetés (déjà partiellement le cas via `customer_payment_delay`).
+- **Dashboard `BalanceChart`** : utilise `useForecasts` → bénéficie automatiquement.
+- **Export Excel** : libellés colonnes mis à jour ("TTC").
+- **Aucun impact** sur la catégorisation des transactions bancaires (déjà TTC nativement).
 
-## Detail technique
-
-### Heuristique de detection "faux inscrit"
-
-```text
-isFakeUser(user):
-  - email ends with @cloudvapor.com → test interne
-  - email matches /\+\d+@/ → alias de test
-  - full_name length < 3 → nom bidon
-  - full_name matches /^(.)\1+$/ → repetition (ex: "dda", "dzd dzdzd")
-  - email matches /(test|demo|fake)/i → compte de test
-```
-
-Un toggle dans l'UI permet d'inclure/exclure ces comptes. Exclus par defaut.
-
-### Badge trial sur les cards
-
-```text
-if subscription_status == 'active' || plan == 'lifetime' → "Abonné" (vert)
-else if trial_ends_at > now → "J-X" (jaune)  
-else if trial_ends_at <= now → "Expiré" (rouge)
-else → rien
-```
+### Hors périmètre
+- Pas de changement sur le P&L BP (reste HT, c'est la norme comptable).
+- Pas de changement sur les factures Pennylane/Odoo.
 
