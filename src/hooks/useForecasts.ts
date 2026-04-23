@@ -245,7 +245,8 @@ export function useForecasts() {
           month: monthStr,
           expected_amount: expectedAmount,
           company_id: currentCompany.id,
-        }, {
+          amount_basis: 'ttc', // TTC convention — see features/treasury/cash-flow-standard
+        } as never, {
           onConflict: 'user_id,category_id,month',
         })
         .select()
