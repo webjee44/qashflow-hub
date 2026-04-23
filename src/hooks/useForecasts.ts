@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { addMonths, startOfMonth, endOfMonth, format, isBefore, isSameMonth } from 'date-fns';
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { getDisplayedSectionTotals, getDisplayedNetVariation } from '@/lib/forecastDisplayTotals';
+import { calculatePercentOfRevenueForecast, getVatFromAmount, toHt, toTtc } from '@/lib/forecastAmounts';
 
 export interface PayableInvoice {
   id: string;
@@ -24,6 +25,7 @@ export interface CategoryForecast {
   category_id: string;
   month: string;
   expected_amount: number;
+  amount_basis?: 'ht' | 'ttc';
   notes: string | null;
   created_at: string;
   updated_at: string;
@@ -297,42 +299,50 @@ export function useForecasts() {
   });
 
   // Helper to get forecast for a specific category and month
+  const getStoredForecast = useCallback((categoryId: string, month: Date) => {
+    const monthStr = format(month, 'yyyy-MM-01');
+    return forecasts.find(
+      f => f.category_id === categoryId && f.month === monthStr,
+    );
+  }, [forecasts]);
+
   const getForecast = useCallback((categoryId: string, month: Date): number => {
     const category = categories.find(c => c.id === categoryId);
     
     // For percent_of_revenue categories: check manual override first, then auto-calculate
     if (category?.forecast_mode === 'percent_of_revenue' && (category.forecast_percent ?? 0) > 0) {
-      const monthStr = format(month, 'yyyy-MM-01');
-      
       // Check for manual override
-      const manualForecast = forecasts.find(f => f.category_id === categoryId && f.month === monthStr);
+      const manualForecast = getStoredForecast(categoryId, month);
       if (manualForecast) {
-        return manualForecast.expected_amount;
+        return toTtc(manualForecast.expected_amount, manualForecast.amount_basis, category.vat_rate);
       }
       
-      // Auto-calculate from income
-      const incomeTotal = categories
+      // Auto-calculate from income HT, then convert the result to TTC for display/storage convention
+      const incomeHtTotal = categories
         .filter(c => c.type === 'income')
         .reduce((sum, c) => {
-          const f = forecasts.find(fc => fc.category_id === c.id && fc.month === monthStr);
-          return sum + (f?.expected_amount ?? 0);
+          const storedForecast = getStoredForecast(c.id, month);
+          if (!storedForecast) return sum;
+          return sum + toHt(storedForecast.expected_amount, storedForecast.amount_basis, c.vat_rate);
         }, 0);
-      return (category.forecast_percent! / 100) * incomeTotal;
+
+      return calculatePercentOfRevenueForecast({
+        percentage: category.forecast_percent,
+        revenueHt: incomeHtTotal,
+        vatRate: category.vat_rate,
+        outputBasis: 'ttc',
+      });
     }
     
-    const monthStr = format(month, 'yyyy-MM-01');
-    const forecast = forecasts.find(
-      f => f.category_id === categoryId && f.month === monthStr
-    );
-    return forecast?.expected_amount ?? 0;
-  }, [forecasts, categories]);
+    const forecast = getStoredForecast(categoryId, month);
+    return forecast
+      ? toTtc(forecast.expected_amount, forecast.amount_basis, category?.vat_rate)
+      : 0;
+  }, [categories, getStoredForecast]);
 
   // Helper to get forecast source for a specific category and month
   const getForecastSource = (categoryId: string, month: Date): 'manual' | 'bp_import' | 'bp_synced' | null => {
-    const monthStr = format(month, 'yyyy-MM-01');
-    const forecast = forecasts.find(
-      f => f.category_id === categoryId && f.month === monthStr
-    );
+    const forecast = getStoredForecast(categoryId, month);
     return forecast?.source || null;
   };
 
@@ -355,8 +365,10 @@ export function useForecasts() {
   const getVatForecast = (type: 'income' | 'expense', month: Date): number => {
     const typedCategories = categories.filter(c => c.type === type && !c.is_system);
     return typedCategories.reduce((sum, cat) => {
-      const forecast = getForecast(cat.id, month);
-      const vatAmount = forecast * cat.vat_rate;
+      const storedForecast = getStoredForecast(cat.id, month);
+      const vatAmount = storedForecast
+        ? getVatFromAmount(storedForecast.expected_amount, storedForecast.amount_basis, cat.vat_rate)
+        : getVatFromAmount(getForecast(cat.id, month), 'ttc', cat.vat_rate);
       return sum + vatAmount;
     }, 0);
   };
@@ -689,14 +701,14 @@ export function useForecasts() {
 
   // Helper to get total income forecast (HT) for a month - used for variable charge tooltips
   const getIncomeForecastTotal = useCallback((month: Date): number => {
-    const monthStr = format(month, 'yyyy-MM-01');
     return categories
       .filter(c => c.type === 'income')
       .reduce((sum, c) => {
-        const f = forecasts.find(fc => fc.category_id === c.id && fc.month === monthStr);
-        return sum + (f?.expected_amount ?? 0);
+        const forecast = getStoredForecast(c.id, month);
+        if (!forecast) return sum;
+        return sum + toHt(forecast.expected_amount, forecast.amount_basis, c.vat_rate);
       }, 0);
-  }, [categories, forecasts]);
+  }, [categories, getStoredForecast]);
 
   // Helper to calculate month net actual (real bank transactions) for a given month
   // Uses the same sources as the "Variation nette du mois" row in the forecast table

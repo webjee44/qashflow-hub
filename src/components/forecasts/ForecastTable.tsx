@@ -708,7 +708,7 @@ export const ForecastTable = forwardRef<ForecastTableRef>(function ForecastTable
 
       const variableTooltip = hasOverride
         ? "Valeur manuelle — clic droit pour revenir en auto"
-        : `${forecastPercent}% × ${formatValue(incomeForecastTotal)} (CA prévu TTC) = ${formatValue(forecast)}`;
+        : `${forecastPercent}% × ${formatValue(incomeForecastTotal)} (CA prévu HT) = ${formatValue(forecast)} TTC`;
       
       if (periodType === 'future') {
         return (
