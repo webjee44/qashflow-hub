@@ -1,0 +1,1 @@
+UPDATE public.organizations SET trial_ends_at = now() + interval '1 year', subscription_status = 'trialing' WHERE id IN ('f8604bf2-3c95-45a8-b1fe-04fb4056ae52', '71199c83-c9c8-4189-890f-a473c9dbd96b');
