@@ -368,7 +368,7 @@ export function useForecasts() {
       const storedForecast = getStoredForecast(cat.id, month);
       const vatAmount = storedForecast
         ? getVatFromAmount(storedForecast.expected_amount, storedForecast.amount_basis, cat.vat_rate)
-        : 0;
+        : getVatFromAmount(getForecast(cat.id, month), 'ttc', cat.vat_rate);
       return sum + vatAmount;
     }, 0);
   };
