@@ -10,18 +10,35 @@ interface GetDisplayedSectionTotalsInput {
   categorizedActual: number;
   uncategorizedActual?: number;
   categorizedForecast: number;
+  /**
+   * @deprecated Kept for backwards compatibility. Under the TTC convention
+   * (see `features/treasury/cash-flow-standard`), VAT is already embedded in
+   * each category's forecast amount, so `netVatForecast` is no longer added
+   * to the displayed expense total to avoid double-counting.
+   * The "TVA à décaisser" row remains as informational only.
+   */
   netVatForecast?: number;
 }
 
+/**
+ * Computes displayed section totals for the forecast table.
+ *
+ * Convention (TTC):
+ *   - Stored `expected_amount` values are TTC (toutes taxes comprises).
+ *   - The displayed forecast equals the sum of category forecasts.
+ *   - Net VAT is shown on a separate informational row and is NOT added
+ *     to encaissements/décaissements (it is already embedded in TTC).
+ *
+ * This guarantees the cash-flow invariant:
+ *   opening + (income.forecast − expense.forecast) = closing
+ */
 export const getDisplayedSectionTotals = ({
-  type,
   categorizedActual,
   uncategorizedActual = 0,
   categorizedForecast,
-  netVatForecast = 0,
 }: GetDisplayedSectionTotalsInput): DisplayedSectionTotals => ({
   actual: categorizedActual + uncategorizedActual,
-  forecast: categorizedForecast + (type === 'expense' ? Math.max(0, netVatForecast) : 0),
+  forecast: categorizedForecast,
 });
 
 export const getDisplayedNetVariation = (

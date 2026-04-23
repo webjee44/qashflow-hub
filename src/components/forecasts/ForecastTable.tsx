@@ -413,7 +413,7 @@ export const ForecastTable = forwardRef<ForecastTableRef>(function ForecastTable
     }
   }, [editingCell]);
 
-  // Calculate totals for a month (amounts are used as entered, without HT/TTC conversion)
+  // Calculate totals for a month — TTC convention (amounts stored & summed in TTC)
   const getMonthTotal = useCallback((type: 'income' | 'expense', monthIndex: number, valueType: 'forecast' | 'actual') => {
     const cats = type === 'income' ? incomeCategories : expenseCategories;
     return cats.reduce((sum, cat) => {
@@ -575,9 +575,9 @@ export const ForecastTable = forwardRef<ForecastTableRef>(function ForecastTable
         ]);
       }
 
-      // VAT row
+      // VAT row (informational only — already embedded in TTC encaissements/décaissements)
       ws.addRow([
-        '  TVA à décaisser',
+        '  TVA à décaisser (info — non comptée dans les flux)',
         ...months.map((m, mi) => {
           const val = getBestValue(mi,
             () => Math.max(0, getNetVatActual(m)),
@@ -708,7 +708,7 @@ export const ForecastTable = forwardRef<ForecastTableRef>(function ForecastTable
 
       const variableTooltip = hasOverride
         ? "Valeur manuelle — clic droit pour revenir en auto"
-        : `${forecastPercent}% × ${formatValue(incomeForecastTotal)} (CA prévu) = ${formatValue(forecast)}`;
+        : `${forecastPercent}% × ${formatValue(incomeForecastTotal)} (CA prévu TTC) = ${formatValue(forecast)}`;
       
       if (periodType === 'future') {
         return (
@@ -1486,22 +1486,18 @@ export const ForecastTable = forwardRef<ForecastTableRef>(function ForecastTable
 
   const renderTtcRow = (label: string, type: 'income' | 'expense') => {
     const textClass = 'text-foreground';
-    
+
     return (
       <tr className="font-bold bg-muted/60">
         <td className={cn("p-3 sticky left-0 z-10 bg-muted/60 border-r border-border", textClass)}>
           {label}
         </td>
         {months.map((month, monthIndex) => {
-          // getMonthTotal now returns TTC for forecasts, already TTC for actuals
-          let forecastTtc = getMonthTotal(type, monthIndex, 'forecast');
+          // TTC convention: amounts are stored & displayed in TTC.
+          // Net VAT is shown on a separate informational row only — never added here
+          // to avoid double-counting (see features/treasury/cash-flow-standard memory).
+          const forecastTtc = getMonthTotal(type, monthIndex, 'forecast');
           const actualTtc = getMonthTotal(type, monthIndex, 'actual');
-          
-          // For expenses, add net VAT to pay (only for forecasts, not actuals)
-          if (type === 'expense') {
-            const netVatForecast = getNetVatForecast(months[monthIndex]);
-            if (netVatForecast > 0) forecastTtc += netVatForecast;
-          }
           
           const periodType = getMonthPeriodType(month);
           
@@ -1693,7 +1689,7 @@ export const ForecastTable = forwardRef<ForecastTableRef>(function ForecastTable
     return (
       <tr className="bg-muted/30 text-sm">
         <td className="p-2 pl-6 sticky left-0 z-10 bg-muted/30 border-r border-border italic text-muted-foreground">
-          TVA à décaisser
+          TVA à décaisser <span className="not-italic text-xs">(info, déjà inclus dans le TTC)</span>
         </td>
         {months.map((month, monthIndex) => {
           const vatToPayForecast = getNetVatForecast(months[monthIndex]);
@@ -2109,7 +2105,7 @@ export const ForecastTable = forwardRef<ForecastTableRef>(function ForecastTable
         <div className="flex-1">
           <h3 className="text-lg font-semibold text-foreground">Prévisions par catégorie</h3>
           <p className="text-sm text-muted-foreground">
-            Cliquez sur une cellule "Prévu" pour modifier le montant (sans conversion HT/TTC)
+            Cliquez sur une cellule "Prévu" pour modifier le montant (saisi en TTC)
           </p>
         </div>
         

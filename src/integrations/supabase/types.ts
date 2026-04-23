@@ -1471,6 +1471,7 @@ export type Database = {
       }
       category_forecasts: {
         Row: {
+          amount_basis: string
           bp_expense_id: string | null
           bp_stream_id: string | null
           category_id: string
@@ -1486,6 +1487,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          amount_basis?: string
           bp_expense_id?: string | null
           bp_stream_id?: string | null
           category_id: string
@@ -1501,6 +1503,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          amount_basis?: string
           bp_expense_id?: string | null
           bp_stream_id?: string | null
           category_id?: string
