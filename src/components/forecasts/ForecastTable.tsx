@@ -1486,22 +1486,18 @@ export const ForecastTable = forwardRef<ForecastTableRef>(function ForecastTable
 
   const renderTtcRow = (label: string, type: 'income' | 'expense') => {
     const textClass = 'text-foreground';
-    
+
     return (
       <tr className="font-bold bg-muted/60">
         <td className={cn("p-3 sticky left-0 z-10 bg-muted/60 border-r border-border", textClass)}>
           {label}
         </td>
         {months.map((month, monthIndex) => {
-          // getMonthTotal now returns TTC for forecasts, already TTC for actuals
-          let forecastTtc = getMonthTotal(type, monthIndex, 'forecast');
+          // TTC convention: amounts are stored & displayed in TTC.
+          // Net VAT is shown on a separate informational row only — never added here
+          // to avoid double-counting (see features/treasury/cash-flow-standard memory).
+          const forecastTtc = getMonthTotal(type, monthIndex, 'forecast');
           const actualTtc = getMonthTotal(type, monthIndex, 'actual');
-          
-          // For expenses, add net VAT to pay (only for forecasts, not actuals)
-          if (type === 'expense') {
-            const netVatForecast = getNetVatForecast(months[monthIndex]);
-            if (netVatForecast > 0) forecastTtc += netVatForecast;
-          }
           
           const periodType = getMonthPeriodType(month);
           
