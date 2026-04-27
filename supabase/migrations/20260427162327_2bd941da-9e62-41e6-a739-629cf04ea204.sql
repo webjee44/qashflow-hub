@@ -1,0 +1,1 @@
+UPDATE public.companies SET deleted_at = now() WHERE id = '5ef06917-78f6-4a0a-aa95-c6902fd76cba' AND bridge_accounts_count = 0;
