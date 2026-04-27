@@ -39,11 +39,13 @@ export class AutomationRepository {
       .eq('is_active', true)
       .not('target_category_id', 'is', null);
 
-    if (options?.userId) {
+    // Company-scoped rules are shared across all members of the company.
+    // When a companyId is provided, fetch all rules for that company regardless of creator.
+    // Otherwise, fall back to user-scoped rules (legacy / personal rules without company).
+    if (options?.companyId) {
+      query = query.eq('company_id', options.companyId);
+    } else if (options?.userId) {
       query = query.eq('user_id', options.userId);
-      if (options?.companyId) {
-        query = query.or(`company_id.eq.${options.companyId},company_id.is.null`);
-      }
     }
 
     const { data, error } = await query;
