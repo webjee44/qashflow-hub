@@ -66,8 +66,10 @@ export interface BridgeUser {
 export interface BridgeTransaction {
   id: number;
   clean_description: string;
+  provider_description?: string;
   bank_description: string;
   raw_description?: string;
+  description?: string;
   amount: number;
   date: string;
   updated_at: string;
@@ -503,10 +505,13 @@ export class BridgeClient {
   }
 
   getTransactionDescription(transaction: BridgeTransaction): string {
-    // Priority: raw_description (most complete) > bank_description > clean_description
-    return transaction.raw_description 
-      || transaction.bank_description 
-      || transaction.clean_description 
+    // Bridge v3 exposes the bank's complete label in provider_description.
+    // clean_description is normalized and may remove identifiers required for automation rules.
+    return transaction.provider_description
+      || transaction.raw_description
+      || transaction.bank_description
+      || transaction.description
+      || transaction.clean_description
       || 'Transaction Bridge';
   }
 

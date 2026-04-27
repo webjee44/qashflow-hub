@@ -10,6 +10,17 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, bridge-signature',
 };
 
+function getBridgeTransactionDescription(transaction: any): string {
+  // Bridge v3: provider_description contains the bank's complete label.
+  // clean_description is normalized and can strip terminal/reference identifiers.
+  return transaction.provider_description
+    || transaction.raw_description
+    || transaction.bank_description
+    || transaction.description
+    || transaction.clean_description
+    || 'Transaction Bridge';
+}
+
 // ============================================
 // HMAC-SHA256 Signature Verification
 // ============================================
@@ -261,7 +272,7 @@ async function handleAccountUpdated(
     company_id: company_id,
     pennylane_id: `bridge_${t.id}`,
     amount: Math.abs(t.amount),
-    description: t.clean_description || t.raw_description || t.description || 'Transaction Bridge',
+    description: getBridgeTransactionDescription(t),
     date: t.date,
     type: t.amount < 0 ? 'expense' : 'income',
     bank_account_name: accountName,
