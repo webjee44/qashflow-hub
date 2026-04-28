@@ -349,26 +349,16 @@ export function BankAccountsCard() {
     localStorage.removeItem('bridgePendingSync');
     
     const autoSync = async () => {
-      const companiesWithBridge = companies.filter(c => c.bridge_user_uuid);
+      const companiesWithBridge = allCompanies.filter(c => c.bridge_user_uuid);
       if (companiesWithBridge.length === 0) {
-        // Refetch to get latest bridge_user_uuid
-        const { data: freshCompanies } = await supabase
-          .from('companies')
-          .select('id, bridge_user_uuid')
-          .not('bridge_user_uuid', 'is', null);
-        
-        if (!freshCompanies || freshCompanies.length === 0) {
-          return;
-        }
-        
-        await runAutoSync(freshCompanies);
+        return;
       } else {
         await runAutoSync(companiesWithBridge);
       }
     };
     
     autoSync();
-  }, [companies]);
+  }, [allCompanies]);
 
   const runAutoSync = async (companiesWithBridge: Array<{ id: string; bridge_user_uuid: string | null }>) => {
     setIsSyncing(true);
@@ -575,7 +565,7 @@ export function BankAccountsCard() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
-      const companiesToSync = companies.filter(c => companyIds.has(c.id) && c.bridge_user_uuid);
+      const companiesToSync = allCompanies.filter(c => companyIds.has(c.id) && c.bridge_user_uuid);
       if (companiesToSync.length === 0) return;
 
       toast.info('Synchronisation des transactions en cours...');
