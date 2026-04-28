@@ -489,14 +489,16 @@ export function BankAccountsCard() {
         // So we compare: accounts that NOW have a company but didn't before
       }
 
-      // Only delete assignments for accounts we're managing (to prevent affecting other companies' data)
+      // Only delete assignments for accounts we're managing within the current organization.
       const accountIds = accounts.map(a => a.bridge_account_id);
+      const managedCompanyIds = allCompanies.map(c => c.id);
 
       // Fetch current DB assignments before deleting to detect changes
       const { data: currentDbAssignments } = await supabase
         .from('company_bridge_accounts')
         .select('bridge_account_id, company_id')
-        .in('bridge_account_id', accountIds);
+        .in('bridge_account_id', accountIds)
+        .in('company_id', managedCompanyIds);
 
       const oldAssignmentMap = new Map<number, string>();
       for (const a of currentDbAssignments || []) {
@@ -506,7 +508,8 @@ export function BankAccountsCard() {
       const { error: deleteError } = await supabase
         .from('company_bridge_accounts')
         .delete()
-        .in('bridge_account_id', accountIds);
+        .in('bridge_account_id', accountIds)
+        .in('company_id', managedCompanyIds);
 
       if (deleteError) throw deleteError;
 
@@ -534,7 +537,7 @@ export function BankAccountsCard() {
       }
 
       // Update company bank balances and counts
-      for (const company of companies) {
+      for (const company of allCompanies) {
         const companyAccounts = accounts.filter(account => {
           const assignment = assignments.get(account.bridge_account_id);
           return assignment?.is_enabled && assignment?.company_id === company.id;
