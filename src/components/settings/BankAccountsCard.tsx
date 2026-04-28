@@ -702,7 +702,7 @@ export function BankAccountsCard() {
     }
   };
 
-  const handleFullSync = async () => {
+  const handleFullSync = async (options?: { sinceDays?: number; label?: string }) => {
     const companiesWithBridgeConnection = allCompanies.filter(c => c.bridge_user_uuid);
     
     if (companiesWithBridgeConnection.length === 0) {
@@ -719,6 +719,8 @@ export function BankAccountsCard() {
         return;
       }
 
+      if (options?.label) toast.info(options.label);
+
       let totalInserted = 0;
       let totalUpdated = 0;
       let totalAccounts = 0;
@@ -731,6 +733,7 @@ export function BankAccountsCard() {
             action: accounts.length === 0 ? 'sync-accounts' : 'full-sync',
             bridge_user_uuid: company.bridge_user_uuid,
             company_id: company.id,
+            ...(options?.sinceDays ? { since_days: options.sinceDays } : {}),
           },
         });
 
@@ -754,6 +757,11 @@ export function BankAccountsCard() {
       setIsSyncing(false);
     }
   };
+
+  const handleDeepHistorySync = () => handleFullSync({
+    sinceDays: 730,
+    label: 'Récupération de l\'historique complet (24 mois)... cela peut prendre 1 à 2 minutes.',
+  });
 
   const formatBalance = (balance: number | null) => {
     if (balance === null) return '-';
@@ -822,19 +830,30 @@ export function BankAccountsCard() {
             </CardDescription>
           </div>
           {hasAnyBridgeConnection && (
-            <Button
-              variant="outline"
-              onClick={handleFullSync}
-              disabled={isSyncing}
-              className="gap-2"
-            >
-              {isSyncing ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <RefreshCw className="w-4 h-4" />
-              )}
-              Synchroniser
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => handleFullSync()}
+                disabled={isSyncing}
+                className="gap-2"
+              >
+                {isSyncing ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="w-4 h-4" />
+                )}
+                Synchroniser
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={handleDeepHistorySync}
+                disabled={isSyncing}
+                className="gap-2"
+                title="Récupère 24 mois d'historique depuis Bridge (plus long)"
+              >
+                Historique complet
+              </Button>
+            </div>
           )}
         </CardHeader>
         <CardContent>
@@ -920,7 +939,7 @@ export function BankAccountsCard() {
           </Button>
           <Button
             variant="outline"
-            onClick={handleFullSync}
+            onClick={() => handleFullSync()}
             disabled={isSyncing}
             className="gap-2"
           >
@@ -930,6 +949,15 @@ export function BankAccountsCard() {
               <RefreshCw className="w-4 h-4" />
             )}
             Synchroniser
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={handleDeepHistorySync}
+            disabled={isSyncing}
+            className="gap-2"
+            title="Récupère 24 mois d'historique depuis Bridge (plus long)"
+          >
+            Historique complet
           </Button>
           {hasChanges && (
             <Button

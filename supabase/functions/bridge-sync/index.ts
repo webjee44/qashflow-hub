@@ -413,8 +413,8 @@ Deno.serve(async (req) => {
       return validationErrorResponse(validation.error, corsHeaders);
     }
 
-    const { action, bridge_user_uuid, company_id } = validation.data;
-    console.info('[bridge-sync] Action:', action);
+    const { action, bridge_user_uuid, company_id, since_days } = validation.data;
+    console.info('[bridge-sync] Action:', action, since_days ? `(since_days override: ${since_days})` : '');
 
     // ============================================
     // Action: cron-sync (No user auth required)
@@ -491,12 +491,13 @@ Deno.serve(async (req) => {
 
           console.info(`[bridge-sync] Company ${company.id}: ${assignedCount} assigned accounts, balance: ${assignedBalance.toLocaleString('fr-FR')}€`);
 
-          // Get transactions - limit to 3 months before company creation
+          // Cutoff: never go further back than (company.created_at - 1 month buffer).
+          // For older companies the since_days window naturally caps the history.
           const cutoff = new Date(company.created_at);
-          cutoff.setMonth(cutoff.getMonth() - 3);
+          cutoff.setMonth(cutoff.getMonth() - 1);
           const cutoffDateStr = cutoff.toISOString().split('T')[0];
           console.info(`[bridge-sync] Company ${company.id} cutoff date: ${cutoffDateStr} (created: ${company.created_at})`);
-          const allTransactions = await bridgeClient.fetchAllTransactions(90, cutoffDateStr);
+          const allTransactions = await bridgeClient.fetchAllTransactions(since_days ?? 365, cutoffDateStr);
 
           // Build account→company map for proper transaction assignment
           const accountToCompanyMap = await getAccountToCompanyMap(supabaseAdmin, company.bridge_user_uuid!);
@@ -676,7 +677,9 @@ Deno.serve(async (req) => {
       // ============================================
       const backgroundSync = async () => {
         try {
-          // Get transactions - limit to 3 months before company creation
+          // Cutoff: never go further back than (company.created_at - 1 month buffer).
+          // For full-sync we want to honor since_days fully — the cutoff only serves
+          // to avoid pulling pre-company-creation data on very old Bridge connections.
           const { data: companyForCutoff } = await supabaseAdmin
             .from('companies')
             .select('created_at')
@@ -686,12 +689,12 @@ Deno.serve(async (req) => {
           let cutoffDateStr: string | undefined;
           if (companyForCutoff?.created_at) {
             const cutoff = new Date(companyForCutoff.created_at);
-            cutoff.setMonth(cutoff.getMonth() - 3);
+            cutoff.setMonth(cutoff.getMonth() - 1);
             cutoffDateStr = cutoff.toISOString().split('T')[0];
-            console.info(`[bridge-sync] Full-sync cutoff date: ${cutoffDateStr} (company created: ${companyForCutoff.created_at})`);
+            console.info(`[bridge-sync] Full-sync cutoff date: ${cutoffDateStr} (company created: ${companyForCutoff.created_at}, since_days: ${since_days ?? 365})`);
           }
 
-          const allTxs = await bridgeClient.fetchAllTransactions(90, cutoffDateStr);
+          const allTxs = await bridgeClient.fetchAllTransactions(since_days ?? 365, cutoffDateStr);
 
           // Build account→company map for proper transaction assignment
           const acctToCompanyMap = await getAccountToCompanyMap(supabaseAdmin, bridge_user_uuid!);

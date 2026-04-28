@@ -436,7 +436,7 @@ export class BridgeClient {
   // Transaction Methods
   // ============================================
 
-  async fetchAllTransactions(sinceDays = 90, cutoffDate?: string): Promise<BridgeTransaction[]> {
+  async fetchAllTransactions(sinceDays = 365, cutoffDate?: string): Promise<BridgeTransaction[]> {
     // Use cutoffDate if provided and more recent than sinceDays
     const sinceDate = new Date();
     sinceDate.setDate(sinceDate.getDate() - sinceDays);
