@@ -46,12 +46,6 @@ export const bridgeConnectRequestSchema = z.object({
 
 export type BridgeConnectRequest = z.infer<typeof bridgeConnectRequestSchema>;
 
-export const bridgeRefreshBalancesRequestSchema = z.object({
-  company_ids: z.array(z.string().uuid()).min(1, 'Au moins un company_id requis').max(50, 'Maximum 50 sociétés'),
-});
-
-export type BridgeRefreshBalancesRequest = z.infer<typeof bridgeRefreshBalancesRequestSchema>;
-
 // ========== Transaction Schemas ==========
 
 export const categorizeTransactionRequestSchema = z.object({
