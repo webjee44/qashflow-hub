@@ -48,16 +48,6 @@ interface BankGroup {
   bridgeUserUuid: string;
 }
 
-interface BankGroup {
-  bankName: string;
-  accounts: BridgeAccount[];
-  totalBalance: number;
-  itemStatus: ItemStatus | null;
-  itemStatusMessage: string | null;
-  bridgeItemId: number;
-  bridgeUserUuid: string;
-}
-
 // Helper to get worst status
 function getWorstStatus(a: ItemStatus | null, b: ItemStatus | null): ItemStatus | null {
   if (a === 'error' || a === 'deleted' || b === 'error' || b === 'deleted') return 'error';
@@ -141,6 +131,12 @@ interface AccountAssignment {
   is_enabled: boolean;
 }
 
+interface OrgCompanyOption {
+  id: string;
+  name: string;
+  bridge_user_uuid: string | null;
+}
+
 export function BankAccountsCard() {
   const { companies, currentCompany, refetch: refetchCompanies } = useCompany();
   const { isOwner, isAdmin, currentOrganization } = useOrganization();
@@ -161,26 +157,26 @@ export function BankAccountsCard() {
   }, [companies, resolvedCompanies]);
 
   // Liste des sociétés sélectionnables dans le dropdown (org courante uniquement)
-  const [orgCompanies, setOrgCompanies] = useState<Array<{ id: string; name: string }>>([]);
+  const [orgCompanies, setOrgCompanies] = useState<OrgCompanyOption[]>([]);
 
   useEffect(() => {
     const loadOrgCompanies = async () => {
       if (!currentOrganization?.id) {
-        setOrgCompanies(companies.map(c => ({ id: c.id, name: c.name })));
+        setOrgCompanies(companies.map(c => ({ id: c.id, name: c.name, bridge_user_uuid: c.bridge_user_uuid })));
         return;
       }
       const { data, error } = await supabase
         .from('companies')
-        .select('id, name')
+        .select('id, name, bridge_user_uuid')
         .eq('organization_id', currentOrganization.id)
         .is('deleted_at', null)
         .order('name');
       if (error) {
         logError('Failed to load org companies:', error);
-        setOrgCompanies(companies.map(c => ({ id: c.id, name: c.name })));
+        setOrgCompanies(companies.map(c => ({ id: c.id, name: c.name, bridge_user_uuid: c.bridge_user_uuid })));
         return;
       }
-      setOrgCompanies(data || []);
+      setOrgCompanies((data || []) as OrgCompanyOption[]);
       // Alimente aussi la résolution des noms
       setResolvedCompanies(prev => {
         const next = new Map(prev);
@@ -191,7 +187,12 @@ export function BankAccountsCard() {
     loadOrgCompanies();
   }, [currentOrganization?.id, companies]);
 
-  const allCompanies = orgCompanies.length > 0 ? orgCompanies : companies.map(c => ({ id: c.id, name: c.name }));
+  const allCompanies = useMemo(() => (
+    orgCompanies.length > 0
+      ? orgCompanies
+      : companies.map(c => ({ id: c.id, name: c.name, bridge_user_uuid: c.bridge_user_uuid }))
+  ), [orgCompanies, companies]);
+  const orgCompanyIds = useMemo(() => allCompanies.map(c => c.id), [allCompanies]);
 
   const [accounts, setAccounts] = useState<BridgeAccount[]>([]);
   const [assignments, setAssignments] = useState<Map<number, AccountAssignment>>(new Map());
@@ -200,24 +201,6 @@ export function BankAccountsCard() {
   const [hasChanges, setHasChanges] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
-
-  // Get bridge_user_uuids based on role
-  // Admin: all companies with bridge connection
-  // Member: only currentCompany's bridge_user_uuid
-  const bridgeUserUuids = useMemo(() => {
-    if (isOrgAdmin) {
-      return [...new Set(
-        companies
-          .filter(c => c.bridge_user_uuid)
-          .map(c => c.bridge_user_uuid as string)
-      )];
-    } else {
-      // Member: only load from their current company
-      return currentCompany?.bridge_user_uuid 
-        ? [currentCompany.bridge_user_uuid] 
-        : [];
-    }
-  }, [isOrgAdmin, companies, currentCompany?.bridge_user_uuid]);
 
   // Filter displayed accounts based on role
   const displayedAccounts = useMemo(() => {
@@ -236,15 +219,10 @@ export function BankAccountsCard() {
     return displayedAccounts.reduce((sum, account) => sum + (account.balance || 0), 0);
   }, [displayedAccounts]);
 
-  // Load all Bridge accounts
+  // Load Bridge accounts from company assignments first: company_bridge_accounts is the source of truth.
   useEffect(() => {
-    // Admin path: need bridge_user_uuids to load all accounts
-    // Member path: load via company_bridge_accounts assignments (no bridge_user_uuid needed)
-    if (isOrgAdmin && bridgeUserUuids.length === 0) {
-      setIsLoading(false);
-      return;
-    }
-    if (!isOrgAdmin && !currentCompany?.id) {
+    const scopedCompanyIds = isOrgAdmin ? orgCompanyIds : (currentCompany?.id ? [currentCompany.id] : []);
+    if (scopedCompanyIds.length === 0) {
       setIsLoading(false);
       return;
     }
@@ -255,39 +233,21 @@ export function BankAccountsCard() {
         let bridgeAccounts: BridgeAccount[] = [];
         let currentAssignments: Array<{ bridge_account_id: number; company_id: string }> = [];
 
-        if (isOrgAdmin) {
-          // Admin: load all accounts by bridge_user_uuid
+        const { data: assigns, error: assignsError } = await supabase
+          .from('company_bridge_accounts')
+          .select('bridge_account_id, company_id')
+          .in('company_id', scopedCompanyIds);
+        if (assignsError) throw assignsError;
+        currentAssignments = assigns || [];
+
+        const assignedAccountIds = currentAssignments.map(a => a.bridge_account_id);
+        if (assignedAccountIds.length > 0) {
           const { data, error } = await supabase
             .from('bridge_accounts')
             .select('id, bridge_account_id, bridge_item_id, name, iban, balance, account_type, bank_name, bridge_user_uuid, company_id, item_status, item_status_message')
-            .in('bridge_user_uuid', bridgeUserUuids);
+            .in('bridge_account_id', assignedAccountIds);
           if (error) throw error;
           bridgeAccounts = (data || []) as BridgeAccount[];
-
-          // Fetch all assignments
-          const { data: assigns, error: assignsError } = await supabase
-            .from('company_bridge_accounts')
-            .select('bridge_account_id, company_id');
-          if (assignsError) throw assignsError;
-          currentAssignments = assigns || [];
-        } else {
-          // Member: load accounts via company_bridge_accounts for their current company
-          const { data: assigns, error: assignsError } = await supabase
-            .from('company_bridge_accounts')
-            .select('bridge_account_id, company_id')
-            .eq('company_id', currentCompany!.id);
-          if (assignsError) throw assignsError;
-          currentAssignments = assigns || [];
-
-          if (currentAssignments.length > 0) {
-            const accountIds = currentAssignments.map(a => a.bridge_account_id);
-            const { data, error } = await supabase
-              .from('bridge_accounts')
-              .select('id, bridge_account_id, bridge_item_id, name, iban, balance, account_type, bank_name, bridge_user_uuid, company_id, item_status, item_status_message')
-              .in('bridge_account_id', accountIds);
-            if (error) throw error;
-            bridgeAccounts = (data || []) as BridgeAccount[];
-          }
         }
 
         setAccounts(bridgeAccounts);
@@ -312,7 +272,7 @@ export function BankAccountsCard() {
     };
 
     loadData();
-  }, [bridgeUserUuids.join(','), isOrgAdmin, currentCompany?.id]);
+  }, [isOrgAdmin, currentCompany?.id, orgCompanyIds.join(',')]);
 
   // Résout les noms des sociétés référencées par les assignations qui ne sont pas
   // déjà connues (cas super-admin / impersonation : comptes assignés à d'autres orgs).
@@ -350,26 +310,16 @@ export function BankAccountsCard() {
     localStorage.removeItem('bridgePendingSync');
     
     const autoSync = async () => {
-      const companiesWithBridge = companies.filter(c => c.bridge_user_uuid);
+      const companiesWithBridge = allCompanies.filter(c => c.bridge_user_uuid);
       if (companiesWithBridge.length === 0) {
-        // Refetch to get latest bridge_user_uuid
-        const { data: freshCompanies } = await supabase
-          .from('companies')
-          .select('id, bridge_user_uuid')
-          .not('bridge_user_uuid', 'is', null);
-        
-        if (!freshCompanies || freshCompanies.length === 0) {
-          return;
-        }
-        
-        await runAutoSync(freshCompanies);
+        return;
       } else {
         await runAutoSync(companiesWithBridge);
       }
     };
     
     autoSync();
-  }, [companies]);
+  }, [allCompanies]);
 
   const runAutoSync = async (companiesWithBridge: Array<{ id: string; bridge_user_uuid: string | null }>) => {
     setIsSyncing(true);
@@ -490,14 +440,16 @@ export function BankAccountsCard() {
         // So we compare: accounts that NOW have a company but didn't before
       }
 
-      // Only delete assignments for accounts we're managing (to prevent affecting other companies' data)
+      // Only delete assignments for accounts we're managing within the current organization.
       const accountIds = accounts.map(a => a.bridge_account_id);
+      const managedCompanyIds = allCompanies.map(c => c.id);
 
       // Fetch current DB assignments before deleting to detect changes
       const { data: currentDbAssignments } = await supabase
         .from('company_bridge_accounts')
         .select('bridge_account_id, company_id')
-        .in('bridge_account_id', accountIds);
+        .in('bridge_account_id', accountIds)
+        .in('company_id', managedCompanyIds);
 
       const oldAssignmentMap = new Map<number, string>();
       for (const a of currentDbAssignments || []) {
@@ -507,7 +459,8 @@ export function BankAccountsCard() {
       const { error: deleteError } = await supabase
         .from('company_bridge_accounts')
         .delete()
-        .in('bridge_account_id', accountIds);
+        .in('bridge_account_id', accountIds)
+        .in('company_id', managedCompanyIds);
 
       if (deleteError) throw deleteError;
 
@@ -535,7 +488,7 @@ export function BankAccountsCard() {
       }
 
       // Update company bank balances and counts
-      for (const company of companies) {
+      for (const company of allCompanies) {
         const companyAccounts = accounts.filter(account => {
           const assignment = assignments.get(account.bridge_account_id);
           return assignment?.is_enabled && assignment?.company_id === company.id;
@@ -573,7 +526,7 @@ export function BankAccountsCard() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
-      const companiesToSync = companies.filter(c => companyIds.has(c.id) && c.bridge_user_uuid);
+      const companiesToSync = allCompanies.filter(c => companyIds.has(c.id) && c.bridge_user_uuid);
       if (companiesToSync.length === 0) return;
 
       toast.info('Synchronisation des transactions en cours...');
@@ -613,12 +566,17 @@ export function BankAccountsCard() {
         return;
       }
 
-      // Refetch companies to get latest bridge_user_uuid state
-      const { data: freshCompanies } = await supabase
+      // Refetch companies in the current organization to get latest bridge_user_uuid state
+      let freshCompaniesQuery = supabase
         .from('companies')
         .select('id, bridge_user_uuid')
-        .not('deleted_at', 'is', null)
-        .or('deleted_at.is.null');
+        .is('deleted_at', null);
+
+      if (currentOrganization?.id) {
+        freshCompaniesQuery = freshCompaniesQuery.eq('organization_id', currentOrganization.id);
+      }
+
+      const { data: freshCompanies } = await freshCompaniesQuery;
       
       // Get fresh bridge_user_uuid from refetched data
       let bridgeUserUuid = freshCompanies?.find(c => c.bridge_user_uuid)?.bridge_user_uuid || null;
@@ -638,7 +596,7 @@ export function BankAccountsCard() {
         bridgeUserUuid = createData.user.uuid;
         
         // Save the Bridge user UUID to the first company
-        const targetCompanyId = freshCompanies?.[0]?.id || companies[0]?.id;
+        const targetCompanyId = freshCompanies?.[0]?.id || allCompanies[0]?.id;
         if (targetCompanyId) {
           await supabase
             .from('companies')
@@ -745,7 +703,7 @@ export function BankAccountsCard() {
   };
 
   const handleFullSync = async () => {
-    const companiesWithBridgeConnection = companies.filter(c => c.bridge_user_uuid);
+    const companiesWithBridgeConnection = allCompanies.filter(c => c.bridge_user_uuid);
     
     if (companiesWithBridgeConnection.length === 0) {
       toast.error('Connectez d\'abord une banque');
@@ -807,9 +765,6 @@ export function BankAccountsCard() {
     return '•••• ' + iban.slice(-4);
   };
 
-  // Get companies that can receive accounts (have bridge connection)
-  const companiesWithBridge = companies.filter(c => c.bridge_user_uuid);
-
   if (isLoading) {
     return (
       <Card className="bg-card border-border">
@@ -821,7 +776,7 @@ export function BankAccountsCard() {
   }
 
   // Check if any company has a bridge connection (for showing sync button)
-  const hasAnyBridgeConnection = companies.some(c => c.bridge_user_uuid);
+  const hasAnyBridgeConnection = allCompanies.some(c => c.bridge_user_uuid);
 
   // For members: show a simpler empty state if no accounts assigned to their company
   if (displayedAccounts.length === 0) {
@@ -998,7 +953,6 @@ export function BankAccountsCard() {
           assignments={assignments}
           companies={allCompanies}
           companyNameById={companyNameById}
-          companiesWithBridge={companiesWithBridge}
           onToggle={handleToggle}
           onCompanyChange={handleCompanyChange}
           formatBalance={formatBalance}
@@ -1010,7 +964,7 @@ export function BankAccountsCard() {
 
         {hasChanges && (
           <div className="mt-4 p-3 rounded-lg bg-primary/10 border border-primary/20 text-sm text-primary">
-            💡 N'oubliez pas d'enregistrer vos modifications
+            N'oubliez pas d'enregistrer vos modifications
           </div>
         )}
       </CardContent>
@@ -1143,7 +1097,6 @@ function BankAccountsList({
   assignments,
   companies,
   companyNameById,
-  companiesWithBridge,
   onToggle,
   onCompanyChange,
   formatBalance,
@@ -1156,7 +1109,6 @@ function BankAccountsList({
   assignments: Map<number, AccountAssignment>;
   companies: { id: string; name: string }[];
   companyNameById: Map<string, string>;
-  companiesWithBridge: { id: string; name: string }[];
   onToggle: (bridgeAccountId: number, enabled: boolean) => void;
   onCompanyChange: (bridgeAccountId: number, companyId: string) => void;
   formatBalance: (balance: number | null) => string;
