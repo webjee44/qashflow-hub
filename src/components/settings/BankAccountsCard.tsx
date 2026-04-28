@@ -146,9 +146,21 @@ export function BankAccountsCard() {
   const { isOwner, isAdmin, currentOrganization } = useOrganization();
   const isOrgAdmin = isOwner || isAdmin;
 
-  // Pour résoudre proprement le nom de la société assignée à chaque compte,
-  // on charge TOUTES les sociétés de l'organisation courante (le hook useCompany
-  // peut être filtré par contexte courant et ne pas toutes les contenir).
+  // Résolution des noms de sociétés : on charge dynamiquement TOUTES les sociétés
+  // référencées (org courante + sociétés assignées aux comptes affichés, qui peuvent
+  // appartenir à d'autres orgs en mode super-admin/impersonation).
+  const [resolvedCompanies, setResolvedCompanies] = useState<Map<string, string>>(new Map());
+
+  const companyNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    // Base : sociétés du hook useCompany
+    companies.forEach(c => map.set(c.id, c.name));
+    // Surcharge / complément : sociétés résolues dynamiquement
+    resolvedCompanies.forEach((name, id) => map.set(id, name));
+    return map;
+  }, [companies, resolvedCompanies]);
+
+  // Liste des sociétés sélectionnables dans le dropdown (org courante uniquement)
   const [orgCompanies, setOrgCompanies] = useState<Array<{ id: string; name: string }>>([]);
 
   useEffect(() => {
@@ -169,17 +181,17 @@ export function BankAccountsCard() {
         return;
       }
       setOrgCompanies(data || []);
+      // Alimente aussi la résolution des noms
+      setResolvedCompanies(prev => {
+        const next = new Map(prev);
+        (data || []).forEach(c => next.set(c.id, c.name));
+        return next;
+      });
     };
     loadOrgCompanies();
   }, [currentOrganization?.id, companies]);
 
-  // Source unique pour résoudre les noms : org companies si dispo, sinon fallback sur le hook
   const allCompanies = orgCompanies.length > 0 ? orgCompanies : companies.map(c => ({ id: c.id, name: c.name }));
-  const companyNameById = useMemo(() => {
-    const map = new Map<string, string>();
-    allCompanies.forEach(c => map.set(c.id, c.name));
-    return map;
-  }, [allCompanies]);
 
   const [accounts, setAccounts] = useState<BridgeAccount[]>([]);
   const [assignments, setAssignments] = useState<Map<number, AccountAssignment>>(new Map());
