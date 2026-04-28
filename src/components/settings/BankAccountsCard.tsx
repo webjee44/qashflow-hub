@@ -143,9 +143,44 @@ interface AccountAssignment {
 
 export function BankAccountsCard() {
   const { companies, currentCompany, refetch: refetchCompanies } = useCompany();
-  const { isOwner, isAdmin } = useOrganization();
+  const { isOwner, isAdmin, currentOrganization } = useOrganization();
   const isOrgAdmin = isOwner || isAdmin;
-  
+
+  // Pour résoudre proprement le nom de la société assignée à chaque compte,
+  // on charge TOUTES les sociétés de l'organisation courante (le hook useCompany
+  // peut être filtré par contexte courant et ne pas toutes les contenir).
+  const [orgCompanies, setOrgCompanies] = useState<Array<{ id: string; name: string }>>([]);
+
+  useEffect(() => {
+    const loadOrgCompanies = async () => {
+      if (!currentOrganization?.id) {
+        setOrgCompanies(companies.map(c => ({ id: c.id, name: c.name })));
+        return;
+      }
+      const { data, error } = await supabase
+        .from('companies')
+        .select('id, name')
+        .eq('organization_id', currentOrganization.id)
+        .is('deleted_at', null)
+        .order('name');
+      if (error) {
+        logError('Failed to load org companies:', error);
+        setOrgCompanies(companies.map(c => ({ id: c.id, name: c.name })));
+        return;
+      }
+      setOrgCompanies(data || []);
+    };
+    loadOrgCompanies();
+  }, [currentOrganization?.id, companies]);
+
+  // Source unique pour résoudre les noms : org companies si dispo, sinon fallback sur le hook
+  const allCompanies = orgCompanies.length > 0 ? orgCompanies : companies.map(c => ({ id: c.id, name: c.name }));
+  const companyNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    allCompanies.forEach(c => map.set(c.id, c.name));
+    return map;
+  }, [allCompanies]);
+
   const [accounts, setAccounts] = useState<BridgeAccount[]>([]);
   const [assignments, setAssignments] = useState<Map<number, AccountAssignment>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
