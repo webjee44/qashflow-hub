@@ -329,51 +329,25 @@ export function SuggestAutomationDialog({
                   </Badge>
                 </div>
 
-                {/* Pattern suggéré */}
+                {/* Pattern suggéré (toujours éditable inline) */}
                 <div className="border border-accent/30 bg-accent/5 rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <Wand2 className="w-4 h-4 text-accent" />
-                      <span className="text-sm font-medium">Pattern suggéré</span>
-                    </div>
-                    {!isEditingPattern && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
-                        onClick={() => setIsEditingPattern(true)}
-                      >
-                        <Pencil className="w-3 h-3 mr-1" />
-                        Modifier
-                      </Button>
-                    )}
+                  <div className="flex items-center gap-2 mb-2">
+                    <Wand2 className="w-4 h-4 text-accent" />
+                    <span className="text-sm font-medium">Pattern suggéré</span>
+                    <Pencil className="w-3 h-3 text-muted-foreground ml-auto" />
                   </div>
-                  {isEditingPattern ? (
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm">Description contient "</span>
-                      <Input
-                        value={editedPattern}
-                        onChange={(e) => setEditedPattern(e.target.value)}
-                        className="h-7 w-40 font-mono text-sm"
-                        autoFocus
-                        onKeyDown={(e) => e.key === 'Enter' && handlePatternConfirm()}
-                      />
-                      <span className="text-sm">"</span>
-                      <Button
-                        size="sm"
-                        className="h-7 px-3 text-xs gap-1"
-                        onClick={handlePatternConfirm}
-                      >
-                        <Check className="w-3.5 h-3.5" />
-                        OK
-                      </Button>
-                    </div>
-                  ) : (
-                    <p className="text-sm">
-                      Description <span className="font-semibold text-accent">{getOperatorLabel(suggestion.operator)}</span>{' '}
-                      "<span className="font-mono bg-muted px-1 rounded">{suggestion.pattern}</span>"
-                    </p>
-                  )}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm whitespace-nowrap">
+                      Description <span className="font-semibold text-accent">{getOperatorLabel(suggestion.operator)}</span> "
+                    </span>
+                    <Input
+                      value={editedPattern}
+                      onChange={(e) => setEditedPattern(e.target.value)}
+                      className="h-7 flex-1 min-w-[120px] font-mono text-sm"
+                      placeholder="MOT-CLÉ"
+                    />
+                    <span className="text-sm">"</span>
+                  </div>
                 </div>
 
                 {/* Filtre montant optionnel */}
