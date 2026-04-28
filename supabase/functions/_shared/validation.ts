@@ -28,6 +28,9 @@ export const bridgeSyncRequestSchema = z.object({
   action: z.enum(['full-sync', 'cron-sync', 'sync-accounts']).default('full-sync'),
   bridge_user_uuid: z.string().uuid().optional(),
   company_id: z.string().uuid().optional(),
+  // Optional override for transaction history depth (in days). Defaults to 365 days
+  // in BridgeClient.fetchAllTransactions. Used by "Sync historique complet" UI button.
+  since_days: z.number().int().min(1).max(3650).optional(),
 }).refine(
   (data) => data.action === 'cron-sync' || (data.bridge_user_uuid && data.company_id),
   { message: 'bridge_user_uuid et company_id requis' }

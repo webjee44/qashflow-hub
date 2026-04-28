@@ -413,8 +413,8 @@ Deno.serve(async (req) => {
       return validationErrorResponse(validation.error, corsHeaders);
     }
 
-    const { action, bridge_user_uuid, company_id } = validation.data;
-    console.info('[bridge-sync] Action:', action);
+    const { action, bridge_user_uuid, company_id, since_days } = validation.data;
+    console.info('[bridge-sync] Action:', action, since_days ? `(since_days override: ${since_days})` : '');
 
     // ============================================
     // Action: cron-sync (No user auth required)
@@ -496,7 +496,7 @@ Deno.serve(async (req) => {
           cutoff.setMonth(cutoff.getMonth() - 3);
           const cutoffDateStr = cutoff.toISOString().split('T')[0];
           console.info(`[bridge-sync] Company ${company.id} cutoff date: ${cutoffDateStr} (created: ${company.created_at})`);
-          const allTransactions = await bridgeClient.fetchAllTransactions(90, cutoffDateStr);
+          const allTransactions = await bridgeClient.fetchAllTransactions(since_days ?? 365, cutoffDateStr);
 
           // Build account→company map for proper transaction assignment
           const accountToCompanyMap = await getAccountToCompanyMap(supabaseAdmin, company.bridge_user_uuid!);
@@ -691,7 +691,7 @@ Deno.serve(async (req) => {
             console.info(`[bridge-sync] Full-sync cutoff date: ${cutoffDateStr} (company created: ${companyForCutoff.created_at})`);
           }
 
-          const allTxs = await bridgeClient.fetchAllTransactions(90, cutoffDateStr);
+          const allTxs = await bridgeClient.fetchAllTransactions(since_days ?? 365, cutoffDateStr);
 
           // Build account→company map for proper transaction assignment
           const acctToCompanyMap = await getAccountToCompanyMap(supabaseAdmin, bridge_user_uuid!);
