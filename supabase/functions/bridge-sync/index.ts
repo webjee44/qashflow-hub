@@ -491,9 +491,10 @@ Deno.serve(async (req) => {
 
           console.info(`[bridge-sync] Company ${company.id}: ${assignedCount} assigned accounts, balance: ${assignedBalance.toLocaleString('fr-FR')}€`);
 
-          // Get transactions - limit to 3 months before company creation
+          // Cutoff: never go further back than (company.created_at - 1 month buffer).
+          // For older companies the since_days window naturally caps the history.
           const cutoff = new Date(company.created_at);
-          cutoff.setMonth(cutoff.getMonth() - 3);
+          cutoff.setMonth(cutoff.getMonth() - 1);
           const cutoffDateStr = cutoff.toISOString().split('T')[0];
           console.info(`[bridge-sync] Company ${company.id} cutoff date: ${cutoffDateStr} (created: ${company.created_at})`);
           const allTransactions = await bridgeClient.fetchAllTransactions(since_days ?? 365, cutoffDateStr);
@@ -676,7 +677,9 @@ Deno.serve(async (req) => {
       // ============================================
       const backgroundSync = async () => {
         try {
-          // Get transactions - limit to 3 months before company creation
+          // Cutoff: never go further back than (company.created_at - 1 month buffer).
+          // For full-sync we want to honor since_days fully — the cutoff only serves
+          // to avoid pulling pre-company-creation data on very old Bridge connections.
           const { data: companyForCutoff } = await supabaseAdmin
             .from('companies')
             .select('created_at')
@@ -686,9 +689,9 @@ Deno.serve(async (req) => {
           let cutoffDateStr: string | undefined;
           if (companyForCutoff?.created_at) {
             const cutoff = new Date(companyForCutoff.created_at);
-            cutoff.setMonth(cutoff.getMonth() - 3);
+            cutoff.setMonth(cutoff.getMonth() - 1);
             cutoffDateStr = cutoff.toISOString().split('T')[0];
-            console.info(`[bridge-sync] Full-sync cutoff date: ${cutoffDateStr} (company created: ${companyForCutoff.created_at})`);
+            console.info(`[bridge-sync] Full-sync cutoff date: ${cutoffDateStr} (company created: ${companyForCutoff.created_at}, since_days: ${since_days ?? 365})`);
           }
 
           const allTxs = await bridgeClient.fetchAllTransactions(since_days ?? 365, cutoffDateStr);
