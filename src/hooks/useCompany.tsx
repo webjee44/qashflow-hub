@@ -29,7 +29,7 @@ interface CompanyContextType {
   companies: Company[];
   isLoading: boolean;
   createCompany: (data: { name: string; initial_balance?: number; is_default?: boolean }) => Promise<Company>;
-  updateCompany: (id: string, data: { name?: string; initial_balance?: number; is_default?: boolean }) => Promise<void>;
+  updateCompany: (id: string, data: { name?: string; initial_balance?: number; is_default?: boolean; vat_regime?: VatRegime }) => Promise<void>;
   deleteCompany: (id: string) => Promise<void>;
   restoreCompany: (id: string) => Promise<void>;
   refetch: () => void;
