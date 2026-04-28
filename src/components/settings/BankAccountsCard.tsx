@@ -193,9 +193,6 @@ export function BankAccountsCard() {
       : companies.map(c => ({ id: c.id, name: c.name, bridge_user_uuid: c.bridge_user_uuid }))
   ), [orgCompanies, companies]);
   const orgCompanyIds = useMemo(() => allCompanies.map(c => c.id), [allCompanies]);
-  const orgBridgeUserUuids = useMemo(() => [
-    ...new Set(allCompanies.map(c => c.bridge_user_uuid).filter(Boolean) as string[])
-  ], [allCompanies]);
 
   const [accounts, setAccounts] = useState<BridgeAccount[]>([]);
   const [assignments, setAssignments] = useState<Map<number, AccountAssignment>>(new Map());
