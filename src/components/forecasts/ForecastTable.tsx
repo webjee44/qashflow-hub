@@ -114,6 +114,7 @@ export const ForecastTable = forwardRef<ForecastTableRef>(function ForecastTable
     getNetVatActual,
     getUncategorized,
     getIncomeForecastTotal,
+    getIncomeForecastTotalTtc,
     getPayableOutflow,
     getPayableOutflowByCategory,
     getPayableOutflowUncategorized,
