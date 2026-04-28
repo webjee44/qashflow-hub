@@ -804,9 +804,6 @@ export function BankAccountsCard() {
     return '•••• ' + iban.slice(-4);
   };
 
-  // Get companies that can receive accounts (have bridge connection)
-  const companiesWithBridge = allCompanies.filter(c => c.bridge_user_uuid);
-
   if (isLoading) {
     return (
       <Card className="bg-card border-border">
@@ -1006,7 +1003,7 @@ export function BankAccountsCard() {
 
         {hasChanges && (
           <div className="mt-4 p-3 rounded-lg bg-primary/10 border border-primary/20 text-sm text-primary">
-            💡 N'oubliez pas d'enregistrer vos modifications
+            N'oubliez pas d'enregistrer vos modifications
           </div>
         )}
       </CardContent>
