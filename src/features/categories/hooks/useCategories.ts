@@ -166,6 +166,9 @@ export function useCategories() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey });
+      // A category update can purge stale manual overrides when switching to
+      // percent_of_revenue mode — keep the forecast view in sync.
+      queryClient.invalidateQueries({ queryKey: ['category-forecasts'] });
       toast.success('Catégorie mise à jour');
     },
     onError: (error) => {
