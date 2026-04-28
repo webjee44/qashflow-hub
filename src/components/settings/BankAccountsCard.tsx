@@ -162,7 +162,7 @@ export function BankAccountsCard() {
   useEffect(() => {
     const loadOrgCompanies = async () => {
       if (!currentOrganization?.id) {
-        setOrgCompanies(companies.map(c => ({ id: c.id, name: c.name })));
+        setOrgCompanies(companies.map(c => ({ id: c.id, name: c.name, bridge_user_uuid: c.bridge_user_uuid })));
         return;
       }
       const { data, error } = await supabase
@@ -173,7 +173,7 @@ export function BankAccountsCard() {
         .order('name');
       if (error) {
         logError('Failed to load org companies:', error);
-        setOrgCompanies(companies.map(c => ({ id: c.id, name: c.name })));
+        setOrgCompanies(companies.map(c => ({ id: c.id, name: c.name, bridge_user_uuid: c.bridge_user_uuid })));
         return;
       }
       setOrgCompanies((data || []) as OrgCompanyOption[]);
@@ -187,10 +187,15 @@ export function BankAccountsCard() {
     loadOrgCompanies();
   }, [currentOrganization?.id, companies]);
 
-  const allCompanies = orgCompanies.length > 0
-    ? orgCompanies
-    : companies.map(c => ({ id: c.id, name: c.name, bridge_user_uuid: c.bridge_user_uuid }));
+  const allCompanies = useMemo(() => (
+    orgCompanies.length > 0
+      ? orgCompanies
+      : companies.map(c => ({ id: c.id, name: c.name, bridge_user_uuid: c.bridge_user_uuid }))
+  ), [orgCompanies, companies]);
   const orgCompanyIds = useMemo(() => allCompanies.map(c => c.id), [allCompanies]);
+  const orgBridgeUserUuids = useMemo(() => [
+    ...new Set(allCompanies.map(c => c.bridge_user_uuid).filter(Boolean) as string[])
+  ], [allCompanies]);
 
   const [accounts, setAccounts] = useState<BridgeAccount[]>([]);
   const [assignments, setAssignments] = useState<Map<number, AccountAssignment>>(new Map());
