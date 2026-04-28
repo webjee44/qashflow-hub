@@ -50,7 +50,47 @@ export default function GroupOverview() {
       <PageHeader
         title="Vue groupe"
         subtitle="Synthèse consolidée de toutes vos sociétés"
+        actions={
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={refresh}
+                    disabled={!canRefresh}
+                    className="gap-2"
+                  >
+                    {isRefreshing ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4" />
+                    )}
+                    Actualiser les soldes
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>
+                {cooldownRemainingMs > 0 ? (
+                  <p>Disponible dans {formatCooldown(cooldownRemainingMs)}</p>
+                ) : isRefreshing ? (
+                  <p>Synchronisation en cours…</p>
+                ) : (
+                  <p>Force la synchro avec vos banques (cooldown 5 min)</p>
+                )}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        }
       />
+
+      {lastRefreshAt && (
+        <p className="text-xs text-muted-foreground -mt-4">
+          Dernière actualisation manuelle :{' '}
+          {formatDistanceToNow(lastRefreshAt, { addSuffix: true, locale: fr })}
+        </p>
+      )}
 
       {/* Critical alerts banner */}
       {criticalAlerts > 0 && (
