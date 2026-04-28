@@ -205,24 +205,6 @@ export function BankAccountsCard() {
   const [isConnecting, setIsConnecting] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // Get bridge_user_uuids based on role
-  // Admin: all companies with bridge connection
-  // Member: only currentCompany's bridge_user_uuid
-  const bridgeUserUuids = useMemo(() => {
-    if (isOrgAdmin) {
-      return [...new Set(
-        companies
-          .filter(c => c.bridge_user_uuid)
-          .map(c => c.bridge_user_uuid as string)
-      )];
-    } else {
-      // Member: only load from their current company
-      return currentCompany?.bridge_user_uuid 
-        ? [currentCompany.bridge_user_uuid] 
-        : [];
-    }
-  }, [isOrgAdmin, companies, currentCompany?.bridge_user_uuid]);
-
   // Filter displayed accounts based on role
   const displayedAccounts = useMemo(() => {
     if (isOrgAdmin) {
@@ -240,15 +222,10 @@ export function BankAccountsCard() {
     return displayedAccounts.reduce((sum, account) => sum + (account.balance || 0), 0);
   }, [displayedAccounts]);
 
-  // Load all Bridge accounts
+  // Load Bridge accounts from company assignments first: company_bridge_accounts is the source of truth.
   useEffect(() => {
-    // Admin path: need bridge_user_uuids to load all accounts
-    // Member path: load via company_bridge_accounts assignments (no bridge_user_uuid needed)
-    if (isOrgAdmin && bridgeUserUuids.length === 0) {
-      setIsLoading(false);
-      return;
-    }
-    if (!isOrgAdmin && !currentCompany?.id) {
+    const scopedCompanyIds = isOrgAdmin ? orgCompanyIds : (currentCompany?.id ? [currentCompany.id] : []);
+    if (scopedCompanyIds.length === 0) {
       setIsLoading(false);
       return;
     }
@@ -259,39 +236,55 @@ export function BankAccountsCard() {
         let bridgeAccounts: BridgeAccount[] = [];
         let currentAssignments: Array<{ bridge_account_id: number; company_id: string }> = [];
 
-        if (isOrgAdmin) {
-          // Admin: load all accounts by bridge_user_uuid
+        const { data: assigns, error: assignsError } = await supabase
+          .from('company_bridge_accounts')
+          .select('bridge_account_id, company_id')
+          .in('company_id', scopedCompanyIds);
+        if (assignsError) throw assignsError;
+        currentAssignments = assigns || [];
+
+        const assignedAccountIds = currentAssignments.map(a => a.bridge_account_id);
+        if (assignedAccountIds.length > 0) {
           const { data, error } = await supabase
             .from('bridge_accounts')
             .select('id, bridge_account_id, bridge_item_id, name, iban, balance, account_type, bank_name, bridge_user_uuid, company_id, item_status, item_status_message')
-            .in('bridge_user_uuid', bridgeUserUuids);
+            .in('bridge_account_id', assignedAccountIds);
           if (error) throw error;
           bridgeAccounts = (data || []) as BridgeAccount[];
+        }
 
-          // Fetch all assignments
-          const { data: assigns, error: assignsError } = await supabase
-            .from('company_bridge_accounts')
-            .select('bridge_account_id, company_id');
-          if (assignsError) throw assignsError;
-          currentAssignments = assigns || [];
-        } else {
-          // Member: load accounts via company_bridge_accounts for their current company
-          const { data: assigns, error: assignsError } = await supabase
-            .from('company_bridge_accounts')
-            .select('bridge_account_id, company_id')
-            .eq('company_id', currentCompany!.id);
-          if (assignsError) throw assignsError;
-          currentAssignments = assigns || [];
+        // Admins can also see unassigned accounts only when they come from a Bridge connection
+        // explicitly attached to a company in the current organization. Accounts already assigned
+        // to another organization are excluded by design.
+        if (isOrgAdmin && orgBridgeUserUuids.length > 0) {
+          const { data: connectionAccounts, error: connectionError } = await supabase
+            .from('bridge_accounts')
+            .select('id, bridge_account_id, bridge_item_id, name, iban, balance, account_type, bank_name, bridge_user_uuid, company_id, item_status, item_status_message')
+            .in('bridge_user_uuid', orgBridgeUserUuids);
+          if (connectionError) throw connectionError;
 
-          if (currentAssignments.length > 0) {
-            const accountIds = currentAssignments.map(a => a.bridge_account_id);
-            const { data, error } = await supabase
-              .from('bridge_accounts')
-              .select('id, bridge_account_id, bridge_item_id, name, iban, balance, account_type, bank_name, bridge_user_uuid, company_id, item_status, item_status_message')
-              .in('bridge_account_id', accountIds);
-            if (error) throw error;
-            bridgeAccounts = (data || []) as BridgeAccount[];
+          const scopedAssignmentIds = new Set(currentAssignments.map(a => a.bridge_account_id));
+          const alreadyAssignedElsewhereIds = new Set<number>();
+          const candidateUnassignedIds = (connectionAccounts || [])
+            .map(a => a.bridge_account_id)
+            .filter(id => !scopedAssignmentIds.has(id));
+
+          if (candidateUnassignedIds.length > 0) {
+            const { data: otherAssignments, error: otherAssignError } = await supabase
+              .from('company_bridge_accounts')
+              .select('bridge_account_id')
+              .in('bridge_account_id', candidateUnassignedIds);
+            if (otherAssignError) throw otherAssignError;
+            (otherAssignments || []).forEach(a => alreadyAssignedElsewhereIds.add(a.bridge_account_id));
           }
+
+          const byId = new Map<number, BridgeAccount>();
+          bridgeAccounts.forEach(account => byId.set(account.bridge_account_id, account));
+          ((connectionAccounts || []) as BridgeAccount[])
+            .filter(account => !scopedAssignmentIds.has(account.bridge_account_id))
+            .filter(account => !alreadyAssignedElsewhereIds.has(account.bridge_account_id))
+            .forEach(account => byId.set(account.bridge_account_id, account));
+          bridgeAccounts = Array.from(byId.values());
         }
 
         setAccounts(bridgeAccounts);
@@ -316,7 +309,7 @@ export function BankAccountsCard() {
     };
 
     loadData();
-  }, [bridgeUserUuids.join(','), isOrgAdmin, currentCompany?.id]);
+  }, [isOrgAdmin, currentCompany?.id, orgCompanyIds.join(','), orgBridgeUserUuids.join(',')]);
 
   // Résout les noms des sociétés référencées par les assignations qui ne sont pas
   // déjà connues (cas super-admin / impersonation : comptes assignés à d'autres orgs).
