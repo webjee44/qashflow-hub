@@ -146,9 +146,21 @@ export function BankAccountsCard() {
   const { isOwner, isAdmin, currentOrganization } = useOrganization();
   const isOrgAdmin = isOwner || isAdmin;
 
-  // Pour résoudre proprement le nom de la société assignée à chaque compte,
-  // on charge TOUTES les sociétés de l'organisation courante (le hook useCompany
-  // peut être filtré par contexte courant et ne pas toutes les contenir).
+  // Résolution des noms de sociétés : on charge dynamiquement TOUTES les sociétés
+  // référencées (org courante + sociétés assignées aux comptes affichés, qui peuvent
+  // appartenir à d'autres orgs en mode super-admin/impersonation).
+  const [resolvedCompanies, setResolvedCompanies] = useState<Map<string, string>>(new Map());
+
+  const companyNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    // Base : sociétés du hook useCompany
+    companies.forEach(c => map.set(c.id, c.name));
+    // Surcharge / complément : sociétés résolues dynamiquement
+    resolvedCompanies.forEach((name, id) => map.set(id, name));
+    return map;
+  }, [companies, resolvedCompanies]);
+
+  // Liste des sociétés sélectionnables dans le dropdown (org courante uniquement)
   const [orgCompanies, setOrgCompanies] = useState<Array<{ id: string; name: string }>>([]);
 
   useEffect(() => {
@@ -169,17 +181,17 @@ export function BankAccountsCard() {
         return;
       }
       setOrgCompanies(data || []);
+      // Alimente aussi la résolution des noms
+      setResolvedCompanies(prev => {
+        const next = new Map(prev);
+        (data || []).forEach(c => next.set(c.id, c.name));
+        return next;
+      });
     };
     loadOrgCompanies();
   }, [currentOrganization?.id, companies]);
 
-  // Source unique pour résoudre les noms : org companies si dispo, sinon fallback sur le hook
   const allCompanies = orgCompanies.length > 0 ? orgCompanies : companies.map(c => ({ id: c.id, name: c.name }));
-  const companyNameById = useMemo(() => {
-    const map = new Map<string, string>();
-    allCompanies.forEach(c => map.set(c.id, c.name));
-    return map;
-  }, [allCompanies]);
 
   const [accounts, setAccounts] = useState<BridgeAccount[]>([]);
   const [assignments, setAssignments] = useState<Map<number, AccountAssignment>>(new Map());
@@ -301,6 +313,33 @@ export function BankAccountsCard() {
 
     loadData();
   }, [bridgeUserUuids.join(','), isOrgAdmin, currentCompany?.id]);
+
+  // Résout les noms des sociétés référencées par les assignations qui ne sont pas
+  // déjà connues (cas super-admin / impersonation : comptes assignés à d'autres orgs).
+  useEffect(() => {
+    const referencedIds = new Set<string>();
+    assignments.forEach(a => {
+      if (a.company_id) referencedIds.add(a.company_id);
+    });
+    const missing = Array.from(referencedIds).filter(id => !companyNameById.has(id));
+    if (missing.length === 0) return;
+
+    (async () => {
+      const { data, error } = await supabase
+        .from('companies')
+        .select('id, name')
+        .in('id', missing);
+      if (error) {
+        logError('Failed to resolve referenced companies:', error);
+        return;
+      }
+      setResolvedCompanies(prev => {
+        const next = new Map(prev);
+        (data || []).forEach(c => next.set(c.id, c.name));
+        return next;
+      });
+    })();
+  }, [assignments, companyNameById]);
 
   // Auto-sync after Bridge connection (check localStorage flag)
   useEffect(() => {
@@ -958,6 +997,7 @@ export function BankAccountsCard() {
           accounts={displayedAccounts}
           assignments={assignments}
           companies={allCompanies}
+          companyNameById={companyNameById}
           companiesWithBridge={companiesWithBridge}
           onToggle={handleToggle}
           onCompanyChange={handleCompanyChange}
@@ -1102,6 +1142,7 @@ function BankAccountsList({
   accounts,
   assignments,
   companies,
+  companyNameById,
   companiesWithBridge,
   onToggle,
   onCompanyChange,
@@ -1114,6 +1155,7 @@ function BankAccountsList({
   accounts: BridgeAccount[];
   assignments: Map<number, AccountAssignment>;
   companies: { id: string; name: string }[];
+  companyNameById: Map<string, string>;
   companiesWithBridge: { id: string; name: string }[];
   onToggle: (bridgeAccountId: number, enabled: boolean) => void;
   onCompanyChange: (bridgeAccountId: number, companyId: string) => void;
@@ -1322,7 +1364,7 @@ function BankAccountsList({
                               <span className="flex items-center gap-2 truncate">
                                 <Building2 className="w-3 h-3 flex-shrink-0" />
                                 <span className="truncate">
-                                  {companies.find(c => c.id === companyId)?.name ?? 'Société inconnue'}
+                                  {companyNameById.get(companyId) ?? 'Société inconnue'}
                                 </span>
                               </span>
                             ) : (
