@@ -742,7 +742,7 @@ export function BankAccountsCard() {
   };
 
   const handleFullSync = async () => {
-    const companiesWithBridgeConnection = companies.filter(c => c.bridge_user_uuid);
+    const companiesWithBridgeConnection = allCompanies.filter(c => c.bridge_user_uuid);
     
     if (companiesWithBridgeConnection.length === 0) {
       toast.error('Connectez d\'abord une banque');
@@ -805,7 +805,7 @@ export function BankAccountsCard() {
   };
 
   // Get companies that can receive accounts (have bridge connection)
-  const companiesWithBridge = companies.filter(c => c.bridge_user_uuid);
+  const companiesWithBridge = allCompanies.filter(c => c.bridge_user_uuid);
 
   if (isLoading) {
     return (
@@ -818,7 +818,7 @@ export function BankAccountsCard() {
   }
 
   // Check if any company has a bridge connection (for showing sync button)
-  const hasAnyBridgeConnection = companies.some(c => c.bridge_user_uuid);
+  const hasAnyBridgeConnection = allCompanies.some(c => c.bridge_user_uuid);
 
   // For members: show a simpler empty state if no accounts assigned to their company
   if (displayedAccounts.length === 0) {
