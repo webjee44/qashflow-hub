@@ -198,6 +198,8 @@ export function SuggestAutomationDialog({
 
   const handleCreateRule = async () => {
     if (!suggestion || !category) return;
+    const finalPattern = editedPattern.trim().toUpperCase();
+    if (!finalPattern) return;
 
     setCreating(true);
     try {
@@ -205,7 +207,7 @@ export function SuggestAutomationDialog({
         {
           condition_field: 'description',
           condition_operator: suggestion.operator,
-          condition_value: suggestion.pattern,
+          condition_value: finalPattern,
         },
       ];
 
@@ -226,14 +228,14 @@ export function SuggestAutomationDialog({
       }
 
       const ruleName = showAmountCondition && amountValue.trim()
-        ? `Auto: ${category.name} - ${suggestion.pattern} + ${amountValue} €`
-        : suggestion.ruleName;
+        ? `Auto: ${category.name} - ${finalPattern} + ${amountValue} €`
+        : `Auto: ${category.name} - ${finalPattern}`;
 
       const result = await onCreateRule({
         name: ruleName,
         condition_field: 'description',
         condition_operator: suggestion.operator,
-        condition_value: suggestion.pattern,
+        condition_value: finalPattern,
         action_type: 'categorize',
         target_category_id: category.id,
         conditions,
