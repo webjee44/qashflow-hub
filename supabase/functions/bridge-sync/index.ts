@@ -55,35 +55,19 @@ async function getAccountToCompanyMap(
 }
 
 // ============================================
-// Helper: Calculate assigned balance and count
+// Helper: Recompute company bank stats via RPC
+// ----
+// Single source of truth: company_bridge_accounts JOIN bridge_accounts.
+// The DB function + triggers handle the actual computation; we just trigger
+// it explicitly here to guarantee freshness right after a sync.
 // ============================================
-async function getAssignedAccountsStats(
-  supabaseAdmin: any,
-  companyId: string,
-  allAccounts: BridgeAccount[]
-): Promise<{ assignedCount: number; assignedBalance: number }> {
-  // Fetch assigned accounts for this company
-  const { data: assignedAccounts } = await supabaseAdmin
-    .from('company_bridge_accounts')
-    .select('bridge_account_id')
-    .eq('company_id', companyId);
-
-  // If no explicit assignments, return 0 (Option A: force user to configure)
-  if (!assignedAccounts || assignedAccounts.length === 0) {
-    return { assignedCount: 0, assignedBalance: 0 };
+async function recomputeCompanyStats(supabaseAdmin: any, companyId: string): Promise<void> {
+  const { error } = await supabaseAdmin.rpc('recompute_company_bank_stats', {
+    p_company_id: companyId,
+  });
+  if (error) {
+    console.error(`[bridge-sync] recompute_company_bank_stats failed for ${companyId}:`, error);
   }
-
-  // Filter accounts to only those assigned
-  const assignedAccountIds = new Set(
-    assignedAccounts.map((a: { bridge_account_id: number }) => a.bridge_account_id)
-  );
-  const filteredAccounts = allAccounts.filter(a => assignedAccountIds.has(a.id));
-  const assignedBalance = filteredAccounts.reduce((sum, a) => sum + (a.balance || 0), 0);
-
-  return { 
-    assignedCount: filteredAccounts.length, 
-    assignedBalance 
-  };
 }
 
 // ============================================
