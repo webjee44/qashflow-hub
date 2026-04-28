@@ -1412,6 +1412,7 @@ export type Database = {
           forecast_percent: number
           icon: string
           id: string
+          is_vat_payment: boolean
           name: string
           parent_id: string | null
           sort_order: number | null
@@ -1428,6 +1429,7 @@ export type Database = {
           forecast_percent?: number
           icon?: string
           id?: string
+          is_vat_payment?: boolean
           name: string
           parent_id?: string | null
           sort_order?: number | null
@@ -1444,6 +1446,7 @@ export type Database = {
           forecast_percent?: number
           icon?: string
           id?: string
+          is_vat_payment?: boolean
           name?: string
           parent_id?: string | null
           sort_order?: number | null
@@ -1564,6 +1567,7 @@ export type Database = {
           organization_id: string | null
           updated_at: string | null
           user_id: string
+          vat_regime: string
         }
         Insert: {
           bank_balance?: number | null
@@ -1579,6 +1583,7 @@ export type Database = {
           organization_id?: string | null
           updated_at?: string | null
           user_id: string
+          vat_regime?: string
         }
         Update: {
           bank_balance?: number | null
@@ -1594,6 +1599,7 @@ export type Database = {
           organization_id?: string | null
           updated_at?: string | null
           user_id?: string
+          vat_regime?: string
         }
         Relationships: [
           {
