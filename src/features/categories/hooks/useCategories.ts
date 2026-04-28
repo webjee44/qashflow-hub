@@ -22,6 +22,8 @@ export interface Category {
   forecast_mode?: 'manual' | 'percent_of_revenue';
   forecast_percent?: number;
   is_system?: boolean;
+  /** True for the system "TVA à payer" category (one per company). */
+  is_vat_payment?: boolean;
 }
 
 export const SYSTEM_CATEGORY_INTERCOMPTE = 'Virement intercompte';
