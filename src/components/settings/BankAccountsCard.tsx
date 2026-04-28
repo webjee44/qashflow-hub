@@ -1141,6 +1141,7 @@ function BankAccountsList({
   accounts,
   assignments,
   companies,
+  companyNameById,
   companiesWithBridge,
   onToggle,
   onCompanyChange,
@@ -1153,6 +1154,7 @@ function BankAccountsList({
   accounts: BridgeAccount[];
   assignments: Map<number, AccountAssignment>;
   companies: { id: string; name: string }[];
+  companyNameById: Map<string, string>;
   companiesWithBridge: { id: string; name: string }[];
   onToggle: (bridgeAccountId: number, enabled: boolean) => void;
   onCompanyChange: (bridgeAccountId: number, companyId: string) => void;
