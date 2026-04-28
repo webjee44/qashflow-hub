@@ -149,7 +149,6 @@ export function SuggestAutomationDialog({
       setEditedPattern(localSuggestion.pattern);
       setSimilarTransactions(findSimilarTransactions(localSuggestion.pattern));
       setInitialLoading(false);
-      setIsEditingPattern(false);
       setShowAmountCondition(false);
       setAmountOperator('greater_than');
       setAmountValue('');
@@ -161,7 +160,7 @@ export function SuggestAutomationDialog({
       setSuggestion(null);
       setSimilarTransactions([]);
       setInitialLoading(false);
-      setIsEditingPattern(false);
+      
       setEditedPattern('');
       setShowAmountCondition(false);
       setAmountOperator('greater_than');
