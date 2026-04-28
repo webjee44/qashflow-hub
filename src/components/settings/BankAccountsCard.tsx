@@ -605,12 +605,17 @@ export function BankAccountsCard() {
         return;
       }
 
-      // Refetch companies to get latest bridge_user_uuid state
-      const { data: freshCompanies } = await supabase
+      // Refetch companies in the current organization to get latest bridge_user_uuid state
+      let freshCompaniesQuery = supabase
         .from('companies')
         .select('id, bridge_user_uuid')
-        .not('deleted_at', 'is', null)
-        .or('deleted_at.is.null');
+        .is('deleted_at', null);
+
+      if (currentOrganization?.id) {
+        freshCompaniesQuery = freshCompaniesQuery.eq('organization_id', currentOrganization.id);
+      }
+
+      const { data: freshCompanies } = await freshCompaniesQuery;
       
       // Get fresh bridge_user_uuid from refetched data
       let bridgeUserUuid = freshCompanies?.find(c => c.bridge_user_uuid)?.bridge_user_uuid || null;
@@ -630,7 +635,7 @@ export function BankAccountsCard() {
         bridgeUserUuid = createData.user.uuid;
         
         // Save the Bridge user UUID to the first company
-        const targetCompanyId = freshCompanies?.[0]?.id || companies[0]?.id;
+        const targetCompanyId = freshCompanies?.[0]?.id || allCompanies[0]?.id;
         if (targetCompanyId) {
           await supabase
             .from('companies')
