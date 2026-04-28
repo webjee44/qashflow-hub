@@ -454,6 +454,14 @@ Deno.serve(async (req) => {
           const allAccounts = await bridgeClient.fetchAllAccounts();
           const allItems = await bridgeClient.fetchAllItems();
 
+          // [BRIDGE-RAW-DUMP] Temporary diagnostic: log raw Bridge accounts for this user
+          console.info(`[bridge-raw-dump] user=${company.bridge_user_uuid} company=${company.id} count=${allAccounts.length}`);
+          for (const a of allAccounts as any[]) {
+            console.info(`[bridge-raw-dump] account id=${a.id} name="${a.name}" iban=${(a.iban || '').slice(-6)} balance=${a.balance} bank_id=${a.bank_id ?? a.item?.bank_id} item_id=${a.item_id ?? a.item?.id} type=${a.type}`);
+          }
+          console.info(`[bridge-raw-dump] items=${JSON.stringify((allItems as any[]).map(i => ({ id: i.id, bank_id: i.bank_id, status: i.status, status_message: i.status_code_description })))}`);
+
+
           // Sync bridge accounts to database (with bank names and status)
           await syncBridgeAccounts(
             supabaseAdmin,
