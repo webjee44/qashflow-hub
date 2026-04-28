@@ -1,94 +1,100 @@
-## Contexte du bug
+## Objectif
 
-Sur l'écran "Mes sociétés", **E-fumeur Internet** affiche `0,00 €` et **0 compte** alors que la table `company_bridge_accounts` contient bien **3 comptes assignés à cette société**.
+Ajouter sur la page **/groupe** un bouton "Actualiser les soldes" qui force Bridge à re-contacter les banques de toutes les sociétés du groupe, puis relit les soldes à jour. Sans toucher aux transactions, sans risque de saturation, avec cooldown.
 
-Toutes les autres sociétés de l'organisation (Cloud Vapor, Tradeflix, Vapostore Lanester/Vannes, Coachflix, Vapeflix) sont cohérentes parce qu'elles **possèdent leur propre `bridge_user_uuid`** : leurs comptes Bridge appartiennent à elles-mêmes ET sont assignés à elles-mêmes.
+## Cause racine du problème
 
-E-fumeur Internet est un cas particulier : elle est **propriétaire** d'un `bridge_user_uuid` (`d20d4144...`), mais ses 8 comptes Bridge ont tous été **réassignés à d'autres sociétés** (SAS Vapeclub, ZARA SARL d'autres organisations). À l'inverse, on lui a assigné 3 comptes appartenant à d'autres `bridge_user_uuid`.
+Aujourd'hui, les soldes affichés viennent de `bridge_accounts.balance`, mis à jour par :
+- le webhook Bridge (quand Bridge décide de sync avec la banque, ~1-4×/jour)
+- nos appels `get-accounts` qui ne font que **relire le cache Bridge**
 
-## Cause racine
+Personne ne déclenche jamais `POST /v3/aggregation/items/{item_id}/refresh`, le seul endpoint qui force Bridge à re-contacter la banque maintenant. D'où la sensation "solde du matin".
 
-Les colonnes dénormalisées `companies.bank_balance` et `companies.bridge_accounts_count` sont calculées avec un modèle **bridge-owner-centric** qui n'est plus la source de vérité depuis l'introduction de `company_bridge_accounts` (mémoire `company-balance-isolation-truth`).
+## Architecture proposée (réutilisable, propre, scalable)
 
-Concrètement, dans le code :
+### Couche 1 — `BridgeClient` (`supabase/functions/_shared/bridge-client.ts`)
 
-1. **`supabase/functions/bridge-sync/index.ts`** (`cron-sync` et `sync-accounts`)
-   - Itère uniquement sur les sociétés ayant un `bridge_user_uuid` non null (ligne 426-429).
-   - Calcule via `getAssignedAccountsStats(company_id, allAccounts)` où `allAccounts` provient du Bridge owner courant. Donc seuls les comptes du même bridge_user_uuid sont considérés.
-   - Conséquence : E-fumeur Internet est bien itérée (elle a un bridge_user_uuid), mais comme ses comptes Bridge sont assignés ailleurs, le résultat est `(0, 0)`. Et les comptes étrangers qui lui sont assignés ne sont jamais agrégés à son nom.
+Ajouter 2 méthodes génériques (utilisables aussi par d'autres flows futurs) :
 
-2. **`supabase/functions/bridge-webhook/index.ts`** (ligne 319-332)
-   - Agrège `bridge_accounts.balance` filtré par `bridge_accounts.company_id` (un champ legacy figé au moment de la création du compte) au lieu de passer par `company_bridge_accounts`.
+- `refreshItem(itemId: number): Promise<{ ok: boolean; status: number }>` — appelle `POST /v3/aggregation/items/{item_id}/refresh`
+- `refreshAllItems(): Promise<{ refreshed: number; skipped: number; errors: number }>` — itère sur `fetchAllItems()`, refresh ceux dont `status === 0` (ok), skip les `needs_action`/`error`/`deleted`. Parallélisation via `Promise.allSettled`.
 
-3. **`supabase/functions/bridge-accounts/index.ts`** (ligne 80-94)
-   - Écrit `bank_balance = totalBalance` (somme totale des comptes du Bridge owner) sans tenir compte des assignations. C'est complètement incorrect dès qu'une société a plusieurs comptes mais n'en assigne qu'une partie.
+### Couche 2 — Nouvelle edge function `bridge-refresh-balances`
 
-Bref, la définition "balance d'une société" est implémentée à 3 endroits avec 3 logiques différentes, dont aucune n'est alignée sur la source de vérité `company_bridge_accounts`.
+Endpoint dédié, scope soldes uniquement, **pas de sync transactions** :
 
-## Solution proposée — Source de vérité unique
-
-### 1. Centraliser le calcul dans une fonction SQL
-
-Créer une fonction Postgres `public.recompute_company_bank_stats(p_company_id uuid)` (SECURITY DEFINER) qui :
-- Lit toutes les lignes `company_bridge_accounts` pour `p_company_id`.
-- Joint sur `bridge_accounts.balance`.
-- Met à jour `companies.bank_balance`, `bank_balance_updated_at`, `bridge_accounts_count` en une seule requête atomique.
-
-```sql
-UPDATE companies SET
-  bank_balance = COALESCE(SUM(ba.balance), 0),
-  bridge_accounts_count = COUNT(*),
-  bank_balance_updated_at = now()
-FROM company_bridge_accounts cba
-LEFT JOIN bridge_accounts ba ON ba.bridge_account_id = cba.bridge_account_id
-WHERE cba.company_id = p_company_id AND companies.id = p_company_id;
+```
+POST bridge-refresh-balances
+body: { company_ids: uuid[] }
 ```
 
-(version réelle : recalculer même si zéro assignation pour bien retomber à 0).
+Logique :
+1. Auth user + check `has_company_access` pour chaque company_id
+2. Pour chaque company → récupérer son `bridge_user_uuid`
+3. **Dédoublonnage** : grouper par `bridge_user_uuid` (un user Bridge peut couvrir plusieurs sociétés)
+4. Pour chaque user Bridge unique → `bridgeClient.refreshAllItems()`
+5. Attendre ~4s (`await new Promise(r => setTimeout(r, 4000))`)
+6. Pour chaque user Bridge → `fetchAllAccounts()` et upsert dans `bridge_accounts` (le trigger DB `recompute_company_bank_stats` fait le reste)
+7. Renvoyer `{ refreshed_items, refreshed_accounts, companies_updated }`
 
-### 2. Trigger automatique
+Pourquoi une nouvelle function et pas étendre `bridge-accounts` ? Parce que c'est une opération multi-société, multi-bridge-user, avec scope clair "refresh + relecture soldes". Ça mérite son propre endpoint testable.
 
-Créer un trigger `AFTER INSERT/UPDATE/DELETE` sur :
-- `company_bridge_accounts` → recompute pour `OLD.company_id` et `NEW.company_id`
-- `bridge_accounts` (sur changement de `balance`) → recompute pour toutes les sociétés assignées à ce compte
+### Couche 3 — Hook front `useGroupRefreshBalances`
 
-Ainsi, **toute mutation de la source de vérité réconcilie automatiquement la donnée dénormalisée**. Plus besoin que chaque edge function se rappelle de faire le calcul.
+Nouveau hook dans `src/hooks/useGroupRefreshBalances.ts` :
 
-### 3. Nettoyer les écritures legacy dans les edge functions
+```ts
+{
+  refresh: () => Promise<void>,
+  isRefreshing: boolean,
+  cooldownRemainingMs: number,  // 0 si dispo
+  lastRefreshAt: Date | null,
+}
+```
 
-- **`bridge-sync/index.ts`** : remplacer les deux blocs `update({ bank_balance, bridge_accounts_count })` (lignes ~483 et ~650) par un appel à `supabase.rpc('recompute_company_bank_stats', { p_company_id })`. La fonction `getAssignedAccountsStats` peut être supprimée (elle dupliquait le calcul côté JS).
-- **`bridge-webhook/index.ts`** (ligne 318-332) : remplacer l'agrégation manuelle par un appel à `recompute_company_bank_stats` pour **toutes** les sociétés assignées à `account_id` (via `company_bridge_accounts`), pas seulement `company_id`.
-- **`bridge-accounts/index.ts`** (ligne 84-94) : supprimer purement l'écriture de `bank_balance` (le calcul est déjà fait par le trigger sur `bridge_accounts`).
+- Cooldown 5 min via `localStorage` clé `group_last_manual_refresh`
+- Invalide les queries `['group_balances']` et `['bank_balance']` après succès
+- Toast succès : *"Synchro déclenchée auprès de vos banques. Les nouveaux soldes peuvent prendre 1 à 2 minutes."*
+- Toast cooldown : *"Synchro déjà déclenchée il y a moins de 5 minutes."*
+- Toast erreur partielle : *"X banque(s) n'ont pas pu être actualisées."*
 
-### 4. Migration de réconciliation one-shot
+### Couche 4 — UI `GroupOverview.tsx`
 
-Dans la même migration SQL, exécuter `recompute_company_bank_stats(id)` pour **toutes les sociétés non supprimées**. Cela corrige immédiatement E-fumeur Internet (et toute autre société dans le même cas latent).
+Bouton dans le header (à côté de `PageHeader`) :
+- Icône `RefreshCw` + label "Actualiser les soldes"
+- Spinner + désactivé pendant `isRefreshing`
+- Tooltip pendant cooldown : *"Disponible dans Xm Ys"*
+- Sous-texte discret sous le hero card : *"Dernière actualisation manuelle : il y a Xmin"* (si `lastRefreshAt`)
 
-### 5. Étendre le cron-sync
+## Fichiers touchés
 
-Aujourd'hui `cron-sync` n'itère que sur les sociétés ayant un `bridge_user_uuid`. Les sociétés satellites (qui reçoivent uniquement des comptes assignés) ne sont jamais "touchées" directement, mais grâce au trigger sur `bridge_accounts`, leur balance sera mise à jour dès qu'un compte source est rafraîchi. Aucun changement de structure du cron n'est nécessaire — juste s'assurer que `recompute_company_bank_stats` est bien déclenchée.
+- `supabase/functions/_shared/bridge-client.ts` — `refreshItem` + `refreshAllItems`
+- `supabase/functions/bridge-refresh-balances/index.ts` — nouvelle edge function
+- `supabase/functions/_shared/validation.ts` — schéma Zod du body
+- `src/hooks/useGroupRefreshBalances.ts` — nouveau hook
+- `src/pages/GroupOverview.tsx` — bouton + sous-texte
+- `supabase/functions/_shared/tests/bridge-client.test.ts` — test `refreshItem` (mock fetch)
 
-## Détails techniques (pour revue)
+## Garde-fous anti-bazar
 
-**Fichiers modifiés** :
-- `supabase/migrations/<timestamp>_recompute_company_bank_stats.sql` (nouveau)
-  - CREATE FUNCTION `recompute_company_bank_stats(uuid)`
-  - CREATE TRIGGERS sur `company_bridge_accounts` et `bridge_accounts`
-  - UPDATE one-shot pour réconcilier toutes les sociétés existantes
-- `supabase/functions/bridge-sync/index.ts` : remplacer 2× les updates de balance par RPC, supprimer `getAssignedAccountsStats`
-- `supabase/functions/bridge-webhook/index.ts` : remplacer l'agrégation par RPC sur toutes les sociétés assignées
-- `supabase/functions/bridge-accounts/index.ts` : supprimer l'écriture de `bank_balance` (trigger s'en charge)
+| Risque | Mitigation |
+|---|---|
+| Spam clic | Cooldown 5 min localStorage |
+| Rate limit Bridge | Refresh dédoublonné par `bridge_user_uuid`, pas par société |
+| Surcharge DB | Pas de full-sync transactions, juste upsert `bridge_accounts` (trigger recompute déjà optimisé) |
+| Promesse trompeuse | Toast explicite "1 à 2 minutes" |
+| Items HS | Skip silencieux des items en erreur, comptés dans le retour |
+| Timeout edge function | `Promise.allSettled`, pas de `Promise.all` qui kill au premier échec |
 
-**Aucun changement frontend** — `useCompany` lit déjà les colonnes dénormalisées, qui deviendront fiables.
+## Hors scope (volontairement)
 
-## Bénéfices
+- Pas de bouton refresh par société individuelle (déjà sur Dashboard via `BankAccounts.tsx`, qu'on traitera après si besoin avec la même API)
+- Pas de webhook custom — le webhook Bridge existant fera son job en parallèle si la banque répond
+- Pas de stockage `last_manual_refresh_at` en DB — pas nécessaire pour un cooldown UX
 
-- **Une seule source de vérité** : `company_bridge_accounts` + trigger.
-- **Zéro dette** : on supprime 3 implémentations divergentes au lieu d'en patcher une.
-- **Auto-réconciliation** : impossible de désynchroniser à l'avenir, même si on ajoute un nouveau flux d'assignation.
-- **E-fumeur Internet** affichera `cba_count` (3) comptes et la somme correcte des balances dès l'application de la migration.
-- Aligné avec les mémoires existantes `company-balance-isolation-truth` et `bank-account-visibility-isolation`.
+## Question avant de coder
 
-## Question
-
-Souhaites-tu également que j'ajoute une **vérification de cohérence** (edge function diagnostique ou job nightly) qui logge les sociétés où `bridge_accounts_count` divergerait de `(SELECT COUNT(*) FROM company_bridge_accounts WHERE company_id = ...)` ? Avec le trigger ce ne devrait plus jamais arriver, mais c'est une ceinture+bretelles utile en prod.
+Le cooldown : je pars sur **5 minutes localStorage**. Tu préfères :
+- **5 min** (raisonnable, évite le spam, suffisant pour Bridge propager)
+- **2 min** (plus permissif)  
+- **Pas de cooldown** mais bouton désactivé pendant la requête uniquement
