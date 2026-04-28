@@ -6,6 +6,11 @@ import { logError, logInfo } from '@/lib/logger';
 
 const COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
 const STORAGE_KEY = 'group_last_manual_balance_refresh';
+// Persisted flag: last attempt resulted in 100% Bridge errors (typically 403 —
+// the connected bank does not allow on-demand refresh on the current Bridge
+// plan). We hide the button until either Bridge config changes or any future
+// attempt succeeds. We never hardcode this — it is derived from real results.
+const UNSUPPORTED_KEY = 'group_manual_refresh_unsupported';
 
 interface RefreshResult {
   refreshed_users: number;
