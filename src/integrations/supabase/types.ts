@@ -2555,6 +2555,10 @@ export type Database = {
         Returns: boolean
       }
       is_superadmin: { Args: { _user_id: string }; Returns: boolean }
+      recompute_company_bank_stats: {
+        Args: { p_company_id: string }
+        Returns: undefined
+      }
       remove_organization_member: {
         Args: { _org_id: string; _user_id: string }
         Returns: boolean

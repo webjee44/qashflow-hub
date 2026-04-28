@@ -55,35 +55,19 @@ async function getAccountToCompanyMap(
 }
 
 // ============================================
-// Helper: Calculate assigned balance and count
+// Helper: Recompute company bank stats via RPC
+// ----
+// Single source of truth: company_bridge_accounts JOIN bridge_accounts.
+// The DB function + triggers handle the actual computation; we just trigger
+// it explicitly here to guarantee freshness right after a sync.
 // ============================================
-async function getAssignedAccountsStats(
-  supabaseAdmin: any,
-  companyId: string,
-  allAccounts: BridgeAccount[]
-): Promise<{ assignedCount: number; assignedBalance: number }> {
-  // Fetch assigned accounts for this company
-  const { data: assignedAccounts } = await supabaseAdmin
-    .from('company_bridge_accounts')
-    .select('bridge_account_id')
-    .eq('company_id', companyId);
-
-  // If no explicit assignments, return 0 (Option A: force user to configure)
-  if (!assignedAccounts || assignedAccounts.length === 0) {
-    return { assignedCount: 0, assignedBalance: 0 };
+async function recomputeCompanyStats(supabaseAdmin: any, companyId: string): Promise<void> {
+  const { error } = await supabaseAdmin.rpc('recompute_company_bank_stats', {
+    p_company_id: companyId,
+  });
+  if (error) {
+    console.error(`[bridge-sync] recompute_company_bank_stats failed for ${companyId}:`, error);
   }
-
-  // Filter accounts to only those assigned
-  const assignedAccountIds = new Set(
-    assignedAccounts.map((a: { bridge_account_id: number }) => a.bridge_account_id)
-  );
-  const filteredAccounts = allAccounts.filter(a => assignedAccountIds.has(a.id));
-  const assignedBalance = filteredAccounts.reduce((sum, a) => sum + (a.balance || 0), 0);
-
-  return { 
-    assignedCount: filteredAccounts.length, 
-    assignedBalance 
-  };
 }
 
 // ============================================
@@ -472,24 +456,19 @@ Deno.serve(async (req) => {
             allItems
           );
 
-          // Calculate balance and count based on assigned accounts only
-          const { assignedCount, assignedBalance } = await getAssignedAccountsStats(
-            supabaseAdmin,
-            company.id,
-            allAccounts
-          );
+          // Calculate balance and count from the single source of truth
+          // (company_bridge_accounts). The trigger on bridge_accounts already
+          // ran during syncBridgeAccounts above, but we recompute explicitly
+          // for resilience and to update bank_balance_updated_at.
+          await recomputeCompanyStats(supabaseAdmin, company.id);
 
-          // Update company with assigned accounts stats
-          await supabaseAdmin
+          const { data: refreshed } = await supabaseAdmin
             .from('companies')
-            .update({ 
-              bank_balance: assignedBalance,
-              bank_balance_updated_at: new Date().toISOString(),
-              bridge_accounts_count: assignedCount
-            })
-            .eq('id', company.id);
+            .select('bank_balance, bridge_accounts_count')
+            .eq('id', company.id)
+            .single();
 
-          console.info(`[bridge-sync] Company ${company.id}: ${assignedCount} assigned accounts, balance: ${assignedBalance.toLocaleString('fr-FR')}€`);
+          console.info(`[bridge-sync] Company ${company.id}: ${refreshed?.bridge_accounts_count ?? 0} assigned accounts, balance: ${Number(refreshed?.bank_balance ?? 0).toLocaleString('fr-FR')}€`);
 
           // Cutoff: never go further back than (company.created_at - 1 month buffer).
           // For older companies the since_days window naturally caps the history.
@@ -637,30 +616,22 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Calculate balance and count based on assigned accounts only
-      const { assignedCount, assignedBalance } = await getAssignedAccountsStats(
-        supabaseAdmin,
-        company_id,
-        allAccounts
-      );
+      // Recompute company stats from the single source of truth
+      // (company_bridge_accounts). Triggers already maintain consistency on
+      // assignment changes, but we trigger explicitly here to refresh
+      // bank_balance_updated_at after a manual sync.
+      await recomputeCompanyStats(supabaseAdmin, company_id);
+
+      const { data: refreshedCompany } = await supabaseAdmin
+        .from('companies')
+        .select('bank_balance, bridge_accounts_count')
+        .eq('id', company_id)
+        .single();
+
+      const assignedCount = refreshedCompany?.bridge_accounts_count ?? 0;
+      const assignedBalance = Number(refreshedCompany?.bank_balance ?? 0);
 
       console.info(`[bridge-sync] Assigned accounts: ${assignedCount}, balance: ${assignedBalance.toLocaleString('fr-FR')}€`);
-
-      // Update company with assigned accounts stats
-      const { error: updateError } = await supabaseAdmin
-        .from('companies')
-        .update({ 
-          bank_balance: assignedBalance,
-          bank_balance_updated_at: new Date().toISOString(),
-          bridge_accounts_count: assignedCount
-        })
-        .eq('id', company_id);
-
-      if (updateError) {
-        console.error('[bridge-sync] Failed to update company balance:', updateError);
-      } else {
-        console.info('[bridge-sync] Company balance updated successfully');
-      }
 
       if (action === 'sync-accounts') {
         return successResponse({

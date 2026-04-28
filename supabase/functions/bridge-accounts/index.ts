@@ -81,17 +81,11 @@ Deno.serve(async (req) => {
       const allAccounts = await bridgeClient.fetchAllAccounts();
       const totalBalance = bridgeClient.calculateTotalBalance(allAccounts);
 
-      // Update company balance if company_id provided
-      if (company_id) {
-        const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
-        await supabaseAdmin
-          .from('companies')
-          .update({ 
-            bank_balance: totalBalance,
-            bank_balance_updated_at: new Date().toISOString()
-          })
-          .eq('id', company_id);
-      }
+      // NOTE: We deliberately do NOT write companies.bank_balance here.
+      // The single source of truth is company_bridge_accounts JOIN bridge_accounts,
+      // and DB triggers (recompute_company_bank_stats) keep the denormalized
+      // columns in sync. Writing the raw Bridge total here would corrupt the
+      // value for any company that doesn't own all of its Bridge accounts.
 
       return successResponse({ 
         accounts: allAccounts,
