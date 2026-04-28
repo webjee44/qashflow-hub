@@ -48,16 +48,6 @@ interface BankGroup {
   bridgeUserUuid: string;
 }
 
-interface BankGroup {
-  bankName: string;
-  accounts: BridgeAccount[];
-  totalBalance: number;
-  itemStatus: ItemStatus | null;
-  itemStatusMessage: string | null;
-  bridgeItemId: number;
-  bridgeUserUuid: string;
-}
-
 // Helper to get worst status
 function getWorstStatus(a: ItemStatus | null, b: ItemStatus | null): ItemStatus | null {
   if (a === 'error' || a === 'deleted' || b === 'error' || b === 'deleted') return 'error';
@@ -141,6 +131,12 @@ interface AccountAssignment {
   is_enabled: boolean;
 }
 
+interface OrgCompanyOption {
+  id: string;
+  name: string;
+  bridge_user_uuid: string | null;
+}
+
 export function BankAccountsCard() {
   const { companies, currentCompany, refetch: refetchCompanies } = useCompany();
   const { isOwner, isAdmin, currentOrganization } = useOrganization();
@@ -161,7 +157,7 @@ export function BankAccountsCard() {
   }, [companies, resolvedCompanies]);
 
   // Liste des sociétés sélectionnables dans le dropdown (org courante uniquement)
-  const [orgCompanies, setOrgCompanies] = useState<Array<{ id: string; name: string }>>([]);
+  const [orgCompanies, setOrgCompanies] = useState<OrgCompanyOption[]>([]);
 
   useEffect(() => {
     const loadOrgCompanies = async () => {
@@ -171,7 +167,7 @@ export function BankAccountsCard() {
       }
       const { data, error } = await supabase
         .from('companies')
-        .select('id, name')
+        .select('id, name, bridge_user_uuid')
         .eq('organization_id', currentOrganization.id)
         .is('deleted_at', null)
         .order('name');
@@ -180,7 +176,7 @@ export function BankAccountsCard() {
         setOrgCompanies(companies.map(c => ({ id: c.id, name: c.name })));
         return;
       }
-      setOrgCompanies(data || []);
+      setOrgCompanies((data || []) as OrgCompanyOption[]);
       // Alimente aussi la résolution des noms
       setResolvedCompanies(prev => {
         const next = new Map(prev);
@@ -191,7 +187,10 @@ export function BankAccountsCard() {
     loadOrgCompanies();
   }, [currentOrganization?.id, companies]);
 
-  const allCompanies = orgCompanies.length > 0 ? orgCompanies : companies.map(c => ({ id: c.id, name: c.name }));
+  const allCompanies = orgCompanies.length > 0
+    ? orgCompanies
+    : companies.map(c => ({ id: c.id, name: c.name, bridge_user_uuid: c.bridge_user_uuid }));
+  const orgCompanyIds = useMemo(() => allCompanies.map(c => c.id), [allCompanies]);
 
   const [accounts, setAccounts] = useState<BridgeAccount[]>([]);
   const [assignments, setAssignments] = useState<Map<number, AccountAssignment>>(new Map());
