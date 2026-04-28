@@ -1,101 +1,94 @@
-## Objectif
+Voici ce que j’ai vérifié dans la base et ce que je propose de corriger proprement.
 
-Calculer automatiquement la **TVA à décaisser** dans les Prévisions, en respectant la règle métier française (TVA de M payée en M+1, régime réel mensuel), **sans jamais doublonner** avec le prélèvement DGFIP réel — qui sera catégorisé via une règle d'automation dédiée.
+## Constat vérifié
 
-## Architecture
+Sur le groupe **GROUPE TRADEFLIX**, il y a actuellement **12 comptes bancaires assignés aux sociétés du groupe** via la table de liaison qui fait foi (`company_bridge_accounts`).
 
-### 1. Catégorie système "TVA à payer"
+Répartition :
 
-- Nouvelle colonne `categories.is_vat_payment boolean default false`
-- Catégorie créée automatiquement pour toute société (migration rétroactive + ajout dans `handle_new_user()`)
-- Type `expense`, `vat_rate = 0`, icône dédiée, non supprimable côté UI
-- **Une seule** par société (contrainte unique partielle `WHERE is_vat_payment`)
+- Cloud Vapor : 2 comptes
+- Coachflix : 1 compte
+- E-fumeur Internet : 3 comptes
+- Tradeflix : 2 comptes
+- Vapeflix : 1 compte
+- Vapostore Lanester : 2 comptes
+- Vapostore Vannes : 1 compte
 
-### 2. Régime de TVA au niveau société
+Total assigné groupe : **12 comptes**.
 
-- Nouvelle colonne `companies.vat_regime text default 'monthly_real'`
-- V1 supportée : `monthly_real` (paiement M+1) et `franchise` (pas de TVA)
-- Sélecteur dans **Paramètres > Société**
-- Trimestriel/simplifié signalés "à venir" (fallback monthly_real)
+Sur ta capture, on ne voit que **7 comptes**, et ce ne sont pas les bons :
 
-### 3. Helper pur `forecastVat.ts`
+- 2 comptes “Compte Cheques 1”
+- 2 comptes “Compte De Chèques …”
+- 3 comptes Vapeclub
 
-```ts
-getVatPayment(month, regime, getNetVatForecast, vatCreditCarry) →
-  { payment: number, newCarry: number }
-```
+Donc non : **tous les comptes du groupe Tradeflix ne sont pas affichés**, et **Vapeclub n’a effectivement rien à faire ici**.
 
-- `monthly_real` : `payment = max(0, NetVat(M-1) - carry)` ; si négatif → carry s'accumule
-- `franchise` : toujours 0
-- 100% testable, sans I/O
+## Cause racine
 
-### 4. Intégration dans `useForecasts.ts`
+Le composant des paramètres bancaires charge les comptes à partir de `companies.bridge_user_uuid`.
 
-Nouveau dérivé `getVatPaymentLine(month)` qui applique la règle **actual écrase forecast** déjà en vigueur partout dans le produit :
+Or dans les données :
 
-```
-actual(M) = somme transactions catégorisées is_vat_payment sur M
-forecast(M) = getVatPayment(M, regime, ...)
+- dans le groupe Tradeflix, une société (`E-fumeur Internet`) porte par erreur / historiquement le `bridge_user_uuid` `d20d...`
+- ce même `bridge_user_uuid` correspond à des comptes Vapeclub et ZARA
+- le vrai périmètre métier du groupe Tradeflix est pourtant déjà représenté correctement par `company_bridge_accounts`
 
-displayed(M) = actual(M) si M ≤ moisCourant et actual > 0
-            sinon forecast(M)
-```
+Donc l’UI affiche des comptes “visibles par Bridge user”, au lieu d’afficher les comptes réellement assignés aux sociétés de l’organisation.
 
-Aucune logique nouvelle : c'est exactement le contrat `actuals consistency` appliqué à une catégorie de plus.
+C’est exactement la dérive qu’on voulait éviter : la source technique Bridge pollue le périmètre métier.
 
-### 5. Affichage dans `ForecastTable.tsx`
+## Correction proposée
 
-La ligne "TVA à décaisser" actuelle (L1697-1747) cesse d'être informative et **devient une vraie sortie de cash** intégrée dans `getDisplayedNetVariation`. Visuellement alignée avec les autres dépenses, non éditable, avec icône info expliquant la règle.
+### 1. Remettre la source de vérité au bon endroit
 
-### 6. Suppression du double comptage
+Dans `BankAccountsCard`, remplacer la logique principale de chargement :
 
-`forecastDisplayTotals.ts` : retirer le commentaire "non comptée dans les flux" (L15-20) et inclure `vatPayment(M)` dans la variation nette. Le solde projeté reflète enfin la vraie sortie TVA.
+- ne plus afficher les comptes à partir de tous les `bridge_user_uuid` présents sur les sociétés de l’org
+- charger d’abord toutes les sociétés de l’organisation courante
+- charger ensuite les assignations `company_bridge_accounts` de ces sociétés
+- afficher les `bridge_accounts` correspondant à ces assignations
 
-### 7. UX automation pour DGFIP
+Résultat attendu : sur GROUPE TRADEFLIX, l’écran affichera les **12 comptes assignés au groupe**, pas les comptes Vapeclub/ZARA liés au mauvais `bridge_user_uuid`.
 
-Pas de code spécial — l'UI d'automation existe déjà. L'utilisateur :
-1. Va dans Automations
-2. Crée la règle "Description contient DGFIP → TVA à payer"
-3. Clique "Appliquer aux transactions existantes" (bouton existant)
+### 2. Garder les comptes non assignés uniquement dans un espace de configuration contrôlé
 
-Tous les anciens prélèvements basculent vers la bonne catégorie en un clic.
+Pour ne pas perdre la capacité d’assigner de nouveaux comptes après une synchronisation, je conserverai une logique propre :
 
-## Fichiers impactés
+- comptes assignés à l’organisation : affichés normalement
+- comptes non assignés mais issus d’une connexion bancaire explicitement reliée à l’organisation : affichables comme “Non assigné”
+- comptes déjà assignés à une autre organisation : exclus de l’écran
 
-**Migration**
-- `supabase/migrations/<ts>_add_vat_automation.sql`
-  - `ALTER TABLE categories ADD COLUMN is_vat_payment boolean default false`
-  - `ALTER TABLE companies ADD COLUMN vat_regime text default 'monthly_real'`
-  - `CREATE UNIQUE INDEX ... ON categories (company_id) WHERE is_vat_payment`
-  - `INSERT` catégorie "TVA à payer" pour toutes les sociétés existantes
-  - Modifier `handle_new_user()` pour créer la catégorie à chaque nouveau compte
+Cela évite que Vapeclub apparaisse dans Tradeflix tout en gardant la possibilité d’assigner de nouveaux comptes légitimes.
 
-**Logique pure (testée)**
-- `src/lib/forecastVat.ts` (nouveau)
-- `src/lib/forecastVat.test.ts` (nouveau) — cas mensuel, crédit reporté, franchise, actual écrase forecast
+### 3. Corriger la mise à jour des compteurs et soldes
 
-**Hooks / composants**
-- `src/hooks/useForecasts.ts` — exposer `getVatPaymentLine(month)`
-- `src/lib/forecastDisplayTotals.ts` — inclure vatPayment dans la variation nette
-- `src/components/forecasts/ForecastTable.tsx` — réécriture ligne TVA (L1697-1747)
-- `src/components/forecasts/ForecastChart.tsx` — utiliser `vatPayment` à la place de `netVat`
-- `src/pages/Settings.tsx` — sélecteur "Régime de TVA"
+Le bouton “Enregistrer” met actuellement à jour les compteurs seulement pour `companies` du hook courant, ce qui peut être incomplet ou incohérent.
 
-**Mémoire**
-- `mem://features/treasury/cash-flow-standard` — documenter dérivation TVA M+1
-- Nouveau `mem://features/treasury/vat-payment-derivation` — règle complète
+Je vais le faire recalculer sur la liste complète des sociétés de l’organisation affichée, à partir de `company_bridge_accounts`.
 
-## Garanties anti-régression
+### 4. Nettoyer l’affichage société
 
-- **Zéro doublon** : la ligne dérivée alimente uniquement la catégorie `is_vat_payment` ; "Impôts et taxes" reste séparé pour IS/CFE
-- **Actual prime** : règle déjà en place ailleurs, on l'applique sans exception
-- **Crédit TVA** : géré par `vatCreditCarry` cumulatif, pas de cas particulier
-- **Sociétés en franchise** : ligne masquée/à zéro, aucun impact
-- **Tests unitaires** sur tous les cas de figure avant merge
-- **Aucune valeur en dur**, aucune duplication de logique, aucun patch local
+Le sélecteur utilisera uniquement les sociétés de l’organisation courante comme destinations possibles.
 
-## Estimation
+Si un compte est assigné à une société hors organisation, il ne doit pas apparaître dans cet écran. C’est plus sain que d’afficher “Société inconnue”.
 
-Une itération propre : migration + helper testé + intégration + UX paramètres.
+## Impact attendu
 
-Je suis prêt à implémenter. Tu approuves ?
+Après correction :
+
+- GROUPE TRADEFLIX affiche les 12 comptes du groupe
+- les comptes Vapeclub disparaissent de l’écran Tradeflix
+- les comptes restent assignables aux bonnes sociétés du groupe
+- `company_bridge_accounts` reste la source de vérité unique
+- on évite un patch local ou une exclusion en dur de Vapeclub
+
+## Validation prévue
+
+Après implémentation, je vérifierai :
+
+- que la requête de données renvoie bien 12 comptes pour GROUPE TRADEFLIX
+- que Vapeclub n’est plus présent dans `/parametres#accounts` côté Tradeflix
+- que les sociétés dans le sélecteur correspondent uniquement aux sociétés du groupe
+- que la sauvegarde d’assignation continue de fonctionner sans supprimer des assignations hors périmètre
+- que les tests existants passent si disponibles
