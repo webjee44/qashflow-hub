@@ -134,11 +134,41 @@ export const TransactionTable = memo(function TransactionTable({
                 }}
               />
             </div>
-            <div>Date</div>
-            <div>Libellé</div>
+            <button
+              type="button"
+              onClick={() => handleSort('date')}
+              className={cn(
+                'flex items-center gap-1.5 text-left hover:text-foreground transition-colors',
+                getSortState(sortOption, 'date') !== null && 'text-foreground'
+              )}
+            >
+              Date
+              <SortIcon state={getSortState(sortOption, 'date')} />
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSort('name')}
+              className={cn(
+                'flex items-center gap-1.5 text-left hover:text-foreground transition-colors',
+                getSortState(sortOption, 'name') !== null && 'text-foreground'
+              )}
+            >
+              Libellé
+              <SortIcon state={getSortState(sortOption, 'name')} />
+            </button>
             <div>Banque</div>
             <div>Catégorie</div>
-            <div className="text-right">Montant TTC</div>
+            <button
+              type="button"
+              onClick={() => handleSort('amount')}
+              className={cn(
+                'flex items-center justify-end gap-1.5 hover:text-foreground transition-colors',
+                getSortState(sortOption, 'amount') !== null && 'text-foreground'
+              )}
+            >
+              Montant TTC
+              <SortIcon state={getSortState(sortOption, 'amount')} />
+            </button>
             <div></div>
           </div>
 
