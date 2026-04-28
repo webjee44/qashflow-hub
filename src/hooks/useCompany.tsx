@@ -5,6 +5,8 @@ import { useAuth } from './useAuth';
 import { useOrganization } from './useOrganization';
 import { toast } from 'sonner';
 
+export type VatRegime = 'monthly_real' | 'quarterly_real' | 'simplified' | 'franchise';
+
 export interface Company {
   id: string;
   user_id: string;
@@ -16,6 +18,7 @@ export interface Company {
   bank_balance_updated_at: string | null;
   bridge_user_uuid: string | null;
   bridge_accounts_count: number;
+  vat_regime: VatRegime;
   created_at: string;
   updated_at: string;
 }
