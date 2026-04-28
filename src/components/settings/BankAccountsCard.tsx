@@ -314,6 +314,33 @@ export function BankAccountsCard() {
     loadData();
   }, [bridgeUserUuids.join(','), isOrgAdmin, currentCompany?.id]);
 
+  // Résout les noms des sociétés référencées par les assignations qui ne sont pas
+  // déjà connues (cas super-admin / impersonation : comptes assignés à d'autres orgs).
+  useEffect(() => {
+    const referencedIds = new Set<string>();
+    assignments.forEach(a => {
+      if (a.company_id) referencedIds.add(a.company_id);
+    });
+    const missing = Array.from(referencedIds).filter(id => !companyNameById.has(id));
+    if (missing.length === 0) return;
+
+    (async () => {
+      const { data, error } = await supabase
+        .from('companies')
+        .select('id, name')
+        .in('id', missing);
+      if (error) {
+        logError('Failed to resolve referenced companies:', error);
+        return;
+      }
+      setResolvedCompanies(prev => {
+        const next = new Map(prev);
+        (data || []).forEach(c => next.set(c.id, c.name));
+        return next;
+      });
+    })();
+  }, [assignments, companyNameById]);
+
   // Auto-sync after Bridge connection (check localStorage flag)
   useEffect(() => {
     const pendingSync = localStorage.getItem('bridgePendingSync');
