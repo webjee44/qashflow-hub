@@ -1311,23 +1311,25 @@ function BankAccountsList({
                         </div>
                       </div>
 
-                      {/* Company selector - always enabled for admins so they can assign directly */}
-                      <div className="w-48">
+                      {/* Company selector */}
+                      <div className="w-56">
                         <Select
                           value={companyId}
                           onValueChange={(value) => onCompanyChange(account.bridge_account_id, value)}
                         >
                           <SelectTrigger className="bg-background">
-                            <SelectValue placeholder="Assigner à...">
-                              {companyId !== 'none' ? (
-                                <span className="flex items-center gap-2">
-                                  <Building2 className="w-3 h-3" />
-                                  {companies.find(c => c.id === companyId)?.name || 'Société'}
+                            {companyId !== 'none' ? (
+                              <span className="flex items-center gap-2 truncate">
+                                <Building2 className="w-3 h-3 flex-shrink-0" />
+                                <span className="truncate">
+                                  {companies.find(c => c.id === companyId)?.name ?? 'Société inconnue'}
                                 </span>
-                              ) : (
+                              </span>
+                            ) : (
+                              <SelectValue placeholder="Non assigné">
                                 <span className="text-muted-foreground">Non assigné</span>
-                              )}
-                            </SelectValue>
+                              </SelectValue>
+                            )}
                           </SelectTrigger>
                           <SelectContent className="bg-popover border-border z-50">
                             <SelectItem value="none">
