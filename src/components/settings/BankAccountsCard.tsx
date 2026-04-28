@@ -253,42 +253,6 @@ export function BankAccountsCard() {
           bridgeAccounts = (data || []) as BridgeAccount[];
         }
 
-        // Admins can also see unassigned accounts only when they come from a Bridge connection
-        // explicitly attached to a company in the current organization. Accounts already assigned
-        // to another organization are excluded by design.
-        if (isOrgAdmin && orgBridgeUserUuids.length > 0) {
-          const { data: connectionAccounts, error: connectionError } = await supabase
-            .from('bridge_accounts')
-            .select('id, bridge_account_id, bridge_item_id, name, iban, balance, account_type, bank_name, bridge_user_uuid, company_id, item_status, item_status_message')
-            .in('bridge_user_uuid', orgBridgeUserUuids);
-          if (connectionError) throw connectionError;
-
-          const scopedAssignmentIds = new Set(currentAssignments.map(a => a.bridge_account_id));
-          const alreadyAssignedElsewhereIds = new Set<number>();
-          const candidateUnassignedIds = (connectionAccounts || [])
-            .map(a => a.bridge_account_id)
-            .filter(id => !scopedAssignmentIds.has(id));
-
-          if (candidateUnassignedIds.length > 0) {
-            const { data: otherAssignments, error: otherAssignError } = await supabase
-              .from('company_bridge_accounts')
-              .select('bridge_account_id')
-              .in('bridge_account_id', candidateUnassignedIds);
-            if (otherAssignError) throw otherAssignError;
-            (otherAssignments || []).forEach(a => alreadyAssignedElsewhereIds.add(a.bridge_account_id));
-          }
-
-          const scopedCompanyIdSet = new Set(scopedCompanyIds);
-          const byId = new Map<number, BridgeAccount>();
-          bridgeAccounts.forEach(account => byId.set(account.bridge_account_id, account));
-          ((connectionAccounts || []) as BridgeAccount[])
-            .filter(account => !scopedAssignmentIds.has(account.bridge_account_id))
-            .filter(account => !alreadyAssignedElsewhereIds.has(account.bridge_account_id))
-            .filter(account => scopedCompanyIdSet.has(account.company_id))
-            .forEach(account => byId.set(account.bridge_account_id, account));
-          bridgeAccounts = Array.from(byId.values());
-        }
-
         setAccounts(bridgeAccounts);
 
         // Build assignments map
@@ -311,7 +275,7 @@ export function BankAccountsCard() {
     };
 
     loadData();
-  }, [isOrgAdmin, currentCompany?.id, orgCompanyIds.join(','), orgBridgeUserUuids.join(',')]);
+  }, [isOrgAdmin, currentCompany?.id, orgCompanyIds.join(',')]);
 
   // Résout les noms des sociétés référencées par les assignations qui ne sont pas
   // déjà connues (cas super-admin / impersonation : comptes assignés à d'autres orgs).
