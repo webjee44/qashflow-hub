@@ -456,24 +456,19 @@ Deno.serve(async (req) => {
             allItems
           );
 
-          // Calculate balance and count based on assigned accounts only
-          const { assignedCount, assignedBalance } = await getAssignedAccountsStats(
-            supabaseAdmin,
-            company.id,
-            allAccounts
-          );
+          // Calculate balance and count from the single source of truth
+          // (company_bridge_accounts). The trigger on bridge_accounts already
+          // ran during syncBridgeAccounts above, but we recompute explicitly
+          // for resilience and to update bank_balance_updated_at.
+          await recomputeCompanyStats(supabaseAdmin, company.id);
 
-          // Update company with assigned accounts stats
-          await supabaseAdmin
+          const { data: refreshed } = await supabaseAdmin
             .from('companies')
-            .update({ 
-              bank_balance: assignedBalance,
-              bank_balance_updated_at: new Date().toISOString(),
-              bridge_accounts_count: assignedCount
-            })
-            .eq('id', company.id);
+            .select('bank_balance, bridge_accounts_count')
+            .eq('id', company.id)
+            .single();
 
-          console.info(`[bridge-sync] Company ${company.id}: ${assignedCount} assigned accounts, balance: ${assignedBalance.toLocaleString('fr-FR')}€`);
+          console.info(`[bridge-sync] Company ${company.id}: ${refreshed?.bridge_accounts_count ?? 0} assigned accounts, balance: ${Number(refreshed?.bank_balance ?? 0).toLocaleString('fr-FR')}€`);
 
           // Cutoff: never go further back than (company.created_at - 1 month buffer).
           // For older companies the since_days window naturally caps the history.
