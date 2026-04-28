@@ -70,6 +70,13 @@ export const categoryApi = {
   },
 
   update: async (id: string, updates: Record<string, unknown>) => {
+    // Detect a transition to percent_of_revenue mode.
+    // When a category becomes "variable" (% of revenue), any pre-existing manual
+    // entries in category_forecasts would otherwise act as silent overrides and
+    // mask the auto-computed values (see mem://features/treasury/variable-forecasting-mode).
+    // To keep a single source of truth, we purge those stale overrides as part of the same operation.
+    const switchingToPercent = updates.forecast_mode === 'percent_of_revenue';
+
     const { data, error } = await supabase
       .from('categories')
       .update(updates as any)
@@ -78,6 +85,15 @@ export const categoryApi = {
       .single();
 
     if (error) throw error;
+
+    if (switchingToPercent) {
+      const { error: purgeError } = await supabase
+        .from('category_forecasts')
+        .delete()
+        .eq('category_id', id);
+      if (purgeError) throw purgeError;
+    }
+
     return data;
   },
 
