@@ -1,14 +1,33 @@
-import { memo, useRef, useCallback, useState, useEffect } from 'react';
+import { memo, useRef, useState, useEffect } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { motion } from 'framer-motion';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tables } from '@/integrations/supabase/types';
 import { Category } from '@/hooks/useCategories';
 import { TransactionTableRow } from './TransactionTableRow';
+import { ArrowUp, ArrowDown, ChevronsUpDown } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import type { SortOption } from '@/hooks/useTransactions';
 
 type Transaction = Tables<'transactions'>;
 
+type SortKey = 'date' | 'name' | 'amount';
+
+const SORT_MAP: Record<SortKey, { asc: SortOption; desc: SortOption }> = {
+  date: { asc: 'date_asc', desc: 'date_desc' },
+  name: { asc: 'name_asc', desc: 'name_desc' },
+  amount: { asc: 'amount_asc', desc: 'amount_desc' },
+};
+
+function getSortState(option: SortOption, key: SortKey): 'asc' | 'desc' | null {
+  if (option === SORT_MAP[key].asc) return 'asc';
+  if (option === SORT_MAP[key].desc) return 'desc';
+  return null;
+}
+
 interface TransactionTableProps {
+  sortOption: SortOption;
+  onSortChange: (option: SortOption) => void;
   transactions: Transaction[];
   selectedTransactionIds: Set<string>;
   onToggleSelection: (id: string) => void;
