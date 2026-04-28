@@ -702,7 +702,7 @@ export function BankAccountsCard() {
     }
   };
 
-  const handleFullSync = async () => {
+  const handleFullSync = async (options?: { sinceDays?: number; label?: string }) => {
     const companiesWithBridgeConnection = allCompanies.filter(c => c.bridge_user_uuid);
     
     if (companiesWithBridgeConnection.length === 0) {
@@ -719,6 +719,8 @@ export function BankAccountsCard() {
         return;
       }
 
+      if (options?.label) toast.info(options.label);
+
       let totalInserted = 0;
       let totalUpdated = 0;
       let totalAccounts = 0;
@@ -731,6 +733,7 @@ export function BankAccountsCard() {
             action: accounts.length === 0 ? 'sync-accounts' : 'full-sync',
             bridge_user_uuid: company.bridge_user_uuid,
             company_id: company.id,
+            ...(options?.sinceDays ? { since_days: options.sinceDays } : {}),
           },
         });
 
@@ -754,6 +757,11 @@ export function BankAccountsCard() {
       setIsSyncing(false);
     }
   };
+
+  const handleDeepHistorySync = () => handleFullSync({
+    sinceDays: 730,
+    label: 'Récupération de l\'historique complet (24 mois)... cela peut prendre 1 à 2 minutes.',
+  });
 
   const formatBalance = (balance: number | null) => {
     if (balance === null) return '-';
