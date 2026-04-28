@@ -997,6 +997,7 @@ export function BankAccountsCard() {
           accounts={displayedAccounts}
           assignments={assignments}
           companies={allCompanies}
+          companyNameById={companyNameById}
           companiesWithBridge={companiesWithBridge}
           onToggle={handleToggle}
           onCompanyChange={handleCompanyChange}
