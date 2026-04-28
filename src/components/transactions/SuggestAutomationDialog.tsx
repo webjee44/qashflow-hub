@@ -184,17 +184,8 @@ export function SuggestAutomationDialog({
     );
   }, [editedPattern, transaction?.id, allTransactions, showAmountCondition, amountOperator, amountValue]);
 
-  const handlePatternConfirm = () => {
-    if (suggestion && editedPattern.trim()) {
-      const newPattern = editedPattern.trim().toUpperCase();
-      setSuggestion({
-        ...suggestion,
-        pattern: newPattern,
-        ruleName: `Auto: ${category?.name || 'Catégorie'} - ${newPattern}`,
-      });
-      setIsEditingPattern(false);
-    }
-  };
+
+
 
   const handleCreateRule = async () => {
     if (!suggestion || !category) return;
