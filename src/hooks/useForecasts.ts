@@ -699,7 +699,8 @@ export function useForecasts() {
     return { balance: projectedBalance, isActual: false };
   }, [liveBankBalance, currentCompany, balanceSnapshots, getSnapshotForDate, getMonthNetForecast, getBalanceOverride]);
 
-  // Helper to get total income forecast (HT) for a month - used for variable charge tooltips
+  // Helper to get total income forecast (HT) for a month - used as the base for variable charge calculation.
+  // Calculation MUST stay on HT — see mem://features/treasury/cash-flow-standard.
   const getIncomeForecastTotal = useCallback((month: Date): number => {
     return categories
       .filter(c => c.type === 'income')
@@ -709,6 +710,19 @@ export function useForecasts() {
         return sum + toHt(forecast.expected_amount, forecast.amount_basis, c.vat_rate);
       }, 0);
   }, [categories, getStoredForecast]);
+
+  // Helper to get total income forecast (TTC) for a month — used purely for display in tooltips
+  // so that values shown stay consistent with the rest of the forecast grid (which is TTC).
+  const getIncomeForecastTotalTtc = useCallback((month: Date): number => {
+    return categories
+      .filter(c => c.type === 'income')
+      .reduce((sum, c) => {
+        const forecast = getStoredForecast(c.id, month);
+        if (!forecast) return sum;
+        return sum + toTtc(forecast.expected_amount, forecast.amount_basis, c.vat_rate);
+      }, 0);
+  }, [categories, getStoredForecast]);
+
 
   // Helper to calculate month net actual (real bank transactions) for a given month
   // Uses the same sources as the "Variation nette du mois" row in the forecast table
