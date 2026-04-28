@@ -74,7 +74,7 @@ export function SuggestAutomationDialog({
   const [appliedCount, setAppliedCount] = useState(0);
   const [suggestion, setSuggestion] = useState<SuggestionResult | null>(null);
   const [similarTransactions, setSimilarTransactions] = useState<Transaction[]>([]);
-  const [isEditingPattern, setIsEditingPattern] = useState(false);
+  
   const [editedPattern, setEditedPattern] = useState('');
   const [showAmountCondition, setShowAmountCondition] = useState(false);
   const [amountOperator, setAmountOperator] = useState('greater_than');
