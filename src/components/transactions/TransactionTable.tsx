@@ -48,6 +48,8 @@ interface TransactionTableProps {
 }
 
 export const TransactionTable = memo(function TransactionTable({
+  sortOption,
+  onSortChange,
   transactions,
   selectedTransactionIds,
   onToggleSelection,
@@ -66,6 +68,23 @@ export const TransactionTable = memo(function TransactionTable({
   formatDate,
 }: TransactionTableProps) {
   const parentRef = useRef<HTMLDivElement>(null);
+
+  const handleSort = (key: SortKey) => {
+    const current = getSortState(sortOption, key);
+    // Default direction by column: date desc, name asc, amount desc
+    const defaultDir: 'asc' | 'desc' = key === 'name' ? 'asc' : 'desc';
+    if (current === null) {
+      onSortChange(SORT_MAP[key][defaultDir]);
+    } else {
+      onSortChange(SORT_MAP[key][current === 'asc' ? 'desc' : 'asc']);
+    }
+  };
+
+  const SortIcon = ({ state }: { state: 'asc' | 'desc' | null }) => {
+    if (state === 'asc') return <ArrowUp className="w-3.5 h-3.5" />;
+    if (state === 'desc') return <ArrowDown className="w-3.5 h-3.5" />;
+    return <ChevronsUpDown className="w-3.5 h-3.5 opacity-40" />;
+  };
 
   // Highlight first uncategorized transaction's "Catégoriser" button after onboarding
   const [highlightFirstId, setHighlightFirstId] = useState<string | null>(null);
