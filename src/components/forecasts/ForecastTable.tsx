@@ -114,6 +114,7 @@ export const ForecastTable = forwardRef<ForecastTableRef>(function ForecastTable
     getNetVatActual,
     getUncategorized,
     getIncomeForecastTotal,
+    getIncomeForecastTotalTtc,
     getPayableOutflow,
     getPayableOutflowByCategory,
     getPayableOutflowUncategorized,
@@ -689,7 +690,7 @@ export const ForecastTable = forwardRef<ForecastTableRef>(function ForecastTable
 
     // Variable categories (percent_of_revenue): non-editable computed cells
     if (isVariable) {
-      const incomeForecastTotal = getIncomeForecastTotal(months[monthIndex]);
+      const incomeForecastTotalTtc = getIncomeForecastTotalTtc(months[monthIndex]);
       const forecastPercent = category.forecast_percent ?? 0;
       const hasOverride = isManualOverride(categoryId, months[monthIndex]);
       
@@ -706,9 +707,13 @@ export const ForecastTable = forwardRef<ForecastTableRef>(function ForecastTable
         clearForecastOverride.mutate({ categoryId, month: months[monthIndex] });
       };
 
+      // Tooltip stays in the TTC convention used everywhere in the forecast grid
+      // (see mem://features/treasury/cash-flow-standard). The underlying maths still
+      // applies the percentage on the HT base, then converts back to TTC — equivalent
+      // to "% × CA TTC" whenever revenue VAT rates are uniform.
       const variableTooltip = hasOverride
         ? "Valeur manuelle — clic droit pour revenir en auto"
-        : `${forecastPercent}% × ${formatValue(incomeForecastTotal)} (CA prévu HT) = ${formatValue(forecast)} TTC`;
+        : `${forecastPercent}% du CA prévu (${formatValue(incomeForecastTotalTtc)} TTC) = ${formatValue(forecast)} TTC`;
       
       if (periodType === 'future') {
         return (
