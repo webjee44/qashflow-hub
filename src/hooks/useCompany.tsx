@@ -196,7 +196,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
   };
 
   // Update company
-  const updateCompany = async (id: string, data: { name?: string; initial_balance?: number; is_default?: boolean }) => {
+  const updateCompany = async (id: string, data: { name?: string; initial_balance?: number; is_default?: boolean; vat_regime?: VatRegime }) => {
     if (!user?.id) throw new Error('Non authentifié');
 
     // If setting as default, unset other defaults
@@ -209,10 +209,11 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     }
 
     // Update company basic info
-    const updateData: { name?: string; initial_balance?: number; is_default?: boolean } = {};
+    const updateData: { name?: string; initial_balance?: number; is_default?: boolean; vat_regime?: VatRegime } = {};
     if (data.name !== undefined) updateData.name = data.name;
     if (data.initial_balance !== undefined) updateData.initial_balance = data.initial_balance;
     if (data.is_default !== undefined) updateData.is_default = data.is_default;
+    if (data.vat_regime !== undefined) updateData.vat_regime = data.vat_regime;
 
     if (Object.keys(updateData).length > 0) {
       const { error } = await supabase
