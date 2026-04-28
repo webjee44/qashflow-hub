@@ -995,7 +995,6 @@ export function BankAccountsCard() {
           assignments={assignments}
           companies={allCompanies}
           companyNameById={companyNameById}
-          companiesWithBridge={companiesWithBridge}
           onToggle={handleToggle}
           onCompanyChange={handleCompanyChange}
           formatBalance={formatBalance}
@@ -1140,7 +1139,6 @@ function BankAccountsList({
   assignments,
   companies,
   companyNameById,
-  companiesWithBridge,
   onToggle,
   onCompanyChange,
   formatBalance,
@@ -1153,7 +1151,6 @@ function BankAccountsList({
   assignments: Map<number, AccountAssignment>;
   companies: { id: string; name: string }[];
   companyNameById: Map<string, string>;
-  companiesWithBridge: { id: string; name: string }[];
   onToggle: (bridgeAccountId: number, enabled: boolean) => void;
   onCompanyChange: (bridgeAccountId: number, companyId: string) => void;
   formatBalance: (balance: number | null) => string;
