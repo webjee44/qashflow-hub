@@ -383,59 +383,6 @@ export class BridgeClient {
     return allItems;
   }
 
-  /**
-   * Force Bridge to re-contact the bank for a single item.
-   * Bridge processes this asynchronously: balances/transactions update
-   * via webhook a few seconds to a few minutes later depending on the bank.
-   *
-   * Rate-limited by Bridge per item (typically a few refresh per day).
-   * 202 = accepted, 429 = rate limited, others = error.
-   */
-  async refreshItem(itemId: number): Promise<{ ok: boolean; status: number }> {
-    const response = await fetch(
-      `${BRIDGE_API_URL}/aggregation/items/${itemId}/refresh`,
-      { method: 'POST', headers: this.getAuthHeaders() }
-    );
-    // Always consume body to avoid resource leaks
-    await response.text().catch(() => '');
-    const ok = response.status >= 200 && response.status < 300;
-    if (!ok) {
-      console.warn(`[BridgeClient] refreshItem ${itemId} returned ${response.status}`);
-    }
-    return { ok, status: response.status };
-  }
-
-  /**
-   * Refresh all healthy items for the current Bridge user.
-   * Skips items in error/needs_action (refresh would fail anyway).
-   * Uses Promise.allSettled so a single item failure does not abort the batch.
-   */
-  async refreshAllItems(): Promise<{ refreshed: number; skipped: number; errors: number }> {
-    const items = await this.fetchAllItems();
-    const refreshable = items.filter(i => mapBridgeStatus(i.status) === 'ok');
-    const skipped = items.length - refreshable.length;
-
-    if (refreshable.length === 0) {
-      console.info('[BridgeClient] No healthy items to refresh');
-      return { refreshed: 0, skipped, errors: 0 };
-    }
-
-    console.info(`[BridgeClient] Refreshing ${refreshable.length} items (${skipped} skipped)`);
-    const results = await Promise.allSettled(
-      refreshable.map(item => this.refreshItem(item.id))
-    );
-
-    let refreshed = 0;
-    let errors = 0;
-    for (const r of results) {
-      if (r.status === 'fulfilled' && r.value.ok) refreshed++;
-      else errors++;
-    }
-
-    console.info(`[BridgeClient] Refresh result: ${refreshed} ok, ${errors} errors, ${skipped} skipped`);
-    return { refreshed, skipped, errors };
-  }
-
   // ============================================
   // Bank Methods
   // ============================================

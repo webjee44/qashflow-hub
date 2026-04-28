@@ -1,18 +1,13 @@
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Building2, AlertCircle, Landmark, RefreshCw, Loader2 } from 'lucide-react';
+import { Building2, AlertCircle, Landmark } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Button } from '@/components/ui/button';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useGroupBalances } from '@/hooks/useGroupBalances';
-import { useGroupRefreshBalances } from '@/hooks/useGroupRefreshBalances';
 import { useCompany } from '@/hooks/useCompany';
 import { CompanyCard } from '@/components/group/CompanyCard';
-import { formatDistanceToNow } from 'date-fns';
-import { fr } from 'date-fns/locale';
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('fr-FR', {
@@ -22,20 +17,10 @@ const formatCurrency = (value: number) =>
     maximumFractionDigits: 0,
   }).format(value);
 
-const formatCooldown = (ms: number): string => {
-  const totalSec = Math.ceil(ms / 1000);
-  const m = Math.floor(totalSec / 60);
-  const s = totalSec % 60;
-  return m > 0 ? `${m}m ${s.toString().padStart(2, '0')}s` : `${s}s`;
-};
-
 export default function GroupOverview() {
   const navigate = useNavigate();
   const { setCurrentCompany, companies: rawCompanies } = useCompany();
   const { companies, consolidatedBalance, criticalAlerts, totalAlerts, isLoading } = useGroupBalances();
-  const companyIds = companies.map(c => c.companyId);
-  const { refresh, isRefreshing, cooldownRemainingMs, lastRefreshAt, canRefresh, isUnsupported } =
-    useGroupRefreshBalances(companyIds);
 
   const handleCompanyClick = (companyId: string) => {
     const company = rawCompanies.find(c => c.id === companyId);
@@ -50,49 +35,7 @@ export default function GroupOverview() {
       <PageHeader
         title="Vue groupe"
         subtitle="Synthèse consolidée de toutes vos sociétés"
-        actions={
-          isUnsupported ? null : (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={refresh}
-                      disabled={!canRefresh}
-                      className="gap-2"
-                    >
-                      {isRefreshing ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <RefreshCw className="h-4 w-4" />
-                      )}
-                      Actualiser les soldes
-                    </Button>
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent>
-                  {cooldownRemainingMs > 0 ? (
-                    <p>Disponible dans {formatCooldown(cooldownRemainingMs)}</p>
-                  ) : isRefreshing ? (
-                    <p>Synchronisation en cours…</p>
-                  ) : (
-                    <p>Force la synchro avec vos banques (cooldown 5 min)</p>
-                  )}
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          )
-        }
       />
-
-      {lastRefreshAt && !isUnsupported && (
-        <p className="text-xs text-muted-foreground -mt-4">
-          Dernière actualisation manuelle :{' '}
-          {formatDistanceToNow(lastRefreshAt, { addSuffix: true, locale: fr })}
-        </p>
-      )}
 
       {/* Critical alerts banner */}
       {criticalAlerts > 0 && (
