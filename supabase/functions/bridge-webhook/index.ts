@@ -315,21 +315,24 @@ async function handleAccountUpdated(
       snapshot_date: today,
     }, { onConflict: 'bridge_account_id,snapshot_date' });
 
-  // Update company bank balance
-  const { data: allAccounts } = await supabaseAdmin
-    .from('bridge_accounts')
-    .select('balance')
-    .eq('company_id', company_id);
+  // Recompute bank stats for ALL companies that have this account assigned
+  // via the single source of truth: company_bridge_accounts.
+  // The trigger on bridge_accounts already fires on the balance UPDATE above,
+  // but we call the RPC explicitly to also refresh bank_balance_updated_at
+  // and to keep the contract obvious from this code path.
+  const { data: assignedCompanies } = await supabaseAdmin
+    .from('company_bridge_accounts')
+    .select('company_id')
+    .eq('bridge_account_id', account_id);
 
-  const totalBalance = (allAccounts || []).reduce((sum: number, acc: any) => sum + (Number(acc.balance) || 0), 0);
-
-  await supabaseAdmin
-    .from('companies')
-    .update({ 
-      bank_balance: totalBalance,
-      bank_balance_updated_at: new Date().toISOString()
-    })
-    .eq('id', company_id);
+  for (const row of assignedCompanies || []) {
+    const { error: rpcError } = await supabaseAdmin.rpc('recompute_company_bank_stats', {
+      p_company_id: (row as any).company_id,
+    });
+    if (rpcError) {
+      console.error('[bridge-webhook] recompute_company_bank_stats failed:', rpcError);
+    }
+  }
 
   console.info(`[bridge-webhook] Synced ${count || transactions.length} transactions for account ${account_id}`);
 
