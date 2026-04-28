@@ -62,8 +62,9 @@ export const computeVatPayment = ({
     return { payment: netDebt, carryOut: 0 };
   }
 
-  // No payment due, accumulate the unused credit (positive number)
-  return { payment: 0, carryOut: -netDebt };
+  // No payment due, accumulate the unused credit (positive number).
+  // `+ 0` normalises the JS `-0` artefact when netDebt is exactly 0.
+  return { payment: 0, carryOut: -netDebt + 0 };
 };
 
 /**
