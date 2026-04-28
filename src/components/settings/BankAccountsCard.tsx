@@ -278,11 +278,13 @@ export function BankAccountsCard() {
             (otherAssignments || []).forEach(a => alreadyAssignedElsewhereIds.add(a.bridge_account_id));
           }
 
+          const scopedCompanyIdSet = new Set(scopedCompanyIds);
           const byId = new Map<number, BridgeAccount>();
           bridgeAccounts.forEach(account => byId.set(account.bridge_account_id, account));
           ((connectionAccounts || []) as BridgeAccount[])
             .filter(account => !scopedAssignmentIds.has(account.bridge_account_id))
             .filter(account => !alreadyAssignedElsewhereIds.has(account.bridge_account_id))
+            .filter(account => scopedCompanyIdSet.has(account.company_id))
             .forEach(account => byId.set(account.bridge_account_id, account));
           bridgeAccounts = Array.from(byId.values());
         }
