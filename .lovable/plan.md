@@ -1,94 +1,70 @@
-Voici ce que j’ai vérifié dans la base et ce que je propose de corriger proprement.
-
-## Constat vérifié
-
-Sur le groupe **GROUPE TRADEFLIX**, il y a actuellement **12 comptes bancaires assignés aux sociétés du groupe** via la table de liaison qui fait foi (`company_bridge_accounts`).
-
-Répartition :
-
-- Cloud Vapor : 2 comptes
-- Coachflix : 1 compte
-- E-fumeur Internet : 3 comptes
-- Tradeflix : 2 comptes
-- Vapeflix : 1 compte
-- Vapostore Lanester : 2 comptes
-- Vapostore Vannes : 1 compte
-
-Total assigné groupe : **12 comptes**.
-
-Sur ta capture, on ne voit que **7 comptes**, et ce ne sont pas les bons :
-
-- 2 comptes “Compte Cheques 1”
-- 2 comptes “Compte De Chèques …”
-- 3 comptes Vapeclub
-
-Donc non : **tous les comptes du groupe Tradeflix ne sont pas affichés**, et **Vapeclub n’a effectivement rien à faire ici**.
-
 ## Cause racine
 
-Le composant des paramètres bancaires charge les comptes à partir de `companies.bridge_user_uuid`.
+Les libellés Zen First importés ont été normalisés/tronqués (`"Remise CB"`, `"Com CB"` au lieu de `"REMCB00936 NB0005 TPE749117001..."`). Résultat : 1 645 transactions perdent les identifiants TPE qui permettent aux règles d'automatisation de discriminer entre les boutiques (Saint-Brévin, Pornic, Les Sables…). La data est corrompue à la source — patcher le moteur de matching ne réglerait rien.
 
-Or dans les données :
+**Solution** : hard reset des transactions de SAS Vapeclub + re-sync complet depuis Bridge (source de vérité avec libellés bruts). Les règles existantes ré-attaqueront la data propre.
 
-- dans le groupe Tradeflix, une société (`E-fumeur Internet`) porte par erreur / historiquement le `bridge_user_uuid` `d20d...`
-- ce même `bridge_user_uuid` correspond à des comptes Vapeclub et ZARA
-- le vrai périmètre métier du groupe Tradeflix est pourtant déjà représenté correctement par `company_bridge_accounts`
+## Périmètre du reset
 
-Donc l’UI affiche des comptes “visibles par Bridge user”, au lieu d’afficher les comptes réellement assignés aux sociétés de l’organisation.
+**Ce qui sera supprimé (SAS Vapeclub uniquement)** :
+- Toutes les transactions (`transactions`) — environ 2 443 lignes
+- Les snapshots de solde bancaire (`bank_balance_snapshots`)
+- Les overrides de solde (`balance_overrides`)
+- Les forecasts par catégorie liés à des transactions historiques ne sont **pas** touchés (ils sont prévisionnels)
 
-C’est exactement la dérive qu’on voulait éviter : la source technique Bridge pollue le périmètre métier.
+**Ce qui est strictement préservé** :
+- Catégories (`categories`) et leur arborescence
+- Règles d'automatisation (`automation_rules` + `automation_rule_conditions`)
+- Comptes bancaires Bridge (`bridge_accounts`, `company_bridge_accounts`) — connexion conservée
+- Factures (`invoices`), Business Plan, settings, membres
+- L'entreprise elle-même et tous ses paramètres
 
-## Correction proposée
+## Étapes d'exécution
 
-### 1. Remettre la source de vérité au bon endroit
+1. **Confirmation entreprise cible**
+   - Cible : SAS Vapeclub (`id = 3b65707f-aad4-4c09-a3c5-09d2a0163894`)
+   - Aucune autre entreprise touchée
 
-Dans `BankAccountsCard`, remplacer la logique principale de chargement :
+2. **Backup défensif** (audit_logs capture déjà les DELETE via `audit_trigger_func`, donc traçabilité automatique)
 
-- ne plus afficher les comptes à partir de tous les `bridge_user_uuid` présents sur les sociétés de l’org
-- charger d’abord toutes les sociétés de l’organisation courante
-- charger ensuite les assignations `company_bridge_accounts` de ces sociétés
-- afficher les `bridge_accounts` correspondant à ces assignations
+3. **Hard reset SQL** (migration data, via tool insert)
+   ```sql
+   DELETE FROM transactions WHERE company_id = '3b65707f-...';
+   DELETE FROM bank_balance_snapshots WHERE company_id = '3b65707f-...';
+   DELETE FROM balance_overrides WHERE company_id = '3b65707f-...';
+   ```
+   Reset des compteurs de match des règles à 0 pour avoir une stat propre :
+   ```sql
+   UPDATE automation_rules SET match_count = 0 WHERE company_id = '3b65707f-...';
+   ```
 
-Résultat attendu : sur GROUPE TRADEFLIX, l’écran affichera les **12 comptes assignés au groupe**, pas les comptes Vapeclub/ZARA liés au mauvais `bridge_user_uuid`.
+4. **Re-sync Bridge complet**
+   - Déclenchement de `bridge-sync` pour SAS Vapeclub avec un flag `full_resync: true` (paramètre déjà supporté ou à exposer si nécessaire) pour forcer la récupération de tout l'historique disponible côté Bridge (généralement 24-36 mois selon la banque).
+   - Les transactions arrivent avec libellés bruts complets.
 
-### 2. Garder les comptes non assignés uniquement dans un espace de configuration contrôlé
+5. **Application des règles d'automatisation**
+   - Trigger automatique de `apply-automation-rules` sur toutes les nouvelles transactions de SAS Vapeclub.
+   - Les règles existantes (`REMISE CB 5091540010`, `REMISE CB 5882356015`, `REMISE CB 1351371016`, `COMCB`, `PRLV SEPA URSSAF`, etc.) vont matcher et catégoriser automatiquement.
 
-Pour ne pas perdre la capacité d’assigner de nouveaux comptes après une synchronisation, je conserverai une logique propre :
+6. **Rapport post-sync**
+   - Nombre de transactions ré-importées
+   - % catégorisées automatiquement par les règles
+   - Top 20 des libellés restants non catégorisés (pour t'aider à créer les règles manquantes)
 
-- comptes assignés à l’organisation : affichés normalement
-- comptes non assignés mais issus d’une connexion bancaire explicitement reliée à l’organisation : affichables comme “Non assigné”
-- comptes déjà assignés à une autre organisation : exclus de l’écran
+## Garde-fous
 
-Cela évite que Vapeclub apparaisse dans Tradeflix tout en gardant la possibilité d’assigner de nouveaux comptes légitimes.
+- **Périmètre strict** : `WHERE company_id = '3b65707f-...'` sur chaque DELETE — aucune autre entreprise impactée.
+- **Idempotence** : la contrainte `prevent_duplicate_transaction` empêche tout doublon si un re-sync est relancé.
+- **Réversibilité partielle** : `audit_logs` conserve la trace des DELETE pendant la rétention configurée.
+- **Pas de touche aux règles** : elles restent intactes et seront appliquées telles quelles sur la nouvelle data.
 
-### 3. Corriger la mise à jour des compteurs et soldes
+## Limites historique Bridge
 
-Le bouton “Enregistrer” met actuellement à jour les compteurs seulement pour `companies` du hook courant, ce qui peut être incomplet ou incohérent.
+Bridge ne fournit l'historique que jusqu'à 24-36 mois selon la banque. Si la base actuelle remonte plus loin (à vérifier), les transactions pré-cette-période seront perdues définitivement. **Question importante** : veux-tu qu'on vérifie d'abord la date la plus ancienne actuellement en base avant le reset ?
 
-Je vais le faire recalculer sur la liste complète des sociétés de l’organisation affichée, à partir de `company_bridge_accounts`.
+## Détails techniques
 
-### 4. Nettoyer l’affichage société
-
-Le sélecteur utilisera uniquement les sociétés de l’organisation courante comme destinations possibles.
-
-Si un compte est assigné à une société hors organisation, il ne doit pas apparaître dans cet écran. C’est plus sain que d’afficher “Société inconnue”.
-
-## Impact attendu
-
-Après correction :
-
-- GROUPE TRADEFLIX affiche les 12 comptes du groupe
-- les comptes Vapeclub disparaissent de l’écran Tradeflix
-- les comptes restent assignables aux bonnes sociétés du groupe
-- `company_bridge_accounts` reste la source de vérité unique
-- on évite un patch local ou une exclusion en dur de Vapeclub
-
-## Validation prévue
-
-Après implémentation, je vérifierai :
-
-- que la requête de données renvoie bien 12 comptes pour GROUPE TRADEFLIX
-- que Vapeclub n’est plus présent dans `/parametres#accounts` côté Tradeflix
-- que les sociétés dans le sélecteur correspondent uniquement aux sociétés du groupe
-- que la sauvegarde d’assignation continue de fonctionner sans supprimer des assignations hors périmètre
-- que les tests existants passent si disponibles
+- Le DELETE des transactions déclenchera `audit_trigger_func` → audit_logs grossit de ~2 443 entrées (acceptable).
+- `bank_balance_snapshots` sera reconstruit automatiquement par le prochain sync.
+- Les category_forecasts ne référencent pas les transactions, donc safe.
+- Les `transaction_splits` (parents soft-delete) seront purgés avec leurs parents — à vérifier si présents pour Vapeclub avant exécution.
