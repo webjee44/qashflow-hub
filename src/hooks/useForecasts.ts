@@ -793,6 +793,7 @@ export function useForecasts() {
     getNetVatActual,
     getUncategorized,
     getIncomeForecastTotal,
+    getIncomeForecastTotalTtc,
     // Closing balance
     getClosingBalance,
     // Balance overrides
