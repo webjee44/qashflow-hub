@@ -1,72 +1,101 @@
-## Cause racine
+## Objectif
 
-Le calcul `45% × CA HT` est correct dans le code, mais les **données d'entrée du CA sont incohérentes** :
+Calculer automatiquement la **TVA à décaisser** dans les Prévisions, en respectant la règle métier française (TVA de M payée en M+1, régime réel mensuel), **sans jamais doublonner** avec le prélèvement DGFIP réel — qui sera catégorisé via une règle d'automation dédiée.
 
-**Cas Mai 2026 / Cloud Vapor :**
-- Catégorie "Ventes" : `vat_rate = 0%`, ligne stockée avec `amount_basis = 'ht'`, montant = 280 000
-- L'utilisateur saisit 280 000 en pensant **TTC** (cohérent avec la convention d'affichage TTC du tableau)
-- Le système, lui, lit `amount_basis='ht'` + `vat_rate=0` → considère que CA HT = 280 000
-- Résultat : 45% × (280 000 + 6 472) = **128 912 HT → ~154 694 TTC affiché** (au lieu des 104 999 attendus)
+## Architecture
 
-Deux problèmes systémiques sont révélés :
+### 1. Catégorie système "TVA à payer"
 
-1. **Incohérence du `amount_basis`** : la mutation de sauvegarde écrit toujours `'ttc'` (cf `useForecasts.ts` L250), mais des lignes historiques (BP import, anciennes saisies, demo) sont en `'ht'`. La convention "tout TTC" n'est donc pas appliquée uniformément.
-2. **`vat_rate = 0` sur la catégorie "Ventes"** masque le bug : avec TVA 0, HT = TTC, donc la conversion silencieuse n'a aucun effet visible jusqu'à ce qu'un calcul dérivé (le % CA) ait besoin du vrai HT.
+- Nouvelle colonne `categories.is_vat_payment boolean default false`
+- Catégorie créée automatiquement pour toute société (migration rétroactive + ajout dans `handle_new_user()`)
+- Type `expense`, `vat_rate = 0`, icône dédiée, non supprimable côté UI
+- **Une seule** par société (contrainte unique partielle `WHERE is_vat_payment`)
 
-Le tableau est censé être 100% TTC en saisie comme en affichage (convention `cash-flow-standard`). Le calcul variable doit dériver le HT à partir du TTC saisi en utilisant la TVA de la catégorie de revenu.
+### 2. Régime de TVA au niveau société
 
-## Solution proposée
+- Nouvelle colonne `companies.vat_regime text default 'monthly_real'`
+- V1 supportée : `monthly_real` (paiement M+1) et `franchise` (pas de TVA)
+- Sélecteur dans **Paramètres > Société**
+- Trimestriel/simplifié signalés "à venir" (fallback monthly_real)
 
-### 1. Source de vérité unique : `amount_basis = 'ttc'` partout
+### 3. Helper pur `forecastVat.ts`
 
-Ajouter une migration qui **normalise toutes les lignes existantes de `category_forecasts` en TTC** :
-
-```sql
--- Pour chaque ligne en 'ht', convertir le montant en TTC en appliquant la TVA de la catégorie
-UPDATE category_forecasts cf
-SET expected_amount = cf.expected_amount * (1 + COALESCE(c.vat_rate, 0)),
-    amount_basis = 'ttc'
-FROM categories c
-WHERE cf.category_id = c.id AND cf.amount_basis = 'ht';
+```ts
+getVatPayment(month, regime, getNetVatForecast, vatCreditCarry) →
+  { payment: number, newCarry: number }
 ```
 
-Effet : toutes les saisies historiques deviennent cohérentes avec la convention de saisie actuelle. Le `amount_basis` reste dans le schéma comme garde-fou, mais devient de facto toujours `'ttc'`.
+- `monthly_real` : `payment = max(0, NetVat(M-1) - carry)` ; si négatif → carry s'accumule
+- `franchise` : toujours 0
+- 100% testable, sans I/O
 
-### 2. Garantir la TVA correcte sur les catégories de revenu
+### 4. Intégration dans `useForecasts.ts`
 
-Le vrai HT du CA dépend de la TVA de la catégorie. Si "Ventes" reste à 0%, alors 280 000 TTC = 280 000 HT pour le système → impossible d'obtenir 233 333.
+Nouveau dérivé `getVatPaymentLine(month)` qui applique la règle **actual écrase forecast** déjà en vigueur partout dans le produit :
 
-Deux options à arbitrer avec l'utilisateur (voir question ci-dessous).
+```
+actual(M) = somme transactions catégorisées is_vat_payment sur M
+forecast(M) = getVatPayment(M, regime, ...)
 
-### 3. Renforcer la convention dans le code
+displayed(M) = actual(M) si M ≤ moisCourant et actual > 0
+            sinon forecast(M)
+```
 
-Dans `useForecasts.ts`, le calcul `getForecast` pour `percent_of_revenue` calcule déjà sur HT puis convertit en TTC. Aucun changement de logique nécessaire **après** normalisation des données. On peut toutefois :
+Aucune logique nouvelle : c'est exactement le contrat `actuals consistency` appliqué à une catégorie de plus.
 
-- Ajouter un test unitaire dans `forecastAmounts.test.ts` couvrant exactement le cas "280k TTC saisis, TVA 20%, 45% → 104 999 HT → 125 999 TTC".
-- Garder `toHt`/`toTtc` comme seules portes d'entrée/sortie (déjà le cas).
+### 5. Affichage dans `ForecastTable.tsx`
 
-### 4. UX : rendre la saisie explicite
+La ligne "TVA à décaisser" actuelle (L1697-1747) cesse d'être informative et **devient une vraie sortie de cash** intégrée dans `getDisplayedNetVariation`. Visuellement alignée avec les autres dépenses, non éditable, avec icône info expliquant la règle.
 
-Afficher un libellé "TTC" à côté des cellules de prévision de revenus (pas seulement dans le tooltip), pour qu'aucun utilisateur ne puisse plus saisir "280 000" en pensant HT alors que le tableau attend du TTC.
+### 6. Suppression du double comptage
 
-## Question à arbitrer
+`forecastDisplayTotals.ts` : retirer le commentaire "non comptée dans les flux" (L15-20) et inclure `vatPayment(M)` dans la variation nette. Le solde projeté reflète enfin la vraie sortie TVA.
 
-Pour que 280 000 € TTC saisis en "Ventes" donnent bien 233 333 € HT, il faut que la catégorie "Ventes" porte la bonne TVA (20%). Aujourd'hui elle est à 0%.
+### 7. UX automation pour DGFIP
 
-Je propose de demander confirmation : passer "Ventes" (et toute catégorie de revenu actuellement à 0%) à 20% par défaut, ou laisser l'utilisateur ajuster manuellement dans /paramètres après la migration.
+Pas de code spécial — l'UI d'automation existe déjà. L'utilisateur :
+1. Va dans Automations
+2. Crée la règle "Description contient DGFIP → TVA à payer"
+3. Clique "Appliquer aux transactions existantes" (bouton existant)
+
+Tous les anciens prélèvements basculent vers la bonne catégorie en un clic.
 
 ## Fichiers impactés
 
-- `supabase/migrations/<timestamp>_normalize_forecast_basis_to_ttc.sql` (nouveau)
-- `src/lib/forecastAmounts.test.ts` (ajout test cas réel)
-- `src/components/forecasts/ForecastTable.tsx` (ajout libellé "TTC" sur cellules revenu)
-- Mémoire `mem://features/treasury/cash-flow-standard` à mettre à jour : "amount_basis est désormais toujours 'ttc' ; le HT est dérivé via la TVA de la catégorie"
+**Migration**
+- `supabase/migrations/<ts>_add_vat_automation.sql`
+  - `ALTER TABLE categories ADD COLUMN is_vat_payment boolean default false`
+  - `ALTER TABLE companies ADD COLUMN vat_regime text default 'monthly_real'`
+  - `CREATE UNIQUE INDEX ... ON categories (company_id) WHERE is_vat_payment`
+  - `INSERT` catégorie "TVA à payer" pour toutes les sociétés existantes
+  - Modifier `handle_new_user()` pour créer la catégorie à chaque nouveau compte
 
-## Risques de régression
+**Logique pure (testée)**
+- `src/lib/forecastVat.ts` (nouveau)
+- `src/lib/forecastVat.test.ts` (nouveau) — cas mensuel, crédit reporté, franchise, actual écrase forecast
 
-- Catégories avec `vat_rate > 0` qui auraient été saisies en TTC mais stockées en HT par erreur seront re-converties (montant gonflé). À vérifier sur Cloud Vapor + Vapeclub avant migration. Je ferai un `SELECT` de contrôle préalable et le partagerai pour validation avant exécution.
-- Les imports BP créent des lignes via `bp_synced` : vérifier que la pipeline d'import écrit bien en TTC (sinon corriger côté import également).
+**Hooks / composants**
+- `src/hooks/useForecasts.ts` — exposer `getVatPaymentLine(month)`
+- `src/lib/forecastDisplayTotals.ts` — inclure vatPayment dans la variation nette
+- `src/components/forecasts/ForecastTable.tsx` — réécriture ligne TVA (L1697-1747)
+- `src/components/forecasts/ForecastChart.tsx` — utiliser `vatPayment` à la place de `netVat`
+- `src/pages/Settings.tsx` — sélecteur "Régime de TVA"
 
-## Pas de patch local
+**Mémoire**
+- `mem://features/treasury/cash-flow-standard` — documenter dérivation TVA M+1
+- Nouveau `mem://features/treasury/vat-payment-derivation` — règle complète
 
-Aucune valeur en dur, aucun cas particulier. La fix s'attaque à la cohérence des données et de la convention TTC déjà documentée.
+## Garanties anti-régression
+
+- **Zéro doublon** : la ligne dérivée alimente uniquement la catégorie `is_vat_payment` ; "Impôts et taxes" reste séparé pour IS/CFE
+- **Actual prime** : règle déjà en place ailleurs, on l'applique sans exception
+- **Crédit TVA** : géré par `vatCreditCarry` cumulatif, pas de cas particulier
+- **Sociétés en franchise** : ligne masquée/à zéro, aucun impact
+- **Tests unitaires** sur tous les cas de figure avant merge
+- **Aucune valeur en dur**, aucune duplication de logique, aucun patch local
+
+## Estimation
+
+Une itération propre : migration + helper testé + intégration + UX paramètres.
+
+Je suis prêt à implémenter. Tu approuves ?

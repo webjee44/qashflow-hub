@@ -5,6 +5,8 @@ import { useAuth } from './useAuth';
 import { useOrganization } from './useOrganization';
 import { toast } from 'sonner';
 
+export type VatRegime = 'monthly_real' | 'quarterly_real' | 'simplified' | 'franchise';
+
 export interface Company {
   id: string;
   user_id: string;
@@ -16,6 +18,7 @@ export interface Company {
   bank_balance_updated_at: string | null;
   bridge_user_uuid: string | null;
   bridge_accounts_count: number;
+  vat_regime: VatRegime;
   created_at: string;
   updated_at: string;
 }
@@ -26,7 +29,7 @@ interface CompanyContextType {
   companies: Company[];
   isLoading: boolean;
   createCompany: (data: { name: string; initial_balance?: number; is_default?: boolean }) => Promise<Company>;
-  updateCompany: (id: string, data: { name?: string; initial_balance?: number; is_default?: boolean }) => Promise<void>;
+  updateCompany: (id: string, data: { name?: string; initial_balance?: number; is_default?: boolean; vat_regime?: VatRegime }) => Promise<void>;
   deleteCompany: (id: string) => Promise<void>;
   restoreCompany: (id: string) => Promise<void>;
   refetch: () => void;
@@ -193,7 +196,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
   };
 
   // Update company
-  const updateCompany = async (id: string, data: { name?: string; initial_balance?: number; is_default?: boolean }) => {
+  const updateCompany = async (id: string, data: { name?: string; initial_balance?: number; is_default?: boolean; vat_regime?: VatRegime }) => {
     if (!user?.id) throw new Error('Non authentifié');
 
     // If setting as default, unset other defaults
@@ -206,10 +209,11 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     }
 
     // Update company basic info
-    const updateData: { name?: string; initial_balance?: number; is_default?: boolean } = {};
+    const updateData: { name?: string; initial_balance?: number; is_default?: boolean; vat_regime?: VatRegime } = {};
     if (data.name !== undefined) updateData.name = data.name;
     if (data.initial_balance !== undefined) updateData.initial_balance = data.initial_balance;
     if (data.is_default !== undefined) updateData.is_default = data.is_default;
+    if (data.vat_regime !== undefined) updateData.vat_regime = data.vat_regime;
 
     if (Object.keys(updateData).length > 0) {
       const { error } = await supabase
