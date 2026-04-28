@@ -6,6 +6,11 @@ import { logError, logInfo } from '@/lib/logger';
 
 const COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
 const STORAGE_KEY = 'group_last_manual_balance_refresh';
+// Persisted flag: last attempt resulted in 100% Bridge errors (typically 403 —
+// the connected bank does not allow on-demand refresh on the current Bridge
+// plan). We hide the button until either Bridge config changes or any future
+// attempt succeeds. We never hardcode this — it is derived from real results.
+const UNSUPPORTED_KEY = 'group_manual_refresh_unsupported';
 
 interface RefreshResult {
   refreshed_users: number;
@@ -27,6 +32,9 @@ export function useGroupRefreshBalances(companyIds: string[]) {
   const queryClient = useQueryClient();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+  const [isUnsupported, setIsUnsupported] = useState<boolean>(
+    () => localStorage.getItem(UNSUPPORTED_KEY) === '1'
+  );
 
   // Re-render every second while a cooldown is active so the countdown ticks.
   useEffect(() => {
@@ -96,6 +104,27 @@ export function useGroupRefreshBalances(companyIds: string[]) {
         queryClient.invalidateQueries({ queryKey: ['bank_balance'] }),
       ]);
 
+      const totalAttempted = data.refreshed_items + data.refresh_errors;
+
+      // Detect "Bridge does not allow on-demand refresh on this plan/bank":
+      // 100% of items returned an error AND at least one was attempted.
+      // Persist so the button auto-hides until a future attempt succeeds.
+      if (totalAttempted > 0 && data.refreshed_items === 0 && data.refresh_errors === totalAttempted) {
+        localStorage.setItem(UNSUPPORTED_KEY, '1');
+        setIsUnsupported(true);
+        toast.error('Actualisation manuelle indisponible', {
+          description:
+            "Vos banques (ou votre plan Bridge) n'autorisent pas la synchro à la demande. Les soldes restent mis à jour automatiquement plusieurs fois par jour.",
+        });
+        return;
+      }
+
+      // Any successful refresh clears the unsupported flag.
+      if (data.refreshed_items > 0) {
+        localStorage.removeItem(UNSUPPORTED_KEY);
+        setIsUnsupported(false);
+      }
+
       if (data.refreshed_items === 0 && data.updated_accounts === 0) {
         toast.info(data.message || 'Aucune banque connectée à actualiser');
         return;
@@ -126,6 +155,7 @@ export function useGroupRefreshBalances(companyIds: string[]) {
     isRefreshing,
     cooldownRemainingMs,
     lastRefreshAt,
-    canRefresh: !isRefreshing && cooldownRemainingMs === 0 && companyIds.length > 0,
+    isUnsupported,
+    canRefresh: !isRefreshing && cooldownRemainingMs === 0 && companyIds.length > 0 && !isUnsupported,
   };
 }
