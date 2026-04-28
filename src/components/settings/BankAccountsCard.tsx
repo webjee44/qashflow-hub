@@ -143,9 +143,44 @@ interface AccountAssignment {
 
 export function BankAccountsCard() {
   const { companies, currentCompany, refetch: refetchCompanies } = useCompany();
-  const { isOwner, isAdmin } = useOrganization();
+  const { isOwner, isAdmin, currentOrganization } = useOrganization();
   const isOrgAdmin = isOwner || isAdmin;
-  
+
+  // Pour résoudre proprement le nom de la société assignée à chaque compte,
+  // on charge TOUTES les sociétés de l'organisation courante (le hook useCompany
+  // peut être filtré par contexte courant et ne pas toutes les contenir).
+  const [orgCompanies, setOrgCompanies] = useState<Array<{ id: string; name: string }>>([]);
+
+  useEffect(() => {
+    const loadOrgCompanies = async () => {
+      if (!currentOrganization?.id) {
+        setOrgCompanies(companies.map(c => ({ id: c.id, name: c.name })));
+        return;
+      }
+      const { data, error } = await supabase
+        .from('companies')
+        .select('id, name')
+        .eq('organization_id', currentOrganization.id)
+        .is('deleted_at', null)
+        .order('name');
+      if (error) {
+        logError('Failed to load org companies:', error);
+        setOrgCompanies(companies.map(c => ({ id: c.id, name: c.name })));
+        return;
+      }
+      setOrgCompanies(data || []);
+    };
+    loadOrgCompanies();
+  }, [currentOrganization?.id, companies]);
+
+  // Source unique pour résoudre les noms : org companies si dispo, sinon fallback sur le hook
+  const allCompanies = orgCompanies.length > 0 ? orgCompanies : companies.map(c => ({ id: c.id, name: c.name }));
+  const companyNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    allCompanies.forEach(c => map.set(c.id, c.name));
+    return map;
+  }, [allCompanies]);
+
   const [accounts, setAccounts] = useState<BridgeAccount[]>([]);
   const [assignments, setAssignments] = useState<Map<number, AccountAssignment>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
@@ -922,7 +957,7 @@ export function BankAccountsCard() {
         <BankAccountsList 
           accounts={displayedAccounts}
           assignments={assignments}
-          companies={companies}
+          companies={allCompanies}
           companiesWithBridge={companiesWithBridge}
           onToggle={handleToggle}
           onCompanyChange={handleCompanyChange}
@@ -1276,23 +1311,25 @@ function BankAccountsList({
                         </div>
                       </div>
 
-                      {/* Company selector - always enabled for admins so they can assign directly */}
-                      <div className="w-48">
+                      {/* Company selector */}
+                      <div className="w-56">
                         <Select
                           value={companyId}
                           onValueChange={(value) => onCompanyChange(account.bridge_account_id, value)}
                         >
                           <SelectTrigger className="bg-background">
-                            <SelectValue placeholder="Assigner à...">
-                              {companyId !== 'none' ? (
-                                <span className="flex items-center gap-2">
-                                  <Building2 className="w-3 h-3" />
-                                  {companies.find(c => c.id === companyId)?.name || 'Société'}
+                            {companyId !== 'none' ? (
+                              <span className="flex items-center gap-2 truncate">
+                                <Building2 className="w-3 h-3 flex-shrink-0" />
+                                <span className="truncate">
+                                  {companies.find(c => c.id === companyId)?.name ?? 'Société inconnue'}
                                 </span>
-                              ) : (
+                              </span>
+                            ) : (
+                              <SelectValue placeholder="Non assigné">
                                 <span className="text-muted-foreground">Non assigné</span>
-                              )}
-                            </SelectValue>
+                              </SelectValue>
+                            )}
                           </SelectTrigger>
                           <SelectContent className="bg-popover border-border z-50">
                             <SelectItem value="none">
