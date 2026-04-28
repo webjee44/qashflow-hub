@@ -1311,14 +1311,14 @@ function BankAccountsList({
                           value={companyId}
                           onValueChange={(value) => onCompanyChange(account.bridge_account_id, value)}
                         >
-                          <SelectTrigger className="bg-background">
+                          <SelectTrigger className="bg-background [&>span]:flex [&>span]:items-center [&>span]:gap-2 [&>span]:min-w-0 [&>span]:truncate">
                             {companyId !== 'none' ? (
-                              <span className="flex items-center gap-2 truncate">
+                              <>
                                 <Building2 className="w-3 h-3 flex-shrink-0" />
-                                <span className="truncate">
+                                <span className="truncate whitespace-nowrap">
                                   {companyNameById.get(companyId) ?? 'Société inconnue'}
                                 </span>
-                              </span>
+                              </>
                             ) : (
                               <SelectValue placeholder="Non assigné">
                                 <span className="text-muted-foreground">Non assigné</span>
