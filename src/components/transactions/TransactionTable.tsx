@@ -1,14 +1,33 @@
-import { memo, useRef, useCallback, useState, useEffect } from 'react';
+import { memo, useRef, useState, useEffect } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { motion } from 'framer-motion';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tables } from '@/integrations/supabase/types';
 import { Category } from '@/hooks/useCategories';
 import { TransactionTableRow } from './TransactionTableRow';
+import { ArrowUp, ArrowDown, ChevronsUpDown } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import type { SortOption } from '@/hooks/useTransactions';
 
 type Transaction = Tables<'transactions'>;
 
+type SortKey = 'date' | 'name' | 'amount';
+
+const SORT_MAP: Record<SortKey, { asc: SortOption; desc: SortOption }> = {
+  date: { asc: 'date_asc', desc: 'date_desc' },
+  name: { asc: 'name_asc', desc: 'name_desc' },
+  amount: { asc: 'amount_asc', desc: 'amount_desc' },
+};
+
+function getSortState(option: SortOption, key: SortKey): 'asc' | 'desc' | null {
+  if (option === SORT_MAP[key].asc) return 'asc';
+  if (option === SORT_MAP[key].desc) return 'desc';
+  return null;
+}
+
 interface TransactionTableProps {
+  sortOption: SortOption;
+  onSortChange: (option: SortOption) => void;
   transactions: Transaction[];
   selectedTransactionIds: Set<string>;
   onToggleSelection: (id: string) => void;
@@ -29,6 +48,8 @@ interface TransactionTableProps {
 }
 
 export const TransactionTable = memo(function TransactionTable({
+  sortOption,
+  onSortChange,
   transactions,
   selectedTransactionIds,
   onToggleSelection,
@@ -47,6 +68,23 @@ export const TransactionTable = memo(function TransactionTable({
   formatDate,
 }: TransactionTableProps) {
   const parentRef = useRef<HTMLDivElement>(null);
+
+  const handleSort = (key: SortKey) => {
+    const current = getSortState(sortOption, key);
+    // Default direction by column: date desc, name asc, amount desc
+    const defaultDir: 'asc' | 'desc' = key === 'name' ? 'asc' : 'desc';
+    if (current === null) {
+      onSortChange(SORT_MAP[key][defaultDir]);
+    } else {
+      onSortChange(SORT_MAP[key][current === 'asc' ? 'desc' : 'asc']);
+    }
+  };
+
+  const SortIcon = ({ state }: { state: 'asc' | 'desc' | null }) => {
+    if (state === 'asc') return <ArrowUp className="w-3.5 h-3.5" />;
+    if (state === 'desc') return <ArrowDown className="w-3.5 h-3.5" />;
+    return <ChevronsUpDown className="w-3.5 h-3.5 opacity-40" />;
+  };
 
   // Highlight first uncategorized transaction's "Catégoriser" button after onboarding
   const [highlightFirstId, setHighlightFirstId] = useState<string | null>(null);
@@ -96,11 +134,41 @@ export const TransactionTable = memo(function TransactionTable({
                 }}
               />
             </div>
-            <div>Date</div>
-            <div>Libellé</div>
+            <button
+              type="button"
+              onClick={() => handleSort('date')}
+              className={cn(
+                'flex items-center gap-1.5 text-left hover:text-foreground transition-colors',
+                getSortState(sortOption, 'date') !== null && 'text-foreground'
+              )}
+            >
+              Date
+              <SortIcon state={getSortState(sortOption, 'date')} />
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSort('name')}
+              className={cn(
+                'flex items-center gap-1.5 text-left hover:text-foreground transition-colors',
+                getSortState(sortOption, 'name') !== null && 'text-foreground'
+              )}
+            >
+              Libellé
+              <SortIcon state={getSortState(sortOption, 'name')} />
+            </button>
             <div>Banque</div>
             <div>Catégorie</div>
-            <div className="text-right">Montant TTC</div>
+            <button
+              type="button"
+              onClick={() => handleSort('amount')}
+              className={cn(
+                'flex items-center justify-end gap-1.5 hover:text-foreground transition-colors',
+                getSortState(sortOption, 'amount') !== null && 'text-foreground'
+              )}
+            >
+              Montant TTC
+              <SortIcon state={getSortState(sortOption, 'amount')} />
+            </button>
             <div></div>
           </div>
 

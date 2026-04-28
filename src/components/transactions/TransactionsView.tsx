@@ -163,6 +163,8 @@ export function TransactionsView() {
       />
 
       <TransactionTable
+        sortOption={filters.sortOption}
+        onSortChange={filters.setSortOption}
         transactions={filters.filteredTransactions}
         selectedTransactionIds={handlers.selectedTransactionIds}
         onToggleSelection={handlers.toggleTransactionSelection}
