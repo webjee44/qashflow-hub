@@ -1,96 +1,72 @@
-## Objectif
+## Cause racine
 
-Créer en SQL toutes les règles d'automatisation de catégorisation pour **SAS Vapeclub** (`3b65707f-aad4-4c09-a3c5-09d2a0163894`) à partir des 5 captures d'écran fournies.
+Le calcul `45% × CA HT` est correct dans le code, mais les **données d'entrée du CA sont incohérentes** :
 
-## Mapping mots-clés → catégorie
+**Cas Mai 2026 / Cloud Vapor :**
+- Catégorie "Ventes" : `vat_rate = 0%`, ligne stockée avec `amount_basis = 'ht'`, montant = 280 000
+- L'utilisateur saisit 280 000 en pensant **TTC** (cohérent avec la convention d'affichage TTC du tableau)
+- Le système, lui, lit `amount_basis='ht'` + `vat_rate=0` → considère que CA HT = 280 000
+- Résultat : 45% × (280 000 + 6 472) = **128 912 HT → ~154 694 TTC affiché** (au lieu des 104 999 attendus)
 
-Toutes les règles utilisent `condition_field = 'description'`, `condition_operator = 'contains'`, `action_type = 'categorize'`, `is_active = true`.
+Deux problèmes systémiques sont révélés :
 
-### Image 1 (10 règles)
-| Mot clé | Catégorie cible |
-|---|---|
-| ERAG | Achats hors centrale |
-| mutuel leasing | Leasing Peugeot |
-| TVA | TVA |
-| LOYER TPE | TPE |
-| MALAKOFF | Retraite |
-| fuu | Achats hors centrale |
-| LTV | Leasing |
-| PRO AA31473804 | Assurances |
-| anthony | Salaires |
-| lucile | Salaires |
+1. **Incohérence du `amount_basis`** : la mutation de sauvegarde écrit toujours `'ttc'` (cf `useForecasts.ts` L250), mais des lignes historiques (BP import, anciennes saisies, demo) sont en `'ht'`. La convention "tout TTC" n'est donc pas appliquée uniformément.
+2. **`vat_rate = 0` sur la catégorie "Ventes"** masque le bug : avec TVA 0, HT = TTC, donc la conversion silencieuse n'a aucun effet visible jusqu'à ce qu'un calcul dérivé (le % CA) ait besoin du vrai HT.
 
-### Image 2 (10 règles)
-| Mot clé | Catégorie cible |
-|---|---|
-| SWILE | Tickets Restaurants |
-| CLOUD | Achats hors centrale |
-| CBM | Leasing |
-| RDV- | Redevance Vapostore (5%) |
-| REMISE CB 5091540010 | Ventes boutique Saint Brévin |
-| REMISE CB 5882356015 | Ventes boutique les Sables |
-| REMISE CB 1351371016 | Ventes boutique Pornic |
-| AUTOROUTES | Frais de déplacement |
-| LES PRO-IB FR PORNIC | Frais de déplacement |
-| LE PHARE FR | Frais de déplacement |
+Le tableau est censé être 100% TTC en saisie comme en affichage (convention `cash-flow-standard`). Le calcul variable doit dériver le HT à partir du TTC saisi en utilisant la TVA de la catégorie de revenu.
 
-### Image 3 (10 règles)
-| Mot clé | Catégorie cible |
-|---|---|
-| PETRO-OUEST | Frais de déplacement |
-| FOURNILDECHARLY | Frais de déplacement |
-| BRIT'HOTEL FR | Frais de déplacement |
-| BIG NOUNOURS | Frais de déplacement |
-| ANGANI FR | Frais de déplacement |
-| BEAUDART BENJAMIN | Salaires |
-| VICTOR ET LOUIS FR | Frais de déplacement |
-| TRAN SO FR | Frais de déplacement |
-| TERZO FR | Frais de déplacement |
-| SIGNORIZZA | Frais de déplacement |
+## Solution proposée
 
-### Image 4 (10 règles)
-| Mot clé | Catégorie cible |
-|---|---|
-| Ica | Achats hors centrale |
-| PETRO OUEST | Frais de déplacement |
-| leho max | Rbsmt C/C Max Leho |
-| TRADFLIX | Rbsmt C/C Tradeflix |
-| Bouygues | Téléphones - Internet |
-| BPPLUS | Travaux et architectes |
-| MY PARTNER | Honoraires Comptabilité |
-| Pacome Pidance | Salaires |
-| Cassy Birotheau | Salaires |
-| Lefevre Dylan | Salaires |
+### 1. Source de vérité unique : `amount_basis = 'ttc'` partout
 
-### Image 5 (9 règles)
-| Mot clé | Catégorie cible |
-|---|---|
-| Jules Visset | Salaires |
-| Damien Guillonn | Salaires |
-| TPE735945201 | Ventes boutique La Montagne |
-| PRLV SEPA VAPOSTORE | Achat Centrale |
-| PRLV SEPA URSSAF | URSSAF |
-| ECH PRET ASS | Remboursement Prêts |
-| COMCB | Frais Bancaires |
-| SAS SODIPOR | Loyer Pornic |
-| AUDREY | Salaires |
+Ajouter une migration qui **normalise toutes les lignes existantes de `category_forecasts` en TTC** :
 
-**Total : 49 règles** (j'ai compté 49, pas 47 — Image 4 contient bien "PETRO OUEST" sans tiret en plus de "PETRO-OUEST" de l'Image 3).
+```sql
+-- Pour chaque ligne en 'ht', convertir le montant en TTC en appliquant la TVA de la catégorie
+UPDATE category_forecasts cf
+SET expected_amount = cf.expected_amount * (1 + COALESCE(c.vat_rate, 0)),
+    amount_basis = 'ttc'
+FROM categories c
+WHERE cf.category_id = c.id AND cf.amount_basis = 'ht';
+```
 
-## Note importante : URSSAF
+Effet : toutes les saisies historiques deviennent cohérentes avec la convention de saisie actuelle. Le `amount_basis` reste dans le schéma comme garde-fou, mais devient de facto toujours `'ttc'`.
 
-La catégorie "URSSAF" n'existe pas dans la liste actuelle de SAS Vapeclub. Il faudra **la créer** comme sous-catégorie de **RH - Rémunération** (TVA 0%, type expense) avant d'ajouter la règle correspondante.
+### 2. Garantir la TVA correcte sur les catégories de revenu
 
-## Détails techniques
+Le vrai HT du CA dépend de la TVA de la catégorie. Si "Ventes" reste à 0%, alors 280 000 TTC = 280 000 HT pour le système → impossible d'obtenir 233 333.
 
-- L'`user_id` des règles sera celui du propriétaire de la société (récupéré depuis `companies.user_id` de SAS Vapeclub).
-- Le moteur de matching (`automationRuleMatchingCore`) fait un `contains` insensible à la casse sur la description — les mots clés tels quels fonctionneront.
-- Insertion via tool `supabase--insert` (pas une migration de schéma).
-- Le `target_category_id` sera résolu via sous-requête `SELECT id FROM categories WHERE company_id = ... AND name = ...` pour garantir le bon mapping.
-- Vérification finale : `SELECT COUNT(*) FROM automation_rules WHERE company_id = '...'` doit retourner 49.
+Deux options à arbitrer avec l'utilisateur (voir question ci-dessous).
 
-## Étapes
+### 3. Renforcer la convention dans le code
 
-1. Créer la catégorie "URSSAF" manquante (sous-catégorie de RH - Rémunération).
-2. Insérer les 49 règles d'automatisation en une seule transaction SQL.
-3. Vérifier le compte et lister un échantillon pour validation.
+Dans `useForecasts.ts`, le calcul `getForecast` pour `percent_of_revenue` calcule déjà sur HT puis convertit en TTC. Aucun changement de logique nécessaire **après** normalisation des données. On peut toutefois :
+
+- Ajouter un test unitaire dans `forecastAmounts.test.ts` couvrant exactement le cas "280k TTC saisis, TVA 20%, 45% → 104 999 HT → 125 999 TTC".
+- Garder `toHt`/`toTtc` comme seules portes d'entrée/sortie (déjà le cas).
+
+### 4. UX : rendre la saisie explicite
+
+Afficher un libellé "TTC" à côté des cellules de prévision de revenus (pas seulement dans le tooltip), pour qu'aucun utilisateur ne puisse plus saisir "280 000" en pensant HT alors que le tableau attend du TTC.
+
+## Question à arbitrer
+
+Pour que 280 000 € TTC saisis en "Ventes" donnent bien 233 333 € HT, il faut que la catégorie "Ventes" porte la bonne TVA (20%). Aujourd'hui elle est à 0%.
+
+Je propose de demander confirmation : passer "Ventes" (et toute catégorie de revenu actuellement à 0%) à 20% par défaut, ou laisser l'utilisateur ajuster manuellement dans /paramètres après la migration.
+
+## Fichiers impactés
+
+- `supabase/migrations/<timestamp>_normalize_forecast_basis_to_ttc.sql` (nouveau)
+- `src/lib/forecastAmounts.test.ts` (ajout test cas réel)
+- `src/components/forecasts/ForecastTable.tsx` (ajout libellé "TTC" sur cellules revenu)
+- Mémoire `mem://features/treasury/cash-flow-standard` à mettre à jour : "amount_basis est désormais toujours 'ttc' ; le HT est dérivé via la TVA de la catégorie"
+
+## Risques de régression
+
+- Catégories avec `vat_rate > 0` qui auraient été saisies en TTC mais stockées en HT par erreur seront re-converties (montant gonflé). À vérifier sur Cloud Vapor + Vapeclub avant migration. Je ferai un `SELECT` de contrôle préalable et le partagerai pour validation avant exécution.
+- Les imports BP créent des lignes via `bp_synced` : vérifier que la pipeline d'import écrit bien en TTC (sinon corriger côté import également).
+
+## Pas de patch local
+
+Aucune valeur en dur, aucun cas particulier. La fix s'attaque à la cohérence des données et de la convention TTC déjà documentée.
