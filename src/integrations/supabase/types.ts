@@ -2424,6 +2424,20 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_organization_billing: {
+        Args: { _org_id: string }
+        Returns: {
+          billing_address_line1: string
+          billing_address_line2: string
+          billing_city: string
+          billing_country: string
+          billing_email: string
+          billing_name: string
+          billing_postal_code: string
+          stripe_customer_id: string
+          stripe_subscription_id: string
+        }[]
+      }
       get_superadmin_all_members: {
         Args: never
         Returns: {
