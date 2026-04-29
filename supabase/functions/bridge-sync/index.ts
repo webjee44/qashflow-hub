@@ -433,131 +433,210 @@ Deno.serve(async (req) => {
 
     // ============================================
     // Action: cron-sync (No user auth required)
+    //
+    // Source of truth = company_bridge_accounts JOIN bridge_accounts.
+    //
+    // We do NOT iterate on companies.bridge_user_uuid: that field is just
+    // the historical "owner" of a Bridge connection and is not reliable
+    // (a Bridge user UUID can be shared across several companies via
+    // company_bridge_accounts, and the original owner company may have
+    // been deleted, leaving the UUID orphan but still in active use).
+    //
+    // Instead, we iterate on every distinct bridge_user_uuid that has at
+    // least one account currently assigned to an active company. This
+    // guarantees no Bridge connection in active use can fall off the
+    // radar, regardless of who originally connected it.
     // ============================================
     if (action === 'cron-sync') {
-      console.info('[bridge-sync] Starting cron sync for all Bridge-connected companies...');
+      console.info('[bridge-sync] Starting cron sync (driven by company_bridge_accounts)...');
 
-      // Get all companies with bridge_user_uuid
-      const { data: companiesWithBridge, error: fetchError } = await supabaseAdmin
-        .from('companies')
-        .select('id, user_id, bridge_user_uuid, created_at')
-        .not('bridge_user_uuid', 'is', null);
+      // 1. Find every assigned bridge_account on an active company
+      const { data: activeAssignments, error: assignErr } = await supabaseAdmin
+        .from('company_bridge_accounts')
+        .select('bridge_account_id, company_id, companies!inner(deleted_at)')
+        .is('companies.deleted_at', null);
 
-      if (fetchError) {
-        console.error('[bridge-sync] Failed to fetch companies:', fetchError);
-        return errorResponse('Failed to fetch companies', 500);
+      if (assignErr) {
+        console.error('[bridge-sync] Failed to fetch active assignments:', assignErr);
+        return errorResponse('Failed to fetch assignments', 500);
       }
 
-      if (!companiesWithBridge || companiesWithBridge.length === 0) {
-        console.info('[bridge-sync] No companies with Bridge connected');
+      const assignedAccountIds = Array.from(
+        new Set((activeAssignments || []).map((a: any) => a.bridge_account_id))
+      );
+
+      if (assignedAccountIds.length === 0) {
+        console.info('[bridge-sync] No assigned bridge accounts on active companies');
         return successResponse({ synced: 0 });
       }
 
-      console.info(`[bridge-sync] Found ${companiesWithBridge.length} companies to sync`);
+      // 2. Resolve the distinct bridge_user_uuid that powers those accounts
+      const { data: ownersRows, error: ownersErr } = await supabaseAdmin
+        .from('bridge_accounts')
+        .select('bridge_user_uuid')
+        .in('bridge_account_id', assignedAccountIds)
+        .not('bridge_user_uuid', 'is', null);
 
-      let syncedCount = 0;
+      if (ownersErr) {
+        console.error('[bridge-sync] Failed to fetch bridge accounts owners:', ownersErr);
+        return errorResponse('Failed to fetch bridge accounts owners', 500);
+      }
+
+      const bridgeUserUuids = Array.from(
+        new Set((ownersRows || []).map((r: any) => r.bridge_user_uuid).filter(Boolean))
+      );
+
+      console.info(
+        `[bridge-sync] Found ${bridgeUserUuids.length} distinct bridge_user_uuid(s) in active use`
+      );
+
+      let syncedUuidCount = 0;
       let totalTransactions = 0;
+      const touchedCompanyIds = new Set<string>();
 
-      for (const company of companiesWithBridge) {
+      for (const bridgeUserUuid of bridgeUserUuids) {
         try {
-          console.info(`[bridge-sync] Syncing company ${company.id}...`);
+          console.info(`[bridge-sync] Syncing bridge_user_uuid ${bridgeUserUuid}...`);
 
-          // Get auth token
-          await bridgeClient.getAuthToken(company.bridge_user_uuid!);
+          await bridgeClient.getAuthToken(bridgeUserUuid);
 
-          // Get accounts and items (for status)
           const allAccounts = await bridgeClient.fetchAllAccounts();
           const allItems = await bridgeClient.fetchAllItems();
 
-          // [BRIDGE-RAW-DUMP] Temporary diagnostic: log raw Bridge accounts for this user
-          console.info(`[bridge-raw-dump] user=${company.bridge_user_uuid} company=${company.id} count=${allAccounts.length}`);
-          for (const a of allAccounts as any[]) {
-            console.info(`[bridge-raw-dump] account id=${a.id} name="${a.name}" iban=${(a.iban || '').slice(-6)} balance=${a.balance} bank_id=${a.bank_id ?? a.item?.bank_id} item_id=${a.item_id ?? a.item?.id} type=${a.type}`);
+          console.info(`[bridge-raw-dump] user=${bridgeUserUuid} count=${allAccounts.length}`);
+
+          // Build the account→company map BEFORE syncing accounts so we can
+          // pick a sensible fallback company for newly discovered accounts.
+          const accountToCompanyMap = await getAccountToCompanyMap(
+            supabaseAdmin,
+            bridgeUserUuid
+          );
+
+          // Fallback only used by syncBridgeAccounts for the legacy
+          // bridge_accounts.company_id column. Real routing happens via
+          // company_bridge_accounts.
+          const fallbackCompanyId = Object.values(accountToCompanyMap)[0] ?? null;
+
+          if (!fallbackCompanyId) {
+            console.warn(
+              `[bridge-sync] No assigned company for bridge_user_uuid ${bridgeUserUuid}, skipping.`
+            );
+            continue;
           }
-          console.info(`[bridge-raw-dump] items=${JSON.stringify((allItems as any[]).map(i => ({ id: i.id, bank_id: i.bank_id, status: i.status, status_message: i.status_code_description })))}`);
 
-
-          // Sync bridge accounts to database (with bank names and status)
           await syncBridgeAccounts(
             supabaseAdmin,
             bridgeClient,
-            company.id,
-            company.bridge_user_uuid!,
+            fallbackCompanyId,
+            bridgeUserUuid,
             allAccounts,
             allItems
           );
 
-          // Calculate balance and count from the single source of truth
-          // (company_bridge_accounts). The trigger on bridge_accounts already
-          // ran during syncBridgeAccounts above, but we recompute explicitly
-          // for resilience and to update bank_balance_updated_at.
-          await recomputeCompanyStats(supabaseAdmin, company.id);
+          // Recompute stats for every company impacted by these accounts
+          const impactedCompanyIds = Array.from(
+            new Set(
+              allAccounts
+                .map((a) => accountToCompanyMap[a.id])
+                .filter((id): id is string => !!id)
+            )
+          );
+          for (const cid of impactedCompanyIds) {
+            await recomputeCompanyStats(supabaseAdmin, cid);
+            touchedCompanyIds.add(cid);
+          }
 
-          const { data: refreshed } = await supabaseAdmin
+          // Cutoff: oldest impacted company.created_at minus 1 month
+          let cutoffDateStr: string | undefined;
+          if (impactedCompanyIds.length > 0) {
+            const { data: createdRows } = await supabaseAdmin
+              .from('companies')
+              .select('created_at')
+              .in('id', impactedCompanyIds)
+              .order('created_at', { ascending: true })
+              .limit(1);
+            const oldest = createdRows?.[0]?.created_at;
+            if (oldest) {
+              const cutoff = new Date(oldest);
+              cutoff.setMonth(cutoff.getMonth() - 1);
+              cutoffDateStr = cutoff.toISOString().split('T')[0];
+            }
+          }
+
+          const allTransactions = await bridgeClient.fetchAllTransactions(
+            since_days ?? 365,
+            cutoffDateStr
+          );
+
+          // Fallback user_id only used if a target company has no resolvable owner
+          const { data: fallbackOwnerRow } = await supabaseAdmin
             .from('companies')
-            .select('bank_balance, bridge_accounts_count')
-            .eq('id', company.id)
-            .single();
+            .select('user_id')
+            .eq('id', fallbackCompanyId)
+            .maybeSingle();
+          const fallbackUserId = fallbackOwnerRow?.user_id ?? '';
 
-          console.info(`[bridge-sync] Company ${company.id}: ${refreshed?.bridge_accounts_count ?? 0} assigned accounts, balance: ${Number(refreshed?.bank_balance ?? 0).toLocaleString('fr-FR')}€`);
-
-          // Cutoff: never go further back than (company.created_at - 1 month buffer).
-          // For older companies the since_days window naturally caps the history.
-          const cutoff = new Date(company.created_at);
-          cutoff.setMonth(cutoff.getMonth() - 1);
-          const cutoffDateStr = cutoff.toISOString().split('T')[0];
-          console.info(`[bridge-sync] Company ${company.id} cutoff date: ${cutoffDateStr} (created: ${company.created_at})`);
-          const allTransactions = await bridgeClient.fetchAllTransactions(since_days ?? 365, cutoffDateStr);
-
-          // Build account→company map for proper transaction assignment
-          const accountToCompanyMap = await getAccountToCompanyMap(supabaseAdmin, company.bridge_user_uuid!);
-
-          // Sync transactions with correct company assignments
           const { inserted, updated } = await syncCompanyTransactions(
             supabaseAdmin,
             bridgeClient,
-            company.id,
-            company.user_id,
+            fallbackUserId,
             allAccounts,
             allTransactions,
             accountToCompanyMap
           );
 
-          syncedCount++;
+          syncedUuidCount++;
           totalTransactions += inserted + updated;
-          console.info(`[bridge-sync] Company ${company.id} synced: ${allAccounts.length} accounts, ${inserted} new, ${updated} updated`);
+          console.info(
+            `[bridge-sync] bridge_user_uuid ${bridgeUserUuid} synced: ` +
+              `${allAccounts.length} accounts, ${impactedCompanyIds.length} companies, ` +
+              `${inserted} new, ${updated} updated transactions`
+          );
 
-          // Apply automation rules to newly synced uncategorized transactions
+          // Apply automation rules per impacted company when new transactions came in
           if (inserted > 0) {
-            try {
-              console.info(`[bridge-sync] Applying automation rules for company ${company.id}...`);
-              const applyRes = await fetch(
-                `${supabaseUrl}/functions/v1/apply-all-automation-rules`,
-                {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${supabaseServiceKey}`,
-                  },
-                  body: JSON.stringify({ company_id: company.id }),
-                }
-              );
-              const applyData = await applyRes.json();
-              console.info(`[bridge-sync] Auto-categorized ${applyData.updated || 0} transactions for company ${company.id}`);
-            } catch (autoErr) {
-              console.error(`[bridge-sync] Failed to apply automation rules for company ${company.id}:`, autoErr);
+            for (const cid of impactedCompanyIds) {
+              try {
+                const applyRes = await fetch(
+                  `${supabaseUrl}/functions/v1/apply-all-automation-rules`,
+                  {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${supabaseServiceKey}`,
+                    },
+                    body: JSON.stringify({ company_id: cid }),
+                  }
+                );
+                const applyData = await applyRes.json();
+                console.info(
+                  `[bridge-sync] Auto-categorized ${applyData.updated || 0} transactions for company ${cid}`
+                );
+              } catch (autoErr) {
+                console.error(
+                  `[bridge-sync] Failed to apply automation rules for company ${cid}:`,
+                  autoErr
+                );
+              }
             }
           }
         } catch (err) {
-          console.error(`[bridge-sync] Error syncing company ${company.id}:`, err);
+          console.error(
+            `[bridge-sync] Error syncing bridge_user_uuid ${bridgeUserUuid}:`,
+            err
+          );
         }
       }
 
-      console.info(`[bridge-sync] Cron sync complete: ${syncedCount} companies, ${totalTransactions} transactions`);
+      console.info(
+        `[bridge-sync] Cron sync complete: ${syncedUuidCount} bridge_user_uuid(s), ` +
+          `${touchedCompanyIds.size} companies touched, ${totalTransactions} transactions`
+      );
 
-      return successResponse({ 
-        synced: syncedCount,
-        totalTransactions 
+      return successResponse({
+        synced: syncedUuidCount,
+        companies_touched: touchedCompanyIds.size,
+        totalTransactions,
       });
     }
 
