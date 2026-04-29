@@ -331,7 +331,7 @@ async function syncCompanyTransactions(
         });
       } else {
         toInsert.push({
-          user_id: userId,
+          user_id: ownerByCompany[correctCompanyId] ?? fallbackUserId,
           company_id: correctCompanyId,
           bridge_transaction_id: transaction.id,
           pennylane_id: `bridge_${transaction.id}`,
