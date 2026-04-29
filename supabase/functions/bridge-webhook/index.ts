@@ -203,140 +203,162 @@ async function handleAccountUpdated(
     return { inserted: 0, updated: 0 };
   }
 
-  // Get bridge account mapping
-  const { data: bridgeAccount, error: accountError } = await supabaseAdmin
-    .from('bridge_accounts')
-    .select('company_id, last_sync_at')
-    .eq('bridge_account_id', account_id)
-    .maybeSingle();
-
-  if (accountError || !bridgeAccount) {
-    // Account not yet registered - might be a new connection
-    console.warn(`[bridge-webhook] Account ${account_id} not found in bridge_accounts, skipping`);
-    return { inserted: 0, updated: 0 };
-  }
-
-  const { company_id, last_sync_at } = bridgeAccount;
-
-  // Get company owner and created_at for cutoff filtering
-  const { data: company, error: companyError } = await supabaseAdmin
-    .from('companies')
-    .select('user_id, created_at')
-    .eq('id', company_id)
-    .single();
-
-  if (companyError || !company) {
-    console.error(`[bridge-webhook] Company ${company_id} not found`);
-    return { inserted: 0, updated: 0 };
-  }
-
-  // Get auth token and fetch transactions since last sync
-  await bridgeClient.getAuthToken(user_uuid);
-  
-  const sinceDate = last_sync_at 
-    ? new Date(last_sync_at).toISOString().split('T')[0]
-    : new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-
-  const transactions = await bridgeClient.fetchTransactionsSince(account_id, sinceDate);
-  
-  console.info(`[bridge-webhook] Fetched ${transactions.length} transactions since ${sinceDate}`);
-
-  if (transactions.length === 0) {
-    return { inserted: 0, updated: 0 };
-  }
-
-  // Get account name
-  const accountInfo = await bridgeClient.fetchAccount(account_id);
-  const accountName = accountInfo?.name || null;
-
-  // Filter transactions based on company creation date - 3 months
-  let filteredTransactions = transactions;
-  if (company.created_at) {
-    const cutoff = new Date(company.created_at);
-    cutoff.setMonth(cutoff.getMonth() - 3);
-    const cutoffDateStr = cutoff.toISOString().split('T')[0];
-    filteredTransactions = transactions.filter((t: any) => t.date >= cutoffDateStr);
-    if (filteredTransactions.length < transactions.length) {
-      console.info(`[bridge-webhook] Cutoff filter removed ${transactions.length - filteredTransactions.length} transactions before ${cutoffDateStr}`);
-    }
-  }
-
-  if (filteredTransactions.length === 0) {
-    console.info('[bridge-webhook] No transactions after cutoff filter');
-    return { inserted: 0, updated: 0 };
-  }
-
-  // Prepare batch upsert data
-  const upsertData = filteredTransactions.map((t: any) => ({
-    user_id: company.user_id,
-    company_id: company_id,
-    pennylane_id: `bridge_${t.id}`,
-    amount: Math.abs(t.amount),
-    description: getBridgeTransactionDescription(t),
-    date: t.date,
-    type: t.amount < 0 ? 'expense' : 'income',
-    bank_account_name: accountName,
-    source: 'bridge',
-    is_reconciled: false,
-    updated_at: new Date().toISOString(),
-  }));
-
-  // Batch upsert with conflict resolution
-  const { error: upsertError, count } = await supabaseAdmin
-    .from('transactions')
-    .upsert(upsertData, { 
-      onConflict: 'pennylane_id',
-      count: 'exact'
-    });
-
-  if (upsertError) {
-    console.error('[bridge-webhook] Upsert error:', upsertError);
-    throw upsertError;
-  }
-
-  // Update bridge_accounts with new sync time and balance
-  await supabaseAdmin
-    .from('bridge_accounts')
-    .update({ 
-      balance,
-      last_sync_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    })
-    .eq('bridge_account_id', account_id);
-
-  // Save balance snapshot for today
-  const today = new Date().toISOString().split('T')[0];
-  await supabaseAdmin
-    .from('bank_balance_snapshots')
-    .upsert({
-      bridge_account_id: account_id,
-      company_id: company_id,
-      balance,
-      snapshot_date: today,
-    }, { onConflict: 'bridge_account_id,snapshot_date' });
-
-  // Recompute bank stats for ALL companies that have this account assigned
-  // via the single source of truth: company_bridge_accounts.
-  // The trigger on bridge_accounts already fires on the balance UPDATE above,
-  // but we call the RPC explicitly to also refresh bank_balance_updated_at
-  // and to keep the contract obvious from this code path.
-  const { data: assignedCompanies } = await supabaseAdmin
+  // Route to the company that currently OWNS this bridge account, using
+  // company_bridge_accounts as the single source of truth.
+  // We deliberately do NOT use bridge_accounts.company_id here: that
+  // column is a legacy fallback (used as a hint for new accounts) and
+  // does not reflect post-onboarding reassignments.
+  const { data: assignmentsForAccount, error: assignErr } = await supabaseAdmin
     .from('company_bridge_accounts')
     .select('company_id')
     .eq('bridge_account_id', account_id);
 
-  for (const row of assignedCompanies || []) {
-    const { error: rpcError } = await supabaseAdmin.rpc('recompute_company_bank_stats', {
-      p_company_id: (row as any).company_id,
-    });
-    if (rpcError) {
-      console.error('[bridge-webhook] recompute_company_bank_stats failed:', rpcError);
+  if (assignErr) {
+    console.error('[bridge-webhook] Failed to load assignments:', assignErr);
+    return { inserted: 0, updated: 0 };
+  }
+
+  const targetCompanyIds = (assignmentsForAccount || []).map((r: any) => r.company_id);
+
+  if (targetCompanyIds.length === 0) {
+    console.warn(
+      `[bridge-webhook] Account ${account_id} has no active company assignment, skipping transaction sync (balance still updated below)`
+    );
+    // Still update balance so the unassigned account stays fresh
+    await supabaseAdmin
+      .from('bridge_accounts')
+      .update({ balance, updated_at: new Date().toISOString() })
+      .eq('bridge_account_id', account_id);
+    return { inserted: 0, updated: 0 };
+  }
+
+  if (targetCompanyIds.length > 1) {
+    console.info(
+      `[bridge-webhook] Account ${account_id} is assigned to ${targetCompanyIds.length} companies; transactions will be replicated.`
+    );
+  }
+
+  // Get last_sync_at from bridge_accounts (used as a watermark, NOT for routing)
+  const { data: bridgeAccountRow } = await supabaseAdmin
+    .from('bridge_accounts')
+    .select('last_sync_at')
+    .eq('bridge_account_id', account_id)
+    .maybeSingle();
+  const last_sync_at = bridgeAccountRow?.last_sync_at ?? null;
+
+  // Resolve owner per target company (each company keeps its own user_id)
+  const { data: companyRows, error: companiesErr } = await supabaseAdmin
+    .from('companies')
+    .select('id, user_id, created_at')
+    .in('id', targetCompanyIds);
+
+  if (companiesErr || !companyRows || companyRows.length === 0) {
+    console.error(`[bridge-webhook] Companies not found for account ${account_id}`);
+    return { inserted: 0, updated: 0 };
+  }
+
+  // Get auth token and fetch transactions since last sync (single Bridge call,
+  // shared across all target companies).
+  await bridgeClient.getAuthToken(user_uuid);
+
+  const sinceDate = last_sync_at
+    ? new Date(last_sync_at).toISOString().split('T')[0]
+    : new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+  const transactions = await bridgeClient.fetchTransactionsSince(account_id, sinceDate);
+
+  console.info(`[bridge-webhook] Fetched ${transactions.length} transactions since ${sinceDate}`);
+
+  let totalInserted = 0;
+
+  if (transactions.length > 0) {
+    // Get account name once
+    const accountInfo = await bridgeClient.fetchAccount(account_id);
+    const accountName = accountInfo?.name || null;
+
+    // Upsert per target company (each company has its own row keyed by pennylane_id+company_id)
+    for (const company of companyRows) {
+      // Per-company cutoff: company.created_at - 3 months
+      let filtered = transactions;
+      if (company.created_at) {
+        const cutoff = new Date(company.created_at);
+        cutoff.setMonth(cutoff.getMonth() - 3);
+        const cutoffDateStr = cutoff.toISOString().split('T')[0];
+        filtered = transactions.filter((t: any) => t.date >= cutoffDateStr);
+      }
+
+      if (filtered.length === 0) continue;
+
+      const upsertData = filtered.map((t: any) => ({
+        user_id: company.user_id,
+        company_id: company.id,
+        pennylane_id: `bridge_${t.id}`,
+        amount: Math.abs(t.amount),
+        description: getBridgeTransactionDescription(t),
+        date: t.date,
+        type: t.amount < 0 ? 'expense' : 'income',
+        bank_account_name: accountName,
+        source: 'bridge',
+        is_reconciled: false,
+        updated_at: new Date().toISOString(),
+      }));
+
+      const { error: upsertError, count } = await supabaseAdmin
+        .from('transactions')
+        .upsert(upsertData, {
+          onConflict: 'pennylane_id',
+          count: 'exact',
+        });
+
+      if (upsertError) {
+        console.error(`[bridge-webhook] Upsert error for company ${company.id}:`, upsertError);
+        continue;
+      }
+      totalInserted += count || filtered.length;
     }
   }
 
-  console.info(`[bridge-webhook] Synced ${count || transactions.length} transactions for account ${account_id}`);
+  // Update bridge_accounts with fresh sync time and balance
+  await supabaseAdmin
+    .from('bridge_accounts')
+    .update({
+      balance,
+      last_sync_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('bridge_account_id', account_id);
 
-  return { inserted: count || transactions.length, updated: 0 };
+  // Save balance snapshot for today (one row per assigned company)
+  const today = new Date().toISOString().split('T')[0];
+  for (const cid of targetCompanyIds) {
+    await supabaseAdmin
+      .from('bank_balance_snapshots')
+      .upsert(
+        {
+          bridge_account_id: account_id,
+          company_id: cid,
+          balance,
+          snapshot_date: today,
+        },
+        { onConflict: 'bridge_account_id,snapshot_date' }
+      );
+  }
+
+  // Recompute bank stats for every assigned company
+  for (const cid of targetCompanyIds) {
+    const { error: rpcError } = await supabaseAdmin.rpc('recompute_company_bank_stats', {
+      p_company_id: cid,
+    });
+    if (rpcError) {
+      console.error(`[bridge-webhook] recompute_company_bank_stats failed for ${cid}:`, rpcError);
+    }
+  }
+
+  console.info(
+    `[bridge-webhook] Synced ${totalInserted} transaction-rows across ${targetCompanyIds.length} companies for account ${account_id}`
+  );
+
+  return { inserted: totalInserted, updated: 0 };
 }
 
 async function handleAccountCreated(
