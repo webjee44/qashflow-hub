@@ -20,7 +20,14 @@ interface Organization {
   is_demo: boolean;
   created_at: string;
   updated_at: string;
+}
+
+// Sensitive billing fields are NOT included on Organization. They are
+// fetched on-demand via the `get_organization_billing` RPC, which enforces
+// admin/owner access at the database level.
+export interface OrganizationBilling {
   stripe_customer_id: string | null;
+  stripe_subscription_id: string | null;
   billing_name: string | null;
   billing_email: string | null;
   billing_address_line1: string | null;
