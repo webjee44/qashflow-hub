@@ -181,11 +181,34 @@ async function syncBridgeAccounts(
   return syncedCount;
 }
 
+/**
+ * Resolve the applicative owner (user_id) for a given target company.
+ * The user_id stored on the transaction MUST be the owner of the target
+ * company, not inherited from a "trigger" company. This is the only way
+ * to keep ownership consistent when a Bridge user UUID is shared across
+ * several companies (e.g. a holding's Bridge connection feeding multiple
+ * subsidiaries).
+ */
+async function resolveCompanyOwners(
+  supabaseAdmin: any,
+  companyIds: string[]
+): Promise<Record<string, string>> {
+  if (companyIds.length === 0) return {};
+  const { data: rows } = await supabaseAdmin
+    .from('companies')
+    .select('id, user_id')
+    .in('id', companyIds);
+  const map: Record<string, string> = {};
+  for (const r of rows || []) {
+    map[r.id] = r.user_id;
+  }
+  return map;
+}
+
 async function syncCompanyTransactions(
   supabaseAdmin: any,
   bridgeClient: BridgeClient,
-  companyId: string,
-  userId: string,
+  fallbackUserId: string,
   accounts: BridgeAccount[],
   transactions: BridgeTransaction[],
   accountToCompanyMap: Record<number, string>
@@ -202,6 +225,14 @@ async function syncCompanyTransactions(
     if (!txByCompany.has(targetCompanyId)) txByCompany.set(targetCompanyId, []);
     txByCompany.get(targetCompanyId)!.push(transaction);
   }
+
+  // Resolve the applicative owner per target company so each inserted
+  // transaction gets the correct user_id (not the one of a "trigger"
+  // company that happens to share the same bridge_user_uuid).
+  const ownerByCompany = await resolveCompanyOwners(
+    supabaseAdmin,
+    Array.from(txByCompany.keys())
+  );
 
   console.info(`[bridge-sync] Processing transactions for ${txByCompany.size} companies`);
 
