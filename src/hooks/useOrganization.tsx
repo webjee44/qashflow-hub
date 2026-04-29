@@ -20,7 +20,14 @@ interface Organization {
   is_demo: boolean;
   created_at: string;
   updated_at: string;
+}
+
+// Sensitive billing fields are NOT included on Organization. They are
+// fetched on-demand via the `get_organization_billing` RPC, which enforces
+// admin/owner access at the database level.
+export interface OrganizationBilling {
   stripe_customer_id: string | null;
+  stripe_subscription_id: string | null;
   billing_name: string | null;
   billing_email: string | null;
   billing_address_line1: string | null;
@@ -95,7 +102,7 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
       
       const { data: orgsData, error: orgsError } = await supabase
         .from('organizations')
-        .select('*')
+        .select('id, name, slug, owner_id, plan, subscription_status, trial_ends_at, max_companies, max_members, max_transactions_per_month, is_demo, created_at, updated_at')
         .in('id', orgIds)
         .is('deleted_at', null); // Filter out soft-deleted organizations
 

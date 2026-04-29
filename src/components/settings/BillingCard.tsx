@@ -7,10 +7,12 @@ import { Badge } from '@/components/ui/badge';
 import { CreditCard, ExternalLink, Building2, Loader2 } from 'lucide-react';
 import { useOrganization } from '@/hooks/useOrganization';
 import { useSubscription, PLANS } from '@/hooks/useSubscription';
+import { supabase } from '@/integrations/supabase/client';
+import { logError } from '@/lib/logger';
 import { toast } from 'sonner';
 
 export function BillingCard() {
-  const { currentOrganization, updateOrganization } = useOrganization();
+  const { currentOrganization, isAdmin } = useOrganization();
   const { subscribed, plan, subscription_end, is_trialing, trial_end, checkoutLoading, createCheckout, openCustomerPortal, loading } = useSubscription();
   
   const [billingForm, setBillingForm] = useState({
@@ -23,28 +25,53 @@ export function BillingCard() {
     billing_country: 'FR',
   });
   const [saving, setSaving] = useState(false);
+  const [billingLoading, setBillingLoading] = useState(false);
 
-  // Sync form when org changes
+  // Load billing details via secure RPC (only admins/owners can read them)
   useEffect(() => {
-    if (currentOrganization) {
-      const org = currentOrganization as any;
-      setBillingForm({
-        billing_name: org.billing_name || '',
-        billing_email: org.billing_email || '',
-        billing_address_line1: org.billing_address_line1 || '',
-        billing_address_line2: org.billing_address_line2 || '',
-        billing_city: org.billing_city || '',
-        billing_postal_code: org.billing_postal_code || '',
-        billing_country: org.billing_country || 'FR',
-      });
-    }
-  }, [currentOrganization]);
+    if (!currentOrganization || !isAdmin) return;
+
+    let cancelled = false;
+    setBillingLoading(true);
+
+    (async () => {
+      try {
+        const { data, error } = await supabase.rpc('get_organization_billing', {
+          _org_id: currentOrganization.id,
+        });
+        if (error) throw error;
+        if (cancelled) return;
+        const row = Array.isArray(data) ? data[0] : data;
+        if (row) {
+          setBillingForm({
+            billing_name: row.billing_name || '',
+            billing_email: row.billing_email || '',
+            billing_address_line1: row.billing_address_line1 || '',
+            billing_address_line2: row.billing_address_line2 || '',
+            billing_city: row.billing_city || '',
+            billing_postal_code: row.billing_postal_code || '',
+            billing_country: row.billing_country || 'FR',
+          });
+        }
+      } catch (err) {
+        logError('Error loading billing details:', err);
+      } finally {
+        if (!cancelled) setBillingLoading(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [currentOrganization?.id, isAdmin]);
 
   const handleSaveBilling = async () => {
     if (!currentOrganization) return;
     setSaving(true);
     try {
-      await updateOrganization(currentOrganization.id, billingForm as any);
+      const { error } = await supabase
+        .from('organizations')
+        .update(billingForm)
+        .eq('id', currentOrganization.id);
+      if (error) throw error;
       toast.success('Informations de facturation mises à jour');
     } catch {
       toast.error('Erreur lors de la sauvegarde');
