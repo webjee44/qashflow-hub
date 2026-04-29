@@ -780,11 +780,12 @@ Deno.serve(async (req) => {
           // Build account→company map for proper transaction assignment
           const acctToCompanyMap = await getAccountToCompanyMap(supabaseAdmin, bridge_user_uuid!);
 
-          // Sync transactions with correct company assignments
+          // Sync transactions with correct company assignments. user_id is
+          // resolved per target company inside syncCompanyTransactions; we
+          // pass the triggering user as a safety fallback only.
           const { inserted, updated } = await syncCompanyTransactions(
             supabaseAdmin,
             bridgeClient,
-            company_id!,
             userId,
             allAccounts,
             allTxs,
