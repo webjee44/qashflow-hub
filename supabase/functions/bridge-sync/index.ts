@@ -482,12 +482,27 @@ Deno.serve(async (req) => {
         return errorResponse('Failed to fetch bridge accounts owners', 500);
       }
 
-      const bridgeUserUuids = Array.from(
+      let bridgeUserUuids = Array.from(
         new Set((ownersRows || []).map((r: any) => r.bridge_user_uuid).filter(Boolean))
       );
 
+      // Optional targeted sync: when a specific bridge_user_uuid is passed,
+      // restrict the cron loop to that single UUID. Used by the future
+      // per-UUID worker pattern and by ops to unblock a single connection
+      // without re-running the full cron (which can hit CPU limits).
+      if (bridge_user_uuid) {
+        if (!bridgeUserUuids.includes(bridge_user_uuid)) {
+          console.warn(
+            `[bridge-sync] Targeted bridge_user_uuid ${bridge_user_uuid} is not in active use, skipping`
+          );
+          return successResponse({ synced: 0, targeted: bridge_user_uuid });
+        }
+        bridgeUserUuids = [bridge_user_uuid];
+      }
+
       console.info(
-        `[bridge-sync] Found ${bridgeUserUuids.length} distinct bridge_user_uuid(s) in active use`
+        `[bridge-sync] Found ${bridgeUserUuids.length} distinct bridge_user_uuid(s) to sync` +
+          (bridge_user_uuid ? ` (targeted: ${bridge_user_uuid})` : '')
       );
 
       let syncedUuidCount = 0;
