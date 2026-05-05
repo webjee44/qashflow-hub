@@ -2171,6 +2171,7 @@ export type Database = {
           ai_confidence: number | null
           amount: number
           bank_account_name: string | null
+          bridge_account_id: number | null
           bridge_transaction_id: number | null
           category_id: string | null
           company_id: string | null
@@ -2192,6 +2193,7 @@ export type Database = {
           ai_confidence?: number | null
           amount: number
           bank_account_name?: string | null
+          bridge_account_id?: number | null
           bridge_transaction_id?: number | null
           category_id?: string | null
           company_id?: string | null
@@ -2213,6 +2215,7 @@ export type Database = {
           ai_confidence?: number | null
           amount?: number
           bank_account_name?: string | null
+          bridge_account_id?: number | null
           bridge_transaction_id?: number | null
           category_id?: string | null
           company_id?: string | null
