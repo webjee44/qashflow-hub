@@ -163,6 +163,11 @@ export default function Dashboard() {
                       <div className="flex items-center gap-2 min-w-0">
                         <Landmark className="w-3.5 h-3.5 shrink-0 text-primary-foreground/70" />
                         <span className="text-xs font-medium text-primary-foreground/80 truncate">{acc.name}</span>
+                        {acc.iban && (
+                          <span className="text-[10px] tabular-nums text-primary-foreground/50 shrink-0">
+                            {maskIban(acc.iban)}
+                          </span>
+                        )}
                       </div>
                       <div className="flex items-center gap-1">
                         <span className={cn(
