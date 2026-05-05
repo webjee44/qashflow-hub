@@ -1,13 +1,15 @@
-// computeFundingPlan — pure (parity with useFundingPlan)
+// ============================================================
+// computeFundingPlan — pure (parity with src/hooks/useFundingPlan)
+// ============================================================
 import type { BPModelInput } from './types';
-import type { PLData } from '../hooks/useProfitLoss';
-import type { BalanceSheetData } from '@/hooks/useBalanceSheet';
-import type { FundingPlanData, FundingPlanRow } from '../hooks/useFundingPlan';
+import type { PLData } from '../hooks/useProfitLoss.types';
+import type { BalanceSheetData, FundingPlanData, FundingPlanRow } from './types';
 
 export function computeFundingPlan(
   input: BPModelInput, plData: PLData, bsData: BalanceSheetData
 ): FundingPlanData {
   const { settings, investments, financings } = input;
+  const showFinancing = settings.show_financing !== false;
   const years = plData.years.map((_, i) => `Année ${i + 1}`);
   const rows: FundingPlanRow[] = [];
 
@@ -32,7 +34,7 @@ export function computeFundingPlan(
   });
   rows.push({ label: 'Variation du BFR', type: 'item', values: bfrVariation, isNeed: true, indent: 1 });
 
-  const loanRepayments = years.map((_, yearIndex) => {
+  const loanRepayments = showFinancing ? years.map((_, yearIndex) => {
     const yearStart = plData.years[yearIndex]?.start;
     const yearEnd = plData.years[yearIndex]?.end;
     if (!yearStart || !yearEnd) return 0;
@@ -50,8 +52,10 @@ export function computeFundingPlan(
         const avgInterest = outstandingAtStart * interestRate;
         return sum + Math.max(0, annualPayment - avgInterest);
       }, 0);
-  });
-  rows.push({ label: 'Remboursements emprunts', type: 'item', values: loanRepayments, isNeed: true, indent: 1 });
+  }) : years.map(() => 0);
+  if (showFinancing) {
+    rows.push({ label: 'Remboursements emprunts', type: 'item', values: loanRepayments, isNeed: true, indent: 1 });
+  }
 
   const dividends = years.map(() => 0);
   rows.push({ label: 'Dividendes', type: 'item', values: dividends, isNeed: true, indent: 1 });
@@ -68,12 +72,12 @@ export function computeFundingPlan(
     const depreciation = plData.totals.depreciation[i] || 0;
     return netResult + depreciation;
   });
-  rows.push({ label: 'Capacité d\'autofinancement (CAF)', type: 'item', values: caf, indent: 1 });
+  rows.push({ label: "Capacité d'autofinancement (CAF)", type: 'item', values: caf, indent: 1 });
 
   const capitalContributions = years.map((_, i) => i === 0 ? Number(settings.initial_cash) || 0 : 0);
   rows.push({ label: 'Apports en capital', type: 'item', values: capitalContributions, indent: 1 });
 
-  const newLoans = years.map((_, yearIndex) => {
+  const newLoans = showFinancing ? years.map((_, yearIndex) => {
     const yearStart = plData.years[yearIndex]?.start;
     const yearEnd = plData.years[yearIndex]?.end;
     if (!yearStart || !yearEnd) return 0;
@@ -84,10 +88,12 @@ export function computeFundingPlan(
         return startDate >= yearStart && startDate <= yearEnd;
       })
       .reduce((sum, f) => sum + Number(f.amount), 0);
-  });
-  rows.push({ label: 'Nouveaux emprunts', type: 'item', values: newLoans, indent: 1 });
+  }) : years.map(() => 0);
+  if (showFinancing) {
+    rows.push({ label: 'Nouveaux emprunts', type: 'item', values: newLoans, indent: 1 });
+  }
 
-  const currentAccounts = years.map((_, yearIndex) => {
+  const currentAccounts = showFinancing ? years.map((_, yearIndex) => {
     const yearStart = plData.years[yearIndex]?.start;
     const yearEnd = plData.years[yearIndex]?.end;
     if (!yearStart || !yearEnd) return 0;
@@ -98,8 +104,10 @@ export function computeFundingPlan(
         return startDate >= yearStart && startDate <= yearEnd;
       })
       .reduce((sum, f) => sum + Number(f.amount), 0);
-  });
-  rows.push({ label: 'Comptes courants associés', type: 'item', values: currentAccounts, indent: 1 });
+  }) : years.map(() => 0);
+  if (showFinancing) {
+    rows.push({ label: 'Comptes courants associés', type: 'item', values: currentAccounts, indent: 1 });
+  }
 
   const bfrDecrease = years.map((_, i) => Math.max(0, -bfrVariation[i]));
   if (bfrDecrease.some(v => v > 0)) {
