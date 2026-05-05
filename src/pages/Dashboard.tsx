@@ -102,8 +102,16 @@ export default function Dashboard() {
         .eq('bridge_account_id', bridgeAccountId);
       if (error) throw error;
 
-      // Refresh denormalized stats on the company so balance stays consistent
+      // Soft-delete linked transactions so they disappear from all views.
+      // Reversible: re-assigning the account would restore them via a sync.
       if (currentCompany?.id) {
+        await supabase
+          .from('transactions')
+          .update({ deleted_at: new Date().toISOString() })
+          .eq('company_id', currentCompany.id)
+          .eq('bridge_account_id', bridgeAccountId)
+          .is('deleted_at', null);
+
         await supabase.rpc('recompute_company_bank_stats', { p_company_id: currentCompany.id });
       }
 
