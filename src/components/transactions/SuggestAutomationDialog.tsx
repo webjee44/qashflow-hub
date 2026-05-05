@@ -127,7 +127,9 @@ export function SuggestAutomationDialog({
     };
   };
 
-  // Find similar uncategorized transactions
+  // Find ALL similar uncategorized transactions matching the current pattern.
+  // Returns the full list — display-time slicing happens at render so the
+  // count stays accurate as the pattern is edited in real-time.
   const findSimilarTransactions = (pattern: string, amountOp?: string, amountVal?: string) => {
     if (!transaction || !pattern) return [];
     const normalizedPattern = pattern.trim();
@@ -139,7 +141,7 @@ export function SuggestAutomationDialog({
         if (!matchesAmountCondition(Math.abs(Number(t.amount)), amountOp, amountVal.replace(',', '.'))) return false;
       }
       return true;
-    }).slice(0, 5);
+    });
   };
 
   useEffect(() => {

@@ -1,77 +1,27 @@
+## Problème
+
+Dans la modale "Créer une automatisation ?", quand on modifie le pattern (ou le critère de montant), la liste "X transaction(s) similaire(s)" en dessous semble ne pas réagir.
+
 ## Cause racine
 
-`company_bridge_accounts` accepte plusieurs liens vers un même compte bancaire réel. Deux mécanismes cassent le solde :
+Dans `src/components/transactions/SuggestAutomationDialog.tsx`, la fonction `findSimilarTransactions` applique `.slice(0, 5)` **avant** de retourner le résultat. Le compteur affiché (`liveSimilarTransactions.length`) est donc plafonné à 5.
 
-1. Quand l'utilisateur reconnecte une banque, Bridge émet un nouveau `bridge_user_uuid` et de nouveaux `bridge_account_id` pour les mêmes comptes physiques. Les anciens liens restent actifs et continuent d'être synchronisés → soldes additionnés deux fois.
-2. Aucune contrainte (DB ni code) n'empêche d'attacher deux fois le même IBAN à la même société.
+Conséquences :
+- Tant que le pattern matche plus de 5 transactions, raffiner ne change ni le badge ni la liste → impression de gel.
+- Le compteur n'a jamais reflété le nombre réel de transactions affectées par la règle, ce qui est trompeur juste avant la création de la règle.
 
-Conséquence visible chez SAS Vapeclub : 7 lignes au lieu de 4, total gonflé d'environ 33 500 €.
+C'est un mélange des responsabilités : la fonction de matching doit retourner la **vérité** (toutes les correspondances), pas une vue tronquée. Le tronçonnage est une préoccupation d'affichage.
 
-## Approche : 3 couches, du plus structurel au moins risqué
+## Correction (1 fichier)
 
-### 1. Source de vérité : un compte physique = une ligne par société
+`src/components/transactions/SuggestAutomationDialog.tsx`
 
-Définir l'identité métier d'un compte bancaire :
-- `iban` quand il existe (comptes courants)
-- sinon fallback `(bridge_user_uuid, account_name, type)` (cartes, comptes sans IBAN)
+1. Retirer `.slice(0, 5)` de `findSimilarTransactions` → la fonction retourne désormais toutes les correspondances.
+2. Au rendu, afficher le **total réel** dans le badge (`liveSimilarTransactions.length`) et appliquer `.slice(0, 5)` uniquement sur le `.map(...)` de la preview.
+3. Si le total dépasse 5, ajouter une mention discrète "+ N autres" sous la liste pour garder la transparence.
 
-Ajouter une fonction SQL `bank_account_identity(bridge_account_id) returns text` qui retourne cette clé. Elle vit dans `_shared` côté logique métier et est utilisée partout (sync, assignment, balance computation).
+## Résultat
 
-### 2. Cycle de vie de `bridge_user_uuid`
-
-Aujourd'hui un UUID n'est jamais marqué obsolète. On introduit :
-- Table `bridge_user_connections (bridge_user_uuid pk, company_id, status enum('active','superseded','revoked'), created_at, superseded_at)`.
-- À chaque nouvelle connexion Bridge pour une société : on marque les UUID précédents `superseded` automatiquement si leurs IBANs sont couverts par le nouveau.
-- `bridge-sync` et le calcul de solde n'incluent que les UUID `active`.
-- `bridge-webhook` respecte la même règle.
-
-Cela règle le cas "ancienne connexion oubliée" sans intervention manuelle, et c'est le vrai correctif du problème évoqué dans le contexte précédent.
-
-### 3. Garde-fous DB
-
-Sur `company_bridge_accounts` :
-- Index unique partiel : `(company_id, normalized_iban) where normalized_iban is not null`.
-- Index unique : `(company_id, bridge_account_id)` (déjà implicite via PK composite probable, à vérifier).
-
-Sur `bridge_accounts` : index unique `(bridge_user_uuid, bridge_account_id)` pour empêcher la duplication côté ingest.
-
-Trigger BEFORE INSERT/UPDATE qui refuse un lien si un autre lien actif existe déjà pour la même identité métier dans la même société.
-
-## Migration de l'état actuel
-
-Script idempotent qui, pour chaque société :
-1. Calcule l'identité métier de chaque `bridge_account` rattaché.
-2. Pour chaque groupe d'identité, garde le lien dont le `bridge_account` a le `last_sync_at` le plus récent.
-3. Supprime les `company_bridge_accounts` redondants.
-4. Marque les `bridge_user_uuid` orphelins (plus aucun lien actif) comme `superseded`.
-
-Pour Vapeclub spécifiquement : passe de 7 → 4 comptes, solde recalculé automatiquement par les hooks existants (`useBankBalance`, `useDashboardStats`) puisqu'ils consomment `company_bridge_accounts`.
-
-## Impact sur le code existant
-
-| Zone | Changement |
-|---|---|
-| `supabase/functions/bridge-sync` | Filtre les UUID `active` uniquement (plus simple que la logique précédente, plus correcte) |
-| `supabase/functions/bridge-webhook` | Même filtre + déclenche le marquage `superseded` quand un nouvel UUID couvre les mêmes IBANs |
-| `supabase/functions/bridge-connect` (post-link callback) | Insère la connexion dans `bridge_user_connections` et déclenche la dédup |
-| `supabase/functions/bridge-accounts` (assignment UI) | Affiche uniquement les comptes des UUID `active` |
-| `useBankBalance`, `useDashboardStats`, `useGroupBalances` | Aucun changement — ils lisent déjà `company_bridge_accounts`, qui sera nettoyée |
-
-## Tests
-
-- Deno : `bridge-sync` ignore les UUID `superseded` ; `bridge-connect` marque correctement les anciens UUID quand les IBANs sont couverts.
-- Unit : fonction `bankAccountIdentity` (priorité IBAN > fallback) avec cas limites (carte sans IBAN, IBAN avec espaces, casse).
-- Migration : test SQL qui crée le scénario doublon Vapeclub et vérifie qu'on retombe sur 4 lignes.
-
-## Plan d'exécution
-
-1. Migration DB : table `bridge_user_connections`, fonction `bank_account_identity`, contraintes, trigger, backfill des connexions existantes en `active`.
-2. Script de dédup one-shot, exécuté dans la même migration (transactionnel).
-3. Mise à jour `bridge-sync`, `bridge-webhook`, `bridge-connect`, `bridge-accounts` pour respecter `bridge_user_connections.status`.
-4. Tests Deno + unit.
-5. Vérification UI sur Vapeclub via browser.
-
-## Hors scope
-
-- Pas de changement de l'UX d'assignment des comptes (la liste sera juste plus propre).
-- Pas de migration vers une nouvelle abstraction "BankAccount logique" séparée de `bridge_account` — on garde `company_bridge_accounts` comme table de jointure, mais avec la garantie d'unicité.
+- Le compteur réagit en direct à chaque modification du pattern, montant ou compte bancaire.
+- L'utilisateur voit le vrai nombre de transactions qui seront catégorisées par la règle avant de la créer.
+- Aucune logique métier dupliquée, séparation propre entre matching (vérité) et affichage (preview limitée).
