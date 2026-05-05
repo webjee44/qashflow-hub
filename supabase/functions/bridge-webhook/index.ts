@@ -211,7 +211,8 @@ async function handleAccountUpdated(
   const { data: assignmentsForAccount, error: assignErr } = await supabaseAdmin
     .from('company_bridge_accounts')
     .select('company_id')
-    .eq('bridge_account_id', account_id);
+    .eq('bridge_account_id', account_id)
+    .eq('status', 'active');
 
   if (assignErr) {
     console.error('[bridge-webhook] Failed to load assignments:', assignErr);
