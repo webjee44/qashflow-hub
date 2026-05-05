@@ -202,13 +202,84 @@ export function useTransactionHandlers({
     setShowCategorizationModal(true);
   }, []);
 
+  // Deterministic categorization flow:
+  // 1. Snapshot transaction & resolve category (cache or fetch)
+  // 2. Apply mutation
+  // 3. Compute existing rule match
+  // 4. Stage pendingAutomationSuggestion + close categorization modal
+  // 5. useEffect above opens SuggestAutomationDialog once modal is closed
   const handleCategorizationSelect = useCallback(async (categoryId: string) => {
     if (!transactionToCategorize) return;
+    const transactionSnapshot = transactionToCategorize;
+
+    // Resolve category (cache, then fetch fallback for inline-created)
+    let category = categoryMap.get(categoryId) ?? null;
+    if (!category) {
+      try {
+        const { data: fetched } = await supabase
+          .from('categories')
+          .select('*')
+          .eq('id', categoryId)
+          .single();
+        if (fetched) category = fetched as Category;
+      } catch (err) {
+        logError('Error fetching category for suggestion:', err);
+      }
+    }
+
+    try {
+      await updateCategory({ transactionId: transactionSnapshot.id, categoryId });
+      toast({ title: 'Catégorie mise à jour', description: 'La transaction a été catégorisée avec succès' });
+    } catch {
+      toast({ title: 'Erreur', description: 'Impossible de mettre à jour la catégorie', variant: 'destructive' });
+      setShowCategorizationModal(false);
+      setTransactionToCategorize(null);
+      return;
+    }
+
+    if (category && currentCompany) {
+      const existingRuleMatch = rules.find(rule =>
+        isMatchingActiveCategorizationRule(
+          rule,
+          {
+            description: transactionSnapshot.description,
+            amount: transactionSnapshot.amount,
+            type: transactionSnapshot.type,
+            bank_account_name: transactionSnapshot.bank_account_name,
+          },
+          categoryId,
+        ),
+      ) as AutomationRule | undefined;
+
+      setPendingAutomationSuggestion({
+        transaction: { ...transactionSnapshot, category_id: categoryId },
+        category,
+        existingRuleMatch: existingRuleMatch ?? null,
+      });
+    }
+
     setShowCategorizationModal(false);
     setTransactionToCategorize(null);
-    await new Promise(resolve => setTimeout(resolve, 150));
-    await handleUpdateCategory(transactionToCategorize.id, categoryId);
-  }, [transactionToCategorize, handleUpdateCategory]);
+  }, [transactionToCategorize, categoryMap, updateCategory, toast, currentCompany, rules]);
+
+  const handleApplyExistingRule = useCallback(async (ruleId: string) => {
+    if (!applyRuleToExistingTransactions) return;
+    try {
+      const updated = await applyRuleToExistingTransactions(ruleId);
+      toast({
+        title: 'Règle appliquée',
+        description: updated > 0
+          ? `${updated} transaction${updated > 1 ? 's' : ''} catégorisée${updated > 1 ? 's' : ''}`
+          : 'Aucune nouvelle transaction à catégoriser',
+      });
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      refetchTransactions();
+    } catch (err) {
+      logError('Error applying existing rule:', err);
+      toast({ title: 'Erreur', description: "Impossible d'appliquer la règle", variant: 'destructive' });
+    }
+  }, [applyRuleToExistingTransactions, toast, queryClient, refetchTransactions]);
+
 
   const handleSplitTransaction = useCallback(async (splits: { categoryId: string | null; amount: number }[]) => {
     if (!transactionToSplit) return;
