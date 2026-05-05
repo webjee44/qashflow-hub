@@ -35,14 +35,8 @@ interface AccountSummary {
   name: string;
   balance: number;
   bridge_account_id: number;
-}
-
-type AccountSummary = {
-  name: string;
-  balance: number;
-  bridge_account_id: number;
   iban: string | null;
-};
+}
 
 function maskIban(iban: string | null): string {
   if (!iban) return '';
