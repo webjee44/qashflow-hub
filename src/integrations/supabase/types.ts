@@ -1224,6 +1224,7 @@ export type Database = {
       }
       bridge_accounts: {
         Row: {
+          account_identity: string | null
           account_type: string | null
           balance: number | null
           bank_id: number | null
@@ -1244,6 +1245,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          account_identity?: string | null
           account_type?: string | null
           balance?: number | null
           bank_id?: number | null
@@ -1264,6 +1266,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          account_identity?: string | null
           account_type?: string | null
           balance?: number | null
           bank_id?: number | null
@@ -2371,6 +2374,15 @@ export type Database = {
       company_has_secret: {
         Args: { p_company_id: string; p_secret_type?: string }
         Returns: boolean
+      }
+      compute_bridge_account_identity: {
+        Args: {
+          p_account_type: string
+          p_bridge_user_uuid: string
+          p_iban: string
+          p_name: string
+        }
+        Returns: string
       }
       delete_organization_cascade: {
         Args: { _org_id: string }

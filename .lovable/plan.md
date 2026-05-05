@@ -1,100 +1,77 @@
-## Objectif
+## Cause racine
 
-Ajouter sur la page **/groupe** un bouton "Actualiser les soldes" qui force Bridge à re-contacter les banques de toutes les sociétés du groupe, puis relit les soldes à jour. Sans toucher aux transactions, sans risque de saturation, avec cooldown.
+`company_bridge_accounts` accepte plusieurs liens vers un même compte bancaire réel. Deux mécanismes cassent le solde :
 
-## Cause racine du problème
+1. Quand l'utilisateur reconnecte une banque, Bridge émet un nouveau `bridge_user_uuid` et de nouveaux `bridge_account_id` pour les mêmes comptes physiques. Les anciens liens restent actifs et continuent d'être synchronisés → soldes additionnés deux fois.
+2. Aucune contrainte (DB ni code) n'empêche d'attacher deux fois le même IBAN à la même société.
 
-Aujourd'hui, les soldes affichés viennent de `bridge_accounts.balance`, mis à jour par :
-- le webhook Bridge (quand Bridge décide de sync avec la banque, ~1-4×/jour)
-- nos appels `get-accounts` qui ne font que **relire le cache Bridge**
+Conséquence visible chez SAS Vapeclub : 7 lignes au lieu de 4, total gonflé d'environ 33 500 €.
 
-Personne ne déclenche jamais `POST /v3/aggregation/items/{item_id}/refresh`, le seul endpoint qui force Bridge à re-contacter la banque maintenant. D'où la sensation "solde du matin".
+## Approche : 3 couches, du plus structurel au moins risqué
 
-## Architecture proposée (réutilisable, propre, scalable)
+### 1. Source de vérité : un compte physique = une ligne par société
 
-### Couche 1 — `BridgeClient` (`supabase/functions/_shared/bridge-client.ts`)
+Définir l'identité métier d'un compte bancaire :
+- `iban` quand il existe (comptes courants)
+- sinon fallback `(bridge_user_uuid, account_name, type)` (cartes, comptes sans IBAN)
 
-Ajouter 2 méthodes génériques (utilisables aussi par d'autres flows futurs) :
+Ajouter une fonction SQL `bank_account_identity(bridge_account_id) returns text` qui retourne cette clé. Elle vit dans `_shared` côté logique métier et est utilisée partout (sync, assignment, balance computation).
 
-- `refreshItem(itemId: number): Promise<{ ok: boolean; status: number }>` — appelle `POST /v3/aggregation/items/{item_id}/refresh`
-- `refreshAllItems(): Promise<{ refreshed: number; skipped: number; errors: number }>` — itère sur `fetchAllItems()`, refresh ceux dont `status === 0` (ok), skip les `needs_action`/`error`/`deleted`. Parallélisation via `Promise.allSettled`.
+### 2. Cycle de vie de `bridge_user_uuid`
 
-### Couche 2 — Nouvelle edge function `bridge-refresh-balances`
+Aujourd'hui un UUID n'est jamais marqué obsolète. On introduit :
+- Table `bridge_user_connections (bridge_user_uuid pk, company_id, status enum('active','superseded','revoked'), created_at, superseded_at)`.
+- À chaque nouvelle connexion Bridge pour une société : on marque les UUID précédents `superseded` automatiquement si leurs IBANs sont couverts par le nouveau.
+- `bridge-sync` et le calcul de solde n'incluent que les UUID `active`.
+- `bridge-webhook` respecte la même règle.
 
-Endpoint dédié, scope soldes uniquement, **pas de sync transactions** :
+Cela règle le cas "ancienne connexion oubliée" sans intervention manuelle, et c'est le vrai correctif du problème évoqué dans le contexte précédent.
 
-```
-POST bridge-refresh-balances
-body: { company_ids: uuid[] }
-```
+### 3. Garde-fous DB
 
-Logique :
-1. Auth user + check `has_company_access` pour chaque company_id
-2. Pour chaque company → récupérer son `bridge_user_uuid`
-3. **Dédoublonnage** : grouper par `bridge_user_uuid` (un user Bridge peut couvrir plusieurs sociétés)
-4. Pour chaque user Bridge unique → `bridgeClient.refreshAllItems()`
-5. Attendre ~4s (`await new Promise(r => setTimeout(r, 4000))`)
-6. Pour chaque user Bridge → `fetchAllAccounts()` et upsert dans `bridge_accounts` (le trigger DB `recompute_company_bank_stats` fait le reste)
-7. Renvoyer `{ refreshed_items, refreshed_accounts, companies_updated }`
+Sur `company_bridge_accounts` :
+- Index unique partiel : `(company_id, normalized_iban) where normalized_iban is not null`.
+- Index unique : `(company_id, bridge_account_id)` (déjà implicite via PK composite probable, à vérifier).
 
-Pourquoi une nouvelle function et pas étendre `bridge-accounts` ? Parce que c'est une opération multi-société, multi-bridge-user, avec scope clair "refresh + relecture soldes". Ça mérite son propre endpoint testable.
+Sur `bridge_accounts` : index unique `(bridge_user_uuid, bridge_account_id)` pour empêcher la duplication côté ingest.
 
-### Couche 3 — Hook front `useGroupRefreshBalances`
+Trigger BEFORE INSERT/UPDATE qui refuse un lien si un autre lien actif existe déjà pour la même identité métier dans la même société.
 
-Nouveau hook dans `src/hooks/useGroupRefreshBalances.ts` :
+## Migration de l'état actuel
 
-```ts
-{
-  refresh: () => Promise<void>,
-  isRefreshing: boolean,
-  cooldownRemainingMs: number,  // 0 si dispo
-  lastRefreshAt: Date | null,
-}
-```
+Script idempotent qui, pour chaque société :
+1. Calcule l'identité métier de chaque `bridge_account` rattaché.
+2. Pour chaque groupe d'identité, garde le lien dont le `bridge_account` a le `last_sync_at` le plus récent.
+3. Supprime les `company_bridge_accounts` redondants.
+4. Marque les `bridge_user_uuid` orphelins (plus aucun lien actif) comme `superseded`.
 
-- Cooldown 5 min via `localStorage` clé `group_last_manual_refresh`
-- Invalide les queries `['group_balances']` et `['bank_balance']` après succès
-- Toast succès : *"Synchro déclenchée auprès de vos banques. Les nouveaux soldes peuvent prendre 1 à 2 minutes."*
-- Toast cooldown : *"Synchro déjà déclenchée il y a moins de 5 minutes."*
-- Toast erreur partielle : *"X banque(s) n'ont pas pu être actualisées."*
+Pour Vapeclub spécifiquement : passe de 7 → 4 comptes, solde recalculé automatiquement par les hooks existants (`useBankBalance`, `useDashboardStats`) puisqu'ils consomment `company_bridge_accounts`.
 
-### Couche 4 — UI `GroupOverview.tsx`
+## Impact sur le code existant
 
-Bouton dans le header (à côté de `PageHeader`) :
-- Icône `RefreshCw` + label "Actualiser les soldes"
-- Spinner + désactivé pendant `isRefreshing`
-- Tooltip pendant cooldown : *"Disponible dans Xm Ys"*
-- Sous-texte discret sous le hero card : *"Dernière actualisation manuelle : il y a Xmin"* (si `lastRefreshAt`)
-
-## Fichiers touchés
-
-- `supabase/functions/_shared/bridge-client.ts` — `refreshItem` + `refreshAllItems`
-- `supabase/functions/bridge-refresh-balances/index.ts` — nouvelle edge function
-- `supabase/functions/_shared/validation.ts` — schéma Zod du body
-- `src/hooks/useGroupRefreshBalances.ts` — nouveau hook
-- `src/pages/GroupOverview.tsx` — bouton + sous-texte
-- `supabase/functions/_shared/tests/bridge-client.test.ts` — test `refreshItem` (mock fetch)
-
-## Garde-fous anti-bazar
-
-| Risque | Mitigation |
+| Zone | Changement |
 |---|---|
-| Spam clic | Cooldown 5 min localStorage |
-| Rate limit Bridge | Refresh dédoublonné par `bridge_user_uuid`, pas par société |
-| Surcharge DB | Pas de full-sync transactions, juste upsert `bridge_accounts` (trigger recompute déjà optimisé) |
-| Promesse trompeuse | Toast explicite "1 à 2 minutes" |
-| Items HS | Skip silencieux des items en erreur, comptés dans le retour |
-| Timeout edge function | `Promise.allSettled`, pas de `Promise.all` qui kill au premier échec |
+| `supabase/functions/bridge-sync` | Filtre les UUID `active` uniquement (plus simple que la logique précédente, plus correcte) |
+| `supabase/functions/bridge-webhook` | Même filtre + déclenche le marquage `superseded` quand un nouvel UUID couvre les mêmes IBANs |
+| `supabase/functions/bridge-connect` (post-link callback) | Insère la connexion dans `bridge_user_connections` et déclenche la dédup |
+| `supabase/functions/bridge-accounts` (assignment UI) | Affiche uniquement les comptes des UUID `active` |
+| `useBankBalance`, `useDashboardStats`, `useGroupBalances` | Aucun changement — ils lisent déjà `company_bridge_accounts`, qui sera nettoyée |
 
-## Hors scope (volontairement)
+## Tests
 
-- Pas de bouton refresh par société individuelle (déjà sur Dashboard via `BankAccounts.tsx`, qu'on traitera après si besoin avec la même API)
-- Pas de webhook custom — le webhook Bridge existant fera son job en parallèle si la banque répond
-- Pas de stockage `last_manual_refresh_at` en DB — pas nécessaire pour un cooldown UX
+- Deno : `bridge-sync` ignore les UUID `superseded` ; `bridge-connect` marque correctement les anciens UUID quand les IBANs sont couverts.
+- Unit : fonction `bankAccountIdentity` (priorité IBAN > fallback) avec cas limites (carte sans IBAN, IBAN avec espaces, casse).
+- Migration : test SQL qui crée le scénario doublon Vapeclub et vérifie qu'on retombe sur 4 lignes.
 
-## Question avant de coder
+## Plan d'exécution
 
-Le cooldown : je pars sur **5 minutes localStorage**. Tu préfères :
-- **5 min** (raisonnable, évite le spam, suffisant pour Bridge propager)
-- **2 min** (plus permissif)  
-- **Pas de cooldown** mais bouton désactivé pendant la requête uniquement
+1. Migration DB : table `bridge_user_connections`, fonction `bank_account_identity`, contraintes, trigger, backfill des connexions existantes en `active`.
+2. Script de dédup one-shot, exécuté dans la même migration (transactionnel).
+3. Mise à jour `bridge-sync`, `bridge-webhook`, `bridge-connect`, `bridge-accounts` pour respecter `bridge_user_connections.status`.
+4. Tests Deno + unit.
+5. Vérification UI sur Vapeclub via browser.
+
+## Hors scope
+
+- Pas de changement de l'UX d'assignment des comptes (la liste sera juste plus propre).
+- Pas de migration vers une nouvelle abstraction "BankAccount logique" séparée de `bridge_account` — on garde `company_bridge_accounts` comme table de jointure, mais avec la garantie d'unicité.
