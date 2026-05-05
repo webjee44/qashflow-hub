@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useCompany } from '@/hooks/useCompany';
@@ -7,7 +7,7 @@ import { logError } from '@/lib/logger';
 import { Tables } from '@/integrations/supabase/types';
 import { Category } from '@/hooks/useCategories';
 import type { AutomationRule } from '@/hooks/useAutomationRules';
-import { hasMatchingActiveCategorizationRule } from '@/lib/automationRuleMatching';
+import { isMatchingActiveCategorizationRule } from '@/lib/automationRuleMatching';
 
 type Transaction = Tables<'transactions'>;
 
