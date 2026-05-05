@@ -236,8 +236,9 @@ export function useAutomationRules() {
 
       if (conditionsError) {
         logError('Error creating conditions:', conditionsError);
+        throw conditionsError;
       }
-      
+
       const ruleWithConditions = {
         ...data,
         conditions: insertedConditions || conditions
