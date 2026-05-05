@@ -129,6 +129,7 @@ interface AccountAssignment {
   bridge_account_id: number;
   company_id: string | null;
   is_enabled: boolean;
+  status?: 'active' | 'excluded';
 }
 
 interface OrgCompanyOption {
@@ -231,11 +232,11 @@ export function BankAccountsCard() {
       setIsLoading(true);
       try {
         let bridgeAccounts: BridgeAccount[] = [];
-        let currentAssignments: Array<{ bridge_account_id: number; company_id: string }> = [];
+        let currentAssignments: Array<{ bridge_account_id: number; company_id: string; status: string | null }> = [];
 
         const { data: assigns, error: assignsError } = await supabase
           .from('company_bridge_accounts')
-          .select('bridge_account_id, company_id')
+          .select('bridge_account_id, company_id, status')
           .in('company_id', scopedCompanyIds);
         if (assignsError) throw assignsError;
         currentAssignments = assigns || [];
@@ -260,7 +261,8 @@ export function BankAccountsCard() {
           assignmentMap.set(account.bridge_account_id, {
             bridge_account_id: account.bridge_account_id,
             company_id: existing?.company_id || null,
-            is_enabled: existing !== undefined,
+            is_enabled: existing?.status !== 'excluded',
+            status: existing?.status === 'excluded' ? 'excluded' : 'active',
           });
         });
         setAssignments(assignmentMap);
@@ -448,7 +450,7 @@ export function BankAccountsCard() {
       // Fetch current DB assignments before deleting to detect changes
       const { data: currentDbAssignments } = await supabase
         .from('company_bridge_accounts')
-        .select('bridge_account_id, company_id')
+        .select('bridge_account_id, company_id, status')
         .in('bridge_account_id', accountIds)
         .in('company_id', managedCompanyIds);
 
@@ -456,29 +458,42 @@ export function BankAccountsCard() {
       for (const a of currentDbAssignments || []) {
         oldAssignmentMap.set(a.bridge_account_id, a.company_id);
       }
-      
-      const { error: deleteError } = await supabase
-        .from('company_bridge_accounts')
-        .delete()
-        .in('bridge_account_id', accountIds)
-        .in('company_id', managedCompanyIds);
 
-      if (deleteError) throw deleteError;
+      const assignmentRows = Array.from(assignments.values()).flatMap(a => {
+        const companyId = a.company_id || oldAssignmentMap.get(a.bridge_account_id);
+        if (!companyId) return [];
+        return [{
+          company_id: companyId,
+          bridge_account_id: a.bridge_account_id,
+          status: a.is_enabled && a.company_id ? 'active' : 'excluded',
+          excluded_at: a.is_enabled && a.company_id ? null : new Date().toISOString(),
+          exclusion_reason: a.is_enabled && a.company_id ? null : 'Désactivé depuis les paramètres bancaires',
+        }];
+      });
 
-      // Insert new assignments (only enabled ones with a company)
-      const newAssignments = Array.from(assignments.values())
-        .filter(a => a.is_enabled && a.company_id);
-
-      if (newAssignments.length > 0) {
-        const { error: insertError } = await supabase
-          .from('company_bridge_accounts')
-          .insert(newAssignments.map(a => ({
-            company_id: a.company_id!,
-            bridge_account_id: a.bridge_account_id,
-          })));
-
-        if (insertError) throw insertError;
+      const desiredKeys = new Set(assignmentRows.map(a => `${a.company_id}:${a.bridge_account_id}`));
+      for (const existing of currentDbAssignments || []) {
+        const key = `${existing.company_id}:${existing.bridge_account_id}`;
+        if (!desiredKeys.has(key) && existing.status !== 'excluded') {
+          assignmentRows.push({
+            company_id: existing.company_id,
+            bridge_account_id: existing.bridge_account_id,
+            status: 'excluded',
+            excluded_at: new Date().toISOString(),
+            exclusion_reason: 'Désactivé depuis les paramètres bancaires',
+          });
+        }
       }
+
+      if (assignmentRows.length > 0) {
+        const { error: upsertError } = await supabase
+          .from('company_bridge_accounts')
+          .upsert(assignmentRows, { onConflict: 'company_id,bridge_account_id' });
+
+        if (upsertError) throw upsertError;
+      }
+
+      const newAssignments = assignmentRows.filter(a => a.status === 'active');
 
       // Detect which companies gained new accounts
       for (const a of newAssignments) {

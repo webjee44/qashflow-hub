@@ -39,11 +39,14 @@ async function getAccountToCompanyMap(
 
   const accountIds = bridgeAccounts.map((a: { bridge_account_id: number }) => a.bridge_account_id);
 
-  // Get the company assignments for these accounts
+  // Get only active company assignments for these accounts.
+  // Excluded rows are persistent user decisions: they must keep the account
+  // visible for audit/settings, but must never route transactions again.
   const { data: assignments } = await supabaseAdmin
     .from('company_bridge_accounts')
     .select('bridge_account_id, company_id')
-    .in('bridge_account_id', accountIds);
+    .in('bridge_account_id', accountIds)
+    .eq('status', 'active');
 
   const map: Record<number, string> = {};
   for (const row of assignments || []) {
@@ -100,7 +103,8 @@ async function syncBridgeAccounts(
   const { data: assignments } = await supabaseAdmin
     .from('company_bridge_accounts')
     .select('bridge_account_id, company_id')
-    .in('bridge_account_id', accountIds);
+    .in('bridge_account_id', accountIds)
+    .eq('status', 'active');
 
   const assignmentMap: Record<number, string> = {};
   for (const row of assignments || []) {
@@ -592,6 +596,7 @@ Deno.serve(async (req) => {
       const { data: activeAssignments, error: assignErr } = await supabaseAdmin
         .from('company_bridge_accounts')
         .select('bridge_account_id, company_id, companies!inner(deleted_at)')
+        .eq('status', 'active')
         .is('companies.deleted_at', null);
 
       if (assignErr) {
@@ -975,7 +980,8 @@ Deno.serve(async (req) => {
             const { data: companyAssignments } = await supabaseAdmin
               .from('company_bridge_accounts')
               .select('bridge_account_id')
-              .eq('company_id', company_id);
+              .eq('company_id', company_id)
+              .eq('status', 'active');
             
             const assignedAccountIds = (companyAssignments || []).map((a: any) => a.bridge_account_id);
             
