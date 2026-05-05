@@ -400,6 +400,7 @@ async function syncCompanyTransactions(
             date: transaction.date,
             type: transactionType,
             bank_account_name: accountName,
+            bridge_account_id: transaction.account_id,
             source: 'bridge',
             bridge_transaction_id: transaction.id,
             company_id: correctCompanyId,
@@ -417,6 +418,7 @@ async function syncCompanyTransactions(
           date: transaction.date,
           type: transactionType,
           bank_account_name: accountName,
+          bridge_account_id: transaction.account_id,
           source: 'bridge',
           is_reconciled: false,
         });
