@@ -68,51 +68,25 @@ export function useGroupBalances(): GroupBalancesResult {
     queryFn: async (): Promise<CompanyBalance[]> => {
       if (companyIds.length === 0) return [];
 
-      // Fetch all assigned bridge account IDs for these companies
-      const { data: assignments, error: assignError } = await supabase
-        .from('company_bridge_accounts')
-        .select('company_id, bridge_account_id')
+      // Source unique = vue company_active_bridge_accounts
+      const { data: rows, error: rowsError } = await supabase
+        .from('company_active_bridge_accounts')
+        .select('company_id, bridge_account_id, name, balance, item_status, iban, account_type, bank_name')
         .in('company_id', companyIds);
 
-      if (assignError) throw assignError;
+      if (rowsError) throw rowsError;
 
-      const assignedIds = (assignments || []).map(a => a.bridge_account_id);
-
-      // Fetch bridge accounts for all assigned IDs in one query
-      let accountsMap: Record<string, CompanyBalance['accounts']> = {};
-
-      if (assignedIds.length > 0) {
-        const { data: bridgeAccounts, error: baError } = await supabase
-          .from('bridge_accounts')
-          .select('bridge_account_id, name, balance, item_status, iban, account_type, bank_name')
-          .in('bridge_account_id', assignedIds)
-          .eq('is_ignored', false);
-
-        if (baError) throw baError;
-
-        // Build a lookup: bridge_account_id → account data
-        const accountById = new Map(
-          (bridgeAccounts || []).map(ba => [
-            ba.bridge_account_id,
-            {
-              name: ba.name,
-              balance: Number(ba.balance) || 0,
-              itemStatus: ba.item_status,
-              iban: ba.iban,
-              accountType: ba.account_type,
-              bankName: ba.bank_name,
-            },
-          ])
-        );
-
-        // Group by company
-        for (const a of assignments || []) {
-          const acc = accountById.get(a.bridge_account_id);
-          if (acc) {
-            if (!accountsMap[a.company_id]) accountsMap[a.company_id] = [];
-            accountsMap[a.company_id].push(acc);
-          }
-        }
+      const accountsMap: Record<string, CompanyBalance['accounts']> = {};
+      for (const r of rows || []) {
+        if (!accountsMap[r.company_id]) accountsMap[r.company_id] = [];
+        accountsMap[r.company_id].push({
+          name: r.name,
+          balance: Number(r.balance) || 0,
+          itemStatus: r.item_status,
+          iban: r.iban,
+          accountType: r.account_type,
+          bankName: r.bank_name,
+        });
       }
 
       return accessibleCompanies.map(company => {
