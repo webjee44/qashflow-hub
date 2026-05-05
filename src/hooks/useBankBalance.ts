@@ -31,7 +31,8 @@ export function useBankBalance() {
       const { data: accounts, error: accountsError } = await supabase
         .from('bridge_accounts')
         .select('balance')
-        .in('bridge_account_id', assignedIds);
+        .in('bridge_account_id', assignedIds)
+        .eq('is_ignored', false);
 
       if (accountsError) throw accountsError;
 
