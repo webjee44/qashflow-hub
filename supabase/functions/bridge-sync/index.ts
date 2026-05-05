@@ -796,13 +796,24 @@ Deno.serve(async (req) => {
       if (userCompanies && userCompanies.length === 1) {
         const singleCompanyId = userCompanies[0].id;
         const bridgeAccountIds = allAccounts.map((a: BridgeAccount) => a.id);
+
+        // Exclude ignored accounts from auto-assign — user explicitly hid them.
+        const { data: ignoredRows } = await supabaseAdmin
+          .from('bridge_accounts')
+          .select('bridge_account_id')
+          .in('bridge_account_id', bridgeAccountIds)
+          .eq('is_ignored', true);
+        const ignoredSet = new Set((ignoredRows || []).map((r: any) => r.bridge_account_id));
+
         const { data: existingAssignments } = await supabaseAdmin
           .from('company_bridge_accounts')
           .select('bridge_account_id')
           .in('bridge_account_id', bridgeAccountIds);
 
         const alreadyAssigned = new Set((existingAssignments || []).map((a: any) => a.bridge_account_id));
-        const toAutoAssign = bridgeAccountIds.filter((id: number) => !alreadyAssigned.has(id));
+        const toAutoAssign = bridgeAccountIds.filter(
+          (id: number) => !alreadyAssigned.has(id) && !ignoredSet.has(id)
+        );
 
         if (toAutoAssign.length > 0) {
           console.info(`[bridge-sync] Auto-assigning ${toAutoAssign.length} accounts to single company ${singleCompanyId}`);
