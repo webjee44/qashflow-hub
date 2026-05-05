@@ -127,7 +127,9 @@ export function SuggestAutomationDialog({
     };
   };
 
-  // Find similar uncategorized transactions
+  // Find ALL similar uncategorized transactions matching the current pattern.
+  // Returns the full list — display-time slicing happens at render so the
+  // count stays accurate as the pattern is edited in real-time.
   const findSimilarTransactions = (pattern: string, amountOp?: string, amountVal?: string) => {
     if (!transaction || !pattern) return [];
     const normalizedPattern = pattern.trim();
@@ -139,7 +141,7 @@ export function SuggestAutomationDialog({
         if (!matchesAmountCondition(Math.abs(Number(t.amount)), amountOp, amountVal.replace(',', '.'))) return false;
       }
       return true;
-    }).slice(0, 5);
+    });
   };
 
   useEffect(() => {
@@ -456,7 +458,7 @@ export function SuggestAutomationDialog({
                       transaction{liveSimilarTransactions.length > 1 ? 's' : ''} similaire{liveSimilarTransactions.length > 1 ? 's' : ''} non catégorisée{liveSimilarTransactions.length > 1 ? 's' : ''}
                     </p>
                     <div className="space-y-1">
-                      {liveSimilarTransactions.map(t => (
+                      {liveSimilarTransactions.slice(0, 5).map(t => (
                         <div
                           key={t.id}
                           className="flex items-center justify-between text-sm bg-muted/30 rounded px-3 py-2"
@@ -479,6 +481,11 @@ export function SuggestAutomationDialog({
                           </span>
                         </div>
                       ))}
+                      {liveSimilarTransactions.length > 5 && (
+                        <p className="text-xs text-muted-foreground text-center pt-1">
+                          + {liveSimilarTransactions.length - 5} autre{liveSimilarTransactions.length - 5 > 1 ? 's' : ''}
+                        </p>
+                      )}
                     </div>
                   </div>
                 ) : (
