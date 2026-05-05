@@ -1,9 +1,16 @@
-// computeBalanceSheet — pure balance sheet computation (parity with src/hooks/useBalanceSheet)
+// ============================================================
+// computeBalanceSheet — pure (parity with src/hooks/useBalanceSheet)
+// ============================================================
+// Lifted verbatim from useBalanceSheet's useMemo body so that
+// the screen and the PDF both consume the same source of truth.
+// Any financial correction belongs to PR 2.
+// ============================================================
+
 import { addMonths, startOfMonth, parseISO, differenceInMonths, isAfter } from 'date-fns';
 import { calculateMonthlyDepreciation, getLoanScheduleEntry } from '@/lib/french-rates';
 import type { BPModelInput } from './types';
-import type { PLData } from '../hooks/useProfitLoss';
-import type { BalanceSheetData, BalanceSheetRow } from '@/hooks/useBalanceSheet';
+import type { PLData } from '../hooks/useProfitLoss.types';
+import type { BalanceSheetData, BalanceSheetRow } from './types';
 
 function makeGetDepreciationForMonth(investments: any[]) {
   return (month: Date): number => {
@@ -41,6 +48,7 @@ export function computeBalanceSheet(input: BPModelInput, plData: PLData): Balanc
   const { settings, investments, financings, stocks } = input;
   const getDepreciationForMonth = makeGetDepreciationForMonth(investments);
 
+  // Use PL fiscal years to keep alignment with P&L
   const years = plData.years.map((y, i) => ({ label: `Année ${i + 1}`, endDate: y.end }));
 
   const customerDelay = settings.customer_payment_delay || 30;
@@ -49,8 +57,10 @@ export function computeBalanceSheet(input: BPModelInput, plData: PLData): Balanc
   const showFinancing = settings.show_financing !== false;
 
   const getStockValueAtEnd = (fiscalYear: number): number =>
-    stocks.filter(s => s.fiscal_year === fiscalYear).reduce((sum, s) => sum + Number(s.final_stock), 0);
+    stocks.filter((s: any) => s.fiscal_year === fiscalYear)
+      .reduce((sum: number, s: any) => sum + Number(s.final_stock), 0);
 
+  // Fixed assets net
   const fixedAssetsValues = years.map(year => {
     const grossAssets = investments
       .filter(inv => new Date(inv.purchase_date) <= year.endDate)
@@ -141,23 +151,23 @@ export function computeBalanceSheet(input: BPModelInput, plData: PLData): Balanc
   rows.push({ label: 'Capitaux propres', type: 'header', values: [], indent: 1 });
   rows.push({ label: 'Capital social', type: 'item', values: capitalValues, indent: 2 });
   rows.push({ label: 'Report à nouveau', type: 'item', values: retainedEarningsValues, indent: 2 });
-  rows.push({ label: 'Résultat de l\'exercice', type: 'item', values: currentYearResultValues, indent: 2 });
+  rows.push({ label: "Résultat de l'exercice", type: 'item', values: currentYearResultValues, indent: 2 });
   if (investmentGrantValues.some(v => v > 0)) {
-    rows.push({ label: 'Subventions d\'investissement', type: 'item', values: investmentGrantValues, indent: 2 });
+    rows.push({ label: "Subventions d'investissement", type: 'item', values: investmentGrantValues, indent: 2 });
   }
   rows.push({ label: 'Total Capitaux Propres', type: 'subtotal', values: equityValues });
   if (showFinancing) {
     rows.push({ label: 'Dettes financières', type: 'header', values: [], indent: 1 });
     rows.push({ label: 'Emprunts bancaires', type: 'item', values: bankLoansValues, indent: 2 });
     if (currentAccountValues.some(v => v > 0)) {
-      rows.push({ label: 'Comptes courants d\'associés', type: 'item', values: currentAccountValues, indent: 2 });
+      rows.push({ label: "Comptes courants d'associés", type: 'item', values: currentAccountValues, indent: 2 });
     }
     rows.push({ label: 'Total Dettes Financières', type: 'subtotal', values: financialDebtsValues });
   }
-  rows.push({ label: 'Dettes d\'exploitation', type: 'header', values: [], indent: 1 });
+  rows.push({ label: "Dettes d'exploitation", type: 'header', values: [], indent: 1 });
   rows.push({ label: 'Dettes fournisseurs', type: 'item', values: payablesValues, indent: 2 });
   rows.push({ label: 'Dettes fiscales et sociales', type: 'item', values: taxDebtsValues, indent: 2 });
-  rows.push({ label: 'Total Dettes d\'Exploitation', type: 'subtotal', values: operatingDebtsValues });
+  rows.push({ label: "Total Dettes d'Exploitation", type: 'subtotal', values: operatingDebtsValues });
   rows.push({ label: 'TOTAL PASSIF', type: 'total', values: totalLiabilitiesValues });
 
   const bfrValues = years.map((_, i) => stockValues[i] + receivablesValues[i] - payablesValues[i]);
