@@ -799,22 +799,24 @@ Deno.serve(async (req) => {
         const singleCompanyId = userCompanies[0].id;
         const bridgeAccountIds = allAccounts.map((a: BridgeAccount) => a.id);
 
-        // Exclude ignored accounts from auto-assign — user explicitly hid them.
-        const { data: ignoredRows } = await supabaseAdmin
+        // Auto-assign one-shot: ne touche JAMAIS un compte qui a déjà une décision
+        // (active OU excluded). Ignore aussi les comptes non-actifs côté Bridge
+        // (lifecycle_status ∈ disabled|deleted|replaced).
+        const { data: nonActiveRows } = await supabaseAdmin
           .from('bridge_accounts')
           .select('bridge_account_id')
           .in('bridge_account_id', bridgeAccountIds)
-          .eq('is_ignored', true);
-        const ignoredSet = new Set((ignoredRows || []).map((r: any) => r.bridge_account_id));
+          .neq('lifecycle_status', 'active');
+        const nonActiveSet = new Set((nonActiveRows || []).map((r: any) => r.bridge_account_id));
 
         const { data: existingAssignments } = await supabaseAdmin
           .from('company_bridge_accounts')
           .select('bridge_account_id')
           .in('bridge_account_id', bridgeAccountIds);
 
-        const alreadyAssigned = new Set((existingAssignments || []).map((a: any) => a.bridge_account_id));
+        const alreadyDecided = new Set((existingAssignments || []).map((a: any) => a.bridge_account_id));
         const toAutoAssign = bridgeAccountIds.filter(
-          (id: number) => !alreadyAssigned.has(id) && !ignoredSet.has(id)
+          (id: number) => !alreadyDecided.has(id) && !nonActiveSet.has(id)
         );
 
         if (toAutoAssign.length > 0) {
