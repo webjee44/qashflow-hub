@@ -1,73 +1,78 @@
-## Objectif PR 1 (finalisation)
+## PR 2 — Corrections financières (sur moteur unifié PR 1)
 
-Tout le BP (écran + PDF) doit lire **un seul** `BPFinancialModel` calculé par `computeBPModel`. Pas de changement comportemental — parité stricte avec aujourd'hui (les corrections financières sont PR 2). Cause racine traitée : suppression des recalculs dupliqués hook-par-hook qui font diverger UI et PDF.
+### Cause racine
+Les états ne se réconcilient pas car chaque statement applique sa propre logique sur les mêmes inputs, sans contrat partagé :
+- Le P&L ventile par catégorie mais la tréso ré-agrège par "name.includes('capital')" (heuristique string fragile).
+- Le bilan déduit la trésorerie par équilibre forcé `Passif - Actif fixe - BFR` au lieu de reprendre `cashFlow.balance` (la balance bilan ≠ balance tréso).
+- Les dettes fiscales/sociales sont approximées (`personnelCosts × 0.10`) au lieu de venir d'un échéancier réel.
+- Les charges sociales personnel sont comptées 2 fois (via `personnelCosts` qui inclut déjà `employer_charges` ET via `payrollTaxes`).
+- Les remboursements de prêts en tréso = `monthly_payment` (capital+intérêts), mais en P&L seul l'intérêt est en charge → l'amortissement capital n'apparaît nulle part dans le bilan (dette ne décroît pas correctement vs capital remboursé).
+- Cloud Vapor : streams de négoce classés en 706 (services) car `revenue_type` par défaut à `production`.
 
-## État actuel
+### Stratégie : 5 lots séquentiels, chacun = 1 PR atomique
 
-Déjà fait au tour précédent :
-- Engine pur en place : `engine/computeBPModel.ts` + `computePL`, `computeCashFlow`, `computeBalanceSheet`, `computeFundingPlan`, `computeRatios`, `types.ts`
-- `useBPModel` agrège les inputs et appelle l'engine
-- `useProfitLoss` est déjà un sélecteur sur `useBPModel`
+Chaque lot :
+1. ajoute son test de non-régression dans `engine-parity.cloud-vapor.test.ts` (fige les nouveaux invariants)
+2. ne touche QU'À l'engine (pas de hook, pas d'UI, pas de PDF — PR 1 garantit déjà la propagation)
+3. produit un delta chiffré documenté (avant/après sur Cloud Vapor)
 
-Reste à faire :
-- 4 hooks à convertir en sélecteurs
-- 1 hook canonique dupliqué côté `src/hooks/` à aligner
-- PDF (BPDocument + BPExportDialog) à brancher sur le modèle unifié
-- Tests parité
+---
 
-## Changements
+### Lot 2.1 — Source unique de la trésorerie (réconciliation Bilan ↔ Cash Flow)
+**Symptôme** : Bilan trésorerie ≠ Cash Flow `finalBalance` année par année.
+**Fix** : `computeBalanceSheet` reçoit `cashFlowData` et lit `cash[year] = cashFlowData.balance[lastMonthOfYear]`. La ligne "Trésorerie" du bilan devient dérivée, pas calculée par soustraction. Le total passif s'équilibre via les capitaux propres + dettes (et non l'inverse).
+**Invariant testé** : `balanceSheet.cash[i] === cashFlow.balance[lastMonthOfYearI]` pour tout i.
+**Risque** : faible. Touche 1 fonction. Aucune régression P&L.
+**Impact CTO** : résout le point #1 (réconciliation).
 
-### 1. Sélecteurs (parité stricte)
-Réécrire en sélecteurs minces :
-- `src/features/business-plan/hooks/useBPCashFlow.ts` → retourne `model.cashFlow` + helpers `isHealthy`, `getMinimumInitialCash` (pure, dérivés du modèle)
-- `src/features/business-plan/hooks/useFundingPlan.ts` → retourne `model.fundingPlan` + helpers `isBalanced`, `getFundingGap`, `getCAF`
-- `src/features/business-plan/hooks/useBPRatios.ts` → retourne `model.ratios` + `model.getBreakEvenData` + `getRatioStatus` (helper pur conservé localement)
-- `src/hooks/useBalanceSheet.ts` (canonique) → réécrit comme sélecteur sur `useBPModel`. `src/features/business-plan/hooks/useBalanceSheet.ts` reste un re-export.
+### Lot 2.2 — Suppression de la double-comptabilisation charges sociales
+**Symptôme** : `personnelCosts` (P&L) inclut déjà `gross + employerCharges`. La tréso ressort en plus `payrollTaxes` séparément → cash sortie ≈ 1.4× la réalité.
+**Fix** : décider une convention unique :
+- `personnelCosts` P&L = salaires bruts uniquement
+- `payrollTaxes` P&L = charges patronales (URSSAF) calculées sur les bruts actifs
+- Tréso somme `personnel + payrollTaxes` (déjà le cas) → plus de double comptage
+Mettre à jour `computePL.getPayrollTaxesForMonth` pour qu'il calcule TOUTES les charges patronales (y compris `employer_charges_rate` perso) et retirer `employer_charges` de `personnelCosts`.
+**Invariant testé** : `cashFlow.outflows.personnel + payrollTaxes` (sur 12 mois) = somme des coûts employeur P&L (brut + URSSAF + charges perso).
+**Risque** : moyen. Modifie le calcul P&L. Le total reste identique mais la ventilation change.
+**Impact CTO** : résout l'écart cash vs P&L sur masse salariale.
 
-Chaque hook réécrit garde **exactement la même signature publique** (interfaces `CashFlowData`, `FundingPlanData`, `FinancialRatios`, `BreakEvenData`, `BalanceSheetData` inchangées) — aucun consommateur (pages, charts, components) ne change.
+### Lot 2.3 — Amortissement des emprunts dans le bilan
+**Symptôme** : `bankLoansValues` du bilan utilise déjà `getLoanScheduleEntry.remaining` (ok), mais le P&L ne sort que les intérêts. Le remboursement capital (= cash sortant en tréso) n'a pas de contre-partie comptable côté passif → bilan déséquilibré sur prêts.
+**Fix** : vérifier que `cashFlow.outflows.loanPayments` = `interest + principal` cohérent avec `bankLoans[i] - bankLoans[i-1] = -principal_year_i`. Ajouter ligne explicite "Remboursement d'emprunts" en tréso (déjà `loanPayments`) mais documenter qu'elle = intérêt (P&L) + capital (réduction passif).
+Tests d'équilibre : `Σ(loanPayments cash year) = Σ(interest P&L year) + (bankLoans[y-1] - bankLoans[y])`.
+**Risque** : faible. Vérification + test. Aucun calcul à changer si la formule actuelle est correcte ; sinon corriger `getLoanScheduleEntry`.
+**Impact CTO** : résout l'inconnue sur dette financière.
 
-### 2. Hook canonique
-`src/hooks/useFundingPlan.ts`, `src/hooks/useBPCashFlow.ts`, `src/hooks/useBPRatios.ts` : transformés en simples re-exports vers les sélecteurs `features/business-plan/hooks/*` pour éliminer la duplication. Source unique de vérité côté `features/business-plan/`.
+### Lot 2.4 — Dettes fiscales/sociales basées sur l'échéancier réel
+**Symptôme** : `taxDebtsValues = corporateTax + personnelCosts × 0.10`. Magique.
+**Fix** : remplacer par :
+- Dette IS : `corporateTax_année - acomptes payés en année` (acomptes IS = 4 fois/an si > seuil)
+- Dette URSSAF : 1 mois de payrollTaxes (cycle mensuel) ou 3 mois (DSN trimestrielle PME)
+- Dette TVA : `vat.balance` du dernier mois si > 0
+**Invariant testé** : pas de constante magique, formule = (charges N - paiements cash N) au 31/12.
+**Risque** : moyen. Touche bilan + nouveau besoin d'expliciter les paiements fiscaux mensuels.
+**Impact CTO** : résout le point "10% arbitraire".
 
-### 3. Engine — sortie BalanceSheet/Ratios
-Vérifier que `computeBalanceSheet` produit déjà tous les champs requis (`bfr`, `workingCapital`, `cash`, `totals.*`, `rows`) — c'est le cas. Idem `computeRatios` (déjà OK).
+### Lot 2.5 — Détection capital/subvention robuste (fin des heuristiques string)
+**Symptôme** : `name.includes('capital')` pour détecter les apports en cash flow. Cassé si renommé.
+**Fix** : utiliser `financing_type` strict :
+- `equity_contribution` (nouveau type ou `current_account` avec flag `is_capital`)
+- `grant` avec `is_operating_grant=false` → bilan + tréso investissement
+- `grant` avec `is_operating_grant=true` → P&L produits
+Migration nullable : si type absent, fallback sur l'heuristique actuelle avec warning console (transitoire).
+**Risque** : faible si fallback conservé. Migration data optionnelle.
+**Impact CTO** : robustesse.
 
-### 4. PDF
-`src/features/business-plan/dialogs/BPExportDialog.tsx` :
-- Remplace les 5 hooks (`useProfitLoss`, `useBalanceSheet`, `useBPCashFlow`, `useFundingPlan`, `useBPRatios`) par **un seul** `const { data: model } = useBPModel()`
-- Passe `model` à `<BPDocument model={model} settings={settings} ... />`
+### Hors PR 2 (planifiés pour PR 3+)
+- Cloud Vapor revenue_type : c'est un fix data, pas code. À traiter via UI BP "type de revenu" + script de re-classification une fois.
+- Refonte PDF (PR 4 du plan original).
+- Validateur global "états réconciliés" (PR 3).
 
-`src/features/business-plan/pdf/BPDocument.tsx` :
-- Nouvelle prop unique `model: BPFinancialModel` (au lieu de `plData/bsData/fpData/cashFlowData/ratios/getBreakEvenData`)
-- À l'intérieur : `const { pl: plData, balanceSheet: bsData, fundingPlan: fpData, cashFlow: cashFlowData, ratios, getBreakEvenData } = model;` (alias locaux pour préserver le reste du composant intact)
-- Aucun calcul dans le PDF — déjà le cas, on ne fait que sécuriser le contrat
+---
 
-### 5. Garde anti-régression — parité
-Ajouter `src/features/business-plan/__tests__/engine-parity.cloud-vapor.test.ts` :
-- Charge `__fixtures__/cloud-vapor.json`
-- Appelle `computeBPModel(input)`
-- Snapshot des 4 sorties critiques : `pl.totals`, `cashFlow.balance`, `balanceSheet.totals`, `fundingPlan.balance`, `ratios`
-- Compare aux valeurs courantes (snapshot fait au commit) → toute régression PR 1 est immédiatement visible
+### Ordre d'exécution recommandé
+**2.1 → 2.3 → 2.2 → 2.4 → 2.5**
 
-Passer un des tests `todo` de `invariants.cloud-vapor.test.ts` en test actif : "PDF et écran lisent la même balance trésorerie année 1" (sécurité unification).
+Raison : 2.1 (réconciliation tréso↔bilan) débloque les invariants de réconciliation. 2.3 valide la dette financière sans rien changer. 2.2 change la convention salariale (le plus à risque) une fois les autres invariants en place. 2.4 et 2.5 sont des nettoyages.
 
-### 6. Notes architecturales
-- Aucun composant UI ni page n'est modifié (signatures préservées)
-- `useBPModel` est appelé une seule fois par arbre React grâce au cache React Query (clés stables par `companyId` / `streamIds`)
-- Les sélecteurs restent thin (lecture + helpers purs) — pas de `useMemo` lourd
-- Pas de hardcode, pas de patch local, source unique = `computeBPModel`
-
-## Hors périmètre (PR 2+)
-Toute correction financière (normalizeRate, COGS vs services, amortissements réels, lien P&L → tréso, IS/IR, capital social, bilan équilibré, etc.) reste pour PR 2. PR 1 = unification structurelle uniquement.
-
-## Validation
-1. `bun test` — tous tests verts (parité + invariants existants)
-2. Vérification visuelle : `/bp/pl`, `/bp/cash-flow`, `/bp/balance-sheet`, `/bp/funding-plan`, `/bp/ratios` doivent afficher exactement les mêmes valeurs qu'avant
-3. Export PDF Cloud Vapor : valeurs identiques au PDF actuel (les anomalies métier restent — c'est PR 2 qui les corrigera)
-
-## Livrables
-- 4 hooks réécrits en sélecteurs
-- 3 hooks `src/hooks/` transformés en re-exports
-- BPDocument refactoré avec prop `model` unique
-- BPExportDialog branché sur `useBPModel`
-- 1 test de parité snapshot + 1 invariant activé
+Chaque lot = 1 commit, 1 test fixé, 1 delta chiffré sur Cloud Vapor avant le suivant.
