@@ -20,6 +20,7 @@ interface UseTransactionHandlersParams {
   bulkSetIgnored: (args: { transactionIds: string[]; isIgnored: boolean }) => Promise<unknown>;
   splitTransaction: (args: { originalTransactionId: string; splits: { categoryId: string | null; amount: number }[] }) => Promise<unknown>;
   refetchTransactions: () => void;
+  applyRuleToExistingTransactions?: (ruleId: string) => Promise<number>;
 }
 
 export function useTransactionHandlers({
