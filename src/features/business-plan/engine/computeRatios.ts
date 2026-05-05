@@ -1,7 +1,6 @@
 // computeRatios — pure (parity with useBPRatios)
-import type { PLData } from '../hooks/useProfitLoss';
-import type { BalanceSheetData } from '@/hooks/useBalanceSheet';
-import type { FinancialRatios, BreakEvenData } from '../hooks/useBPRatios';
+import type { PLData } from '../hooks/useProfitLoss.types';
+import type { BalanceSheetData, FinancialRatios, BreakEvenData } from './types';
 
 export function computeRatios(plData: PLData, bsData: BalanceSheetData): {
   ratios: FinancialRatios;
