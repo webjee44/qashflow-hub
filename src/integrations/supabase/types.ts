@@ -1236,6 +1236,7 @@ export type Database = {
           created_at: string | null
           iban: string | null
           id: string
+          is_ignored: boolean
           item_status: string | null
           item_status_message: string | null
           item_status_updated_at: string | null
@@ -1257,6 +1258,7 @@ export type Database = {
           created_at?: string | null
           iban?: string | null
           id?: string
+          is_ignored?: boolean
           item_status?: string | null
           item_status_message?: string | null
           item_status_updated_at?: string | null
@@ -1278,6 +1280,7 @@ export type Database = {
           created_at?: string | null
           iban?: string | null
           id?: string
+          is_ignored?: boolean
           item_status?: string | null
           item_status_message?: string | null
           item_status_updated_at?: string | null
