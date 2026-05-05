@@ -918,6 +918,62 @@ export function useProfitLoss() {
     };
   }, [streams, fixedExpenses, variableExpenses, personnel, directors, investments, financings, forecasts, settings, getStockVariation]);
 
+  // ───────────────────────────────────────────────────────────────
+  // Debug instrumentation: append `?debug=pnl` to the URL to dump the
+  // full annual P&L breakdown to the console. Read-only, dev-friendly.
+  // ───────────────────────────────────────────────────────────────
+  if (typeof window !== 'undefined' && !isLoading) {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('debug') === 'pnl') {
+      // eslint-disable-next-line no-console
+      console.groupCollapsed('[P&L DEBUG]', currentCompany?.name ?? '(no company)');
+      data.years.forEach((y, i) => {
+        // eslint-disable-next-line no-console
+        console.table({
+          year: `Y${i + 1} (${y.start.getFullYear()})`,
+          revenue: data.totals.revenue[i],
+          merchandiseSales: data.totals.merchandiseSales[i],
+          productionSold: data.totals.productionSold[i],
+          operatingGrants: data.totals.operatingGrants[i],
+          merchandisePurchases: data.totals.merchandisePurchases[i],
+          stockVariation: data.totals.stockVariation[i],
+          cogs_legacy: data.totals.cogs[i],
+          externalServices: data.totals.externalServices[i],
+          taxes63: data.totals.taxes[i],
+          personnel: data.totals.personnel[i],
+          directors: data.totals.directorsCosts[i],
+          severance: data.totals.severancePayments[i],
+          depreciation: data.totals.depreciation[i],
+          leasing_legacy: data.totals.leaseExpenses[i],
+          interest: data.totals.netResultBeforeTax[i] - data.totals.operatingResult[i] - data.totals.financialResult[i] + data.totals.financialResult[i], // see breakdown below
+          financialResult: data.totals.financialResult[i],
+          valueAdded: data.totals.valueAdded[i],
+          ebitda: data.totals.ebitda[i],
+          operatingResult: data.totals.operatingResult[i],
+          rcai: data.totals.netResultBeforeTax[i],
+          tax: data.totals.corporateTax[i],
+          netResult: data.totals.netResult[i],
+        });
+      });
+      // eslint-disable-next-line no-console
+      console.log('[P&L DEBUG] raw rows', data.rows);
+      // eslint-disable-next-line no-console
+      console.log('[P&L DEBUG] inputs', {
+        streams: streams.length,
+        fixedExpenses: fixedExpenses.length,
+        variableExpenses: variableExpenses.length,
+        personnel: personnel.length,
+        directors: directors.length,
+        investments: investments.length,
+        financings: financings.length,
+        forecasts: forecasts.length,
+      });
+      // eslint-disable-next-line no-console
+      console.groupEnd();
+    }
+  }
+
+
   const getBreakEvenYear = (): number | null => {
     let cumulative = 0;
     for (let i = 0; i < data.totals.netResult.length; i++) {
