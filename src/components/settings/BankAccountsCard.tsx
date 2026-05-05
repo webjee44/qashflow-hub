@@ -488,23 +488,9 @@ export function BankAccountsCard() {
         }
       }
 
-      // Update company bank balances and counts
-      for (const company of allCompanies) {
-        const companyAccounts = accounts.filter(account => {
-          const assignment = assignments.get(account.bridge_account_id);
-          return assignment?.is_enabled && assignment?.company_id === company.id;
-        });
-
-        const { error: updateError } = await supabase
-          .from('companies')
-          .update({
-            bridge_accounts_count: companyAccounts.length,
-            bank_balance: companyAccounts.reduce((sum, a) => sum + (a.balance || 0), 0),
-          })
-          .eq('id', company.id);
-
-        if (updateError) throw updateError;
-      }
+      // Le trigger trg_recompute_on_cba_change met à jour companies.bank_balance
+      // et bridge_accounts_count automatiquement à chaque changement d'assignation.
+      // Pas d'écriture frontend pour préserver la source unique de vérité.
 
       toast.success('Configuration des comptes enregistrée');
       setHasChanges(false);
