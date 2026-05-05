@@ -596,6 +596,7 @@ Deno.serve(async (req) => {
       const { data: activeAssignments, error: assignErr } = await supabaseAdmin
         .from('company_bridge_accounts')
         .select('bridge_account_id, company_id, companies!inner(deleted_at)')
+        .eq('status', 'active')
         .is('companies.deleted_at', null);
 
       if (assignErr) {
@@ -979,7 +980,8 @@ Deno.serve(async (req) => {
             const { data: companyAssignments } = await supabaseAdmin
               .from('company_bridge_accounts')
               .select('bridge_account_id')
-              .eq('company_id', company_id);
+              .eq('company_id', company_id)
+              .eq('status', 'active');
             
             const assignedAccountIds = (companyAssignments || []).map((a: any) => a.bridge_account_id);
             
