@@ -621,30 +621,21 @@ export function useForecasts() {
     return getDisplayedNetTotalsForMonth(month).forecast;
   }, [getDisplayedNetTotalsForMonth]);
 
-  // Fetch live bank balance from bridge_accounts (assigned to this company)
+  // Fetch live bank balance via la vue centrale company_active_bridge_accounts
   const { data: liveBankBalance } = useQuery({
     queryKey: ['live-bank-balance', currentCompany?.id],
     queryFn: async () => {
       if (!currentCompany?.id) return null;
-      
-      const { data: assignments, error: assignError } = await supabase
-        .from('company_bridge_accounts')
-        .select('bridge_account_id')
-        .eq('company_id', currentCompany.id);
-      
-      if (assignError) throw assignError;
-      if (!assignments || assignments.length === 0) return null;
-      
-      const assignedIds = assignments.map(a => a.bridge_account_id);
-      
-      const { data: accounts, error: accountsError } = await supabase
-        .from('bridge_accounts')
+
+      const { data: accounts, error } = await supabase
+        .from('company_active_bridge_accounts')
         .select('balance')
-        .in('bridge_account_id', assignedIds);
-      
-      if (accountsError) throw accountsError;
-      
-      return accounts?.reduce((sum, acc) => sum + (Number(acc.balance) || 0), 0) ?? null;
+        .eq('company_id', currentCompany.id);
+
+      if (error) throw error;
+      if (!accounts || accounts.length === 0) return null;
+
+      return accounts.reduce((sum, acc) => sum + (Number(acc.balance) || 0), 0);
     },
     enabled: !!currentCompany?.id,
     staleTime: 30 * 1000,

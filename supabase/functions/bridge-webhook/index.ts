@@ -293,6 +293,8 @@ async function handleAccountUpdated(
         user_id: company.user_id,
         company_id: company.id,
         pennylane_id: `bridge_${t.id}`,
+        bridge_account_id: account_id,
+        bridge_transaction_id: t.id,
         amount: Math.abs(t.amount),
         description: getBridgeTransactionDescription(t),
         date: t.date,

@@ -1234,6 +1234,8 @@ export type Database = {
           bridge_user_uuid: string
           company_id: string
           created_at: string | null
+          duplicate_confidence: number | null
+          duplicate_reason: string | null
           iban: string | null
           id: string
           is_ignored: boolean
@@ -1241,7 +1243,9 @@ export type Database = {
           item_status_message: string | null
           item_status_updated_at: string | null
           last_sync_at: string | null
+          lifecycle_status: string
           name: string | null
+          replaced_by_bridge_account_id: number | null
           status: string | null
           updated_at: string | null
         }
@@ -1256,6 +1260,8 @@ export type Database = {
           bridge_user_uuid: string
           company_id: string
           created_at?: string | null
+          duplicate_confidence?: number | null
+          duplicate_reason?: string | null
           iban?: string | null
           id?: string
           is_ignored?: boolean
@@ -1263,7 +1269,9 @@ export type Database = {
           item_status_message?: string | null
           item_status_updated_at?: string | null
           last_sync_at?: string | null
+          lifecycle_status?: string
           name?: string | null
+          replaced_by_bridge_account_id?: number | null
           status?: string | null
           updated_at?: string | null
         }
@@ -1278,6 +1286,8 @@ export type Database = {
           bridge_user_uuid?: string
           company_id?: string
           created_at?: string | null
+          duplicate_confidence?: number | null
+          duplicate_reason?: string | null
           iban?: string | null
           id?: string
           is_ignored?: boolean
@@ -1285,7 +1295,9 @@ export type Database = {
           item_status_message?: string | null
           item_status_updated_at?: string | null
           last_sync_at?: string | null
+          lifecycle_status?: string
           name?: string | null
+          replaced_by_bridge_account_id?: number | null
           status?: string | null
           updated_at?: string | null
         }
@@ -1622,19 +1634,31 @@ export type Database = {
           bridge_account_id: number
           company_id: string
           created_at: string
+          excluded_at: string | null
+          excluded_by: string | null
+          exclusion_reason: string | null
           id: string
+          status: string
         }
         Insert: {
           bridge_account_id: number
           company_id: string
           created_at?: string
+          excluded_at?: string | null
+          excluded_by?: string | null
+          exclusion_reason?: string | null
           id?: string
+          status?: string
         }
         Update: {
           bridge_account_id?: number
           company_id?: string
           created_at?: string
+          excluded_at?: string | null
+          excluded_by?: string | null
+          exclusion_reason?: string | null
           id?: string
+          status?: string
         }
         Relationships: [
           {
@@ -2310,6 +2334,35 @@ export type Database = {
       }
     }
     Views: {
+      company_active_bridge_accounts: {
+        Row: {
+          account_type: string | null
+          assignment_status: string | null
+          balance: number | null
+          bank_name: string | null
+          bridge_account_id: number | null
+          bridge_item_id: number | null
+          bridge_user_uuid: string | null
+          company_id: string | null
+          excluded_at: string | null
+          exclusion_reason: string | null
+          iban: string | null
+          item_status: string | null
+          last_sync_at: string | null
+          lifecycle_status: string | null
+          name: string | null
+          updated_at: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_bridge_accounts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organization_members_safe: {
         Row: {
           created_at: string | null

@@ -131,26 +131,71 @@ async function syncBridgeAccounts(
   if (incomingIbans.length > 0) {
     const { data: sameUuidAccounts } = await supabaseAdmin
       .from('bridge_accounts')
-      .select('bridge_account_id, iban, is_ignored')
+      .select('bridge_account_id, iban, account_type, bank_id, item_status, last_sync_at, lifecycle_status')
       .eq('bridge_user_uuid', bridgeUserUuid);
 
-    const existingByIban = new Map<string, number[]>();
-    for (const row of sameUuidAccounts || []) {
+    // Index existing accounts by composite fingerprint (IBAN normalisé)
+    type ExistingRow = {
+      bridge_account_id: number;
+      iban: string;
+      account_type: string | null;
+      bank_id: number | null;
+      item_status: string | null;
+      last_sync_at: string | null;
+      lifecycle_status: string | null;
+    };
+    const existingByIban = new Map<string, ExistingRow[]>();
+    for (const row of (sameUuidAccounts as ExistingRow[] | null) || []) {
       if (!row.iban) continue;
       const key = row.iban.toUpperCase().replace(/\s+/g, '');
       const list = existingByIban.get(key) || [];
-      list.push(row.bridge_account_id);
+      list.push(row);
       existingByIban.set(key, list);
     }
 
+    // Build incoming map for fingerprint
+    const incomingByAccountId = new Map<number, BridgeAccount>();
+    for (const a of accounts) incomingByAccountId.set(a.id, a);
+
+    const FOURTEEN_DAYS_MS = 14 * 24 * 60 * 60 * 1000;
+
     for (const incoming of incomingIbans) {
-      const candidates = (existingByIban.get(incoming.iban) || []).filter(id => id !== incoming.id);
+      const candidates = (existingByIban.get(incoming.iban) || []).filter(c => c.bridge_account_id !== incoming.id);
       if (candidates.length === 0) continue;
+      const incomingAccount = incomingByAccountId.get(incoming.id);
+      if (!incomingAccount) continue;
+      const incomingType = (incomingAccount as any).account_type || null;
 
-      console.info(`[bridge-sync][dedup] IBAN ${incoming.iban} has stale account(s) ${candidates.join(',')} → migrating to ${incoming.id}`);
+      for (const old of candidates) {
+        if (old.lifecycle_status !== 'active') continue; // déjà décidé
 
-      // Move assignments to the new account_id (skip if already exists)
-      for (const oldId of candidates) {
+        // Fingerprint fort: même IBAN + même type
+        const sameFingerprint = (old.account_type || null) === incomingType;
+
+        // Confiance haute: ancien item KO (refresh failed/disabled) OU pas de sync depuis 14j
+        const itemKo = old.item_status && !['ok', null, 'active'].includes(old.item_status);
+        const stale = old.last_sync_at
+          ? Date.now() - new Date(old.last_sync_at).getTime() > FOURTEEN_DAYS_MS
+          : true;
+        const highConfidence = sameFingerprint && (itemKo || stale);
+
+        if (!highConfidence) {
+          // Doublon suspect — on marque sans toucher au statut. UI affichera un bandeau.
+          console.warn(`[bridge-sync][dedup] Suspicious duplicate IBAN ${incoming.iban}: old=${old.bridge_account_id} new=${incoming.id} (no auto-replace)`);
+          await supabaseAdmin
+            .from('bridge_accounts')
+            .update({
+              duplicate_confidence: 0.5,
+              duplicate_reason: `Même IBAN que ${incoming.id}, mais ancien item encore actif récemment — validation manuelle requise`,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('bridge_account_id', old.bridge_account_id);
+          continue;
+        }
+
+        console.info(`[bridge-sync][dedup] Auto-replace IBAN ${incoming.iban}: ${old.bridge_account_id} → ${incoming.id} (itemKo=${itemKo}, stale=${stale})`);
+
+        // Migrer les assignations vers le nouveau bridge_account_id
         const { data: existingForNew } = await supabaseAdmin
           .from('company_bridge_accounts')
           .select('company_id')
@@ -159,12 +204,20 @@ async function syncBridgeAccounts(
 
         const { data: oldMappings } = await supabaseAdmin
           .from('company_bridge_accounts')
-          .select('company_id')
-          .eq('bridge_account_id', oldId);
+          .select('company_id, status, excluded_at, excluded_by, exclusion_reason')
+          .eq('bridge_account_id', old.bridge_account_id);
 
         const toCreate = (oldMappings || [])
           .filter((m: any) => !existingCompanies.has(m.company_id))
-          .map((m: any) => ({ company_id: m.company_id, bridge_account_id: incoming.id }));
+          .map((m: any) => ({
+            company_id: m.company_id,
+            bridge_account_id: incoming.id,
+            // Préserver une décision d'exclusion existante
+            status: m.status || 'active',
+            excluded_at: m.excluded_at,
+            excluded_by: m.excluded_by,
+            exclusion_reason: m.exclusion_reason,
+          }));
 
         if (toCreate.length > 0) {
           await supabaseAdmin.from('company_bridge_accounts').insert(toCreate);
@@ -172,25 +225,31 @@ async function syncBridgeAccounts(
         await supabaseAdmin
           .from('company_bridge_accounts')
           .delete()
-          .eq('bridge_account_id', oldId);
+          .eq('bridge_account_id', old.bridge_account_id);
 
-        // Re-point transactions to new account_id
+        // Re-point transactions via clé forte (jamais via bank_account_name)
         await supabaseAdmin
           .from('transactions')
           .update({ bridge_account_id: incoming.id })
-          .eq('bridge_account_id', oldId);
+          .eq('bridge_account_id', old.bridge_account_id);
 
-        // Mark stale account as ignored (keep row for audit)
+        // Marquer l'ancien comme replaced (état technique) + référence au remplaçant
         await supabaseAdmin
           .from('bridge_accounts')
-          .update({ is_ignored: true, status: 'replaced', updated_at: new Date().toISOString() })
-          .eq('bridge_account_id', oldId);
+          .update({
+            lifecycle_status: 'replaced',
+            replaced_by_bridge_account_id: incoming.id,
+            duplicate_confidence: 1,
+            duplicate_reason: itemKo ? 'item KO + même IBAN' : 'inactif >14j + même IBAN',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('bridge_account_id', old.bridge_account_id);
 
-        // Refresh local maps so the rest of this run sees the migration
-        if (assignmentMap[oldId] && !assignmentMap[incoming.id]) {
-          assignmentMap[incoming.id] = assignmentMap[oldId];
+        // Rafraîchir les maps locales pour le reste du run
+        if (assignmentMap[old.bridge_account_id] && !assignmentMap[incoming.id]) {
+          assignmentMap[incoming.id] = assignmentMap[old.bridge_account_id];
         }
-        delete assignmentMap[oldId];
+        delete assignmentMap[old.bridge_account_id];
       }
     }
   }
@@ -799,22 +858,24 @@ Deno.serve(async (req) => {
         const singleCompanyId = userCompanies[0].id;
         const bridgeAccountIds = allAccounts.map((a: BridgeAccount) => a.id);
 
-        // Exclude ignored accounts from auto-assign — user explicitly hid them.
-        const { data: ignoredRows } = await supabaseAdmin
+        // Auto-assign one-shot: ne touche JAMAIS un compte qui a déjà une décision
+        // (active OU excluded). Ignore aussi les comptes non-actifs côté Bridge
+        // (lifecycle_status ∈ disabled|deleted|replaced).
+        const { data: nonActiveRows } = await supabaseAdmin
           .from('bridge_accounts')
           .select('bridge_account_id')
           .in('bridge_account_id', bridgeAccountIds)
-          .eq('is_ignored', true);
-        const ignoredSet = new Set((ignoredRows || []).map((r: any) => r.bridge_account_id));
+          .neq('lifecycle_status', 'active');
+        const nonActiveSet = new Set((nonActiveRows || []).map((r: any) => r.bridge_account_id));
 
         const { data: existingAssignments } = await supabaseAdmin
           .from('company_bridge_accounts')
           .select('bridge_account_id')
           .in('bridge_account_id', bridgeAccountIds);
 
-        const alreadyAssigned = new Set((existingAssignments || []).map((a: any) => a.bridge_account_id));
+        const alreadyDecided = new Set((existingAssignments || []).map((a: any) => a.bridge_account_id));
         const toAutoAssign = bridgeAccountIds.filter(
-          (id: number) => !alreadyAssigned.has(id) && !ignoredSet.has(id)
+          (id: number) => !alreadyDecided.has(id) && !nonActiveSet.has(id)
         );
 
         if (toAutoAssign.length > 0) {
