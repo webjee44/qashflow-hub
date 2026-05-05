@@ -560,6 +560,22 @@ export function SuggestAutomationDialog({
                     Voir la règle
                   </Button>
                 </>
+              ) : liveSimilarTransactions.length === 0 ? (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleCreateRule}
+                    disabled={creating || !suggestion}
+                    className="gap-2"
+                  >
+                    {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                    Créer quand même
+                  </Button>
+                  <Button onClick={() => onOpenChange(false)}>
+                    Fermer
+                  </Button>
+                </>
               ) : (
                 <>
                   <Button variant="outline" onClick={() => onOpenChange(false)}>
