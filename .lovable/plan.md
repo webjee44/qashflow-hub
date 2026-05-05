@@ -1,97 +1,109 @@
-## Diagnostic — pourquoi ces "comptes faux" reviennent
+## Cause racine
 
-J'ai inspecté la base. Pour `SAS Vapeclub` (seule société rattachée à `bridge_user_uuid d20d4144…`), Bridge expose **8 comptes** répartis sur **4 connexions bancaires (items)** différentes :
+Bridge supprime à la granularité **item** (= 1 connexion banque), pas par compte. Le code actuel a deux dettes critiques :
 
-```
-item 12629299 → Compte De Chèques ****2761  (-1 513,98 €)   non-assigné
-item 12629299 → Compte De Chèques ****9269  (-15 858,70 €)  non-assigné
-item 12868903 → Compte Courant Entreprise EUR Vapeclub  (CIC)        assigné
-item 12868928 → SAS Vapeclub                            (Banque pop) assigné
-item 12868928 → Vapeclub Xx6195                         (Banque pop) assigné
-item 12873433 → Compte Cheques 1  IBAN ...4046  (Autre banque, 2 096,62 €) assigné
-item 12873433 → Compte Cheques 1  IBAN ...4072  (Autre banque, 7 262,81 €) assigné
-item 12873936 → Compte Cheques 1  IBAN ...4072  (sans bank_name, 7 262,81 €) non-assigné  ← doublon de connexion
-```
+1. **`bridge-webhook` ne remplit ni `bridge_account_id` ni `bridge_transaction_id`** sur les transactions qu'il insère (cf. `handleAccountUpdated` lignes ~280-295 : pas de `bridge_account_id: account_id` ni de `bridge_transaction_id: t.id`). Conséquence : impossible de cibler proprement les transactions à nettoyer → fallback dégradé sur `bank_account_name`.
+2. **Trigger `cleanup_orphan_transactions_on_unassign`** (migration 20260505071622) hard-delete par `bank_account_name`. Avec deux comptes "Compte Cheques 1" partageant le même nom → suppression croisée potentielle.
 
-Deux problèmes structurels expliquent ce que tu vois :
+## Plan révisé (ordre strict)
 
-1. **Connexions Bridge dupliquées.** L'item `12873936` est une **reconnexion** du même compte que `12873433` (même IBAN `…4072`, même solde). À chaque reconnexion via le Connect, Bridge crée un nouvel `item_id` au lieu de réutiliser l'ancien, ce qui produit des doublons de `bridge_accounts` côté base.
+### Étape 1 — Renforcer le webhook (préalable indispensable)
 
-2. **L'auto-assignation est têtue.** Dans `bridge-sync` (lignes 712-742), tant qu'une société est seule sur un `bridge_user_uuid`, **tous les comptes non-assignés sont ré-attachés automatiquement à chaque sync**. C'est pour ça que la suppression manuelle de `company_bridge_accounts` que j'ai faite hier est revenue : la sync suivante les a recréés. → "Y'a rien de dynamique" → exact, par design.
+`supabase/functions/bridge-webhook/index.ts`, dans `handleAccountUpdated`, l'objet `upsertData` doit inclure :
+- `bridge_account_id: account_id`
+- `bridge_transaction_id: t.id`
 
-3. Le composant `Dashboard` a sa propre lecture directe `company_bridge_accounts → bridge_accounts` (hook local `useAssignedAccounts`), donc tout ce qui est assigné s'affiche dans la pastille "Solde total", sans aucun filtre utilisateur possible.
+Sans ça, étape 3 ne peut pas filtrer fiablement.
 
-Ce n'est donc pas un bug d'affichage : c'est un manque d'**exclusion persistante** côté domaine.
+### Étape 2 — Désactiver et remplacer le trigger dangereux
 
-## Ce que je propose (cause racine, pas patch)
+Migration :
+- `DROP TRIGGER trg_cleanup_orphan_transactions_on_unassign` + `DROP FUNCTION cleanup_orphan_transactions_on_unassign()`
+- Recréer une version safe :
+  ```sql
+  -- soft-delete only by bridge_account_id, never by name
+  UPDATE transactions
+     SET deleted_at = now()
+   WHERE source = 'bridge'
+     AND company_id = OLD.company_id
+     AND bridge_account_id = OLD.bridge_account_id
+     AND deleted_at IS NULL;
+  ```
+- Backfill safety run : `UPDATE transactions SET bridge_account_id = ba.bridge_account_id FROM bridge_accounts ba WHERE transactions.bank_account_name = ba.name AND transactions.bridge_account_id IS NULL AND ba.company_id = transactions.company_id` **uniquement quand le nom est unique** par `(company_id, bridge_user_uuid)` — déjà partiellement fait, on consolide.
 
-### A. Introduire un état "ignoré" persistant au niveau du compte Bridge
-Ajouter une colonne `is_ignored boolean default false` sur `bridge_accounts`. C'est l'équivalent de ce qui existe déjà pour les transactions (`is_ignored`) — même convention, même vocabulaire.
+### Étape 3 — Nouvelle edge function `bridge-delete-item`
 
-Règles :
-- Un compte `is_ignored = true` est **invisible partout** : dashboard, group balances, useDashboardStats, useBankBalance, useGroupBalances, ManageAccountsDialog (badge "Ignoré").
-- Il **ne participe à aucun calcul** : solde total société, solde consolidé groupe, snapshots, forecasts ledger.
-- L'auto-assign de `bridge-sync` doit **respecter** ce flag : ne JAMAIS ré-assigner un compte ignoré et ne pas considérer son absence d'assignation comme une anomalie à corriger.
-- Désactivable à tout moment depuis l'UI.
+`POST { company_id, bridge_item_id }`, auth via `auth.getUser()`, body validé Zod.
 
-### B. Déduplication sur reconnexion (cause racine du doublon `…4072`)
-Quand `syncBridgeAccounts` upserte les comptes, détecter qu'un nouveau `bridge_account_id` correspond à un compte existant **même IBAN, même `bridge_user_uuid`** sur un item différent.
-- Marquer l'**ancien** `bridge_account_id` comme `status = 'replaced'` + `is_ignored = true`.
-- Re-mapper son assignation (`company_bridge_accounts`) vers le nouveau.
-- Re-mapper ses transactions (`transactions.bridge_account_id`) vers le nouveau pour ne pas perdre l'historique.
+Séquence :
 
-Cela règle définitivement le cas "Compte Cheques 1 apparaît deux fois après reconnexion".
+1. **Vérif accès** : `has_company_access(user.id, company_id)` ; sinon 403.
+2. **Charger tous les comptes de l'item** (admin client, pas de filtre company) :
+   `SELECT id, bridge_account_id, bridge_user_uuid FROM bridge_accounts WHERE bridge_item_id = $1`.
+3. **Charger toutes les assignations** :
+   `SELECT bridge_account_id, company_id FROM company_bridge_accounts WHERE bridge_account_id IN (...)`.
+4. **Garde multi-tenant** : si une assignation pointe vers une `company_id` ≠ celle demandée, renvoyer 409 avec `{ error: 'item_shared_with_other_companies', companies: [...] }`. La fonction n'agit jamais.
+5. **Bridge API** : `DELETE /aggregation/users/{user_uuid}/items/{item_id}` (auth = access_token user, pattern `getAuthToken` déjà dans bridge-webhook → factoriser dans `_shared/bridge-client.ts`). 404 = succès idempotent.
+6. **Soft-delete transactions** :
+   ```sql
+   UPDATE transactions
+      SET deleted_at = now()
+    WHERE source = 'bridge'
+      AND company_id = $1
+      AND bridge_account_id = ANY($2::int[])
+      AND deleted_at IS NULL;
+   ```
+7. **Supprimer assignations** : `DELETE FROM company_bridge_accounts WHERE bridge_account_id = ANY(...)`.
+8. **Marquer comptes** : `UPDATE bridge_accounts SET status='deleted', is_ignored=true, item_status='deleted', item_status_updated_at=now() WHERE bridge_item_id = $1`.
+9. `recompute_company_bank_stats(company_id)`.
+10. Retour `{ deleted_accounts, soft_deleted_transactions, item_id }`.
 
-### C. UI dynamique sur le Dashboard
-Dans la pastille "Solde total" :
-- Ajouter un menu contextuel (icône `…` au survol de chaque ligne) : **Masquer ce compte**.
-- Action → marque `is_ignored = true` côté DB → invalidation des queries → disparaît immédiatement, et reste masqué après resync.
-- Dans `Paramètres → Comptes bancaires`, une section "Comptes masqués" permet de les réafficher.
+### Étape 4 — Mutualiser dans `_shared/bridge-client.ts`
 
-### D. Nettoyage des données existantes pour Vapeclub (one-shot dans la migration)
-- Marquer `is_ignored = true` sur l'item dupliqué `12873936` (compte `61723202`).
-- Marquer `is_ignored = true` sur les deux comptes "Compte De Chèques ****2761/9269" de l'item `12629299` (orphelins de l'ancienne connexion CDN, soldes négatifs invraisemblables, pas assignés).
-- Conserver les 5 autres comptes assignés tels quels — tu pourras en masquer d'autres via l'UI si besoin.
+Ajouter :
+- `getUserAccessToken(userUuid): Promise<string>`
+- `deleteItem(userUuid, itemId): Promise<boolean>` (DELETE `/aggregation/users/{uuid}/items/{id}`, 404 → true)
 
-## Détails techniques
+`bridge-webhook` migrera à la classe partagée (suppression de la duplication).
 
-**Migration**
-```sql
-ALTER TABLE bridge_accounts
-  ADD COLUMN is_ignored boolean NOT NULL DEFAULT false;
-CREATE INDEX idx_bridge_accounts_active
-  ON bridge_accounts (bridge_user_uuid)
-  WHERE is_ignored = false;
--- Nettoyage Vapeclub
-UPDATE bridge_accounts SET is_ignored = true
- WHERE bridge_account_id IN (61723202, 60568536, 60568535);
-DELETE FROM company_bridge_accounts
- WHERE bridge_account_id IN (61723202, 60568536, 60568535);
-```
+### Étape 5 — UI
 
-**Edge functions à mettre à jour**
-- `supabase/functions/bridge-sync/index.ts` : auto-assign (l. 712-742) ignore les comptes `is_ignored`. Ajouter étape de déduplication par IBAN avant upsert.
-- `supabase/functions/bridge-accounts/index.ts` : exclure `is_ignored` du retour `accounts` et du `total_balance`.
-- `supabase/functions/snapshot-balances/index.ts` : exclure `is_ignored`.
+`BankAccountsCard.tsx` (Settings) + dropdown Dashboard "Solde total" :
+- Grouper visuellement les comptes par `bridge_item_id` (badge banque)
+- Action **"Supprimer cette connexion bancaire"** au niveau item, séparée de "Masquer ce compte"
+- `AlertDialog` listant la banque, le nombre de comptes, le caractère définitif côté Bridge, la possibilité de reconnecter
+- Si 409 multi-tenant → toast explicite listant les sociétés impactées (pas de demi-action)
+- `invalidateQueries`: bridgeAccounts, transactions, dashboard stats, treasury
 
-**Hooks frontend à mettre à jour** (filtre `is_ignored = false`)
-- `useGroupBalances.ts`
-- `useDashboardStats.ts` (calcul currentBalance via `bridge_accounts`)
-- `useBankBalance.ts`
-- `Dashboard.tsx` `useAssignedAccounts`
-- `ManageAccountsDialog.tsx` (badge + filtre par défaut, switch "afficher les masqués")
-- `BankAccounts.tsx` (composant Settings)
+### Étape 6 — Tests
 
-**Nouveau composant léger**
-- Menu contextuel sur chaque ligne du Solde total (`DropdownMenu` shadcn déjà dispo) → action `toggleIgnored(bridge_account_id)`.
+- `supabase/functions/bridge-delete-item/index_test.ts` (Deno) : 
+  - mock Bridge 200 / 404 / 500
+  - cas item partagé multi-companies → 409
+  - cas accès refusé → 403
+  - vérifie soft-delete par `bridge_account_id` exclusivement
+- Test unit hook front pour la mutation
 
-**Tests / non-régression**
-- Vérifier que `useBankBalance` et `useDashboardStats` retournent la même valeur après masquage.
-- Vérifier que la sync suivante ne réactive pas l'assignation.
-- Vérifier que `forecasts` ledger (point zéro) reste cohérent : recompute après masquage.
+### Étape 7 — Cas Vapeclub (one-shot manuel via insert tool, pas de hardcode)
 
-## Ce que tu obtiendras
-- Plus jamais de comptes "fantômes" qui reviennent après une sync.
-- Capacité de masquer un compte d'un clic depuis le dashboard.
-- Déduplication automatique des reconnexions Bridge (cas générique, pas patch Vapeclub).
-- Cohérence garantie entre dashboard, groupe et forecasts.
+Une fois la fonction en prod, tu lances l'action UI sur les 2 items orphelins. Aucune logique spécifique Vapeclub dans le code.
+
+## Fichiers touchés
+
+- `supabase/functions/bridge-webhook/index.ts` — ajout `bridge_account_id` + `bridge_transaction_id` dans upsert
+- `supabase/functions/_shared/bridge-client.ts` — `deleteItem`, `getUserAccessToken`
+- `supabase/functions/bridge-delete-item/index.ts` — nouvelle
+- `supabase/functions/bridge-delete-item/index_test.ts`
+- Migration : drop+recreate `cleanup_orphan_transactions_on_unassign` (safe by `bridge_account_id`)
+- Migration : backfill `transactions.bridge_account_id` quand mapping unique
+- `src/features/bridge/api.ts` (créer si absent) : `deleteBridgeItem(companyId, itemId)`
+- `src/components/settings/BankAccountsCard.tsx` — UI grouping + action delete item
+- `src/pages/Dashboard.tsx` — même action dans le dropdown
+
+## Garanties
+
+- Aucun `bank_account_name` utilisé pour cibler des transactions.
+- Aucun cas Vapeclub hardcodé.
+- Aucune action si l'item est partagé multi-tenant (échec explicite, pas de demi-suppression).
+- Soft-delete réversible côté local ; côté Bridge la suppression est définitive (assumée par la confirmation UI).
+- Idempotent : rejouer la fonction sur un item déjà supprimé = no-op safe.
