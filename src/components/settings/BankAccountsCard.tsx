@@ -231,38 +231,39 @@ export function BankAccountsCard() {
     const loadData = async () => {
       setIsLoading(true);
       try {
-        let bridgeAccounts: BridgeAccount[] = [];
-        let currentAssignments: Array<{ bridge_account_id: number; company_id: string; status: string | null }> = [];
-
-        const { data: assigns, error: assignsError } = await supabase
-          .from('company_bridge_accounts')
-          .select('bridge_account_id, company_id, status')
+        const { data, error } = await supabase
+          .from('company_active_bridge_accounts')
+          .select('company_id, bridge_account_id, bridge_item_id, name, iban, balance, account_type, bank_name, bridge_user_uuid, item_status')
           .in('company_id', scopedCompanyIds);
-        if (assignsError) throw assignsError;
-        currentAssignments = assigns || [];
+        if (error) throw error;
 
-        const assignedAccountIds = currentAssignments.map(a => a.bridge_account_id);
-        if (assignedAccountIds.length > 0) {
-          const { data, error } = await supabase
-            .from('bridge_accounts')
-            .select('id, bridge_account_id, bridge_item_id, name, iban, balance, account_type, bank_name, bridge_user_uuid, company_id, item_status, item_status_message')
-            .in('bridge_account_id', assignedAccountIds)
-            .eq('lifecycle_status', 'active');
-          if (error) throw error;
-          bridgeAccounts = (data || []) as BridgeAccount[];
-        }
+        const bridgeAccounts: BridgeAccount[] = (data || []).map(row => ({
+          id: `${row.company_id}:${row.bridge_account_id}`,
+          bridge_account_id: row.bridge_account_id,
+          bridge_item_id: row.bridge_item_id ?? row.bridge_account_id,
+          name: row.name,
+          iban: row.iban,
+          balance: row.balance === null ? null : Number(row.balance),
+          account_type: row.account_type,
+          bank_name: row.bank_name,
+          bridge_user_uuid: row.bridge_user_uuid,
+          company_id: row.company_id,
+          item_status: ['ok', 'needs_action', 'error', 'deleted'].includes(row.item_status || '')
+            ? row.item_status as ItemStatus
+            : null,
+          item_status_message: null,
+        }));
 
         setAccounts(bridgeAccounts);
 
         // Build assignments map
         const assignmentMap = new Map<number, AccountAssignment>();
         bridgeAccounts.forEach(account => {
-          const existing = currentAssignments.find(a => a.bridge_account_id === account.bridge_account_id);
           assignmentMap.set(account.bridge_account_id, {
             bridge_account_id: account.bridge_account_id,
-            company_id: existing?.company_id || null,
-            is_enabled: existing?.status !== 'excluded',
-            status: existing?.status === 'excluded' ? 'excluded' : 'active',
+            company_id: account.company_id,
+            is_enabled: true,
+            status: 'active',
           });
         });
         setAssignments(assignmentMap);
