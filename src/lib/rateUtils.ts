@@ -9,6 +9,7 @@
  * data-entry mistake (45 vs 0.45) cannot blow the P&L by a factor of 100.
  */
 export const normalizeRate = (value: unknown, fallback = 0): number => {
+  if (value === null || value === undefined || value === '') return fallback;
   const n = Number(value);
   if (!Number.isFinite(n)) return fallback;
   if (n < 0) return 0;
