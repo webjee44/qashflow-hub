@@ -4,15 +4,23 @@ import { TransactionList } from '@/components/dashboard/TransactionList';
 import { QuickActions } from '@/components/dashboard/QuickActions';
 import { OnboardingTour } from '@/components/onboarding/OnboardingTour';
 import { CalendlyPopup } from '@/components/onboarding/CalendlyPopup';
-import { Wallet, Landmark } from 'lucide-react';
+import { Wallet, Landmark, MoreHorizontal, EyeOff } from 'lucide-react';
 import { useBankBalance } from '@/hooks/useBankBalance';
 import { useBridgeAutoSync } from '@/hooks/useBridgeAutoSync';
 import { Skeleton } from '@/components/ui/skeleton';
 import { motion } from 'framer-motion';
 import { useCompany } from '@/hooks/useCompany';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { toast } from 'sonner';
+import { logError } from '@/lib/logger';
 
 const formatCurrency = (value: number) => {
   return new Intl.NumberFormat('fr-FR', {
@@ -34,54 +42,78 @@ function useAssignedAccounts() {
   const [accounts, setAccounts] = useState<AccountSummary[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetch = async () => {
-      if (!currentCompany?.id) {
-        setAccounts([]);
-        setLoading(false);
-        return;
-      }
-      setLoading(true);
-
-      const { data: assignments } = await supabase
-        .from('company_bridge_accounts')
-        .select('bridge_account_id')
-        .eq('company_id', currentCompany.id);
-
-      const ids = (assignments || []).map(a => a.bridge_account_id);
-      if (ids.length === 0) {
-        setAccounts([]);
-        setLoading(false);
-        return;
-      }
-
-      const { data: accs } = await supabase
-        .from('bridge_accounts')
-        .select('name, balance, bridge_account_id')
-        .in('bridge_account_id', ids);
-
-      setAccounts(
-        (accs || []).map(a => ({
-          name: a.name || 'Compte sans nom',
-          balance: Number(a.balance) || 0,
-          bridge_account_id: a.bridge_account_id,
-        }))
-      );
+  const fetch = useCallback(async () => {
+    if (!currentCompany?.id) {
+      setAccounts([]);
       setLoading(false);
-    };
-    fetch();
+      return;
+    }
+    setLoading(true);
+
+    const { data: assignments } = await supabase
+      .from('company_bridge_accounts')
+      .select('bridge_account_id')
+      .eq('company_id', currentCompany.id);
+
+    const ids = (assignments || []).map(a => a.bridge_account_id);
+    if (ids.length === 0) {
+      setAccounts([]);
+      setLoading(false);
+      return;
+    }
+
+    const { data: accs } = await supabase
+      .from('bridge_accounts')
+      .select('name, balance, bridge_account_id')
+      .in('bridge_account_id', ids)
+      .eq('is_ignored', false);
+
+    setAccounts(
+      (accs || []).map(a => ({
+        name: a.name || 'Compte sans nom',
+        balance: Number(a.balance) || 0,
+        bridge_account_id: a.bridge_account_id,
+      }))
+    );
+    setLoading(false);
   }, [currentCompany?.id]);
 
-  return { accounts, loading };
+  useEffect(() => {
+    fetch();
+  }, [fetch]);
+
+  return { accounts, loading, refetch: fetch };
 }
 
 export default function Dashboard() {
-  const { balance, isLoading: balanceLoading } = useBankBalance();
-  const { accounts, loading: accountsLoading } = useAssignedAccounts();
+  const { balance, isLoading: balanceLoading, refetch: refetchBalance } = useBankBalance();
+  const { accounts, loading: accountsLoading, refetch: refetchAccounts } = useAssignedAccounts();
+  const { currentCompany } = useCompany();
 
   useBridgeAutoSync();
 
   const loading = balanceLoading || accountsLoading;
+
+  const handleHideAccount = async (bridgeAccountId: number, name: string) => {
+    try {
+      const { error } = await supabase
+        .from('bridge_accounts')
+        .update({ is_ignored: true })
+        .eq('bridge_account_id', bridgeAccountId);
+      if (error) throw error;
+
+      // Refresh denormalized stats on the company so balance stays consistent
+      if (currentCompany?.id) {
+        await supabase.rpc('recompute_company_bank_stats', { p_company_id: currentCompany.id });
+      }
+
+      toast.success(`Compte « ${name} » masqué`);
+      await Promise.all([refetchAccounts(), refetchBalance()]);
+    } catch (e) {
+      logError('Hide account failed', e);
+      toast.error('Impossible de masquer ce compte');
+    }
+  };
 
   return (
     <>
@@ -124,18 +156,39 @@ export default function Dashboard() {
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: 0.1 + i * 0.05 }}
-                      className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-primary-foreground/10"
+                      className="group flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-primary-foreground/10"
                     >
                       <div className="flex items-center gap-2 min-w-0">
                         <Landmark className="w-3.5 h-3.5 shrink-0 text-primary-foreground/70" />
                         <span className="text-xs font-medium text-primary-foreground/80 truncate">{acc.name}</span>
                       </div>
-                      <span className={cn(
-                        "text-sm font-semibold whitespace-nowrap",
-                        acc.balance >= 0 ? 'text-primary-foreground' : 'text-destructive'
-                      )}>
-                        {formatCurrency(acc.balance)}
-                      </span>
+                      <div className="flex items-center gap-1">
+                        <span className={cn(
+                          "text-sm font-semibold whitespace-nowrap",
+                          acc.balance >= 0 ? 'text-primary-foreground' : 'text-destructive'
+                        )}>
+                          {formatCurrency(acc.balance)}
+                        </span>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              type="button"
+                              aria-label="Options du compte"
+                              className="p-1 rounded-md text-primary-foreground/60 hover:text-primary-foreground hover:bg-primary-foreground/10 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+                            >
+                              <MoreHorizontal className="w-3.5 h-3.5" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={() => handleHideAccount(acc.bridge_account_id, acc.name)}
+                            >
+                              <EyeOff className="w-4 h-4 mr-2" />
+                              Masquer ce compte
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </motion.div>
                   ))}
                 </div>
