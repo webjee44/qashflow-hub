@@ -23,7 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { RuleCondition } from '@/hooks/useAutomationRules';
+import { RuleCondition, AutomationRule } from '@/hooks/useAutomationRules';
 import { useBankAccountOptions } from '@/hooks/useBankAccountOptions';
 
 type Transaction = Tables<'transactions'>;
@@ -35,6 +35,8 @@ interface SuggestAutomationDialogProps {
   transaction: Transaction | null;
   category: Category | null;
   allTransactions: Transaction[];
+  existingRuleMatch?: AutomationRule | null;
+  onApplyExistingRule?: (ruleId: string) => Promise<void>;
   onCreateRule: (rule: {
     name: string;
     condition_field: string;
