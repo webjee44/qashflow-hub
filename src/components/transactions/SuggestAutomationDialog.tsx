@@ -66,12 +66,15 @@ export function SuggestAutomationDialog({
   transaction,
   category,
   allTransactions,
+  existingRuleMatch,
+  onApplyExistingRule,
   onCreateRule,
 }: SuggestAutomationDialogProps) {
   const navigate = useNavigate();
   const bankAccounts = useBankAccountOptions();
   const [initialLoading, setInitialLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [applyingExisting, setApplyingExisting] = useState(false);
   const [createdRuleId, setCreatedRuleId] = useState<string | null>(null);
   const [appliedCount, setAppliedCount] = useState(0);
   const [suggestion, setSuggestion] = useState<SuggestionResult | null>(null);
