@@ -14,6 +14,7 @@ import { useStocks } from './useStocks';
 import { startOfMonth, addMonths, parseISO, format, differenceInMonths } from 'date-fns';
 import { calculateTaxByRegime, TVA_RATES_FR, TaxRegime, getGlobalChargesRate, URSSAF_RATES_2026, SEVERANCE_FORFAIT_SOCIAL, getLoanScheduleEntry } from '@/lib/french-rates';
 import { PAYMENT_FREQUENCIES, DEPARTURE_TYPES } from '@/constants/bpConstants';
+import { normalizeRate } from '@/lib/rateUtils';
 
 export interface PLRow {
   label: string;
