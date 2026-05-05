@@ -344,6 +344,7 @@ export function useAutomationRules() {
 
           if (conditionsError) {
             logError('Error updating conditions:', conditionsError);
+            throw conditionsError;
           }
 
           ruleWithConditions = {
