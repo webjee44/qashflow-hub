@@ -1,125 +1,73 @@
+## Objectif PR 1 (finalisation)
 
-# Plan correctif Business Plan — version révisée (B + PR 0)
+Tout le BP (écran + PDF) doit lire **un seul** `BPFinancialModel` calculé par `computeBPModel`. Pas de changement comportemental — parité stricte avec aujourd'hui (les corrections financières sont PR 2). Cause racine traitée : suppression des recalculs dupliqués hook-par-hook qui font diverger UI et PDF.
 
-Choix retenu : **option B (PRs successives)** avec une **PR 0 de diagnostic** avant tout refactor. Objectif : prouver les écarts noir sur blanc et figer des tests rouges *avant* d'unifier le moteur, pour ne pas centraliser une logique fausse.
+## État actuel
 
----
+Déjà fait au tour précédent :
+- Engine pur en place : `engine/computeBPModel.ts` + `computePL`, `computeCashFlow`, `computeBalanceSheet`, `computeFundingPlan`, `computeRatios`, `types.ts`
+- `useBPModel` agrège les inputs et appelle l'engine
+- `useProfitLoss` est déjà un sélecteur sur `useBPModel`
 
-## PR 0 — Diagnostic reproductible Cloud Vapor (lecture seule)
+Reste à faire :
+- 4 hooks à convertir en sélecteurs
+- 1 hook canonique dupliqué côté `src/hooks/` à aligner
+- PDF (BPDocument + BPExportDialog) à brancher sur le modèle unifié
+- Tests parité
 
-**But** : produire un rapport factuel des écarts actuels et figer des invariants cassés en tests rouges. Aucun changement de comportement utilisateur.
+## Changements
 
-Livrables :
-1. `scripts/bp-diagnose.ts` (script Node exécutable en local, pas en prod) :
-   - Charge tous les inputs BP de Cloud Vapor (`bp_revenue_streams`, `bp_variable_expenses`, `bp_fixed_expenses`, `bp_personnel`, `bp_directors`, `bp_investments`, `bp_financings`, `bp_settings`, `bp_stocks`, `bp_scenarios`, `bp_scenario_overrides`).
-   - Sérialise un dump JSON anonymisé dans `src/features/business-plan/__fixtures__/cloud-vapor.json`.
-2. `scripts/bp-reconciliation-report.ts` :
-   - Exécute les hooks actuels (`useProfitLoss`, `useBPCashFlow`, `useBalanceSheet`, `useFundingPlan`) sur la fixture.
-   - Génère un rapport markdown ligne par ligne : CA / COGS / Services / Charges fixes / Personnel / Dirigeants / Amortissements / Intérêts / Remb. capital / IS / BFR / TVA / Tréso finale (P&L, cash flow, bilan, plan financement) / Capital / Stocks.
-   - Calcule les écarts entre états et les liste explicitement.
-3. `src/features/business-plan/__tests__/invariants.cloud-vapor.test.ts` (tests rouges autorisés, marqués `.failing`) :
-   - `treasury.cashflowEnd[y] === treasury.balanceSheetEnd[y]` (tolérance 1 €)
-   - `treasury.fundingPlanEnd[y] === treasury.balanceSheetEnd[y]`
-   - `Δ debt bilan == nouveaux emprunts − remboursements capital`
-   - `personnel.detailTotal === pnl.personnelTotal`
-   - `Σ charges page Charges === pnl.operatingExpenses`
-   - `notes.taxRegime` cohérent avec `pnl.taxLine`
-4. Rapport remis dans le PR : "voici ce qui est cassé, ligne par ligne, et voici les tests qui le prouvent".
+### 1. Sélecteurs (parité stricte)
+Réécrire en sélecteurs minces :
+- `src/features/business-plan/hooks/useBPCashFlow.ts` → retourne `model.cashFlow` + helpers `isHealthy`, `getMinimumInitialCash` (pure, dérivés du modèle)
+- `src/features/business-plan/hooks/useFundingPlan.ts` → retourne `model.fundingPlan` + helpers `isBalanced`, `getFundingGap`, `getCAF`
+- `src/features/business-plan/hooks/useBPRatios.ts` → retourne `model.ratios` + `model.getBreakEvenData` + `getRatioStatus` (helper pur conservé localement)
+- `src/hooks/useBalanceSheet.ts` (canonique) → réécrit comme sélecteur sur `useBPModel`. `src/features/business-plan/hooks/useBalanceSheet.ts` reste un re-export.
 
-**Pas de refactor. Pas de correctif. Juste la photo.**
+Chaque hook réécrit garde **exactement la même signature publique** (interfaces `CashFlowData`, `FundingPlanData`, `FinancialRatios`, `BreakEvenData`, `BalanceSheetData` inchangées) — aucun consommateur (pages, charts, components) ne change.
 
----
+### 2. Hook canonique
+`src/hooks/useFundingPlan.ts`, `src/hooks/useBPCashFlow.ts`, `src/hooks/useBPRatios.ts` : transformés en simples re-exports vers les sélecteurs `features/business-plan/hooks/*` pour éliminer la duplication. Source unique de vérité côté `features/business-plan/`.
 
-## PR 1 — Moteur pur `computeBPModel` (parité comportementale)
+### 3. Engine — sortie BalanceSheet/Ratios
+Vérifier que `computeBalanceSheet` produit déjà tous les champs requis (`bfr`, `workingCapital`, `cash`, `totals.*`, `rows`) — c'est le cas. Idem `computeRatios` (déjà OK).
 
-Objectif : centraliser sans changer les résultats. À la fin de PR 1, les tests d'invariants restent rouges (sauf ceux qui étaient déjà OK), mais l'écran P&L et le PDF sortent **du même calcul**.
+### 4. PDF
+`src/features/business-plan/dialogs/BPExportDialog.tsx` :
+- Remplace les 5 hooks (`useProfitLoss`, `useBalanceSheet`, `useBPCashFlow`, `useFundingPlan`, `useBPRatios`) par **un seul** `const { data: model } = useBPModel()`
+- Passe `model` à `<BPDocument model={model} settings={settings} ... />`
 
-Contraintes non négociables :
-- `computeBPModel(input: BPModelInput): BPFinancialModel` est une **fonction pure** : pas de React, pas de Supabase, pas de React Query, pas de `currentCompany`, aucun side-effect.
-- **Granularité mensuelle d'abord**, agrégation annuelle ensuite : `model.months[]` puis `model.years[] = aggregate(model.months)`.
-- Montants normalisés via une fonction centrale d'arrondi (`roundCents` ou intégers en centimes pour les invariants).
-- Taux normalisés via la fonction unique `normalizeRate` (déjà créée en PR précédente, à étendre à tous les usages : croissance, churn, charges sociales, taux dirigeants, intérêts, TVA, % charges variables).
-- Le PDF ne fait **plus aucun calcul** : il consomme `BPFinancialModel`.
+`src/features/business-plan/pdf/BPDocument.tsx` :
+- Nouvelle prop unique `model: BPFinancialModel` (au lieu de `plData/bsData/fpData/cashFlowData/ratios/getBreakEvenData`)
+- À l'intérieur : `const { pl: plData, balanceSheet: bsData, fundingPlan: fpData, cashFlow: cashFlowData, ratios, getBreakEvenData } = model;` (alias locaux pour préserver le reste du composant intact)
+- Aucun calcul dans le PDF — déjà le cas, on ne fait que sécuriser le contrat
 
-Refactor :
-- `useProfitLoss`, `useBPCashFlow`, `useBalanceSheet`, `useFundingPlan`, `useBPRatios` deviennent de simples sélecteurs sur `useBPModel()`.
-- `useBPModel()` = unique hook React Query qui appelle `computeBPModel(input)`.
-- `BPDocument` reçoit `BPFinancialModel`, plus aucun champ ad hoc.
+### 5. Garde anti-régression — parité
+Ajouter `src/features/business-plan/__tests__/engine-parity.cloud-vapor.test.ts` :
+- Charge `__fixtures__/cloud-vapor.json`
+- Appelle `computeBPModel(input)`
+- Snapshot des 4 sorties critiques : `pl.totals`, `cashFlow.balance`, `balanceSheet.totals`, `fundingPlan.balance`, `ratios`
+- Compare aux valeurs courantes (snapshot fait au commit) → toute régression PR 1 est immédiatement visible
 
-À la fin de PR 1 : écran et PDF affichent les **mêmes chiffres** (même faux). Les écarts entre P&L / cash flow / bilan / financement persistent — on les corrige en PR 2.
+Passer un des tests `todo` de `invariants.cloud-vapor.test.ts` en test actif : "PDF et écran lisent la même balance trésorerie année 1" (sécurité unification).
 
----
+### 6. Notes architecturales
+- Aucun composant UI ni page n'est modifié (signatures préservées)
+- `useBPModel` est appelé une seule fois par arbre React grâce au cache React Query (clés stables par `companyId` / `streamIds`)
+- Les sélecteurs restent thin (lecture + helpers purs) — pas de `useMemo` lourd
+- Pas de hardcode, pas de patch local, source unique = `computeBPModel`
 
-## PR 2 — Corrections financières dans le moteur
+## Hors périmètre (PR 2+)
+Toute correction financière (normalizeRate, COGS vs services, amortissements réels, lien P&L → tréso, IS/IR, capital social, bilan équilibré, etc.) reste pour PR 2. PR 1 = unification structurelle uniquement.
 
-Une correction = un commit isolé, chacun fait passer un ou plusieurs tests rouges au vert.
+## Validation
+1. `bun test` — tous tests verts (parité + invariants existants)
+2. Vérification visuelle : `/bp/pl`, `/bp/cash-flow`, `/bp/balance-sheet`, `/bp/funding-plan`, `/bp/ratios` doivent afficher exactement les mêmes valeurs qu'avant
+3. Export PDF Cloud Vapor : valeurs identiques au PDF actuel (les anomalies métier restent — c'est PR 2 qui les corrigera)
 
-1. **Taux** : sweep complet `normalizeRate` sur tous les inputs du moteur. Tests dédiés.
-2. **COGS vs services extérieurs vs charges variables** :
-   - Règle stricte : une charge appartient à **une seule** famille (`cogs` | `external_services_variable` | `other_operating`).
-   - Source unique : `bp_variable_expenses.category` + `pcg_subcategory`.
-   - `bp_revenue_streams.has_purchase_cost` ne doit jamais coexister avec une `bp_variable_expenses` qui couvre le même flux (validateur → warning).
-   - Test : `Σ charges par nature === pnl.operatingExpenses`.
-3. **Emprunts** : table d'amortissement réelle (mensualité constante par défaut, linéaire en option).
-   - Génère `{month, payment, interest, principal, remainingPrincipal}`.
-   - P&L → `interest`. Cash flow → `interest + principal`. Bilan → `remainingPrincipal`.
-   - Plan de financement → `principal` (remboursements) + nouveaux emprunts.
-   - Test : `Δ debt bilan === nouveaux emprunts − Σ principal`.
-4. **Cash flow connecté au P&L** :
-   - Décaissements : achats/COGS (avec `supplier_payment_delay`), services, charges fixes, salaires + charges sociales + dirigeants + indemnités, TVA selon `vat_regime`, intérêts + capital, investissements à la date d'achat, IS selon échéancier.
-   - Encaissements : CA TTC avec `customer_payment_delay`, financements reçus.
-   - Test : `treasury.cashflowEnd === treasury.balanceSheetEnd`.
-5. **Fiscalité** :
-   - Si IS : calculer comme aujourd'hui (15 % jusqu'à 42 500 € si PME, puis 25 %).
-   - Si IR : `pnl.tax = 0`, ligne libellée "Impôt société : 0 — fiscalité personnelle hors périmètre BP". Notes alignées.
-   - Validateur : `notes.taxRegime` doit correspondre au calcul.
-6. **Stocks** : pas d'auto-calcul. Si `stocks = 0` ET achats significatifs → warning + demande d'hypothèse (jours de rotation OU stock initial/final saisi). Pas d'invention.
-7. **Capital social** : ajouter `bp_settings.share_capital` (nullable). Préremplissage depuis `companies` au démarrage du BP. Bilan affiche "Non renseigné" si null, jamais 0.
-8. **Libellés PCG** : mapping `pcgLabels.ts` piloté par `bp_revenue_streams.revenue_type` (706/707) et `bp_variable_expenses.pcg_subcategory` (601/607/611/...).
-
----
-
-## PR 3 — Validateur + UI contrôles
-
-1. `validateModel(model: BPFinancialModel): ValidationIssue[]` (fonction pure).
-2. Règles : tous les invariants de PR 0 + warnings métier (capital = 0, stocks suspects, régime mélangé, etc.) avec sévérité `info` / `warning` / `critical`.
-3. UI : nouvelle section "Contrôles de cohérence" dans `/bp/*`, badge rouge si critical.
-4. PDF : page "Contrôles" + bandeau "Document non finalisé — incohérences détectées" en couverture si critical présent.
-5. Export : autorisé mais bloqué tant que critical actif, sauf opt-in explicite ("J'ai pris connaissance des incohérences").
-
----
-
-## PR 4 — Refonte des pages PDF
-
-Aucun nouveau calcul. Uniquement de la mise en forme propre du `BPFinancialModel`.
-
-1. **P&L** strictement SIG (Marge commerciale → Marge brute → Valeur ajoutée → EBE → Résultat exploitation → RCAI → Résultat net), une ligne par poste PCG.
-2. **Page Charges** renommée "Synthèse des charges par nature" : chaque charge une seule fois ; total = charges d'exploitation P&L.
-3. **Page Personnel** : Salaires bruts / Charges patronales / Primes / Indemnités / Dirigeants brut / Charges dirigeants / **Total = ligne P&L**.
-4. **Page Hypothèses détaillées** : drivers revenus (volumes, prix, croissance, churn), délais, TVA, régime fiscal, taux charges sociales, détail emprunts (capital/taux/durée/mensualité/CRD), détail investissements.
-5. **Trésorerie initiale** : si `0`, message explicite ; option "importer le solde bancaire réel".
-6. **Couverture** : capital social, forme juridique, SIRET si dispo.
-
----
-
-## Tests (ajoutés au fil des PRs)
-
-- `computeBPModel.test.ts` : cas synthétiques (CA pur, négoce, abonnements, mix).
-- `invariants.cloud-vapor.test.ts` : tests rouges de PR 0 → progressivement verts au fil de PR 2.
-- `validateModel.test.ts` : chaque règle déclenchée correctement.
-- Snapshot léger texte du PDF Cloud Vapor (sécurise les libellés, pas la mise en page).
-
----
-
-## Garde-fous transverses
-
-- Aucun fix en dur, aucune valeur métier hardcodée.
-- Aucune duplication de logique entre PDF / écran / tests.
-- Toute valeur affichée provient de `BPFinancialModel`.
-- Migration DB unique (PR 2 / point 7) : ajout `bp_settings.share_capital`.
-
----
-
-## Démarrage
-
-J'attaque par **PR 0 (diagnostic)** dès que tu valides ce plan : extraction fixture Cloud Vapor + rapport de réconciliation + tests rouges des invariants. Tu auras ensuite la photo exacte avant qu'on touche au moteur.
+## Livrables
+- 4 hooks réécrits en sélecteurs
+- 3 hooks `src/hooks/` transformés en re-exports
+- BPDocument refactoré avec prop `model` unique
+- BPExportDialog branché sur `useBPModel`
+- 1 test de parité snapshot + 1 invariant activé
