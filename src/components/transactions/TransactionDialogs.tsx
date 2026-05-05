@@ -1,6 +1,7 @@
 import { memo } from 'react';
 import { Tables } from '@/integrations/supabase/types';
 import { Category } from '@/hooks/useCategories';
+import type { AutomationRule } from '@/hooks/useAutomationRules';
 import { SuggestAutomationDialog } from './SuggestAutomationDialog';
 import { CategorizationModal } from './CategorizationModal';
 import { CategoryDialog } from '@/components/categories/CategoryDialog';
@@ -15,6 +16,8 @@ interface TransactionDialogsProps {
   onShowSuggestDialogChange: (open: boolean) => void;
   lastCategorizedTransaction: Transaction | null;
   lastSelectedCategory: Tables<'categories'> | null;
+  lastExistingRuleMatch?: AutomationRule | null;
+  onApplyExistingRule?: (ruleId: string) => Promise<void>;
   allTransactions: Transaction[];
   onCreateRule: (rule: any) => Promise<any>;
 
@@ -60,6 +63,7 @@ interface TransactionDialogsProps {
 export const TransactionDialogs = memo(function TransactionDialogs({
   showSuggestDialog, onShowSuggestDialogChange,
   lastCategorizedTransaction, lastSelectedCategory,
+  lastExistingRuleMatch, onApplyExistingRule,
   allTransactions, onCreateRule,
   showCategoryDialog, onShowCategoryDialogChange, onSaveCategory, onCategoryDialogClose,
   showBulkCategorizeDialog, onShowBulkCategorizeDialogChange,
@@ -79,6 +83,8 @@ export const TransactionDialogs = memo(function TransactionDialogs({
         transaction={lastCategorizedTransaction}
         category={lastSelectedCategory}
         allTransactions={allTransactions}
+        existingRuleMatch={lastExistingRuleMatch}
+        onApplyExistingRule={onApplyExistingRule}
         onCreateRule={onCreateRule}
       />
 

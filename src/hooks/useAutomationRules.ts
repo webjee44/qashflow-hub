@@ -441,6 +441,7 @@ export function useAutomationRules() {
     updateRule,
     toggleRule,
     deleteRule,
+    applyRuleToExistingTransactions,
     refetch: fetchRules
   };
 }

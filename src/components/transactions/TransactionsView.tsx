@@ -20,7 +20,7 @@ import { TransactionTable } from './TransactionTable';
 import { TransactionDialogs } from './TransactionDialogs';
 
 export function TransactionsView() {
-  const { createRule, rules } = useAutomationRules();
+  const { createRule, rules, applyRuleToExistingTransactions } = useAutomationRules();
   const {
     transactions, isLoading,
     updateCategory, bulkUpdateCategory, bulkSetIgnored, splitTransaction,
@@ -42,6 +42,7 @@ export function TransactionsView() {
     bulkSetIgnored,
     splitTransaction,
     refetchTransactions,
+    applyRuleToExistingTransactions,
   });
 
   // Formatters
@@ -192,6 +193,8 @@ export function TransactionsView() {
         onShowSuggestDialogChange={handlers.setShowSuggestDialog}
         lastCategorizedTransaction={handlers.lastCategorizedTransaction}
         lastSelectedCategory={handlers.lastSelectedCategory as Tables<'categories'> | null}
+        lastExistingRuleMatch={handlers.lastExistingRuleMatch}
+        onApplyExistingRule={handlers.handleApplyExistingRule}
         allTransactions={transactions}
         onCreateRule={async (rule) => {
           const result = await createRule(rule);

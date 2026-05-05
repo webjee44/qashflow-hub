@@ -11,7 +11,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Sparkles, Loader2, ArrowDownRight, ArrowUpRight, Wand2, Pencil, Check, Euro, X, ExternalLink, CheckCircle2, Landmark } from 'lucide-react';
+import { Sparkles, Loader2, ArrowDownRight, ArrowUpRight, Wand2, Pencil, Check, Euro, X, ExternalLink, CheckCircle2, Landmark, AlertCircle } from 'lucide-react';
 import { Tables } from '@/integrations/supabase/types';
 import { matchesTextCondition } from '@/lib/automationRuleMatching';
 import { matchesAmountCondition } from '@/lib/automationRuleMatching';
@@ -23,7 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { RuleCondition } from '@/hooks/useAutomationRules';
+import { RuleCondition, AutomationRule } from '@/hooks/useAutomationRules';
 import { useBankAccountOptions } from '@/hooks/useBankAccountOptions';
 
 type Transaction = Tables<'transactions'>;
@@ -35,6 +35,8 @@ interface SuggestAutomationDialogProps {
   transaction: Transaction | null;
   category: Category | null;
   allTransactions: Transaction[];
+  existingRuleMatch?: AutomationRule | null;
+  onApplyExistingRule?: (ruleId: string) => Promise<void>;
   onCreateRule: (rule: {
     name: string;
     condition_field: string;
@@ -64,12 +66,15 @@ export function SuggestAutomationDialog({
   transaction,
   category,
   allTransactions,
+  existingRuleMatch,
+  onApplyExistingRule,
   onCreateRule,
 }: SuggestAutomationDialogProps) {
   const navigate = useNavigate();
   const bankAccounts = useBankAccountOptions();
   const [initialLoading, setInitialLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [applyingExisting, setApplyingExisting] = useState(false);
   const [createdRuleId, setCreatedRuleId] = useState<string | null>(null);
   const [appliedCount, setAppliedCount] = useState(0);
   const [suggestion, setSuggestion] = useState<SuggestionResult | null>(null);
@@ -323,6 +328,45 @@ export function SuggestAutomationDialog({
                   </Badge>
                 </div>
 
+                {/* Existing rule banner — info, not blocker */}
+                {existingRuleMatch && (
+                  <div className="border border-amber-500/30 bg-amber-500/5 rounded-lg p-3 space-y-2">
+                    <div className="flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                      <div className="flex-1 text-sm">
+                        <p className="font-medium">Une règle active couvre déjà cette transaction</p>
+                        <p className="text-muted-foreground text-xs mt-1">
+                          « {existingRuleMatch.name} ». Vous pouvez l'appliquer maintenant aux transactions similaires, ou créer une règle plus précise ci-dessous.
+                        </p>
+                      </div>
+                    </div>
+                    {onApplyExistingRule && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                        disabled={applyingExisting}
+                        onClick={async () => {
+                          setApplyingExisting(true);
+                          try {
+                            await onApplyExistingRule(existingRuleMatch.id);
+                            onOpenChange(false);
+                          } finally {
+                            setApplyingExisting(false);
+                          }
+                        }}
+                      >
+                        {applyingExisting ? (
+                          <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                        ) : (
+                          <Check className="w-4 h-4 mr-2" />
+                        )}
+                        Appliquer la règle existante
+                      </Button>
+                    )}
+                  </div>
+                )}
+
                 {/* Pattern suggéré (toujours éditable inline) */}
                 <div className="border border-accent/30 bg-accent/5 rounded-lg p-4">
                   <div className="flex items-center gap-2 mb-2">
@@ -514,6 +558,22 @@ export function SuggestAutomationDialog({
                   >
                     <ExternalLink className="w-4 h-4" />
                     Voir la règle
+                  </Button>
+                </>
+              ) : liveSimilarTransactions.length === 0 ? (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleCreateRule}
+                    disabled={creating || !suggestion}
+                    className="gap-2"
+                  >
+                    {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                    Créer quand même
+                  </Button>
+                  <Button onClick={() => onOpenChange(false)}>
+                    Fermer
                   </Button>
                 </>
               ) : (
