@@ -1,116 +1,125 @@
-## Contexte
 
-Tu signales un résultat net de **−892 K€** sur Cloud Vapor. J'ai audité le code (`useProfitLoss.ts`) **et** les données BP en base. Mon analyse ne reproduit pas ce chiffre.
+# Plan correctif Business Plan — version révisée (B + PR 0)
 
-## Ce que j'ai vérifié
+Choix retenu : **option B (PRs successives)** avec une **PR 0 de diagnostic** avant tout refactor. Objectif : prouver les écarts noir sur blanc et figer des tests rouges *avant* d'unifier le moteur, pour ne pas centraliser une logique fausse.
 
-### 1. Les "suspects classiques" évoqués sont déjà OK dans le code
+---
 
-- **Taux salariés / dirigeants** : code = `salary * Number(p.employer_charges_rate)`. En base, les taux Cloud Vapor sont bien stockés en décimal (`0.383`, `0.513`, `0.898`, …), donc **pas de ×100**. Idem charges_rate dirigeants (table vide pour Cloud Vapor).
-- **Taux d'intérêt** : `getLoanScheduleEntry` divise par 100 à l'intérieur (`annualRatePercent / 100 / 12`), et les taux en base sont au bon format (0.73, 4.35, etc.). Cohérent.
-- **Growth/churn** : `getRevenueForecast` divise par 100. Cloud Vapor a une seule année de forecast manuel (2026), donc growth_rate n'est pas appliqué.
-- **Double comptage COGS / services extérieurs** : le code utilise `category === 'cogs'` d'un côté et `category !== 'cogs'` de l'autre — c'est **mutuellement exclusif**. Pas de double compte (le `is_cogs !== false` mentionné dans le ticket n'existe plus dans le code actuel).
-- **Stream `Ventes B2B`** : `has_purchase_cost = false`, `purchase_price = 0`. Plus de double comptage avec "Achats flacons".
+## PR 0 — Diagnostic reproductible Cloud Vapor (lecture seule)
 
-### 2. Estimation manuelle 2026 (à partir des données réelles en base)
+**But** : produire un rapport factuel des écarts actuels et figer des invariants cassés en tests rouges. Aucun changement de comportement utilisateur.
 
-```
-CA HT                                    3 004 678
-- Achats matières (44,3% CA)            -1 331 072
-- Services extérieurs variables (3,02%)    -90 741
-- Charges externes fixes (rent, marketing,
-  prof_fees, insurance, banking, telecom,
-  travel, utilities)                       ~−420 000
-- Personnel (salaires + charges)           −179 108
-- Autres charges 65 (ajustement 12 647 €
-  + divers)                                ~−160 000
-- Fournitures bureau (606)                  ~−36 000
-- Impôts/taxes (63)                         ~−15 000
-- Dotations amortissements                  ~−28 000
-- Intérêts                                  ~−10 000
-                                          -----------
-RCAI estimé                                 ~+735 000
-- IS                                        ~−170 000
-                                          -----------
-Résultat net estimé                         ~+560 000
-```
+Livrables :
+1. `scripts/bp-diagnose.ts` (script Node exécutable en local, pas en prod) :
+   - Charge tous les inputs BP de Cloud Vapor (`bp_revenue_streams`, `bp_variable_expenses`, `bp_fixed_expenses`, `bp_personnel`, `bp_directors`, `bp_investments`, `bp_financings`, `bp_settings`, `bp_stocks`, `bp_scenarios`, `bp_scenario_overrides`).
+   - Sérialise un dump JSON anonymisé dans `src/features/business-plan/__fixtures__/cloud-vapor.json`.
+2. `scripts/bp-reconciliation-report.ts` :
+   - Exécute les hooks actuels (`useProfitLoss`, `useBPCashFlow`, `useBalanceSheet`, `useFundingPlan`) sur la fixture.
+   - Génère un rapport markdown ligne par ligne : CA / COGS / Services / Charges fixes / Personnel / Dirigeants / Amortissements / Intérêts / Remb. capital / IS / BFR / TVA / Tréso finale (P&L, cash flow, bilan, plan financement) / Capital / Stocks.
+   - Calcule les écarts entre états et les liste explicitement.
+3. `src/features/business-plan/__tests__/invariants.cloud-vapor.test.ts` (tests rouges autorisés, marqués `.failing`) :
+   - `treasury.cashflowEnd[y] === treasury.balanceSheetEnd[y]` (tolérance 1 €)
+   - `treasury.fundingPlanEnd[y] === treasury.balanceSheetEnd[y]`
+   - `Δ debt bilan == nouveaux emprunts − remboursements capital`
+   - `personnel.detailTotal === pnl.personnelTotal`
+   - `Σ charges page Charges === pnl.operatingExpenses`
+   - `notes.taxRegime` cohérent avec `pnl.taxLine`
+4. Rapport remis dans le PR : "voici ce qui est cassé, ligne par ligne, et voici les tests qui le prouvent".
 
-Donc **le −892 K€ ne s'explique ni par les données ni par la logique de calcul actuelle**. Il y a un facteur que je ne vois pas depuis l'analyse statique.
+**Pas de refactor. Pas de correctif. Juste la photo.**
 
-### 3. Anomalies réelles repérées en passant
+---
 
-- **38 lignes `bp_fixed_expenses` avec `category = 'services'`** (Location GRENKE 3 616 €/mois, Location Peugeot, sous-traitance, etc., ~8 000 €/mois). La category `services` **n'est référencée dans AUCUN filtre** du P&L. Ces dépenses sont donc actuellement **complètement ignorées** (~96 K€/an perdues côté charges → résultat artificiellement gonflé). C'est un bug propre, indépendant du −900 K€.
-- L'ajustement Q1 (12 647 €/mois) a été créé en `category='other'` → correctement compté dans "Autres charges de gestion courante (65)".
+## PR 1 — Moteur pur `computeBPModel` (parité comportementale)
 
-## Plan d'action proposé
+Objectif : centraliser sans changer les résultats. À la fin de PR 1, les tests d'invariants restent rouges (sauf ceux qui étaient déjà OK), mais l'écran P&L et le PDF sortent **du même calcul**.
 
-### Étape 1 — Instrumenter le P&L (bloquant)
+Contraintes non négociables :
+- `computeBPModel(input: BPModelInput): BPFinancialModel` est une **fonction pure** : pas de React, pas de Supabase, pas de React Query, pas de `currentCompany`, aucun side-effect.
+- **Granularité mensuelle d'abord**, agrégation annuelle ensuite : `model.months[]` puis `model.years[] = aggregate(model.months)`.
+- Montants normalisés via une fonction centrale d'arrondi (`roundCents` ou intégers en centimes pour les invariants).
+- Taux normalisés via la fonction unique `normalizeRate` (déjà créée en PR précédente, à étendre à tous les usages : croissance, churn, charges sociales, taux dirigeants, intérêts, TVA, % charges variables).
+- Le PDF ne fait **plus aucun calcul** : il consomme `BPFinancialModel`.
 
-Ajouter un `console.debug` (déclenché par flag `?debug=pnl` dans l'URL ou paramètre dev) qui dump pour chaque année :
+Refactor :
+- `useProfitLoss`, `useBPCashFlow`, `useBalanceSheet`, `useFundingPlan`, `useBPRatios` deviennent de simples sélecteurs sur `useBPModel()`.
+- `useBPModel()` = unique hook React Query qui appelle `computeBPModel(input)`.
+- `BPDocument` reçoit `BPFinancialModel`, plus aucun champ ad hoc.
 
-```
-CA total / par stream
-COGS variables (category='cogs')
-COGS issus de purchase_cost streams
-Services extérieurs variables (category!='cogs')
-Charges fixes par category (rent, services, marketing, …)
-Salaires bruts / charges sociales / total
-Dirigeants
-Amortissements
-Leasing
-Intérêts
-RCAI / IS / Net
-```
+À la fin de PR 1 : écran et PDF affichent les **mêmes chiffres** (même faux). Les écarts entre P&L / cash flow / bilan / financement persistent — on les corrige en PR 2.
 
-Tu lances la page avec ce flag et me copies le dump. **C'est la seule façon fiable** de localiser la ligne qui crée le trou.
+---
 
-### Étape 2 — Corriger les 2 vrais bugs identifiés
+## PR 2 — Corrections financières dans le moteur
 
-**A. `category='services'` orpheline** dans le filtre des services extérieurs :
+Une correction = un commit isolé, chacun fait passer un ou plusieurs tests rouges au vert.
 
-```ts
-const serviceCategories = [
-  'rent', 'insurance', 'telecom', 'marketing',
-  'professional_fees', 'banking', 'travel', 'utilities',
-  'services',  // ← MANQUANT
-];
-```
+1. **Taux** : sweep complet `normalizeRate` sur tous les inputs du moteur. Tests dédiés.
+2. **COGS vs services extérieurs vs charges variables** :
+   - Règle stricte : une charge appartient à **une seule** famille (`cogs` | `external_services_variable` | `other_operating`).
+   - Source unique : `bp_variable_expenses.category` + `pcg_subcategory`.
+   - `bp_revenue_streams.has_purchase_cost` ne doit jamais coexister avec une `bp_variable_expenses` qui couvre le même flux (validateur → warning).
+   - Test : `Σ charges par nature === pnl.operatingExpenses`.
+3. **Emprunts** : table d'amortissement réelle (mensualité constante par défaut, linéaire en option).
+   - Génère `{month, payment, interest, principal, remainingPrincipal}`.
+   - P&L → `interest`. Cash flow → `interest + principal`. Bilan → `remainingPrincipal`.
+   - Plan de financement → `principal` (remboursements) + nouveaux emprunts.
+   - Test : `Δ debt bilan === nouveaux emprunts − Σ principal`.
+4. **Cash flow connecté au P&L** :
+   - Décaissements : achats/COGS (avec `supplier_payment_delay`), services, charges fixes, salaires + charges sociales + dirigeants + indemnités, TVA selon `vat_regime`, intérêts + capital, investissements à la date d'achat, IS selon échéancier.
+   - Encaissements : CA TTC avec `customer_payment_delay`, financements reçus.
+   - Test : `treasury.cashflowEnd === treasury.balanceSheetEnd`.
+5. **Fiscalité** :
+   - Si IS : calculer comme aujourd'hui (15 % jusqu'à 42 500 € si PME, puis 25 %).
+   - Si IR : `pnl.tax = 0`, ligne libellée "Impôt société : 0 — fiscalité personnelle hors périmètre BP". Notes alignées.
+   - Validateur : `notes.taxRegime` doit correspondre au calcul.
+6. **Stocks** : pas d'auto-calcul. Si `stocks = 0` ET achats significatifs → warning + demande d'hypothèse (jours de rotation OU stock initial/final saisi). Pas d'invention.
+7. **Capital social** : ajouter `bp_settings.share_capital` (nullable). Préremplissage depuis `companies` au démarrage du BP. Bilan affiche "Non renseigné" si null, jamais 0.
+8. **Libellés PCG** : mapping `pcgLabels.ts` piloté par `bp_revenue_streams.revenue_type` (706/707) et `bp_variable_expenses.pcg_subcategory` (601/607/611/...).
 
-**B. Hardener `normalizeRate`** (ceinture + bretelles, même si la base est saine aujourd'hui) :
+---
 
-```ts
-// src/lib/rateUtils.ts
-export const normalizeRate = (v: unknown, fallback = 0): number => {
-  const n = Number(v);
-  if (!Number.isFinite(n)) return fallback;
-  return n > 1 ? n / 100 : n;
-};
-```
+## PR 3 — Validateur + UI contrôles
 
-À utiliser dans `getPersonnelBreakdownForMonth`, `getDirectorsBreakdownForMonth`, `getRevenueForecast` (growth/churn), `calculateVariableExpenseForMonth` (percentage déjà géré en /100, mais on protège). + tests unitaires.
+1. `validateModel(model: BPFinancialModel): ValidationIssue[]` (fonction pure).
+2. Règles : tous les invariants de PR 0 + warnings métier (capital = 0, stocks suspects, régime mélangé, etc.) avec sévérité `info` / `warning` / `critical`.
+3. UI : nouvelle section "Contrôles de cohérence" dans `/bp/*`, badge rouge si critical.
+4. PDF : page "Contrôles" + bandeau "Document non finalisé — incohérences détectées" en couverture si critical présent.
+5. Export : autorisé mais bloqué tant que critical actif, sauf opt-in explicite ("J'ai pris connaissance des incohérences").
 
-### Étape 3 — Tests de non-régression
+---
 
-Ajouter `useProfitLoss.test.ts` avec scénario type :
-- CA 1 000 000, COGS 60% via variable expense, salaires 100 K, charges 45%, charges fixes 50 K
-- Vérifier que résultat ne diverge jamais d'un facteur 100 (garde-fou normalisation).
+## PR 4 — Refonte des pages PDF
 
-### Étape 4 (conditionnelle) — Selon résultat de l'étape 1
+Aucun nouveau calcul. Uniquement de la mise en forme propre du `BPFinancialModel`.
 
-Une fois le dump obtenu, on identifie la ligne fautive et on corrige la cause racine (pas un patch). Hypothèses à explorer si rien n'apparaît :
-- cache React Query non invalidé (tu vois un calcul ancien)
-- un BP secondaire/scenario actif avec multiplicateurs pourris
-- un investissement avec `depreciation_years` à 0 ou 1 (division/durée courte explosive)
+1. **P&L** strictement SIG (Marge commerciale → Marge brute → Valeur ajoutée → EBE → Résultat exploitation → RCAI → Résultat net), une ligne par poste PCG.
+2. **Page Charges** renommée "Synthèse des charges par nature" : chaque charge une seule fois ; total = charges d'exploitation P&L.
+3. **Page Personnel** : Salaires bruts / Charges patronales / Primes / Indemnités / Dirigeants brut / Charges dirigeants / **Total = ligne P&L**.
+4. **Page Hypothèses détaillées** : drivers revenus (volumes, prix, croissance, churn), délais, TVA, régime fiscal, taux charges sociales, détail emprunts (capital/taux/durée/mensualité/CRD), détail investissements.
+5. **Trésorerie initiale** : si `0`, message explicite ; option "importer le solde bancaire réel".
+6. **Couverture** : capital social, forme juridique, SIRET si dispo.
 
-## Ce que je **refuse** de faire
+---
 
-- Corriger en dur le résultat ou ajouter un facteur correctif "ad hoc"
-- Modifier les données Cloud Vapor avant d'avoir compris la cause
-- Patcher l'UI pour cacher le chiffre
+## Tests (ajoutés au fil des PRs)
 
-## Décision
+- `computeBPModel.test.ts` : cas synthétiques (CA pur, négoce, abonnements, mix).
+- `invariants.cloud-vapor.test.ts` : tests rouges de PR 0 → progressivement verts au fil de PR 2.
+- `validateModel.test.ts` : chaque règle déclenchée correctement.
+- Snapshot léger texte du PDF Cloud Vapor (sécurise les libellés, pas la mise en page).
 
-Tu valides ?
-1. J'ajoute l'instrumentation debug + je corrige `category='services'` + `normalizeRate` + tests
-2. Tu lances la page Compte de Résultat avec `?debug=pnl`, tu me colles le dump
-3. On corrige la cause racine du −900 K€ identifiée à l'étape 2
+---
+
+## Garde-fous transverses
+
+- Aucun fix en dur, aucune valeur métier hardcodée.
+- Aucune duplication de logique entre PDF / écran / tests.
+- Toute valeur affichée provient de `BPFinancialModel`.
+- Migration DB unique (PR 2 / point 7) : ajout `bp_settings.share_capital`.
+
+---
+
+## Démarrage
+
+J'attaque par **PR 0 (diagnostic)** dès que tu valides ce plan : extraction fixture Cloud Vapor + rapport de réconciliation + tests rouges des invariants. Tu auras ensuite la photo exacte avant qu'on touche au moteur.
