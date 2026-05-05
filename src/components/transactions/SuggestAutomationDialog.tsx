@@ -458,7 +458,7 @@ export function SuggestAutomationDialog({
                       transaction{liveSimilarTransactions.length > 1 ? 's' : ''} similaire{liveSimilarTransactions.length > 1 ? 's' : ''} non catégorisée{liveSimilarTransactions.length > 1 ? 's' : ''}
                     </p>
                     <div className="space-y-1">
-                      {liveSimilarTransactions.map(t => (
+                      {liveSimilarTransactions.slice(0, 5).map(t => (
                         <div
                           key={t.id}
                           className="flex items-center justify-between text-sm bg-muted/30 rounded px-3 py-2"
@@ -481,6 +481,11 @@ export function SuggestAutomationDialog({
                           </span>
                         </div>
                       ))}
+                      {liveSimilarTransactions.length > 5 && (
+                        <p className="text-xs text-muted-foreground text-center pt-1">
+                          + {liveSimilarTransactions.length - 5} autre{liveSimilarTransactions.length - 5 > 1 ? 's' : ''}
+                        </p>
+                      )}
                     </div>
                   </div>
                 ) : (
