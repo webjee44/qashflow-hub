@@ -37,6 +37,20 @@ interface AccountSummary {
   bridge_account_id: number;
 }
 
+type AccountSummary = {
+  name: string;
+  balance: number;
+  bridge_account_id: number;
+  iban: string | null;
+};
+
+function maskIban(iban: string | null): string {
+  if (!iban) return '';
+  const trimmed = iban.replace(/\s+/g, '');
+  if (trimmed.length <= 4) return `••${trimmed}`;
+  return `••${trimmed.slice(-4)}`;
+}
+
 function useAssignedAccounts() {
   const { currentCompany } = useCompany();
   const [accounts, setAccounts] = useState<AccountSummary[]>([]);
@@ -50,29 +64,18 @@ function useAssignedAccounts() {
     }
     setLoading(true);
 
-    const { data: assignments } = await supabase
-      .from('company_bridge_accounts')
-      .select('bridge_account_id')
+    // Source unique = vue company_active_bridge_accounts
+    const { data: rows } = await supabase
+      .from('company_active_bridge_accounts')
+      .select('name, balance, bridge_account_id, iban')
       .eq('company_id', currentCompany.id);
 
-    const ids = (assignments || []).map(a => a.bridge_account_id);
-    if (ids.length === 0) {
-      setAccounts([]);
-      setLoading(false);
-      return;
-    }
-
-    const { data: accs } = await supabase
-      .from('bridge_accounts')
-      .select('name, balance, bridge_account_id')
-      .in('bridge_account_id', ids)
-      .eq('is_ignored', false);
-
     setAccounts(
-      (accs || []).map(a => ({
+      (rows || []).map(a => ({
         name: a.name || 'Compte sans nom',
         balance: Number(a.balance) || 0,
         bridge_account_id: a.bridge_account_id,
+        iban: a.iban,
       }))
     );
     setLoading(false);
@@ -94,27 +97,24 @@ export default function Dashboard() {
 
   const loading = balanceLoading || accountsLoading;
 
+  // Masquer un compte = décision métier persistante (status='excluded' sur company_bridge_accounts).
+  // On ne supprime PAS l'assignation (sinon l'auto-assign la recréerait à la prochaine sync).
+  // On ne touche PAS à bridge_accounts.lifecycle_status (état technique géré par bridge-sync).
   const handleHideAccount = async (bridgeAccountId: number, name: string) => {
+    if (!currentCompany?.id) return;
     try {
       const { error } = await supabase
-        .from('bridge_accounts')
-        .update({ is_ignored: true })
+        .from('company_bridge_accounts')
+        .update({
+          status: 'excluded',
+          excluded_at: new Date().toISOString(),
+          exclusion_reason: 'Masqué depuis le tableau de bord',
+        })
+        .eq('company_id', currentCompany.id)
         .eq('bridge_account_id', bridgeAccountId);
       if (error) throw error;
 
-      // Soft-delete linked transactions so they disappear from all views.
-      // Reversible: re-assigning the account would restore them via a sync.
-      if (currentCompany?.id) {
-        await supabase
-          .from('transactions')
-          .update({ deleted_at: new Date().toISOString() })
-          .eq('company_id', currentCompany.id)
-          .eq('bridge_account_id', bridgeAccountId)
-          .is('deleted_at', null);
-
-        await supabase.rpc('recompute_company_bank_stats', { p_company_id: currentCompany.id });
-      }
-
+      // Trigger trg_recompute_on_cba_change recalcule companies.bank_balance automatiquement.
       toast.success(`Compte « ${name} » masqué`);
       await Promise.all([refetchAccounts(), refetchBalance()]);
     } catch (e) {
