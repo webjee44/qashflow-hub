@@ -14,27 +14,14 @@ export function useBankBalance() {
     queryFn: async () => {
       if (!currentCompany?.id) return { balance: 0, accountCount: 0 };
 
-      // Get assigned bridge account IDs for this company
-      const { data: assignments, error: assignError } = await supabase
-        .from('company_bridge_accounts')
-        .select('bridge_account_id')
+      // Source unique de vérité: vue company_active_bridge_accounts
+      // (filtre déjà status='active' côté société + lifecycle_status='active' côté Bridge)
+      const { data: accounts, error } = await supabase
+        .from('company_active_bridge_accounts')
+        .select('balance')
         .eq('company_id', currentCompany.id);
 
-      if (assignError) throw assignError;
-      if (!assignments || assignments.length === 0) {
-        return { balance: 0, accountCount: 0 };
-      }
-
-      const assignedIds = assignments.map(a => a.bridge_account_id);
-
-      // Get balances from bridge_accounts for assigned accounts
-      const { data: accounts, error: accountsError } = await supabase
-        .from('bridge_accounts')
-        .select('balance')
-        .in('bridge_account_id', assignedIds)
-        .eq('is_ignored', false);
-
-      if (accountsError) throw accountsError;
+      if (error) throw error;
 
       const totalBalance = accounts?.reduce((sum, acc) => sum + (Number(acc.balance) || 0), 0) || 0;
 
