@@ -32,6 +32,7 @@ export function useTransactionHandlers({
   bulkSetIgnored,
   splitTransaction,
   refetchTransactions,
+  applyRuleToExistingTransactions,
 }: UseTransactionHandlersParams) {
   const { toast } = useToast();
   const { currentCompany } = useCompany();
@@ -41,6 +42,12 @@ export function useTransactionHandlers({
   const [showSuggestDialog, setShowSuggestDialog] = useState(false);
   const [lastCategorizedTransaction, setLastCategorizedTransaction] = useState<Transaction | null>(null);
   const [lastSelectedCategory, setLastSelectedCategory] = useState<Category | null>(null);
+  const [lastExistingRuleMatch, setLastExistingRuleMatch] = useState<AutomationRule | null>(null);
+  const [pendingAutomationSuggestion, setPendingAutomationSuggestion] = useState<{
+    transaction: Transaction;
+    category: Category;
+    existingRuleMatch: AutomationRule | null;
+  } | null>(null);
   const [showCategoryDialog, setShowCategoryDialog] = useState(false);
   const [pendingTransactionId, setPendingTransactionId] = useState<string | null>(null);
   const [selectedTransactionIds, setSelectedTransactionIds] = useState<Set<string>>(new Set());
@@ -51,47 +58,27 @@ export function useTransactionHandlers({
   const [showCategorizationModal, setShowCategorizationModal] = useState(false);
   const [transactionToCategorize, setTransactionToCategorize] = useState<Transaction | null>(null);
 
+  // Pure mutation: applies a category. No UI side effect.
   const handleUpdateCategory = useCallback(async (transactionId: string, categoryId: string | null) => {
-    const transaction = transactions.find(t => t.id === transactionId);
-    const previousCategoryId = transaction?.category_id;
-
     try {
       await updateCategory({ transactionId, categoryId });
       toast({ title: 'Catégorie mise à jour', description: 'La transaction a été catégorisée avec succès' });
-
-      if (categoryId && !previousCategoryId && transaction) {
-        let category = categoryMap.get(categoryId);
-        // If category not yet in cache (e.g. just created inline), fetch it
-        if (!category) {
-          const { data: fetchedCat } = await supabase
-            .from('categories')
-            .select('*')
-            .eq('id', categoryId)
-            .single();
-          if (fetchedCat) category = fetchedCat as Category;
-        }
-        if (category && currentCompany) {
-          const hasExistingMatchingRule = hasMatchingActiveCategorizationRule(
-            rules,
-            {
-              description: transaction.description,
-              amount: transaction.amount,
-              type: transaction.type,
-            },
-            categoryId,
-          );
-
-          if (!hasExistingMatchingRule) {
-            setLastCategorizedTransaction({ ...transaction, category_id: categoryId });
-            setLastSelectedCategory(category);
-            setShowSuggestDialog(true);
-          }
-        }
-      }
     } catch {
       toast({ title: 'Erreur', description: 'Impossible de mettre à jour la catégorie', variant: 'destructive' });
     }
-  }, [transactions, rules, updateCategory, categoryMap, toast, currentCompany]);
+  }, [updateCategory, toast]);
+
+  // Deterministic flow gate: open SuggestAutomationDialog ONLY after the
+  // categorization modal is fully closed. Avoids two dialogs in the same tick.
+  useEffect(() => {
+    if (!showCategorizationModal && pendingAutomationSuggestion && !showSuggestDialog) {
+      setLastCategorizedTransaction(pendingAutomationSuggestion.transaction);
+      setLastSelectedCategory(pendingAutomationSuggestion.category);
+      setLastExistingRuleMatch(pendingAutomationSuggestion.existingRuleMatch);
+      setShowSuggestDialog(true);
+      setPendingAutomationSuggestion(null);
+    }
+  }, [showCategorizationModal, pendingAutomationSuggestion, showSuggestDialog]);
 
   const handleBulkUpdateCategory = useCallback(async (categoryId: string | null) => {
     if (selectedTransactionIds.size === 0) return;
