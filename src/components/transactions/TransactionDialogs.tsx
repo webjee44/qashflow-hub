@@ -83,6 +83,8 @@ export const TransactionDialogs = memo(function TransactionDialogs({
         transaction={lastCategorizedTransaction}
         category={lastSelectedCategory}
         allTransactions={allTransactions}
+        existingRuleMatch={lastExistingRuleMatch}
+        onApplyExistingRule={onApplyExistingRule}
         onCreateRule={onCreateRule}
       />
 
