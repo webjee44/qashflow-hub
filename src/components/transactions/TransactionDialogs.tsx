@@ -63,6 +63,7 @@ interface TransactionDialogsProps {
 export const TransactionDialogs = memo(function TransactionDialogs({
   showSuggestDialog, onShowSuggestDialogChange,
   lastCategorizedTransaction, lastSelectedCategory,
+  lastExistingRuleMatch, onApplyExistingRule,
   allTransactions, onCreateRule,
   showCategoryDialog, onShowCategoryDialogChange, onSaveCategory, onCategoryDialogClose,
   showBulkCategorizeDialog, onShowBulkCategorizeDialogChange,
