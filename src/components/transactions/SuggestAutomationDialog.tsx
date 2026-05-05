@@ -328,6 +328,45 @@ export function SuggestAutomationDialog({
                   </Badge>
                 </div>
 
+                {/* Existing rule banner — info, not blocker */}
+                {existingRuleMatch && (
+                  <div className="border border-amber-500/30 bg-amber-500/5 rounded-lg p-3 space-y-2">
+                    <div className="flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                      <div className="flex-1 text-sm">
+                        <p className="font-medium">Une règle active couvre déjà cette transaction</p>
+                        <p className="text-muted-foreground text-xs mt-1">
+                          « {existingRuleMatch.name} ». Vous pouvez l'appliquer maintenant aux transactions similaires, ou créer une règle plus précise ci-dessous.
+                        </p>
+                      </div>
+                    </div>
+                    {onApplyExistingRule && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                        disabled={applyingExisting}
+                        onClick={async () => {
+                          setApplyingExisting(true);
+                          try {
+                            await onApplyExistingRule(existingRuleMatch.id);
+                            onOpenChange(false);
+                          } finally {
+                            setApplyingExisting(false);
+                          }
+                        }}
+                      >
+                        {applyingExisting ? (
+                          <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                        ) : (
+                          <Check className="w-4 h-4 mr-2" />
+                        )}
+                        Appliquer la règle existante
+                      </Button>
+                    )}
+                  </div>
+                )}
+
                 {/* Pattern suggéré (toujours éditable inline) */}
                 <div className="border border-accent/30 bg-accent/5 rounded-lg p-4">
                   <div className="flex items-center gap-2 mb-2">
