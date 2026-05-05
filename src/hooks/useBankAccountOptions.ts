@@ -24,7 +24,8 @@ export function useBankAccountOptions() {
         .from('bridge_accounts')
         .select('name, bank_name')
         .eq('bridge_user_uuid', currentCompany.bridge_user_uuid)
-        .eq('status', 'active');
+        .eq('status', 'active')
+        .eq('lifecycle_status', 'active');
 
       if (error) throw error;
 
