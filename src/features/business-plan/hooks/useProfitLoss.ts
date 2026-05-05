@@ -224,7 +224,7 @@ export function useProfitLoss() {
     const grossSalaries = activePersonnel.reduce((sum, p) => sum + (Number(p.gross_salary) || 0), 0);
     const employerCharges = activePersonnel.reduce((sum, p) => {
       const salary = Number(p.gross_salary) || 0;
-      const rate = Number(p.employer_charges_rate) || 0;
+      const rate = normalizeRate(p.employer_charges_rate);
       return sum + (salary * rate);
     }, 0);
     return { grossSalaries, employerCharges, total: grossSalaries + employerCharges };
@@ -271,7 +271,7 @@ export function useProfitLoss() {
     const remuneration = activeDirectors.reduce((sum, d) => sum + (Number(d.monthly_remuneration) || 0), 0);
     const charges = activeDirectors.reduce((sum, d) => {
       const rem = Number(d.monthly_remuneration) || 0;
-      const rate = Number(d.charges_rate) || 0;
+      const rate = normalizeRate(d.charges_rate);
       return sum + (rem * rate);
     }, 0);
     return { remuneration, charges, total: remuneration + charges };
@@ -587,7 +587,7 @@ export function useProfitLoss() {
       // Fixed expenses that are services (61/62)
       // rent (613), insurance (616), telecom (626), marketing (623), 
       // professional_fees (622), banking (627), travel (625), utilities (606)
-      const serviceCategories = ['rent', 'insurance', 'telecom', 'marketing', 'professional_fees', 'banking', 'travel', 'utilities'];
+      const serviceCategories = ['rent', 'insurance', 'telecom', 'marketing', 'professional_fees', 'banking', 'travel', 'utilities', 'services'];
       const servicesTotal = fixedExpenses
         .filter(e => serviceCategories.includes(e.category || ''))
         .reduce((sum, e) => sum + getFixedExpenseForMonth(e, month), 0);
