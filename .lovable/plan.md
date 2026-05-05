@@ -1,85 +1,122 @@
-## PR 3 — Validateur de réconciliation financière
+## PR 4 — Refonte du PDF "qualité expert-comptable"
 
 ### Objectif
-Module pur qui prend un `BPFinancialModel` et retourne la liste des écarts entre P&L, Cash Flow et Bilan. Pas de fix, pas d'UI bloquante : un **diagnostic** chiffré, exploitable par les tests, le PDF (badge "états réconciliés ✓ / écarts détectés ⚠"), et un futur panneau debug.
+Le PDF actuel est "présentable" mais ne passe pas une revue banquier/DAF. PR 4 le transforme en livrable comptable sérieux : structure normée, traçabilité, badge de réconciliation, annexes obligatoires.
 
-Cause racine traitée : aujourd'hui rien ne vérifie que les 3 états parlent entre eux. Le validateur devient le garde-fou permanent qui empêche toute régression future de PR 2+.
+PR 1 a déjà unifié la source (`useBPModel`). PR 3 fournit le rapport de validation. PR 4 = uniquement présentation et complétude.
 
-### Architecture
+### Structure cible (sections du PDF)
 
-**Fichier** : `src/features/business-plan/engine/validateBPModel.ts` (pur, zéro dépendance React).
+1. **Page de garde**
+   - Société, SIRET (si dispo), période couverte (24 mois / 3 exercices), date d'export, version du moteur (`engine_version`)
+   - Badge réconciliation : `validation.ok ? "États réconciliés" : "X écarts détectés"` + détail en annexe
 
-**Signature** :
-```ts
-export type ValidationSeverity = 'error' | 'warning' | 'info';
-export type ValidationIssue = {
-  code: string;             // ex: 'BS_CASH_MISMATCH'
-  severity: ValidationSeverity;
-  message: string;          // FR, lisible
-  year?: number;            // 1-indexé si applicable
-  expected?: number;
-  actual?: number;
-  delta?: number;           // actual - expected
-  tolerance?: number;       // seuil utilisé
-};
-export type ValidationReport = {
-  ok: boolean;              // true si zéro 'error'
-  issues: ValidationIssue[];
-  summary: { errors: number; warnings: number; infos: number };
-};
+2. **Synthèse exécutive** (1 page)
+   - CA, EBE, Résultat net, Trésorerie finale par exercice
+   - Point bas trésorerie + mois
+   - Seuil de rentabilité
 
-export function validateBPModel(model: BPFinancialModel): ValidationReport;
+3. **Compte de résultat** (PCG strict)
+   - Déjà OK, garder le rendu actuel mais ajouter :
+     - codes PCG visibles à gauche (706, 707, 60x, 61, 62, 63, 64, 65, 68, 69)
+     - colonne % du CA par ligne
+     - sous-totaux SIG explicites : Marge commerciale, Production, Valeur ajoutée, EBE, RE, Résultat avant impôt, Résultat net
+
+4. **Bilan**
+   - Déjà OK, ajouter :
+     - ligne "ÉQUILIBRE ACTIF=PASSIF" avec delta affiché en bas
+     - mention "Trésorerie issue du tableau de flux" (signal au lecteur que c'est dérivé)
+
+5. **Tableau de flux de trésorerie** (vue annuelle, pas mensuelle)
+   - Format normé : Flux exploitation / investissement / financement
+   - Aujourd'hui le PDF affiche du mensuel cumulé → refonte en agrégation annuelle conforme
+
+6. **Plan de financement** (3 ans)
+   - Déjà OK, ajouter ratio Ressources/Emplois et CAF cumulée
+
+7. **Ratios financiers + seuil de rentabilité**
+   - Déjà OK, ajouter benchmarks sectoriels génériques (info, pas recommandation)
+
+8. **Annexes** (nouveau)
+   - **Hypothèses** : taux de croissance par stream, délais clients/fournisseurs, taux IS, taux URSSAF, méthode amortissement
+   - **Détail des emprunts** : tableau d'amortissement année par année (capital restant dû, intérêts, capital remboursé)
+   - **Détail du personnel** : effectif moyen, masse salariale brute, charges patronales, par poste
+   - **Détail des investissements** : nature, montant, date, durée, dotation annuelle
+   - **Rapport de réconciliation** (issu de PR 3) : liste des codes d'écarts, sévérité, montant, explication. Si tout est vert → "Aucun écart détecté".
+
+### Implémentation
+
+**Fichier principal** : `src/features/business-plan/pdf/BPDocument.tsx` (existe déjà après PR 1, prend `model: BPFinancialModel`).
+
+Découpage en sous-composants pour lisibilité :
+```
+pdf/
+├── BPDocument.tsx              (orchestrateur, prop unique `model`)
+├── sections/
+│   ├── CoverPage.tsx
+│   ├── ExecutiveSummary.tsx
+│   ├── ProfitLossSection.tsx   (refacto existant)
+│   ├── BalanceSheetSection.tsx (refacto existant)
+│   ├── CashFlowSection.tsx     (refonte annuelle)
+│   ├── FundingPlanSection.tsx  (refacto existant)
+│   ├── RatiosSection.tsx       (refacto existant)
+│   └── annexes/
+│       ├── HypothesesAnnex.tsx
+│       ├── LoanScheduleAnnex.tsx
+│       ├── PersonnelAnnex.tsx
+│       ├── InvestmentsAnnex.tsx
+│       └── ReconciliationAnnex.tsx  (consomme model.validation)
+└── shared/
+    ├── PDFTable.tsx            (composant table normalisée)
+    ├── PDFHeader.tsx           (header de section avec code PCG)
+    └── styles.ts               (palette imprimable, fonts, tailles)
 ```
 
-### Règles de validation (V1 — alignées sur les écarts CTO)
+**Règles de présentation** :
+- Police : serif sobre pour le corps (ex Times) + sans-serif pour titres. Pas d'emoji, pas de couleur primaire vive sur PDF imprimé.
+- Couleurs : noir, gris, bleu sobre `#1e3a5f` pour titres uniquement. Plus de gradient.
+- Format A4 portrait, marges 20mm, n° de page "X / N"
+- En-tête répété : nom société + "Business Plan 2026-2028" (dynamique)
+- Pied : date d'export + version moteur + URL qashflow.io
 
-Toutes les comparaisons utilisent une tolérance de **1 € absolu OU 0.1% de la base**, le max des deux (évite les faux positifs d'arrondi).
+### Données nécessaires (via `model`)
+Tout est déjà dans `BPFinancialModel` après PR 1+3 :
+- `model.pl`, `model.balanceSheet`, `model.cashFlow`, `model.fundingPlan`, `model.ratios`
+- `model.validation` (PR 3)
+- `model.input.investments`, `financings`, `personnel` pour les annexes
+- `model.engineVersion` (à ajouter — constante string `'1.0.0'`)
 
-1. **`BS_CASH_MISMATCH`** (error) — pour chaque année i :
-   `balanceSheet.cash[i]` doit ≈ `cashFlow.balance[lastMonthOfYearI]`.
-   Aujourd'hui : faux (bilan calcule par soustraction).
+### Tests
+- `BPDocument.snapshot.test.tsx` : rendu React-PDF en buffer + snapshot du nombre de pages et taille (détecte régressions silencieuses).
+- Test que `ReconciliationAnnex` rend bien tous les `validation.issues`.
+- Test que les totaux affichés == valeurs `model.totals` (parité écran/PDF).
 
-2. **`BS_BALANCED`** (error) — pour chaque année i :
-   `balanceSheet.totals.totalAssets[i]` ≈ `balanceSheet.totals.totalLiabilities[i]`.
+### QA visuel (mandatoire)
+Conversion PDF → images via `pdftoppm`, inspection page par page :
+- vérifier qu'aucun tableau ne déborde
+- vérifier équilibre Actif = Passif visible en bas du bilan
+- vérifier que l'annexe réconciliation affiche le bon contenu selon `validation.ok`
+- vérifier en-têtes/pieds répétés sur chaque page
 
-3. **`PL_NET_RESULT_TO_EQUITY`** (error) — pour chaque année i ≥ 2 :
-   `balanceSheet.equity[i] - balanceSheet.equity[i-1]` ≈ `pl.totals.netResult[i]` + apports nouveaux capital année i − dividendes (=0 V1).
-
-4. **`CASH_VS_PL_PERSONNEL`** (warning) — annuel :
-   `cashFlow.outflows.personnel.year + cashFlow.outflows.payrollTaxes.year` ≈ `pl.totals.personnelCosts[i] + pl.totals.payrollTaxes[i]`.
-   Détecte la double-comptabilisation actuelle.
-
-5. **`LOAN_PRINCIPAL_RECONCILIATION`** (error) — pour chaque année i :
-   `bankLoans[i-1] - bankLoans[i]` (bilan) ≈ `Σ(loanPayments cash year i) - Σ(interest P&L year i)`.
-   Détecte un amortissement capital incohérent.
-
-6. **`VAT_BALANCE_TIMING`** (warning) — annuel :
-   `Σ(vatPayments cash year i)` ≈ `pl.tva.balance[i]` (à un mois de décalage près, info plutôt qu'erreur si écart < 1 mois).
-
-7. **`STREAM_REVENUE_TYPE_AMBIGUOUS`** (info, pas error) — par stream :
-   stream.has_purchase_cost === true ET stream.revenue_type === 'production' → probable erreur de classification PCG (706 vs 707). Ne casse pas le bilan, juste suspect.
-
-8. **`FUNDING_PLAN_BALANCED`** (warning) — annuel :
-   `fundingPlan.totals.resources[i]` ≈ `fundingPlan.totals.uses[i]` (le funding plan est cumulatif, donc règle plutôt sur cumul total).
-
-### Intégration
-
-- **`computeBPModel`** : ajoute `validation: validateBPModel(modelSansValidation)` dans la sortie. Le modèle se valide lui-même → tout consommateur peut afficher un badge.
-- **Tests** :
-  - `validateBPModel.test.ts` (cas pédagogiques : bilan déséquilibré construit à la main → détecté).
-  - `engine-parity.cloud-vapor.test.ts` reçoit un nouveau bloc qui **snapshot le rapport actuel** sur Cloud Vapor. Tant que PR 2 n'est pas faite, le snapshot contient les erreurs attendues. PR 2 fera passer ces erreurs à zéro.
-- **PDF & UI** : aucun changement dans cette PR. (Branchement visuel = PR 4 ou en option à la fin si validation passe.)
-
-### Hors périmètre PR 3
-- Aucune correction financière (c'est PR 2).
-- Aucun changement UI/PDF.
-- Pas de validation cross-entreprise ni cross-période (ratios sectoriels, etc.).
+### Hors périmètre PR 4
+- Pas de correction financière (PR 2)
+- Pas d'export Excel/Word (autre PR)
+- Pas de signature électronique / horodatage (autre PR)
+- Pas de personnalisation utilisateur (logo, couleurs) — version "neutre banquier" uniquement V1
 
 ### Livrables
-- `src/features/business-plan/engine/validateBPModel.ts`
-- `src/features/business-plan/engine/__tests__/validateBPModel.test.ts`
-- Champ `validation: ValidationReport` ajouté à `BPFinancialModel`
-- Snapshot des écarts actuels Cloud Vapor figé dans le test parité (devient la baseline avant PR 2)
+- Refonte modulaire de `BPDocument` en sections
+- 5 annexes (Hypothèses, Emprunts, Personnel, Investissements, Réconciliation)
+- Cash Flow refondu en présentation annuelle normée
+- Page de garde + synthèse exécutive
+- Codes PCG visibles, % du CA, SIG explicites
+- Tests snapshot + QA visuel documenté
 
-### Bénéfice immédiat
-Tu peux dire au CTO et au banquier : "Le moteur s'auto-diagnostique, voici la liste exhaustive des écarts détectés sur Cloud Vapor, et chacun a un code et une PR planifiée pour le résoudre." → crédibilité gagnée même avant PR 2.
+### Bénéfice final
+Combiné aux PR 1/3 (et PR 2 quand exécutée), le PDF devient :
+- réconciliable (badge + annexe explicite)
+- traçable (engine_version, date, hypothèses)
+- complet (annexes obligatoires d'un dossier de financement)
+- conforme PCG dans la présentation
+
+→ Passe la revue banquier/DAF.
