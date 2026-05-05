@@ -245,7 +245,8 @@ export function BankAccountsCard() {
           const { data, error } = await supabase
             .from('bridge_accounts')
             .select('id, bridge_account_id, bridge_item_id, name, iban, balance, account_type, bank_name, bridge_user_uuid, company_id, item_status, item_status_message')
-            .in('bridge_account_id', assignedAccountIds);
+            .in('bridge_account_id', assignedAccountIds)
+            .eq('is_ignored', false);
           if (error) throw error;
           bridgeAccounts = (data || []) as BridgeAccount[];
         }

@@ -130,7 +130,8 @@ export function useDashboardStats() {
             const { data: bridgeAccounts } = await supabase
               .from('bridge_accounts')
               .select('balance')
-              .in('bridge_account_id', assignedIds);
+              .in('bridge_account_id', assignedIds)
+              .eq('is_ignored', false);
 
             if (bridgeAccounts && bridgeAccounts.length > 0) {
               currentBalance = bridgeAccounts.reduce((sum, acc) => sum + Number(acc.balance || 0), 0);
@@ -272,7 +273,8 @@ export function useBalanceChartData() {
             const { data: bridgeAccounts } = await supabase
               .from('bridge_accounts')
               .select('balance')
-              .in('bridge_account_id', assignedIds);
+              .in('bridge_account_id', assignedIds)
+              .eq('is_ignored', false);
 
             currentBalance = bridgeAccounts?.reduce((sum, acc) => sum + Number(acc.balance || 0), 0) || 0;
           } else if (currentCompany.bank_balance !== null && currentCompany.bank_balance !== undefined) {
