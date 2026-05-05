@@ -118,6 +118,83 @@ async function syncBridgeAccounts(
     existingCompanyMap[row.bridge_account_id] = row.company_id;
   }
 
+  // -------- Deduplication on reconnect --------
+  // Bridge creates a new account_id whenever a bank connection is re-established.
+  // We detect that case by matching IBAN within the same bridge_user_uuid and:
+  //  - move the company assignment to the new account_id
+  //  - move existing transactions to the new account_id
+  //  - mark the old account as ignored (kept for history/audit)
+  const incomingIbans = accounts
+    .filter(a => a.iban)
+    .map(a => ({ id: a.id, iban: (a.iban || '').toUpperCase().replace(/\s+/g, '') }));
+
+  if (incomingIbans.length > 0) {
+    const { data: sameUuidAccounts } = await supabaseAdmin
+      .from('bridge_accounts')
+      .select('bridge_account_id, iban, is_ignored')
+      .eq('bridge_user_uuid', bridgeUserUuid);
+
+    const existingByIban = new Map<string, number[]>();
+    for (const row of sameUuidAccounts || []) {
+      if (!row.iban) continue;
+      const key = row.iban.toUpperCase().replace(/\s+/g, '');
+      const list = existingByIban.get(key) || [];
+      list.push(row.bridge_account_id);
+      existingByIban.set(key, list);
+    }
+
+    for (const incoming of incomingIbans) {
+      const candidates = (existingByIban.get(incoming.iban) || []).filter(id => id !== incoming.id);
+      if (candidates.length === 0) continue;
+
+      console.info(`[bridge-sync][dedup] IBAN ${incoming.iban} has stale account(s) ${candidates.join(',')} → migrating to ${incoming.id}`);
+
+      // Move assignments to the new account_id (skip if already exists)
+      for (const oldId of candidates) {
+        const { data: existingForNew } = await supabaseAdmin
+          .from('company_bridge_accounts')
+          .select('company_id')
+          .eq('bridge_account_id', incoming.id);
+        const existingCompanies = new Set((existingForNew || []).map((r: any) => r.company_id));
+
+        const { data: oldMappings } = await supabaseAdmin
+          .from('company_bridge_accounts')
+          .select('company_id')
+          .eq('bridge_account_id', oldId);
+
+        const toCreate = (oldMappings || [])
+          .filter((m: any) => !existingCompanies.has(m.company_id))
+          .map((m: any) => ({ company_id: m.company_id, bridge_account_id: incoming.id }));
+
+        if (toCreate.length > 0) {
+          await supabaseAdmin.from('company_bridge_accounts').insert(toCreate);
+        }
+        await supabaseAdmin
+          .from('company_bridge_accounts')
+          .delete()
+          .eq('bridge_account_id', oldId);
+
+        // Re-point transactions to new account_id
+        await supabaseAdmin
+          .from('transactions')
+          .update({ bridge_account_id: incoming.id })
+          .eq('bridge_account_id', oldId);
+
+        // Mark stale account as ignored (keep row for audit)
+        await supabaseAdmin
+          .from('bridge_accounts')
+          .update({ is_ignored: true, status: 'replaced', updated_at: new Date().toISOString() })
+          .eq('bridge_account_id', oldId);
+
+        // Refresh local maps so the rest of this run sees the migration
+        if (assignmentMap[oldId] && !assignmentMap[incoming.id]) {
+          assignmentMap[incoming.id] = assignmentMap[oldId];
+        }
+        delete assignmentMap[oldId];
+      }
+    }
+  }
+
   const getItemId = (account: BridgeAccount): number | null => {
     const anyAccount = account as any;
     const candidate =
