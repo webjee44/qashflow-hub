@@ -1,6 +1,7 @@
 import { memo } from 'react';
 import { Tables } from '@/integrations/supabase/types';
 import { Category } from '@/hooks/useCategories';
+import type { AutomationRule } from '@/hooks/useAutomationRules';
 import { SuggestAutomationDialog } from './SuggestAutomationDialog';
 import { CategorizationModal } from './CategorizationModal';
 import { CategoryDialog } from '@/components/categories/CategoryDialog';
@@ -15,6 +16,8 @@ interface TransactionDialogsProps {
   onShowSuggestDialogChange: (open: boolean) => void;
   lastCategorizedTransaction: Transaction | null;
   lastSelectedCategory: Tables<'categories'> | null;
+  lastExistingRuleMatch?: AutomationRule | null;
+  onApplyExistingRule?: (ruleId: string) => Promise<void>;
   allTransactions: Transaction[];
   onCreateRule: (rule: any) => Promise<any>;
 
