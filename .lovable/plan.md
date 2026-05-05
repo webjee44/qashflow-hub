@@ -1,133 +1,116 @@
-# Plan validé : modèle à deux niveaux + vue SQL centrale
+## Contexte
 
-Le CTO a raison sur le fond. Mon plan précédent traitait la suppression d'item Bridge correctement, mais laissait `is_ignored` jouer trois rôles à la fois. Je le remplace par un modèle propre.
+Tu signales un résultat net de **−892 K€** sur Cloud Vapor. J'ai audité le code (`useProfitLoss.ts`) **et** les données BP en base. Mon analyse ne reproduit pas ce chiffre.
 
-## 1. Refonte du modèle de données
+## Ce que j'ai vérifié
 
-### `company_bridge_accounts` — décision métier (par société)
-Ajouter :
-- `status text not null default 'active' check (status in ('active','excluded'))`
-- `excluded_at timestamptz null`
-- `excluded_by uuid null references auth.users(id)`
-- `exclusion_reason text null`
+### 1. Les "suspects classiques" évoqués sont déjà OK dans le code
 
-Règle : on ne supprime plus une assignation pour "masquer". On la passe à `excluded`. La sync respecte cette décision pour toujours.
+- **Taux salariés / dirigeants** : code = `salary * Number(p.employer_charges_rate)`. En base, les taux Cloud Vapor sont bien stockés en décimal (`0.383`, `0.513`, `0.898`, …), donc **pas de ×100**. Idem charges_rate dirigeants (table vide pour Cloud Vapor).
+- **Taux d'intérêt** : `getLoanScheduleEntry` divise par 100 à l'intérieur (`annualRatePercent / 100 / 12`), et les taux en base sont au bon format (0.73, 4.35, etc.). Cohérent.
+- **Growth/churn** : `getRevenueForecast` divise par 100. Cloud Vapor a une seule année de forecast manuel (2026), donc growth_rate n'est pas appliqué.
+- **Double comptage COGS / services extérieurs** : le code utilise `category === 'cogs'` d'un côté et `category !== 'cogs'` de l'autre — c'est **mutuellement exclusif**. Pas de double compte (le `is_cogs !== false` mentionné dans le ticket n'existe plus dans le code actuel).
+- **Stream `Ventes B2B`** : `has_purchase_cost = false`, `purchase_price = 0`. Plus de double comptage avec "Achats flacons".
 
-### `bridge_accounts` — état technique (canonique Bridge)
-Ajouter :
-- `lifecycle_status text not null default 'active' check (lifecycle_status in ('active','disabled','deleted','replaced'))`
-- `replaced_by_bridge_account_id bigint null references bridge_accounts(bridge_account_id)`
-- `duplicate_confidence numeric null`
-- `duplicate_reason text null`
+### 2. Estimation manuelle 2026 (à partir des données réelles en base)
 
-Migration : backfill `lifecycle_status` depuis `status` actuel + `is_ignored=true && status='replaced'` → `replaced`. Puis `is_ignored` reste en colonne legacy (lecture seule, marquée `@deprecated`) le temps de la transition, retiré dans une migration suivante une fois tous les usages purgés.
-
-### `transactions` — clé forte de compte
-- Vérifier `bridge_account_id` présent (déjà ajouté). Sinon le créer.
-- Backfill : mapper `bank_account_name` → `bridge_account_id` uniquement quand le couple `(company_id, bridge_user_uuid, name)` est non ambigu.
-- Indexer `(company_id, bridge_account_id)`.
-
-## 2. Vue SQL centrale — source unique de vérité
-
-```sql
-create or replace view public.company_active_bridge_accounts as
-select
-  cba.company_id,
-  cba.bridge_account_id,
-  ba.name, ba.iban, ba.balance, ba.currency_code,
-  ba.account_type, ba.bridge_item_id, ba.bridge_user_uuid,
-  ba.last_refresh_status, ba.updated_at
-from public.company_bridge_accounts cba
-join public.bridge_accounts ba using (bridge_account_id)
-where cba.status = 'active'
-  and ba.lifecycle_status = 'active';
+```
+CA HT                                    3 004 678
+- Achats matières (44,3% CA)            -1 331 072
+- Services extérieurs variables (3,02%)    -90 741
+- Charges externes fixes (rent, marketing,
+  prof_fees, insurance, banking, telecom,
+  travel, utilities)                       ~−420 000
+- Personnel (salaires + charges)           −179 108
+- Autres charges 65 (ajustement 12 647 €
+  + divers)                                ~−160 000
+- Fournitures bureau (606)                  ~−36 000
+- Impôts/taxes (63)                         ~−15 000
+- Dotations amortissements                  ~−28 000
+- Intérêts                                  ~−10 000
+                                          -----------
+RCAI estimé                                 ~+735 000
+- IS                                        ~−170 000
+                                          -----------
+Résultat net estimé                         ~+560 000
 ```
 
-RLS : SECURITY INVOKER, policies héritées des tables sources via `has_company_access`.
+Donc **le −892 K€ ne s'explique ni par les données ni par la logique de calcul actuelle**. Il y a un facteur que je ne vois pas depuis l'analyse statique.
 
-## 3. Tous les consommateurs lisent la vue
+### 3. Anomalies réelles repérées en passant
 
-Refactor obligatoire — plus aucun JOIN manuel `company_bridge_accounts → bridge_accounts` ailleurs :
-- `useBankBalance` (frontend)
-- Dashboard "Solde total" (pastille + dropdown groupé par `bridge_item_id`)
-- `BankAccountsCard` (Settings) — lecture via vue, écriture via mutation status
-- `snapshot-balances` edge
-- `recompute_company_bank_stats` SQL function — refaite pour sommer la vue
-- `bridge-sync` cron (sélection des comptes à rafraîchir = vue + comptes assignés actifs uniquement, mais sync technique continue sur tous les comptes Bridge non-deleted)
+- **38 lignes `bp_fixed_expenses` avec `category = 'services'`** (Location GRENKE 3 616 €/mois, Location Peugeot, sous-traitance, etc., ~8 000 €/mois). La category `services` **n'est référencée dans AUCUN filtre** du P&L. Ces dépenses sont donc actuellement **complètement ignorées** (~96 K€/an perdues côté charges → résultat artificiellement gonflé). C'est un bug propre, indépendant du −900 K€.
+- L'ajustement Q1 (12 647 €/mois) a été créé en `category='other'` → correctement compté dans "Autres charges de gestion courante (65)".
 
-## 4. Auto-assign : one-shot et respectueux
+## Plan d'action proposé
 
-Nouvelle règle dans `bridge-sync` :
-- Si une ligne existe déjà dans `company_bridge_accounts` (active OU excluded) pour ce `bridge_account_id` → ne rien faire.
-- Si `lifecycle_status != 'active'` → ne rien faire.
-- Sinon, première connexion : auto-assign uniquement si la société est seule sur ce `bridge_user_uuid` ET aucune décision n'a jamais été prise (audit log vide ou flag `first_connection_handled` sur `bridge_users`).
-- Sinon → laisser non assigné (l'utilisateur choisit).
+### Étape 1 — Instrumenter le P&L (bloquant)
 
-## 5. Déduplication / replaced
+Ajouter un `console.debug` (déclenché par flag `?debug=pnl` dans l'URL ou paramètre dev) qui dump pour chaque année :
 
-Fingerprint composite (au lieu de IBAN + bridge_user_uuid seul) :
-`(bridge_user_uuid, iban_normalisé, currency, account_type, bank_item_id)`
+```
+CA total / par stream
+COGS variables (category='cogs')
+COGS issus de purchase_cost streams
+Services extérieurs variables (category!='cogs')
+Charges fixes par category (rent, services, marketing, …)
+Salaires bruts / charges sociales / total
+Dirigeants
+Amortissements
+Leasing
+Intérêts
+RCAI / IS / Net
+```
 
-Décision automatique de `replaced` UNIQUEMENT si :
-- fingerprint identique
-- ancien item `disabled`/`deleted` côté Bridge OU `last_successful_refresh > 14j`
-- nouveau compte plus récent
+Tu lances la page avec ce flag et me copies le dump. **C'est la seule façon fiable** de localiser la ligne qui crée le trou.
 
-Sinon → `duplicate_confidence` calculé + `duplicate_reason` rempli, mais on ne touche pas au statut. UI affichera un bandeau "Doublon suspect, à valider".
+### Étape 2 — Corriger les 2 vrais bugs identifiés
 
-Re-mapping transactions : seulement quand `replaced` est confirmé, et via `transactions.bridge_account_id` (jamais via `bank_account_name`).
+**A. `category='services'` orpheline** dans le filtre des services extérieurs :
 
-## 6. UI Dashboard
+```ts
+const serviceCategories = [
+  'rent', 'insurance', 'telecom', 'marketing',
+  'professional_fees', 'banking', 'travel', 'utilities',
+  'services',  // ← MANQUANT
+];
+```
 
-- Afficher l'IBAN masqué (`****4046`) à côté de chaque compte dans la pastille et le dropdown.
-- Bouton "Masquer ce compte" sur chaque ligne → mutation `status='excluded'` + raison optionnelle.
-- Section "Comptes masqués" repliée avec bouton "Réintégrer".
-- Suppression d'item bancaire complète (plan précédent) reste valide : c'est une action différente, qui hard-delete côté Bridge + soft-delete côté DB.
+**B. Hardener `normalizeRate`** (ceinture + bretelles, même si la base est saine aujourd'hui) :
 
-## 7. Suppression des écritures de solde côté frontend
+```ts
+// src/lib/rateUtils.ts
+export const normalizeRate = (v: unknown, fallback = 0): number => {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return fallback;
+  return n > 1 ? n / 100 : n;
+};
+```
 
-`BankAccountsCard` n'écrit plus `companies.bank_balance` ni `bridge_accounts_count`. Il appelle uniquement la mutation d'assignation/exclusion. Trigger `trg_recompute_on_cba_change` (déjà présent) fait le reste.
+À utiliser dans `getPersonnelBreakdownForMonth`, `getDirectorsBreakdownForMonth`, `getRevenueForecast` (growth/churn), `calculateVariableExpenseForMonth` (percentage déjà géré en /100, mais on protège). + tests unitaires.
 
-## 8. Correction Vapeclub (data, pas hack)
+### Étape 3 — Tests de non-régression
 
-Migration data dédiée :
-1. Identifier les 2 vrais comptes à garder (par IBAN).
-2. Passer les comptes non désirés en `company_bridge_accounts.status='excluded'` avec raison "nettoyage manuel CTO 2026-05".
-3. Marquer le doublon technique `...4072` dupliqué en `bridge_accounts.lifecycle_status='replaced'` + `replaced_by_bridge_account_id`.
-4. `select recompute_company_bank_stats('<vapeclub_id>')`.
+Ajouter `useProfitLoss.test.ts` avec scénario type :
+- CA 1 000 000, COGS 60% via variable expense, salaires 100 K, charges 45%, charges fixes 50 K
+- Vérifier que résultat ne diverge jamais d'un facteur 100 (garde-fou normalisation).
 
-Pas de hardcoding dans le code applicatif.
+### Étape 4 (conditionnelle) — Selon résultat de l'étape 1
 
-## 9. Webhook & sync — bridge_account_id partout
+Une fois le dump obtenu, on identifie la ligne fautive et on corrige la cause racine (pas un patch). Hypothèses à explorer si rien n'apparaît :
+- cache React Query non invalidé (tu vois un calcul ancien)
+- un BP secondaire/scenario actif avec multiplicateurs pourris
+- un investissement avec `depreciation_years` à 0 ou 1 (division/durée courte explosive)
 
-Déjà identifié : `bridge-webhook.handleAccountUpdated` n'écrit pas `bridge_account_id` sur les transactions. Correction obligatoire avant tout remap.
+## Ce que je **refuse** de faire
 
-## 10. Tests
+- Corriger en dur le résultat ou ajouter un facteur correctif "ad hoc"
+- Modifier les données Cloud Vapor avant d'avoir compris la cause
+- Patcher l'UI pour cacher le chiffre
 
-- Deno tests `bridge-sync` : auto-assign respecte `excluded`, ne ré-assigne jamais un compte déjà décidé, marque `replaced` selon fingerprint fort.
-- Deno tests `bridge-delete-item` (du plan précédent).
-- Unit test SQL : `company_active_bridge_accounts` exclut bien `excluded` et `replaced`.
-- Unit test `recompute_company_bank_stats` : somme = vue.
+## Décision
 
-## Ordre d'exécution
-
-1. Migration : colonnes `status`/`lifecycle_status` + backfill depuis `is_ignored`.
-2. Vue `company_active_bridge_accounts`.
-3. Refonte `recompute_company_bank_stats` sur la vue.
-4. Refacto `useBankBalance`, Dashboard, `BankAccountsCard`, `snapshot-balances` → vue.
-5. Webhook : remplir `bridge_account_id` sur transactions.
-6. Auto-assign one-shot dans `bridge-sync`.
-7. Détection `replaced` avec fingerprint fort.
-8. UI : bouton masquer + IBAN masqué + section "Comptes masqués".
-9. Edge `bridge-delete-item` (du plan précédent, conservée).
-10. Migration data Vapeclub.
-11. Tests.
-12. Migration future : drop `bridge_accounts.is_ignored` une fois zéro usage.
-
-## Ce que je refuse
-
-- Garder `is_ignored` comme champ unique multi-rôle.
-- Disperser des filtres `is_ignored = false` dans les hooks.
-- Auto-replace silencieux sur simple match IBAN+user_uuid.
-- Toute suppression locale d'un compte que Bridge réexpose.
-- Hardcoder Vapeclub dans le code.
+Tu valides ?
+1. J'ajoute l'instrumentation debug + je corrige `category='services'` + `normalizeRate` + tests
+2. Tu lances la page Compte de Résultat avec `?debug=pnl`, tu me colles le dump
+3. On corrige la cause racine du −900 K€ identifiée à l'étape 2
