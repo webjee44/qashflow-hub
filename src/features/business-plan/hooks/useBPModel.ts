@@ -26,7 +26,27 @@ const TABLES = [
   'bp_stocks',
 ] as const;
 
-export function useBPModel(): { data: BPFinancialModel | null; isLoading: boolean } {
+const EMPTY_INPUT: BPModelInput = {
+  settings: {
+    initial_cash: 0,
+    customer_payment_delay: 30,
+    supplier_payment_delay: 30,
+    tax_regime: 'is',
+    is_pme: true,
+    fiscal_year_start_month: 1,
+    fiscal_year_start_day: 1,
+    bp_start_date: null,
+    bp_years: 3,
+    show_stocks: true,
+    show_financing: true,
+    show_funding_plan: true,
+  },
+  streams: [], forecasts: [], fixedExpenses: [], variableExpenses: [],
+  personnel: [], directors: [], investments: [], financings: [], stocks: [],
+};
+const EMPTY_MODEL: BPFinancialModel = computeBPModel(EMPTY_INPUT);
+
+export function useBPModel(): { data: BPFinancialModel; isLoading: boolean } {
   const { user } = useAuth();
   const { currentCompany } = useCompany();
   const { settings, isLoading: settingsLoading } = useBPSettings();
