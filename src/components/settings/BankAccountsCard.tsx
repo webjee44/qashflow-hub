@@ -129,6 +129,7 @@ interface AccountAssignment {
   bridge_account_id: number;
   company_id: string | null;
   is_enabled: boolean;
+  status?: 'active' | 'excluded';
 }
 
 interface OrgCompanyOption {
@@ -231,11 +232,11 @@ export function BankAccountsCard() {
       setIsLoading(true);
       try {
         let bridgeAccounts: BridgeAccount[] = [];
-        let currentAssignments: Array<{ bridge_account_id: number; company_id: string }> = [];
+        let currentAssignments: Array<{ bridge_account_id: number; company_id: string; status: string | null }> = [];
 
         const { data: assigns, error: assignsError } = await supabase
           .from('company_bridge_accounts')
-          .select('bridge_account_id, company_id')
+          .select('bridge_account_id, company_id, status')
           .in('company_id', scopedCompanyIds);
         if (assignsError) throw assignsError;
         currentAssignments = assigns || [];
@@ -260,7 +261,8 @@ export function BankAccountsCard() {
           assignmentMap.set(account.bridge_account_id, {
             bridge_account_id: account.bridge_account_id,
             company_id: existing?.company_id || null,
-            is_enabled: existing !== undefined,
+            is_enabled: existing?.status !== 'excluded',
+            status: existing?.status === 'excluded' ? 'excluded' : 'active',
           });
         });
         setAssignments(assignmentMap);
