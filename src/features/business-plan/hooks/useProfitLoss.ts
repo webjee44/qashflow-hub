@@ -14,6 +14,7 @@ import { useStocks } from './useStocks';
 import { startOfMonth, addMonths, parseISO, format, differenceInMonths } from 'date-fns';
 import { calculateTaxByRegime, TVA_RATES_FR, TaxRegime, getGlobalChargesRate, URSSAF_RATES_2026, SEVERANCE_FORFAIT_SOCIAL, getLoanScheduleEntry } from '@/lib/french-rates';
 import { PAYMENT_FREQUENCIES, DEPARTURE_TYPES } from '@/constants/bpConstants';
+import { normalizeRate } from '@/lib/rateUtils';
 
 export interface PLRow {
   label: string;
@@ -223,7 +224,7 @@ export function useProfitLoss() {
     const grossSalaries = activePersonnel.reduce((sum, p) => sum + (Number(p.gross_salary) || 0), 0);
     const employerCharges = activePersonnel.reduce((sum, p) => {
       const salary = Number(p.gross_salary) || 0;
-      const rate = Number(p.employer_charges_rate) || 0;
+      const rate = normalizeRate(p.employer_charges_rate);
       return sum + (salary * rate);
     }, 0);
     return { grossSalaries, employerCharges, total: grossSalaries + employerCharges };
@@ -270,7 +271,7 @@ export function useProfitLoss() {
     const remuneration = activeDirectors.reduce((sum, d) => sum + (Number(d.monthly_remuneration) || 0), 0);
     const charges = activeDirectors.reduce((sum, d) => {
       const rem = Number(d.monthly_remuneration) || 0;
-      const rate = Number(d.charges_rate) || 0;
+      const rate = normalizeRate(d.charges_rate);
       return sum + (rem * rate);
     }, 0);
     return { remuneration, charges, total: remuneration + charges };
@@ -299,8 +300,8 @@ export function useProfitLoss() {
       const startMonth = startOfMonth(startDate);
       const monthsDiff = Math.round((targetMonth.getTime() - startMonth.getTime()) / (1000 * 60 * 60 * 24 * 30));
       if (monthsDiff < 0) return 0;
-      const growthPct = (stream.growth_rate ?? 10) / 100;
-      const churnPct = (stream.churn_rate ?? 5) / 100;
+      const growthPct = normalizeRate(stream.growth_rate, 0.10);
+      const churnPct = normalizeRate(stream.churn_rate, 0.05);
       const netGrowth = growthPct - churnPct;
       const subscribers = Math.round((stream.initial_subscribers || 0) * Math.pow(1 + netGrowth, monthsDiff));
       return subscribers * (stream.monthly_price || 0);
@@ -328,10 +329,10 @@ export function useProfitLoss() {
     let projectedAmount = baseAmount;
     
     for (let y = 1; y <= yearOffset; y++) {
-      let growthRate = (stream.growth_rate || 0) / 100;
-      if (y === 1) growthRate = (stream.growth_rate_year2 ?? stream.growth_rate ?? 0) / 100;
-      else if (y === 2) growthRate = (stream.growth_rate_year3 ?? stream.growth_rate ?? 0) / 100;
-      else growthRate = (stream.growth_rate_year4 ?? stream.growth_rate ?? 0) / 100;
+      let growthRate = normalizeRate(stream.growth_rate, 0);
+      if (y === 1) growthRate = normalizeRate(stream.growth_rate_year2 ?? stream.growth_rate, 0);
+      else if (y === 2) growthRate = normalizeRate(stream.growth_rate_year3 ?? stream.growth_rate, 0);
+      else growthRate = normalizeRate(stream.growth_rate_year4 ?? stream.growth_rate, 0);
       
       projectedAmount = projectedAmount * (1 + growthRate);
     }
@@ -586,7 +587,7 @@ export function useProfitLoss() {
       // Fixed expenses that are services (61/62)
       // rent (613), insurance (616), telecom (626), marketing (623), 
       // professional_fees (622), banking (627), travel (625), utilities (606)
-      const serviceCategories = ['rent', 'insurance', 'telecom', 'marketing', 'professional_fees', 'banking', 'travel', 'utilities'];
+      const serviceCategories = ['rent', 'insurance', 'telecom', 'marketing', 'professional_fees', 'banking', 'travel', 'utilities', 'services'];
       const servicesTotal = fixedExpenses
         .filter(e => serviceCategories.includes(e.category || ''))
         .reduce((sum, e) => sum + getFixedExpenseForMonth(e, month), 0);
@@ -916,6 +917,62 @@ export function useProfitLoss() {
       },
     };
   }, [streams, fixedExpenses, variableExpenses, personnel, directors, investments, financings, forecasts, settings, getStockVariation]);
+
+  // ───────────────────────────────────────────────────────────────
+  // Debug instrumentation: append `?debug=pnl` to the URL to dump the
+  // full annual P&L breakdown to the console. Read-only, dev-friendly.
+  // ───────────────────────────────────────────────────────────────
+  if (typeof window !== 'undefined' && !isLoading) {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('debug') === 'pnl') {
+      // eslint-disable-next-line no-console
+      console.groupCollapsed('[P&L DEBUG]', currentCompany?.name ?? '(no company)');
+      data.years.forEach((y, i) => {
+        // eslint-disable-next-line no-console
+        console.table({
+          year: `Y${i + 1} (${y.start.getFullYear()})`,
+          revenue: data.totals.revenue[i],
+          merchandiseSales: data.totals.merchandiseSales[i],
+          productionSold: data.totals.productionSold[i],
+          operatingGrants: data.totals.operatingGrants[i],
+          merchandisePurchases: data.totals.merchandisePurchases[i],
+          stockVariation: data.totals.stockVariation[i],
+          cogs_legacy: data.totals.cogs[i],
+          externalServices: data.totals.externalServices[i],
+          taxes63: data.totals.taxes[i],
+          personnel: data.totals.personnel[i],
+          directors: data.totals.directorsCosts[i],
+          severance: data.totals.severancePayments[i],
+          depreciation: data.totals.depreciation[i],
+          leasing_legacy: data.totals.leaseExpenses[i],
+          interest: data.totals.netResultBeforeTax[i] - data.totals.operatingResult[i] - data.totals.financialResult[i] + data.totals.financialResult[i], // see breakdown below
+          financialResult: data.totals.financialResult[i],
+          valueAdded: data.totals.valueAdded[i],
+          ebitda: data.totals.ebitda[i],
+          operatingResult: data.totals.operatingResult[i],
+          rcai: data.totals.netResultBeforeTax[i],
+          tax: data.totals.corporateTax[i],
+          netResult: data.totals.netResult[i],
+        });
+      });
+      // eslint-disable-next-line no-console
+      console.log('[P&L DEBUG] raw rows', data.rows);
+      // eslint-disable-next-line no-console
+      console.log('[P&L DEBUG] inputs', {
+        streams: streams.length,
+        fixedExpenses: fixedExpenses.length,
+        variableExpenses: variableExpenses.length,
+        personnel: personnel.length,
+        directors: directors.length,
+        investments: investments.length,
+        financings: financings.length,
+        forecasts: forecasts.length,
+      });
+      // eslint-disable-next-line no-console
+      console.groupEnd();
+    }
+  }
+
 
   const getBreakEvenYear = (): number | null => {
     let cumulative = 0;
