@@ -1,122 +1,137 @@
-## PR 4 — Refonte du PDF "qualité expert-comptable"
+## Contexte
 
-### Objectif
-Le PDF actuel est "présentable" mais ne passe pas une revue banquier/DAF. PR 4 le transforme en livrable comptable sérieux : structure normée, traçabilité, badge de réconciliation, annexes obligatoires.
+L'audit comptable confirme et précise le diagnostic CTO. Les PR 1 (moteur unifié), 3 (validateur) et 4 (PDF) déjà planifiés couvrent une partie. L'audit ajoute 4 corrections structurelles que j'intègre dans une **PR 2 enrichie** (les 5 lots existants + 4 nouveaux), et précise les invariants attendus pour PR 3.
 
-PR 1 a déjà unifié la source (`useBPModel`). PR 3 fournit le rapport de validation. PR 4 = uniquement présentation et complétude.
+Pas de "tout refaire d'un coup". Chaque lot reste atomique, testable contre `cloud-vapor.json`, sans régression silencieuse.
 
-### Structure cible (sections du PDF)
+## Roadmap consolidée
 
-1. **Page de garde**
-   - Société, SIRET (si dispo), période couverte (24 mois / 3 exercices), date d'export, version du moteur (`engine_version`)
-   - Badge réconciliation : `validation.ok ? "États réconciliés" : "X écarts détectés"` + détail en annexe
-
-2. **Synthèse exécutive** (1 page)
-   - CA, EBE, Résultat net, Trésorerie finale par exercice
-   - Point bas trésorerie + mois
-   - Seuil de rentabilité
-
-3. **Compte de résultat** (PCG strict)
-   - Déjà OK, garder le rendu actuel mais ajouter :
-     - codes PCG visibles à gauche (706, 707, 60x, 61, 62, 63, 64, 65, 68, 69)
-     - colonne % du CA par ligne
-     - sous-totaux SIG explicites : Marge commerciale, Production, Valeur ajoutée, EBE, RE, Résultat avant impôt, Résultat net
-
-4. **Bilan**
-   - Déjà OK, ajouter :
-     - ligne "ÉQUILIBRE ACTIF=PASSIF" avec delta affiché en bas
-     - mention "Trésorerie issue du tableau de flux" (signal au lecteur que c'est dérivé)
-
-5. **Tableau de flux de trésorerie** (vue annuelle, pas mensuelle)
-   - Format normé : Flux exploitation / investissement / financement
-   - Aujourd'hui le PDF affiche du mensuel cumulé → refonte en agrégation annuelle conforme
-
-6. **Plan de financement** (3 ans)
-   - Déjà OK, ajouter ratio Ressources/Emplois et CAF cumulée
-
-7. **Ratios financiers + seuil de rentabilité**
-   - Déjà OK, ajouter benchmarks sectoriels génériques (info, pas recommandation)
-
-8. **Annexes** (nouveau)
-   - **Hypothèses** : taux de croissance par stream, délais clients/fournisseurs, taux IS, taux URSSAF, méthode amortissement
-   - **Détail des emprunts** : tableau d'amortissement année par année (capital restant dû, intérêts, capital remboursé)
-   - **Détail du personnel** : effectif moyen, masse salariale brute, charges patronales, par poste
-   - **Détail des investissements** : nature, montant, date, durée, dotation annuelle
-   - **Rapport de réconciliation** (issu de PR 3) : liste des codes d'écarts, sévérité, montant, explication. Si tout est vert → "Aucun écart détecté".
-
-### Implémentation
-
-**Fichier principal** : `src/features/business-plan/pdf/BPDocument.tsx` (existe déjà après PR 1, prend `model: BPFinancialModel`).
-
-Découpage en sous-composants pour lisibilité :
-```
-pdf/
-├── BPDocument.tsx              (orchestrateur, prop unique `model`)
-├── sections/
-│   ├── CoverPage.tsx
-│   ├── ExecutiveSummary.tsx
-│   ├── ProfitLossSection.tsx   (refacto existant)
-│   ├── BalanceSheetSection.tsx (refacto existant)
-│   ├── CashFlowSection.tsx     (refonte annuelle)
-│   ├── FundingPlanSection.tsx  (refacto existant)
-│   ├── RatiosSection.tsx       (refacto existant)
-│   └── annexes/
-│       ├── HypothesesAnnex.tsx
-│       ├── LoanScheduleAnnex.tsx
-│       ├── PersonnelAnnex.tsx
-│       ├── InvestmentsAnnex.tsx
-│       └── ReconciliationAnnex.tsx  (consomme model.validation)
-└── shared/
-    ├── PDFTable.tsx            (composant table normalisée)
-    ├── PDFHeader.tsx           (header de section avec code PCG)
-    └── styles.ts               (palette imprimable, fonts, tailles)
+```text
+PR 0  ✅ Fixtures + invariants Cloud Vapor
+PR 1  ✅ Moteur unifié computeBPModel
+PR 2  📋 Corrections financières (9 lots, voir ci-dessous)
+PR 3  📋 Validateur de réconciliation (8 invariants bloquants)
+PR 4  📋 Refonte PDF qualité expert-comptable
 ```
 
-**Règles de présentation** :
-- Police : serif sobre pour le corps (ex Times) + sans-serif pour titres. Pas d'emoji, pas de couleur primaire vive sur PDF imprimé.
-- Couleurs : noir, gris, bleu sobre `#1e3a5f` pour titres uniquement. Plus de gradient.
-- Format A4 portrait, marges 20mm, n° de page "X / N"
-- En-tête répété : nom société + "Business Plan 2026-2028" (dynamique)
-- Pied : date d'export + version moteur + URL qashflow.io
+## PR 2 — Lots détaillés (ordre d'exécution)
 
-### Données nécessaires (via `model`)
-Tout est déjà dans `BPFinancialModel` après PR 1+3 :
-- `model.pl`, `model.balanceSheet`, `model.cashFlow`, `model.fundingPlan`, `model.ratios`
-- `model.validation` (PR 3)
-- `model.input.investments`, `financings`, `personnel` pour les annexes
-- `model.engineVersion` (à ajouter — constante string `'1.0.0'`)
+### Lot 2.0 — `normalizeRate` partout (préalable)
+Centraliser dans `src/lib/rateUtils.ts` (déjà existant). Audit complet : remplacer toute lecture brute de `growth_rate`, `churn_rate`, `employer_charges_rate`, `interest_rate`, `vat_rate`, `charges_rate`, `percentage` par `normalizeRate(value)`. Test unitaire dédié couvrant `null/undefined/0.10/10/100/-5`.
+**Risque** : faible. **Impact** : élimine le risque de mix format 0.10 vs 10.
 
-### Tests
-- `BPDocument.snapshot.test.tsx` : rendu React-PDF en buffer + snapshot du nombre de pages et taille (détecte régressions silencieuses).
-- Test que `ReconciliationAnnex` rend bien tous les `validation.issues`.
-- Test que les totaux affichés == valeurs `model.totals` (parité écran/PDF).
+### Lot 2.1 — Bilan dérive trésorerie depuis Cash Flow (source unique)
+`computeBalanceSheet` reçoit `cashFlowData`. La ligne "Trésorerie" devient `cashFlow.balance[lastMonthOfYear]`. Plus de calcul par soustraction d'équilibre.
+**Invariant testé** : `bs.cash[i] === cf.balance[lastMonth(i)]`.
 
-### QA visuel (mandatoire)
-Conversion PDF → images via `pdftoppm`, inspection page par page :
-- vérifier qu'aucun tableau ne déborde
-- vérifier équilibre Actif = Passif visible en bas du bilan
-- vérifier que l'annexe réconciliation affiche le bon contenu selon `validation.ok`
-- vérifier en-têtes/pieds répétés sur chaque page
+### Lot 2.2 — Classification stricte des charges variables (anti double-comptage)
+Une seule famille par charge : règle unique `isCogs = category === 'cogs' || is_cogs === true`. Suppression de toute logique implicite. Les charges non-COGS vont en services extérieurs (61/62), pas ailleurs.
+**Invariant testé** : `Σ(charges par nature) === pl.totals.operatingExpenses`.
 
-### Hors périmètre PR 4
-- Pas de correction financière (PR 2)
-- Pas d'export Excel/Word (autre PR)
-- Pas de signature électronique / horodatage (autre PR)
-- Pas de personnalisation utilisateur (logo, couleurs) — version "neutre banquier" uniquement V1
+### Lot 2.3 — Tableau d'amortissement d'emprunt unique
+Nouvelle fonction pure `buildLoanSchedule(financing) → { interest[], principal[], remaining[] }`. Réutilisée par P&L (intérêts → 66), cash flow (capital + intérêts), bilan (capital restant dû), plan de financement (remboursement capital).
+**Invariant testé** : `bankLoans[i-1] - bankLoans[i] === Σ principal year i` ET `cf.loanPayments year = Σ(interest + principal) year` ET `fundingPlan.loanRepayment = Σ principal`.
 
-### Livrables
-- Refonte modulaire de `BPDocument` en sections
-- 5 annexes (Hypothèses, Emprunts, Personnel, Investissements, Réconciliation)
-- Cash Flow refondu en présentation annuelle normée
-- Page de garde + synthèse exécutive
-- Codes PCG visibles, % du CA, SIG explicites
-- Tests snapshot + QA visuel documenté
+### Lot 2.4 — Stop double-comptage charges sociales personnel
+Convention unique :
+- `personnelCosts` P&L = bruts seuls
+- `payrollTaxes` P&L = charges patronales (URSSAF + employer_rate)
+- Cash = `personnel + payrollTaxes` (déjà le cas)
 
-### Bénéfice final
-Combiné aux PR 1/3 (et PR 2 quand exécutée), le PDF devient :
-- réconciliable (badge + annexe explicite)
-- traçable (engine_version, date, hypothèses)
-- complet (annexes obligatoires d'un dossier de financement)
-- conforme PCG dans la présentation
+**Invariant testé** : `cf.personnel + cf.payrollTaxes (annuel) === pl.personnelCosts + pl.payrollTaxes`.
 
-→ Passe la revue banquier/DAF.
+### Lot 2.5 — TVA mensuelle + régime
+Calcul TVA par mois (collectée − déductible − TVA immo), respect du régime (`vat_regime` mensuel/trimestriel/simplifié) avec décalage de paiement réel. Dette TVA au bilan = solde non payé. Cash flow = paiements réels selon régime.
+**Invariant testé** : `Σ cf.vatPayments year = Σ pl.vatDue year ± dette TVA fin d'année`.
+
+### Lot 2.6 — BFR en TTC, P&L en HT
+Créances clients = `CA TTC × delai / 360`. Dettes fournisseurs = `(achats + charges externes) TTC × delai / 360`. Stocks = `achats consommés × jours_stock / 360`. Ajouter input `inventory_days` (default 0). P&L reste en HT strict.
+**Invariant testé** : créances/dettes affichées en TTC explicite, P&L en HT.
+
+### Lot 2.7 — Cohérence régime fiscal IR vs IS
+Si `tax_regime === 'IR'` : `corporateTax = 0` partout (P&L, cash, bilan). Mention explicite "Fiscalité personnelle hors périmètre". Si IS : calcul actuel. Le régime affiché dans le PDF doit être strictement celui utilisé.
+**Invariant testé** : `tax_regime affiché === tax_regime utilisé pour le calcul`.
+
+### Lot 2.8 — Mapping PCG par revenue_type
+Routage automatique :
+- `merchandise` → ventes 707, achats 607
+- `production` → production vendue 701/704/705
+- `services` → prestations 706
+- `subscription` → 706 (par défaut, configurable)
+
+Plus de hardcode "tout en 706". Migration data : ajouter UI pour reclasser les streams existants (Cloud Vapor : 706 → 707).
+**Invariant testé** : chaque stream produit la bonne ligne PCG selon son type.
+
+### Lot 2.9 — Scénarios appliqués en amont
+Refactorer `useScenarioOverrides` pour appliquer les overrides **sur les inputs normalisés** avant `computeBPModel`, pas dans chaque hook. Garantit qu'un scénario modifie tous les états en cohérence.
+**Invariant testé** : un scénario appliqué change P&L, cash, bilan de manière cohérente (même delta).
+
+## PR 3 — Validateur (mise à jour des invariants)
+
+8 règles bloquantes, alignées sur l'audit comptable :
+
+```text
+1. assets[i] === liabilities[i]                     (BS_BALANCED)
+2. bs.cash[i] === cf.balance[lastMonth(i)]          (BS_CASH_MISMATCH)
+3. fundingPlan.cash[i] === bs.cash[i]               (FP_CASH_MISMATCH)
+4. debtVar = newDebt − principalRepaid              (LOAN_RECONCILIATION)
+5. Σ charges par nature = pl.operatingExpenses      (CHARGES_NATURE_SUM)
+6. cf.personnel + cf.payrollTaxes = pl personnel    (PERSONNEL_RECONCILIATION)
+7. tax_regime displayed === tax_regime used         (TAX_REGIME_COHERENCE)
+8. equity[i] − equity[i-1] === netResult[i] + apports
+                                                    (PL_NET_RESULT_TO_EQUITY)
+```
+
+Sortie : `model.validation: ValidationReport` avec `code`, `severity`, `delta`, `tolerance`. Affiché en annexe PDF (PR 4) avec badge réconciliation en page de garde.
+
+## PR 4 — PDF (rappel, plan déjà fait)
+
+Page de garde + badge réconciliation, synthèse exécutive, P&L PCG avec codes visibles + % CA + SIG, bilan avec mention "trésorerie issue du cash flow", cash flow annuel normé, 5 annexes (hypothèses, échéancier emprunts, personnel détaillé, investissements, rapport de réconciliation).
+
+## Ordre d'exécution
+
+```text
+2.0 normalizeRate audit          (préalable, 1 jour)
+2.1 BS cash from CF              (réconciliation immédiate)
+2.3 Loan schedule unique         (corrige plan de financement)
+2.4 Personnel double-count       (corrige masse salariale)
+2.7 Tax regime IR/IS             (corrige incohérence visible)
+2.2 Charges variables strict     (corrige double-comptage)
+2.5 TVA mensuelle                (corrige cash décaissements)
+2.6 BFR en TTC                   (corrige BFR)
+2.8 Mapping PCG par revenue_type (corrige Cloud Vapor 707 vs 706)
+2.9 Scenarios upstream           (cohérence scénarios)
+PR 3 Validateur                  (fige tout)
+PR 4 PDF                         (livrable banquier)
+```
+
+Chaque lot = 1 commit, 1 test fixé contre Cloud Vapor, 1 delta chiffré documenté avant le suivant.
+
+## Détails techniques
+
+- Tous les modules `compute*` restent purs (pas de React, pas de Supabase). Les hooks `useBPModel` agrègent les inputs, les modules calculent, les sélecteurs exposent.
+- `BPFinancialModel` étendu : `monthly.{pl,cashflow,balanceSheet,funding,vat,debtSchedule}`, `yearly.*`, `validation`, `engineVersion`.
+- `buildLoanSchedule` placé dans `engine/schedules/loanSchedule.ts`, testé isolément.
+- `normalizeRate` reste dans `src/lib/rateUtils.ts`, audit codebase via `rg` pour éliminer toutes les lectures brutes.
+- Migration data Cloud Vapor (revenue_type 706 → 707) = script SQL ponctuel, hors code applicatif.
+- Aucun changement UI dans PR 2 (hooks gardent leur signature publique grâce à PR 1).
+
+## Hors périmètre
+
+- Export Excel/Word (autre PR)
+- Personnalisation visuelle PDF (logo, couleurs entreprise) — PR 4 livre la version "neutre banquier"
+- Connecteurs externes (DGFiP, etc.)
+- Multi-devise
+
+## Validation finale
+
+Quand toutes les PR sont passées :
+- Tests Cloud Vapor : 8 invariants verts
+- PDF Cloud Vapor : badge "États réconciliés", annexe rapport vide
+- Revue manuelle CTO + comptable : feedback intégré ou écarts résiduels documentés
+
+## Question
+
+Tu veux qu'on attaque dans cet ordre, ou tu préfères :
+- **Option A** : suivre l'ordre proposé (impact visible immédiat dès lot 2.1)
+- **Option B** : commencer par PR 3 (validateur) en parallèle pour rendre les écarts chiffrés visibles avant tout fix — c'est ce que ton CTO appelait "PR 0 : prouver noir sur blanc avant de centraliser"

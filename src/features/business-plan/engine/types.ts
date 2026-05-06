@@ -192,6 +192,8 @@ export interface BreakEvenData {
 }
 
 // ─── Aggregate ───
+import type { ValidationReport } from './validateBPModel';
+
 export interface BPFinancialModel {
   pl: PLData;
   cashFlow: CashFlowData;
@@ -199,4 +201,6 @@ export interface BPFinancialModel {
   fundingPlan: FundingPlanData;
   ratios: FinancialRatios;
   getBreakEvenData: (yearIndex: number) => BreakEvenData;
+  validation: ValidationReport;
+  engineVersion: string;
 }
