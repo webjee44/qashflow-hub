@@ -13,6 +13,7 @@ import type { BPModelInput } from './types';
 import type { PLData } from '../hooks/useProfitLoss.types';
 import type { CashFlowData, CashFlowMonthData } from './types';
 import { buildAllLoanSchedules, getEntryForMonth, type LoanSchedule } from './schedules/loanSchedule';
+import { normalizeRate } from '@/lib/rateUtils';
 
 function getDaysToMonths(days: number): number {
   if (days <= 15) return 0;
@@ -161,7 +162,7 @@ export function computeCashFlow(
     const active = directors.filter(d => isPersonActiveInMonth(d, month));
     const remuneration = active.reduce((sum, d) => sum + Number(d.monthly_remuneration), 0);
     const charges = active.reduce(
-      (sum, d) => sum + (Number(d.monthly_remuneration) * Number(d.charges_rate)),
+      (sum, d) => sum + Number(d.monthly_remuneration) * normalizeRate(d.charges_rate),
       0
     );
     return remuneration + charges;
