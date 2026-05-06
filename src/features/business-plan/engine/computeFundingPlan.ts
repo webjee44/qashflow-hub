@@ -4,11 +4,14 @@
 import type { BPModelInput } from './types';
 import type { PLData } from '../hooks/useProfitLoss.types';
 import type { BalanceSheetData, FundingPlanData, FundingPlanRow } from './types';
+import { buildAllLoanSchedules, sumPrincipalInRange, type LoanSchedule } from './schedules/loanSchedule';
 
 export function computeFundingPlan(
-  input: BPModelInput, plData: PLData, bsData: BalanceSheetData
+  input: BPModelInput, plData: PLData, bsData: BalanceSheetData,
+  loanSchedules?: LoanSchedule[]
 ): FundingPlanData {
   const { settings, investments, financings } = input;
+  const schedules = loanSchedules ?? buildAllLoanSchedules(financings);
   const showFinancing = settings.show_financing !== false;
   const years = plData.years.map((_, i) => `Année ${i + 1}`);
   const rows: FundingPlanRow[] = [];
@@ -34,24 +37,12 @@ export function computeFundingPlan(
   });
   rows.push({ label: 'Variation du BFR', type: 'item', values: bfrVariation, isNeed: true, indent: 1 });
 
+  // Lot 2.3: remboursement de capital issu de l'échéancier unique
   const loanRepayments = showFinancing ? years.map((_, yearIndex) => {
     const yearStart = plData.years[yearIndex]?.start;
     const yearEnd = plData.years[yearIndex]?.end;
     if (!yearStart || !yearEnd) return 0;
-    return financings
-      .filter(f => f.financing_type === 'loan')
-      .reduce((sum, f) => {
-        const startDate = new Date(f.start_date);
-        const endDate = f.end_date ? new Date(f.end_date) : null;
-        if (startDate > yearEnd) return sum;
-        if (endDate && endDate < yearStart) return sum;
-        const monthlyPayment = Number(f.monthly_payment) || 0;
-        const interestRate = Number(f.interest_rate) || 0;
-        const outstandingAtStart = Number(f.amount);
-        const annualPayment = monthlyPayment * 12;
-        const avgInterest = outstandingAtStart * interestRate;
-        return sum + Math.max(0, annualPayment - avgInterest);
-      }, 0);
+    return sumPrincipalInRange(schedules, yearStart, yearEnd);
   }) : years.map(() => 0);
   if (showFinancing) {
     rows.push({ label: 'Remboursements emprunts', type: 'item', values: loanRepayments, isNeed: true, indent: 1 });
