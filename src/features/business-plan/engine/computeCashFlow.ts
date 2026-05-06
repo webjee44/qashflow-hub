@@ -161,7 +161,7 @@ export function computeCashFlow(
     const active = directors.filter(d => isPersonActiveInMonth(d, month));
     const remuneration = active.reduce((sum, d) => sum + Number(d.monthly_remuneration), 0);
     const charges = active.reduce(
-      (sum, d) => sum + (Number(d.monthly_remuneration) * Number(d.charges_rate)),
+      (sum, d) => sum + Number(d.monthly_remuneration) * normalizeRate(d.charges_rate),
       0
     );
     return remuneration + charges;
