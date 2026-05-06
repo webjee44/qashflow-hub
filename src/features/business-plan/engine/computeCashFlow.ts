@@ -13,6 +13,7 @@ import type { BPModelInput } from './types';
 import type { PLData } from '../hooks/useProfitLoss.types';
 import type { CashFlowData, CashFlowMonthData } from './types';
 import { buildAllLoanSchedules, getEntryForMonth, type LoanSchedule } from './schedules/loanSchedule';
+import { normalizeRate } from '@/lib/rateUtils';
 
 function getDaysToMonths(days: number): number {
   if (days <= 15) return 0;
