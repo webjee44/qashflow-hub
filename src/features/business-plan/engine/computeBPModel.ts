@@ -29,7 +29,7 @@ export function computeBPModel(input: BPModelInput): BPFinancialModel {
   const { ratios, getBreakEvenData } = computeRatios(pl, balanceSheet);
 
   const partial = { pl, cashFlow, balanceSheet, fundingPlan, ratios, getBreakEvenData };
-  const validation = validateBPModel(partial);
+  const validation = validateBPModel(partial, input);
 
   return { ...partial, validation, engineVersion: ENGINE_VERSION };
 }
