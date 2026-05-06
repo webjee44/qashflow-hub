@@ -72,6 +72,18 @@ export function BPDocument(props: BPDocumentProps) {
           introText={introText}
           startYear={startYear}
           years={years}
+          warnings={
+            validation && !validation.ok
+              ? [
+                  `${validation.summary.errors} anomalie(s) bloquante(s) détectée(s) — voir annexe Réconciliation`,
+                  ...(validation.summary.warnings > 0
+                    ? [`${validation.summary.warnings} avertissement(s) à examiner`]
+                    : []),
+                ]
+              : undefined
+          }
+          reconciled={validation?.ok === true}
+          engineVersion={engineVersion}
         />
       )}
 
