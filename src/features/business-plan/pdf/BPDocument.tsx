@@ -7,12 +7,14 @@ import { DataTable } from './DataTable';
 import { PnlSection } from './PnlSection';
 import { BalanceSheetSection } from './BalanceSheetSection';
 import { FundingPlanSection } from './FundingPlanSection';
+import { ReconciliationSection } from './ReconciliationSection';
 import { formatCurrency, formatPercent } from './helpers';
 import type { PLData } from '../hooks/useProfitLoss';
 import type { BalanceSheetData } from '@/hooks/useBalanceSheet';
 import type { FundingPlanData } from '../hooks/useFundingPlan';
 import type { CashFlowData } from '../hooks/useBPCashFlow';
 import type { FinancialRatios, BreakEvenData } from '../hooks/useBPRatios';
+import type { ValidationReport } from '../engine/validateBPModel';
 
 export interface BPDocumentProps {
   companyName: string;
@@ -28,17 +30,26 @@ export interface BPDocumentProps {
   ratios: FinancialRatios;
   getBreakEvenData: (yearIndex: number) => BreakEvenData;
   settings: any;
+  validation?: ValidationReport;
+  engineVersion?: string;
 }
 
 export function BPDocument(props: BPDocumentProps) {
   const {
     companyName, sections, introText, primaryColor, startYear, years,
     plData, bsData, fpData, cashFlowData, ratios, getBreakEvenData, settings,
+    validation, engineVersion,
   } = props;
 
   const styles = createStyles(primaryColor);
   const has = (s: string) => sections.includes(s);
   const yearLabels = plData.years.map(y => y.label);
+  const documentTitle = `Business Plan ${startYear}-${startYear + years - 1} — ${companyName}`;
+  const wrap = (children: React.ReactNode) => (
+    <PageWrapper styles={styles} companyName={companyName} documentTitle={documentTitle} engineVersion={engineVersion}>
+      {children}
+    </PageWrapper>
+  );
 
   const SectionTitle = ({ title }: { title: string }) => (
     <View style={styles.sectionTitle}>
