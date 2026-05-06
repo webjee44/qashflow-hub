@@ -527,10 +527,16 @@ export function computePL(input: BPModelInput): PLData {
   });
   rows.push({ label: 'RÉSULTAT COURANT AVANT IMPÔTS', type: 'sig', values: rcaiValues, sectionType: 'result', percentOfRevenue: rcaiPercentOfRevenue });
 
+  // Lot 2.7 — Cohérence IR / IS / micro
+  // En IR, l'imposition est portée par les associés (fiscalité personnelle).
+  // Elle ne doit PAS apparaître au compte de résultat de la société.
+  // En micro, idem — le versement libératoire est personnel.
+  // Seul l'IS apparaît au P&L (compte 69).
   const taxRegime = (settings.tax_regime || 'is') as TaxRegime;
   const isPME = settings.is_pme !== false;
   const revenueValues = years.map((_, i) => merchandiseSalesValues[i] + productionSoldValues[i]);
   const corporateTaxValues = years.map((_, i) => {
+    if (taxRegime !== 'is') return 0;
     const yearResult = rcaiValues[i];
     const yearRevenue = revenueValues[i];
     const taxResult = calculateTaxByRegime(Math.max(0, yearResult), taxRegime, {
@@ -540,8 +546,14 @@ export function computePL(input: BPModelInput): PLData {
     });
     return taxResult.tax;
   });
-  const taxLabel = taxRegime === 'is' ? 'Impôt sur les sociétés (69)' : taxRegime === 'ir' ? 'Impôt sur le revenu' : 'Impôt (micro-entreprise)';
-  rows.push({ label: taxLabel, type: 'item', values: corporateTaxValues, isExpense: true, sectionType: 'expense', pcgCode: '69' });
+  if (taxRegime === 'is') {
+    rows.push({ label: 'Impôt sur les sociétés (69)', type: 'item', values: corporateTaxValues, isExpense: true, sectionType: 'expense', pcgCode: '69' });
+  } else {
+    const note = taxRegime === 'ir'
+      ? "Régime IR — fiscalité personnelle des associés (hors résultat société)"
+      : "Régime micro-entreprise — versement libératoire personnel (hors résultat société)";
+    rows.push({ label: note, type: 'item', values: years.map(() => 0), sectionType: 'expense' });
+  }
 
   const netResultValues = years.map((_, i) => rcaiValues[i] - corporateTaxValues[i]);
   rows.push({ label: 'RÉSULTAT NET DE L\'EXERCICE', type: 'total', values: netResultValues, sectionType: 'result' });
