@@ -475,7 +475,8 @@ export function computePL(input: BPModelInput): PLData {
     rows.push({ label: 'MARGE COMMERCIALE', type: 'sig', values: commercialMarginValues, sectionType: 'result', isSIG: true });
   }
 
-  const productionValues = servicesValues;
+  // Production de l'exercice (SIG) = production vendue (biens 701 + services 706)
+  const productionValues = years.map((_, i) => productionGoodsValues[i] + servicesValues[i]);
   const externalConsumptionValues = years.map((_, i) =>
     totalPurchasesFromProduction[i] + externalServicesValues[i] + officeSuppliesValues[i]
   );
@@ -531,7 +532,7 @@ export function computePL(input: BPModelInput): PLData {
 
   const rcaiValues = years.map((_, i) => operatingResultValues[i] + financialResultValues[i] + exceptionalResultValues[i]);
   const rcaiPercentOfRevenue = years.map((_, i) => {
-    const rev = merchandiseSalesValues[i] + servicesValues[i];
+    const rev = merchandiseSalesValues[i] + productionGoodsValues[i] + servicesValues[i];
     return rev > 0 ? (rcaiValues[i] / rev) * 100 : 0;
   });
   rows.push({ label: 'RÉSULTAT COURANT AVANT IMPÔTS', type: 'sig', values: rcaiValues, sectionType: 'result', percentOfRevenue: rcaiPercentOfRevenue });
@@ -543,7 +544,7 @@ export function computePL(input: BPModelInput): PLData {
   // Seul l'IS apparaît au P&L (compte 69).
   const taxRegime = (settings.tax_regime || 'is') as TaxRegime;
   const isPME = settings.is_pme !== false;
-  const revenueValues = years.map((_, i) => merchandiseSalesValues[i] + servicesValues[i]);
+  const revenueValues = years.map((_, i) => merchandiseSalesValues[i] + productionGoodsValues[i] + servicesValues[i]);
   const corporateTaxValues = years.map((_, i) => {
     if (taxRegime !== 'is') return 0;
     const yearResult = rcaiValues[i];
