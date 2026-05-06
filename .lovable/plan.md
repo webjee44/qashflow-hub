@@ -130,8 +130,9 @@ Quand toutes les PR sont passées :
 - PDF Cloud Vapor : badge "États réconciliés", annexe rapport vide
 - Revue manuelle CTO + comptable : feedback intégré ou écarts résiduels documentés
 
-## Question
+## Statut
 
-Tu veux qu'on attaque dans cet ordre, ou tu préfères :
-- **Option A** : suivre l'ordre proposé (impact visible immédiat dès lot 2.1)
-- **Option B** : commencer par PR 3 (validateur) en parallèle pour rendre les écarts chiffrés visibles avant tout fix — c'est ce que ton CTO appelait "PR 0 : prouver noir sur blanc avant de centraliser"
+- ✅ Lot 2.1 (cash bilan ← cash flow), 2.3 (loan schedule unique), 2.7 (cohérence IR/IS), 2.8 (PCG par revenue_type — 707/701/706)
+- ✅ PR 3 — Validateur (BS_BALANCED, BS_CASH_MISMATCH, PERSONNEL_RECONCILIATION, LOAN_RECONCILIATION, PL_NET_RESULT_TO_EQUITY, FP_CASH_VARIATION_MATCH, CHARGES_NATURE_SUM, TAX_REGIME_COHERENCE)
+- ✅ PR 4 — PDF : badge réconciliation cover, header/footer répétés "X / N", régime fiscal exact, annexe Réconciliation
+- 📋 Restant (nécessitent évolutions data ou refactor hooks) : Lot 2.0 audit normalizeRate exhaustif, 2.2 charges variables strict, 2.4 split personnel/charges P&L, 2.5 TVA mensuelle (champ `vat_regime` à ajouter), 2.6 BFR TTC (champ `inventory_days`), 2.9 scenarios upstream
