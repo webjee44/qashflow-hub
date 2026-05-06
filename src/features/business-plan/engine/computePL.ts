@@ -307,20 +307,29 @@ export function computePL(input: BPModelInput): PLData {
 
   rows.push({ label: 'I. PRODUITS D\'EXPLOITATION', type: 'header', values: [], sectionType: 'revenue' });
 
-  const merchandiseStreams = streams.filter(s => s.revenue_type === 'merchandise');
-  const merchandiseSalesValues = calculateYearlyValues(month =>
-    merchandiseStreams.reduce((sum, stream) => sum + getRevenueForecast(stream.id, month), 0)
-  );
+  // Lot 2.8 — PCG mapping by revenue_type (single source of truth)
+  // 707 marchandises | 701 production de biens | 706 prestations de services
+  // subscription routed to 706 by default (configurable later via revenue_type)
+  const sumStreams = (predicate: (s: any) => boolean) =>
+    calculateYearlyValues(month =>
+      streams.filter(predicate).reduce((sum, stream) => sum + getRevenueForecast(stream.id, month), 0)
+    );
+
+  const merchandiseSalesValues = sumStreams(s => s.revenue_type === 'merchandise');
   if (merchandiseSalesValues.some(v => v > 0)) {
     rows.push({ label: 'Ventes de marchandises (707)', type: 'item', values: merchandiseSalesValues, indent: 1, sectionType: 'revenue', pcgCode: '707' });
   }
 
-  const productionStreams = streams.filter(s => s.revenue_type !== 'merchandise');
-  const productionSoldValues = calculateYearlyValues(month =>
-    productionStreams.reduce((sum, stream) => sum + getRevenueForecast(stream.id, month), 0)
+  const productionGoodsValues = sumStreams(s => s.revenue_type === 'production');
+  if (productionGoodsValues.some(v => v > 0)) {
+    rows.push({ label: 'Production vendue - Biens (701)', type: 'item', values: productionGoodsValues, indent: 1, sectionType: 'revenue', pcgCode: '701' });
+  }
+
+  const servicesValues = sumStreams(s =>
+    s.revenue_type !== 'merchandise' && s.revenue_type !== 'production'
   );
-  if (productionSoldValues.some(v => v > 0)) {
-    rows.push({ label: 'Production vendue - Prestations de services (706)', type: 'item', values: productionSoldValues, indent: 1, sectionType: 'revenue', pcgCode: '706' });
+  if (servicesValues.some(v => v > 0)) {
+    rows.push({ label: 'Production vendue - Prestations de services (706)', type: 'item', values: servicesValues, indent: 1, sectionType: 'revenue', pcgCode: '706' });
   }
 
   const operatingGrantsValues = calculateYearlyValues(month => getOperatingGrantsForMonth(month));
@@ -329,7 +338,7 @@ export function computePL(input: BPModelInput): PLData {
   }
 
   const totalRevenueValues = years.map((_, i) =>
-    merchandiseSalesValues[i] + productionSoldValues[i] + operatingGrantsValues[i]
+    merchandiseSalesValues[i] + productionGoodsValues[i] + servicesValues[i] + operatingGrantsValues[i]
   );
   rows.push({ label: 'TOTAL PRODUITS D\'EXPLOITATION (I)', type: 'subtotal', values: totalRevenueValues, sectionType: 'revenue' });
 
@@ -466,7 +475,8 @@ export function computePL(input: BPModelInput): PLData {
     rows.push({ label: 'MARGE COMMERCIALE', type: 'sig', values: commercialMarginValues, sectionType: 'result', isSIG: true });
   }
 
-  const productionValues = productionSoldValues;
+  // Production de l'exercice (SIG) = production vendue (biens 701 + services 706)
+  const productionValues = years.map((_, i) => productionGoodsValues[i] + servicesValues[i]);
   const externalConsumptionValues = years.map((_, i) =>
     totalPurchasesFromProduction[i] + externalServicesValues[i] + officeSuppliesValues[i]
   );
@@ -522,7 +532,7 @@ export function computePL(input: BPModelInput): PLData {
 
   const rcaiValues = years.map((_, i) => operatingResultValues[i] + financialResultValues[i] + exceptionalResultValues[i]);
   const rcaiPercentOfRevenue = years.map((_, i) => {
-    const rev = merchandiseSalesValues[i] + productionSoldValues[i];
+    const rev = merchandiseSalesValues[i] + productionGoodsValues[i] + servicesValues[i];
     return rev > 0 ? (rcaiValues[i] / rev) * 100 : 0;
   });
   rows.push({ label: 'RÉSULTAT COURANT AVANT IMPÔTS', type: 'sig', values: rcaiValues, sectionType: 'result', percentOfRevenue: rcaiPercentOfRevenue });
@@ -534,7 +544,7 @@ export function computePL(input: BPModelInput): PLData {
   // Seul l'IS apparaît au P&L (compte 69).
   const taxRegime = (settings.tax_regime || 'is') as TaxRegime;
   const isPME = settings.is_pme !== false;
-  const revenueValues = years.map((_, i) => merchandiseSalesValues[i] + productionSoldValues[i]);
+  const revenueValues = years.map((_, i) => merchandiseSalesValues[i] + productionGoodsValues[i] + servicesValues[i]);
   const corporateTaxValues = years.map((_, i) => {
     if (taxRegime !== 'is') return 0;
     const yearResult = rcaiValues[i];
@@ -596,7 +606,7 @@ export function computePL(input: BPModelInput): PLData {
     rows,
     totals: {
       merchandiseSales: merchandiseSalesValues,
-      productionSold: productionSoldValues,
+      productionSold: productionValues,
       operatingGrants: operatingGrantsValues,
       revenue: revenueValues,
       merchandisePurchases: merchandisePurchasesValues,

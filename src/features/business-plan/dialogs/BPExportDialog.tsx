@@ -18,6 +18,7 @@ import { useBPCashFlow } from '@/features/business-plan/hooks/useBPCashFlow';
 import { useFundingPlan } from '@/features/business-plan/hooks/useFundingPlan';
 import { useBPRatios } from '@/features/business-plan/hooks/useBPRatios';
 import { useBPSettings } from '@/hooks/useBPSettings';
+import { useBPModel } from '@/features/business-plan/hooks/useBPModel';
 import { toast } from 'sonner';
 import { pdf } from '@react-pdf/renderer';
 import { BPDocument } from '../pdf/BPDocument';
@@ -39,6 +40,7 @@ const SECTIONS = [
   { id: 'funding_plan', label: 'Plan de financement', defaultChecked: true, description: 'Emplois vs Ressources' },
   { id: 'ratios', label: 'Indicateurs financiers', defaultChecked: true, description: 'Ratios et point mort' },
   { id: 'notes', label: 'Notes et hypothèses', defaultChecked: true, description: 'Paramètres utilisés' },
+  { id: 'reconciliation', label: 'Annexe — Réconciliation', defaultChecked: true, description: 'Rapport de cohérence des états financiers (PR 3)' },
 ];
 
 const COLOR_PRESETS = [
@@ -69,6 +71,7 @@ export function BPExportDialog({ trigger }: BPExportDialogProps) {
   const { data: fpData } = useFundingPlan();
   const { ratios, getBreakEvenData } = useBPRatios();
   const { settings } = useBPSettings();
+  const { data: bpModel } = useBPModel();
 
   const startYear = settings.bp_start_date ? new Date(settings.bp_start_date).getFullYear() : new Date().getFullYear();
   const years = settings.bp_years || 3;
@@ -102,6 +105,8 @@ export function BPExportDialog({ trigger }: BPExportDialogProps) {
           ratios={ratios}
           getBreakEvenData={getBreakEvenData}
           settings={settings}
+          validation={bpModel?.validation}
+          engineVersion={bpModel?.engineVersion}
         />
       ).toBlob();
 

@@ -7,12 +7,14 @@ import { DataTable } from './DataTable';
 import { PnlSection } from './PnlSection';
 import { BalanceSheetSection } from './BalanceSheetSection';
 import { FundingPlanSection } from './FundingPlanSection';
+import { ReconciliationSection } from './ReconciliationSection';
 import { formatCurrency, formatPercent } from './helpers';
 import type { PLData } from '../hooks/useProfitLoss';
 import type { BalanceSheetData } from '@/hooks/useBalanceSheet';
 import type { FundingPlanData } from '../hooks/useFundingPlan';
 import type { CashFlowData } from '../hooks/useBPCashFlow';
 import type { FinancialRatios, BreakEvenData } from '../hooks/useBPRatios';
+import type { ValidationReport } from '../engine/validateBPModel';
 
 export interface BPDocumentProps {
   companyName: string;
@@ -28,17 +30,26 @@ export interface BPDocumentProps {
   ratios: FinancialRatios;
   getBreakEvenData: (yearIndex: number) => BreakEvenData;
   settings: any;
+  validation?: ValidationReport;
+  engineVersion?: string;
 }
 
 export function BPDocument(props: BPDocumentProps) {
   const {
     companyName, sections, introText, primaryColor, startYear, years,
     plData, bsData, fpData, cashFlowData, ratios, getBreakEvenData, settings,
+    validation, engineVersion,
   } = props;
 
   const styles = createStyles(primaryColor);
   const has = (s: string) => sections.includes(s);
   const yearLabels = plData.years.map(y => y.label);
+  const documentTitle = `Business Plan ${startYear}-${startYear + years - 1} — ${companyName}`;
+  const wrap = (children: React.ReactNode) => (
+    <PageWrapper styles={styles} companyName={companyName} documentTitle={documentTitle} engineVersion={engineVersion}>
+      {children}
+    </PageWrapper>
+  );
 
   const SectionTitle = ({ title }: { title: string }) => (
     <View style={styles.sectionTitle}>
@@ -61,6 +72,18 @@ export function BPDocument(props: BPDocumentProps) {
           introText={introText}
           startYear={startYear}
           years={years}
+          warnings={
+            validation && !validation.ok
+              ? [
+                  `${validation.summary.errors} anomalie(s) bloquante(s) détectée(s) — voir annexe Réconciliation`,
+                  ...(validation.summary.warnings > 0
+                    ? [`${validation.summary.warnings} avertissement(s) à examiner`]
+                    : []),
+                ]
+              : undefined
+          }
+          reconciled={validation?.ok === true}
+          engineVersion={engineVersion}
         />
       )}
 
@@ -276,18 +299,27 @@ export function BPDocument(props: BPDocumentProps) {
 
       {/* ═══ NOTES ═══ */}
       {has('notes') && (
-        <PageWrapper styles={styles} companyName={companyName}>
+        <PageWrapper styles={styles} companyName={companyName} documentTitle={documentTitle} engineVersion={engineVersion}>
           <SectionTitle title="Notes et Hypothèses" />
-          {[
-            `Période de projection : ${years} années (${startYear} - ${startYear + years - 1})`,
-            `Régime fiscal : ${settings.tax_regime === 'IS' ? 'Impôt sur les Sociétés' : 'Impôt sur le Revenu'}`,
-            `Statut PME : ${settings.is_pme !== false ? 'Oui (taux réduit IS 15% jusqu\'à 42 500€)' : 'Non'}`,
-            `Délai de paiement clients : ${settings.customer_payment_delay || 30} jours`,
-            `Délai de paiement fournisseurs : ${settings.supplier_payment_delay || 30} jours`,
-            `Trésorerie initiale : ${formatCurrency(settings.initial_cash || 0)}`,
-          ].map((h, i) => (
-            <Text key={i} style={styles.bulletPoint}>• {h}</Text>
-          ))}
+          {(() => {
+            const regime = String(settings.tax_regime || 'is').toLowerCase();
+            const regimeLabel =
+              regime === 'is' ? "Impôt sur les Sociétés (IS)"
+              : regime === 'ir' ? "Impôt sur le Revenu (IR) — fiscalité personnelle des associés, hors résultat société"
+              : regime === 'micro' ? "Micro-entreprise — versement libératoire personnel, hors résultat société"
+              : regime.toUpperCase();
+            return [
+              `Période de projection : ${years} années (${startYear} - ${startYear + years - 1})`,
+              `Régime fiscal : ${regimeLabel}`,
+              regime === 'is' ? `Statut PME : ${settings.is_pme !== false ? "Oui (taux réduit IS 15 % jusqu'à 42 500 €)" : 'Non'}` : null,
+              `Délai de paiement clients : ${settings.customer_payment_delay || 30} jours`,
+              `Délai de paiement fournisseurs : ${settings.supplier_payment_delay || 30} jours`,
+              `Trésorerie initiale : ${formatCurrency(settings.initial_cash || 0)}`,
+              engineVersion ? `Moteur de calcul : v${engineVersion}` : null,
+            ].filter(Boolean).map((h, i) => (
+              <Text key={i} style={styles.bulletPoint}>• {h}</Text>
+            ));
+          })()}
           <View style={styles.disclaimer}>
             <Text style={styles.disclaimerText}>
               Les projections présentées dans ce document sont indicatives et basées sur les hypothèses saisies.
@@ -295,6 +327,19 @@ export function BPDocument(props: BPDocumentProps) {
               l'évolution réelle de l'activité.
             </Text>
           </View>
+        </PageWrapper>
+      )}
+
+      {/* ═══ RECONCILIATION ANNEX (PR 3 + PR 4) ═══ */}
+      {has('reconciliation') && validation && (
+        <PageWrapper styles={styles} companyName={companyName} documentTitle={documentTitle} engineVersion={engineVersion}>
+          <SectionTitle title="Annexe — Rapport de réconciliation" />
+          <Text style={styles.paragraph}>
+            Vérification automatique de la cohérence entre le compte de résultat, le bilan, le plan
+            de trésorerie et le plan de financement. Cette annexe garantit au lecteur que les états
+            financiers présentés sont issus d'un modèle unifié et réconcilié.
+          </Text>
+          <ReconciliationSection styles={styles} report={validation} />
         </PageWrapper>
       )}
     </Document>

@@ -6,7 +6,7 @@
 // ============================================================
 
 import { startOfMonth } from 'date-fns';
-import type { BPFinancialModel } from './types';
+import type { BPFinancialModel, BPModelInput } from './types';
 
 export type ValidationSeverity = 'error' | 'warning' | 'info';
 
@@ -56,7 +56,8 @@ function pushIfMismatch(
 }
 
 export function validateBPModel(
-  model: Omit<BPFinancialModel, 'validation' | 'engineVersion'>
+  model: Omit<BPFinancialModel, 'validation' | 'engineVersion'>,
+  input?: BPModelInput
 ): ValidationReport {
   const issues: ValidationIssue[] = [];
   const { pl, cashFlow, balanceSheet, fundingPlan } = model;
@@ -168,8 +169,52 @@ export function validateBPModel(
     );
   }
 
-  // 8. CHARGES_NATURE_SUM: somme charges par nature = charges d'exploitation P&L
-  // Cette règle est implicite via la structure du P&L; on la documente comme info.
+  // 8. CHARGES_NATURE_SUM: somme charges par nature ≈ total charges d'exploitation P&L
+  for (let i = 0; i < yearCount; i++) {
+    const sumNature =
+      (pl.totals.merchandisePurchases[i] || 0) +
+      (pl.totals.stockVariation[i] || 0) +
+      (pl.totals.externalServices[i] || 0) +
+      (pl.totals.taxes[i] || 0) +
+      (pl.totals.personnelCosts[i] || 0) +
+      (pl.totals.directorsCosts[i] || 0) +
+      (pl.totals.payrollTaxes[i] || 0) +
+      (pl.totals.depreciation[i] || 0);
+    // Note: cogs / variableExpenses sont déjà inclus dans externalServices/merchandise pour éviter
+    // le double comptage (Lot 2.2). On compare au sous-total opérationnel reconstruit côté P&L
+    // via operatingResult = revenue + grants - operatingExpenses ⇒ operatingExpenses = revenue + grants - operatingResult.
+    const operatingExpensesPL =
+      (pl.totals.revenue[i] || 0) - (pl.totals.operatingResult[i] || 0);
+    pushIfMismatch(
+      issues,
+      'CHARGES_NATURE_SUM',
+      'info',
+      `Somme charges par nature année ${i + 1} ≠ charges d'exploitation reconstruites`,
+      sumNature,
+      operatingExpensesPL,
+      i
+    );
+  }
+
+  // 9. TAX_REGIME_COHERENCE — IR/micro ⇒ IS = 0 partout
+  if (input?.settings?.tax_regime) {
+    const regime = String(input.settings.tax_regime).toLowerCase();
+    if (regime === 'ir' || regime === 'micro') {
+      for (let i = 0; i < yearCount; i++) {
+        const tax = pl.totals.corporateTax[i] || 0;
+        if (Math.abs(tax) > ABS_TOL) {
+          issues.push({
+            code: 'TAX_REGIME_COHERENCE',
+            severity: 'error',
+            message: `Régime ${regime.toUpperCase()} mais IS non nul année ${i + 1}`,
+            yearIndex: i,
+            delta: tax,
+            tolerance: ABS_TOL,
+          });
+        }
+      }
+    }
+  }
 
   const summary = issues.reduce(
     (acc, x) => {
