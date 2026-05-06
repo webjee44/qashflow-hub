@@ -320,5 +320,24 @@ export const createStyles = (primaryColor: { r: number; g: number; b: number }) 
       fontFamily: 'Helvetica-Bold',
       fontSize: 11,
     },
+    reconcileOkBox: {
+      borderColor: '#16a34a',
+      backgroundColor: '#f0fdf4',
+    },
+    reconcileKoBox: {
+      borderColor: '#dc2626',
+      backgroundColor: '#fef2f2',
+    },
+    badge: {
+      paddingVertical: 3,
+      paddingHorizontal: 8,
+      borderRadius: 2,
+      fontSize: 8,
+      fontFamily: 'Helvetica-Bold',
+      color: 'white',
+      alignSelf: 'flex-start',
+    },
+    badgeOk: { backgroundColor: '#16a34a' },
+    badgeKo: { backgroundColor: '#dc2626' },
   });
 };
