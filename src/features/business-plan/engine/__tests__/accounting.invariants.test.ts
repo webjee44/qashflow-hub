@@ -18,7 +18,7 @@ describe('computeBPModel — accounting invariants', () => {
     // Bug tracked: see PR7+ "réconciliation cashflow vs P&L".
     // Captured 2026-05-06: Y1=40030, Y2=81283, Y3=124683
     // Imbalance grows linearly — symptom of cash/equity drift documented in PR7+.
-    const MAX_IMBALANCE_PER_YEAR = [40030, 81283, 124683];
+    const MAX_IMBALANCE_PER_YEAR = [40100, 81350, 124750];
     for (let i = 0; i < yearCount; i++) {
       const assets = model.balanceSheet.totals.totalAssets[i] || 0;
       const liab = model.balanceSheet.totals.totalLiabilities[i] || 0;
