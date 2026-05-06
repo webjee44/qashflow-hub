@@ -606,7 +606,7 @@ export function computePL(input: BPModelInput): PLData {
     rows,
     totals: {
       merchandiseSales: merchandiseSalesValues,
-      productionSold: servicesValues,
+      productionSold: productionValues,
       operatingGrants: operatingGrantsValues,
       revenue: revenueValues,
       merchandisePurchases: merchandisePurchasesValues,
