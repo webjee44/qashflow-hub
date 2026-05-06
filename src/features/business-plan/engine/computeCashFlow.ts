@@ -12,6 +12,7 @@ import {
 import type { BPModelInput } from './types';
 import type { PLData } from '../hooks/useProfitLoss.types';
 import type { CashFlowData, CashFlowMonthData } from './types';
+import { buildAllLoanSchedules, getEntryForMonth, type LoanSchedule } from './schedules/loanSchedule';
 
 function getDaysToMonths(days: number): number {
   if (days <= 15) return 0;
@@ -39,8 +40,13 @@ function isPersonActiveInMonth(person: any, month: Date): boolean {
   return true;
 }
 
-export function computeCashFlow(input: BPModelInput, plData: PLData): CashFlowData {
+export function computeCashFlow(
+  input: BPModelInput,
+  plData: PLData,
+  loanSchedules?: LoanSchedule[]
+): CashFlowData {
   const { settings, financings, investments, directors } = input;
+  const schedules = loanSchedules ?? buildAllLoanSchedules(financings);
   const months = plData.years.flatMap(year => year.months);
   const customerDelay = getDaysToMonths(settings.customer_payment_delay || 30);
   const supplierDelay = getDaysToMonths(settings.supplier_payment_delay || 30);
@@ -139,10 +145,12 @@ export function computeCashFlow(input: BPModelInput, plData: PLData): CashFlowDa
       .filter(f => startOfMonth(parseISO(f.start_date)).getTime() === monthStart.getTime())
       .reduce((sum, f) => sum + Number(f.amount), 0);
   };
+  // Lot 2.3: paiement total = intérêts + capital, depuis l'échéancier unique
   const getMonthlyLoanPayments = (month: Date): number =>
-    financings
-      .filter(f => f.financing_type === 'loan' && isFinancingActiveInMonth(f, month))
-      .reduce((sum, f) => sum + Number(f.monthly_payment), 0);
+    schedules.reduce((sum, s) => {
+      const e = getEntryForMonth(s, month);
+      return e ? sum + e.interest + e.principal : sum;
+    }, 0);
   const getMonthlyLeasePayments = (month: Date): number =>
     financings
       .filter(f => f.financing_type === 'lease' && isFinancingActiveInMonth(f, month))
