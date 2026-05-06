@@ -1,16 +1,17 @@
 // ============================================================
-// computeBalanceSheet — pure (parity with src/hooks/useBalanceSheet)
+// computeBalanceSheet — pure
 // ============================================================
-// Lifted verbatim from useBalanceSheet's useMemo body so that
-// the screen and the PDF both consume the same source of truth.
-// Any financial correction belongs to PR 2.
+// PR 2 / Lot 2.1: trésorerie dérivée du cash flow (source unique).
+// PR 2 / Lot 2.3: capital restant dû issu de buildLoanSchedule.
 // ============================================================
 
-import { addMonths, startOfMonth, parseISO, differenceInMonths, isAfter } from 'date-fns';
-import { calculateMonthlyDepreciation, getLoanScheduleEntry } from '@/lib/french-rates';
+import { addMonths, startOfMonth, parseISO } from 'date-fns';
+import { calculateMonthlyDepreciation } from '@/lib/french-rates';
 import type { BPModelInput } from './types';
 import type { PLData } from '../hooks/useProfitLoss.types';
+import type { CashFlowData } from './types';
 import type { BalanceSheetData, BalanceSheetRow } from './types';
+import { buildAllLoanSchedules, totalOutstandingAt, type LoanSchedule } from './schedules/loanSchedule';
 
 function makeGetDepreciationForMonth(investments: any[]) {
   return (month: Date): number => {
@@ -29,26 +30,18 @@ function makeGetDepreciationForMonth(investments: any[]) {
   };
 }
 
-function getTotalOutstandingLoans(financings: any[], atDate: Date): number {
-  return financings
-    .filter(f => f.financing_type === 'loan')
-    .reduce((sum, f) => {
-      const startDate = parseISO(f.start_date);
-      if (isAfter(startDate, atDate)) return sum + Number(f.amount);
-      const monthIdx = differenceInMonths(startOfMonth(atDate), startOfMonth(startDate));
-      if (monthIdx >= f.duration_months) return sum;
-      const entry = getLoanScheduleEntry(
-        Number(f.amount), Number(f.interest_rate), f.duration_months, monthIdx
-      );
-      return sum + entry.remaining;
-    }, 0);
-}
-
-export function computeBalanceSheet(input: BPModelInput, plData: PLData): BalanceSheetData {
+export function computeBalanceSheet(
+  input: BPModelInput,
+  plData: PLData,
+  cashFlow?: CashFlowData,
+  loanSchedules?: LoanSchedule[]
+): BalanceSheetData {
   const { settings, investments, financings, stocks } = input;
   const getDepreciationForMonth = makeGetDepreciationForMonth(investments);
 
-  // Use PL fiscal years to keep alignment with P&L
+  // Build loan schedules once if not provided
+  const schedules = loanSchedules ?? buildAllLoanSchedules(financings);
+
   const years = plData.years.map((y, i) => ({ label: `Année ${i + 1}`, endDate: y.end }));
 
   const customerDelay = settings.customer_payment_delay || 30;
@@ -60,7 +53,6 @@ export function computeBalanceSheet(input: BPModelInput, plData: PLData): Balanc
     stocks.filter((s: any) => s.fiscal_year === fiscalYear)
       .reduce((sum: number, s: any) => sum + Number(s.final_stock), 0);
 
-  // Fixed assets net
   const fixedAssetsValues = years.map(year => {
     const grossAssets = investments
       .filter(inv => new Date(inv.purchase_date) <= year.endDate)
@@ -101,7 +93,10 @@ export function computeBalanceSheet(input: BPModelInput, plData: PLData): Balanc
     capitalValues[i] + retainedEarningsValues[i] + currentYearResultValues[i] + investmentGrantValues[i]
   );
 
-  const bankLoansValues = years.map(year => getTotalOutstandingLoans(financings, year.endDate));
+  // ── Lot 2.3: capital restant dû via échéancier unique ──
+  const bankLoansValues = years.map(year =>
+    showFinancing ? totalOutstandingAt(schedules, year.endDate) : 0
+  );
 
   const currentAccountValues = years.map(year =>
     financings
@@ -128,10 +123,42 @@ export function computeBalanceSheet(input: BPModelInput, plData: PLData): Balanc
   });
 
   const operatingDebtsValues = years.map((_, i) => payablesValues[i] + taxDebtsValues[i]);
-  const totalLiabilitiesValues = years.map((_, i) => equityValues[i] + financialDebtsValues[i] + operatingDebtsValues[i]);
-  const cashValues = years.map((_, i) =>
-    totalLiabilitiesValues[i] - (fixedAssetsValues[i] + stockValues[i] + receivablesValues[i])
-  );
+
+  // ── Lot 2.1: trésorerie issue du cash flow (source unique) ──
+  // Si cashFlow est fourni, on prend la balance du dernier mois de chaque année.
+  // Fallback: équation comptable (legacy) si non fourni — backward compat.
+  let cashValues: number[];
+  let totalLiabilitiesValues: number[];
+  let totalAssetsValues: number[];
+
+  if (cashFlow) {
+    cashValues = years.map((_, i) => {
+      const yearMonths = plData.years[i]?.months ?? [];
+      if (yearMonths.length === 0) return 0;
+      const lastMonth = yearMonths[yearMonths.length - 1];
+      const monthIdx = cashFlow.months.findIndex(
+        m => startOfMonth(m).getTime() === startOfMonth(lastMonth).getTime()
+      );
+      return monthIdx >= 0 ? cashFlow.balance[monthIdx] : 0;
+    });
+    // Actif = passif construit par addition réelle
+    totalAssetsValues = years.map((_, i) =>
+      fixedAssetsValues[i] + stockValues[i] + receivablesValues[i] + cashValues[i]
+    );
+    totalLiabilitiesValues = years.map((_, i) =>
+      equityValues[i] + financialDebtsValues[i] + operatingDebtsValues[i]
+    );
+  } else {
+    totalLiabilitiesValues = years.map((_, i) =>
+      equityValues[i] + financialDebtsValues[i] + operatingDebtsValues[i]
+    );
+    cashValues = years.map((_, i) =>
+      totalLiabilitiesValues[i] - (fixedAssetsValues[i] + stockValues[i] + receivablesValues[i])
+    );
+    totalAssetsValues = [...totalLiabilitiesValues];
+  }
+
+  const currentAssetsValues = years.map((_, i) => stockValues[i] + receivablesValues[i] + cashValues[i]);
 
   const rows: BalanceSheetRow[] = [];
   rows.push({ label: 'ACTIF', type: 'header', values: [] });
@@ -142,9 +169,7 @@ export function computeBalanceSheet(input: BPModelInput, plData: PLData): Balanc
   if (showStocks) rows.push({ label: 'Stocks', type: 'item', values: stockValues, indent: 2 });
   rows.push({ label: 'Créances clients', type: 'item', values: receivablesValues, indent: 2 });
   rows.push({ label: 'Trésorerie', type: 'item', values: cashValues, indent: 2, alertNegative: true });
-  const currentAssetsValues = years.map((_, i) => stockValues[i] + receivablesValues[i] + cashValues[i]);
   rows.push({ label: 'Total Actif Circulant', type: 'subtotal', values: currentAssetsValues });
-  const totalAssetsValues = [...totalLiabilitiesValues];
   rows.push({ label: 'TOTAL ACTIF', type: 'total', values: totalAssetsValues });
 
   rows.push({ label: 'PASSIF', type: 'header', values: [] });
