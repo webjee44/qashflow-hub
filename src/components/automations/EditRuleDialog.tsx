@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Zap, Lightbulb, Check, Euro, X, Landmark, Lock } from 'lucide-react';
+import { Zap, Lightbulb, Check, Euro, X, Landmark, Target } from 'lucide-react';
+import { prettifyMerchant } from '@/features/automations/lib/merchantLabel';
 import { useCompany } from '@/hooks/useCompany';
 import { AutomationPreviewPanel, useAutomationRulePreview, AutomationRunHistory } from '@/features/automations';
 import { Button } from '@/components/ui/button';
