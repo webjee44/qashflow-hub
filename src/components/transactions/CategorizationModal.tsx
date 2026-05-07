@@ -293,7 +293,7 @@ export function CategorizationModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md p-0 gap-0 overflow-hidden">
+      <DialogContent className="!max-w-[min(64rem,calc(100vw-2rem))] w-full p-0 gap-0 overflow-hidden">
         <DialogHeader className="min-w-0 p-4 pb-3 border-b">
           <DialogTitle className="text-lg flex min-w-0 items-center gap-2 pr-8">
             {showCreateForm && (
