@@ -18,10 +18,14 @@ interface FullRule {
   company_id: string | null;
   match_count: number;
   is_active: boolean;
+  priority: number;
+  specificity_score: number;
+  created_at: string;
   condition_field: string;
   condition_operator: string;
   condition_value: string;
   extra_conditions: RuleCondition[];
+  name: string;
 }
 
 interface Transaction {
