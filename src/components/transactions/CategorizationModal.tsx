@@ -422,13 +422,13 @@ export function CategorizationModal({
               <div className="px-4 py-3 bg-muted/50 border-b">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
                       {transaction.type === 'income' ? (
                         <ArrowUpRight className="w-4 h-4 text-success shrink-0" />
                       ) : (
                         <ArrowDownRight className="w-4 h-4 text-destructive shrink-0" />
                       )}
-                      <span className="font-medium text-sm truncate">
+                      <span className="font-medium text-sm truncate min-w-0 flex-1">
                         {transaction.description}
                       </span>
                     </div>
