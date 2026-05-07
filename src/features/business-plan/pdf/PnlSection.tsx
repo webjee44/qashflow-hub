@@ -51,16 +51,31 @@ export function PnlSection({ styles, plData }: PnlSectionProps) {
           }}>
             {row.label}
           </Text>
-          {row.values.length > 0 ? row.values.map((v, vi) => (
-            <Text key={vi} style={{
-              ...getCellStyle(row.type, false),
-              width: colWidth,
-              textAlign: 'right',
-              color: row.type === 'total' ? 'white' : (v < 0 ? '#dc2626' : undefined),
-            }}>
-              {formatCurrency(v)}
-            </Text>
-          )) : yearLabels.map((_, vi) => (
+          {row.values.length > 0 ? row.values.map((v, vi) => {
+            const showPct = row.type === 'sig' && row.percentOfRevenue && isFinite(row.percentOfRevenue[vi]);
+            return (
+              <View key={vi} style={{ width: colWidth, flexDirection: 'column', alignItems: 'flex-end' }}>
+                <Text style={{
+                  ...getCellStyle(row.type, false),
+                  textAlign: 'right',
+                  color: row.type === 'total' ? 'white' : (v < 0 ? '#dc2626' : undefined),
+                }}>
+                  {formatCurrency(v)}
+                </Text>
+                {showPct && (
+                  <Text style={{
+                    fontSize: 7,
+                    fontStyle: 'italic',
+                    color: '#64748b',
+                    textAlign: 'right',
+                    marginTop: 1,
+                  }}>
+                    {formatPercent(row.percentOfRevenue![vi])} du CA
+                  </Text>
+                )}
+              </View>
+            );
+          }) : yearLabels.map((_, vi) => (
             <Text key={vi} style={{ ...getCellStyle(row.type, false), width: colWidth }} />
           ))}
         </View>
