@@ -1263,6 +1263,15 @@ export function BankAccountsCard() {
           </div>
         )}
 
+        {hasChanges && (
+          <div className="mt-4 p-3 rounded-lg bg-primary/10 border border-primary/20 text-sm text-primary">
+            N'oubliez pas d'enregistrer vos modifications
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 
 // Read-only list for members
