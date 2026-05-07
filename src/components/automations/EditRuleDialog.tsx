@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Zap, Lightbulb, Check, Euro, X, Landmark } from 'lucide-react';
 import { useCompany } from '@/hooks/useCompany';
-import { AutomationPreviewPanel, useAutomationRulePreview } from '@/features/automations';
+import { AutomationPreviewPanel, useAutomationRulePreview, AutomationRunHistory } from '@/features/automations';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
