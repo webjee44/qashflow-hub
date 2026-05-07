@@ -11,10 +11,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Sparkles, Loader2, ArrowDownRight, ArrowUpRight, Wand2, Pencil, Check, Euro, X, ExternalLink, CheckCircle2, Landmark, AlertCircle } from 'lucide-react';
+import { Sparkles, Loader2, Wand2, Pencil, Check, Euro, X, ExternalLink, CheckCircle2, Landmark, AlertCircle } from 'lucide-react';
 import { Tables } from '@/integrations/supabase/types';
-import { matchesTextCondition } from '@/lib/automationRuleMatching';
-import { matchesAmountCondition } from '@/lib/automationRuleMatching';
 import { cn } from '@/lib/utils';
 import {
   Select,
