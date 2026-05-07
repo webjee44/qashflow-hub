@@ -74,6 +74,7 @@ export function SuggestAutomationDialog({
 }: SuggestAutomationDialogProps) {
   const navigate = useNavigate();
   const bankAccounts = useBankAccountOptions();
+  const { currentCompany } = useCompany();
   const [initialLoading, setInitialLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [applyingExisting, setApplyingExisting] = useState(false);
@@ -81,6 +82,7 @@ export function SuggestAutomationDialog({
   const [appliedCount, setAppliedCount] = useState(0);
   const [suggestion, setSuggestion] = useState<SuggestionResult | null>(null);
   const [similarTransactions, setSimilarTransactions] = useState<Transaction[]>([]);
+  const [acknowledgeRisk, setAcknowledgeRisk] = useState(false);
   
   const [editedPattern, setEditedPattern] = useState('');
   const [showAmountCondition, setShowAmountCondition] = useState(false);
