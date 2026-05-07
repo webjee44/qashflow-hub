@@ -293,15 +293,17 @@ export function CategorizationModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md p-0 gap-0">
-        <DialogHeader className="p-4 pb-3 border-b">
-          <DialogTitle className="text-lg flex items-center gap-2">
+      <DialogContent className="sm:max-w-md p-0 gap-0 overflow-hidden">
+        <DialogHeader className="min-w-0 p-4 pb-3 border-b">
+          <DialogTitle className="text-lg flex min-w-0 items-center gap-2 pr-8">
             {showCreateForm && (
               <button onClick={() => setShowCreateForm(false)} className="hover:bg-muted rounded-md p-1 -ml-1 transition-colors">
                 <ArrowLeft className="w-4 h-4" />
               </button>
             )}
-            {showCreateForm ? 'Nouvelle catégorie' : 'Catégoriser la transaction'}
+            <span className="min-w-0 truncate">
+              {showCreateForm ? 'Nouvelle catégorie' : 'Catégoriser la transaction'}
+            </span>
           </DialogTitle>
           <DialogDescription className="sr-only">
             {showCreateForm ? 'Créez une nouvelle catégorie' : 'Choisissez une catégorie pour cette transaction'}
@@ -419,8 +421,8 @@ export function CategorizationModal({
           <>
             {/* Transaction info */}
             {transaction && (
-              <div className="px-4 py-3 bg-muted/50 border-b">
-                <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 px-4 py-3 bg-muted/50 border-b">
+                <div className="flex min-w-0 items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 min-w-0">
                       {transaction.type === 'income' ? (
@@ -451,7 +453,7 @@ export function CategorizationModal({
             )}
 
             {/* AI Suggestion */}
-            <div className="px-4 py-3 border-b">
+            <div className="min-w-0 px-4 py-3 border-b">
               {loadingAI ? (
                 <div className="flex items-center gap-3 py-2">
                   <div className="relative">
@@ -470,7 +472,7 @@ export function CategorizationModal({
                   onClick={() => handleSelectCategory(aiSuggestion.categoryId)}
                   className="w-full text-left group"
                 >
-                  <div className="flex items-center gap-3 p-2 -mx-2 rounded-lg hover:bg-accent/10 transition-colors">
+                  <div className="flex min-w-0 items-center gap-3 p-2 -mx-2 rounded-lg hover:bg-accent/10 transition-colors">
                     <div className="w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center shrink-0">
                       <Sparkles className="w-4 h-4 text-accent" />
                     </div>
@@ -505,7 +507,7 @@ export function CategorizationModal({
             </div>
 
             {/* Search */}
-            <div className="px-4 py-3 border-b">
+            <div className="min-w-0 px-4 py-3 border-b">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
@@ -518,8 +520,8 @@ export function CategorizationModal({
             </div>
 
             {/* Category List */}
-            <ScrollArea className="max-h-[40vh]">
-              <div className="p-2">
+              <ScrollArea className="max-h-[40vh] min-w-0">
+              <div className="min-w-0 p-2">
                 {transaction?.category_id && onRemoveCategory && (
                   <button
                     onClick={() => {
@@ -578,7 +580,7 @@ export function CategorizationModal({
                           className="w-2.5 h-2.5 rounded-full shrink-0"
                           style={{ backgroundColor: cat.color }}
                         />
-                        <span className="truncate">{cat.name}</span>
+                        <span className="min-w-0 truncate text-left">{cat.name}</span>
                         {cat.is_system && (
                           <Lock className="w-3 h-3 text-muted-foreground shrink-0 ml-auto" />
                         )}

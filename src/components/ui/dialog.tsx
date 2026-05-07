@@ -37,11 +37,11 @@ const DialogContent = React.forwardRef<
       Wrap content in a fixed flex container with padding.
       This guarantees a safe margin on all viewports (prevents clipped fields).
     */}
-    <div className="fixed inset-0 z-[201] flex items-center justify-center p-4 sm:p-6">
+    <div className="fixed inset-0 z-[201] flex min-w-0 items-center justify-center overflow-x-hidden p-4 sm:p-6">
       <DialogPrimitive.Content
         ref={ref}
         className={cn(
-          "relative grid w-full max-w-[32rem] gap-4 border bg-background p-6 shadow-lg duration-200 max-h-[calc(100vh-2rem)] overflow-y-auto data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:rounded-lg",
+          "relative grid min-w-0 w-full max-w-[min(32rem,calc(100vw-2rem))] gap-4 border bg-background p-6 shadow-lg duration-200 max-h-[calc(100vh-2rem)] overflow-x-hidden overflow-y-auto data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:rounded-lg",
           className,
         )}
         onPointerDownOutside={(e) => {
