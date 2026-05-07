@@ -53,8 +53,6 @@ export function useAutomationRules() {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
     totalAutomated: 0,
-    accuracy: 96,
-    timeSaved: '12h'
   });
 
   const fetchRules = async () => {
