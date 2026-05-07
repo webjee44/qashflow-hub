@@ -303,6 +303,24 @@ export function BankAccountsCard() {
           setExcludedAccounts([]);
         }
 
+        // 3. Comptes BLOQUÉS (verrou DB) — admin uniquement.
+        if (isOrgAdmin) {
+          const { data: blockRows, error: blockErr } = await supabase
+            .from('bridge_account_blocks')
+            .select('id, company_id, bridge_account_id, iban, iban_last4, reason, blocked_at')
+            .in('company_id', scopedCompanyIds)
+            .eq('is_active', true)
+            .order('blocked_at', { ascending: false });
+          if (blockErr) {
+            logError('Failed to load blocked accounts:', blockErr);
+            setBlockedAccounts([]);
+          } else {
+            setBlockedAccounts((blockRows || []) as any);
+          }
+        } else {
+          setBlockedAccounts([]);
+        }
+
         // Build assignments map
         const assignmentMap = new Map<number, AccountAssignment>();
         bridgeAccounts.forEach(account => {
