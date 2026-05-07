@@ -212,7 +212,7 @@ export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, t
     }
   };
 
-  const canSubmit = conditionValue.trim() && selectedCategoryId;
+  const canSubmit = !!conditionValue.trim() && !!selectedCategoryId && (!lowSafety || acknowledgeRisk);
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => {
