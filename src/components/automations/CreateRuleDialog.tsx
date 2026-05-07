@@ -21,6 +21,8 @@ import { Category, RuleCondition } from '@/hooks/useAutomationRules';
 import { CategoryDialog } from '@/components/categories/CategoryDialog';
 import { cn } from '@/lib/utils';
 import { useBankAccountOptions } from '@/hooks/useBankAccountOptions';
+import { useCompany } from '@/hooks/useCompany';
+import { AutomationPreviewPanel, useAutomationRulePreview } from '@/features/automations';
 
 interface CreateRuleDialogProps {
   categories: Category[];
