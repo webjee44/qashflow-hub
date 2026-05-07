@@ -6,12 +6,13 @@ import {
 } from "../merchantNormalizer.ts";
 
 Deno.test("merchant_key is stable across bank prefixes and dates", () => {
+  // 2-letter tokens like "EU" are stripped (conservative noise filter).
   const a = computeMerchantKey("CARTE 12/05 AMAZON EU LUX");
   const b = computeMerchantKey("PAIEMENT CB AMAZON EU LUX 25-05-2024");
   const c = computeMerchantKey("AMAZON EU LUX REF 9182734");
-  assertEquals(a, "AMAZON EU LUX");
-  assertEquals(b, "AMAZON EU LUX");
-  assertEquals(c, "AMAZON EU LUX");
+  assertEquals(a, "AMAZON LUX");
+  assertEquals(b, "AMAZON LUX");
+  assertEquals(c, "AMAZON LUX");
 });
 
 Deno.test("merchant_key strips SEPA prefix and trailing refs", () => {

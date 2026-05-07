@@ -7,9 +7,10 @@ import {
 
 describe('merchantNormalizer (frontend mirror)', () => {
   it('produces the same key for the same merchant under different bank phrasings', () => {
-    expect(computeMerchantKey('CARTE 12/05 AMAZON EU LUX')).toBe('AMAZON EU LUX');
-    expect(computeMerchantKey('PAIEMENT CB AMAZON EU LUX 25-05-2024')).toBe('AMAZON EU LUX');
-    expect(computeMerchantKey('AMAZON EU LUX REF 9182734')).toBe('AMAZON EU LUX');
+    // 2-letter tokens like "EU" are stripped (conservative noise filter).
+    expect(computeMerchantKey('CARTE 12/05 AMAZON EU LUX')).toBe('AMAZON LUX');
+    expect(computeMerchantKey('PAIEMENT CB AMAZON EU LUX 25-05-2024')).toBe('AMAZON LUX');
+    expect(computeMerchantKey('AMAZON EU LUX REF 9182734')).toBe('AMAZON LUX');
   });
 
   it('strips SEPA prefix and refs', () => {
