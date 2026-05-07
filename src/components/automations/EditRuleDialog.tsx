@@ -53,10 +53,12 @@ const amountOperators = [
 
 export function EditRuleDialog({ open, onOpenChange, categories, rule, onUpdateRule }: EditRuleDialogProps) {
   const bankAccounts = useBankAccountOptions();
+  const { currentCompany } = useCompany();
   const [loading, setLoading] = useState(false);
   const [conditionValue, setConditionValue] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [ruleName, setRuleName] = useState('');
+  const [acknowledgeRisk, setAcknowledgeRisk] = useState(false);
   
   // Amount condition
   const [showAmountCondition, setShowAmountCondition] = useState(false);
