@@ -114,10 +114,15 @@ export function EditRuleDialog({ open, onOpenChange, categories, rule, onUpdateR
 
   // Server-side dry-run preview (PR1) — no local impact calc
   const previewRequest = useMemo(() => {
-    if (!currentCompany?.id || !conditionValue.trim() || !selectedCategoryId) return null;
-    const conds: { condition_field: string; condition_operator: string; condition_value: string }[] = [
-      { condition_field: 'description', condition_operator: 'contains', condition_value: conditionValue.trim() },
-    ];
+    if (!currentCompany?.id || !selectedCategoryId) return null;
+    const conds: { condition_field: string; condition_operator: string; condition_value: string }[] = [];
+    if (merchantKey) {
+      conds.push({ condition_field: 'merchant_key', condition_operator: 'equals', condition_value: merchantKey });
+    } else if (conditionValue.trim()) {
+      conds.push({ condition_field: 'description', condition_operator: 'contains', condition_value: conditionValue.trim() });
+    } else {
+      return null;
+    }
     if (showAmountCondition && amountValue.trim()) {
       conds.push({
         condition_field: 'amount',
@@ -136,9 +141,9 @@ export function EditRuleDialog({ open, onOpenChange, categories, rule, onUpdateR
       conditions: conds,
       target_category_id: selectedCategoryId,
       company_id: currentCompany.id,
-      exclude_rule_id: rule?.id,
+      rule_id_being_edited: rule?.id,
     };
-  }, [currentCompany?.id, conditionValue, selectedCategoryId, showAmountCondition, amountValue, amountOperator, showBankCondition, selectedBankAccount, rule?.id]);
+  }, [currentCompany?.id, conditionValue, merchantKey, selectedCategoryId, showAmountCondition, amountValue, amountOperator, showBankCondition, selectedBankAccount, rule?.id]);
 
   const { preview, loading: previewLoading, error: previewError } = useAutomationRulePreview({
     request: previewRequest,
