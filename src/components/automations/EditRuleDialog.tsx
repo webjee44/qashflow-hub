@@ -222,13 +222,13 @@ export function EditRuleDialog({ open, onOpenChange, categories, rule, onUpdateR
           {/* Description Condition */}
           <div className="space-y-3 p-4 bg-muted/50 rounded-xl border border-border/50">
             <Label htmlFor="edit-condition-value" className="text-base font-medium">
-              {merchantKey ? 'Verrouillé sur le commerçant' : 'Si la description contient...'}
+              {merchantKey ? 'Ciblé sur un commerçant' : 'Si la description contient...'}
             </Label>
             {merchantKey ? (
               <div className="flex items-center justify-between gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2">
                 <div className="flex items-center gap-2 min-w-0">
-                  <Lock className="w-4 h-4 text-primary shrink-0" />
-                  <span className="font-mono text-sm truncate">{merchantKey}</span>
+                  <Target className="w-4 h-4 text-primary shrink-0" />
+                  <span className="text-sm truncate">{prettifyMerchant(merchantKey)}</span>
                 </div>
                 <Button
                   type="button"
@@ -253,7 +253,7 @@ export function EditRuleDialog({ open, onOpenChange, categories, rule, onUpdateR
             <p className="text-xs text-muted-foreground flex items-center gap-1.5">
               <Lightbulb className="w-3.5 h-3.5" />
               {merchantKey
-                ? 'Match exact sur le commerçant — score +50, zéro faux positif.'
+                ? 'La règle ne s\'appliquera qu\'aux transactions de ce commerçant.'
                 : 'Entrez un mot-clé présent dans vos transactions'}
             </p>
           </div>
