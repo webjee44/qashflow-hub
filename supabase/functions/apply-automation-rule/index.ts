@@ -3,6 +3,7 @@ import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
 import { createSupabaseServices } from '../_shared/serviceFactory.ts';
 import { type RuleCondition } from '../_shared/repositories/AutomationRepository.ts';
 import { matchesAutomationCondition } from '../_shared/automationRuleMatchingCore.ts';
+import { createRun, appendRunItems, finishRun, type RunItemInput } from '../_shared/automationRunLogger.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
