@@ -139,7 +139,7 @@ export function EditRuleDialog({ open, onOpenChange, categories, rule, onUpdateR
 
   const lowSafety = !!(preview && preview.safety_score < 0.6);
 
-
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!rule || !conditionValue.trim() || !selectedCategoryId) return;
 
