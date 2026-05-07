@@ -972,6 +972,39 @@ Deno.serve(async (req) => {
 
           console.info(`[bridge-sync] Background sync complete: ${inserted} new, ${updated} updated transactions`);
 
+          // Auto-apply automation rules for impacted companies (full-sync path)
+          if (inserted > 0) {
+            const impactedCompanyIds = Array.from(
+              new Set(
+                Object.values(acctToCompanyMap).filter((id): id is string => !!id)
+              )
+            );
+            for (const cid of impactedCompanyIds) {
+              try {
+                const applyRes = await fetch(
+                  `${supabaseUrl}/functions/v1/apply-all-automation-rules`,
+                  {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${supabaseServiceKey}`,
+                    },
+                    body: JSON.stringify({ company_id: cid }),
+                  }
+                );
+                const applyData = await applyRes.json();
+                console.info(
+                  `[bridge-sync] Auto-categorized ${applyData.updated || 0} transactions for company ${cid}`
+                );
+              } catch (autoErr) {
+                console.error(
+                  `[bridge-sync] Failed to apply automation rules for company ${cid}:`,
+                  autoErr
+                );
+              }
+            }
+          }
+
           // ============================================
           // Point Zéro: Create initial snapshot if none exists
           // ============================================
