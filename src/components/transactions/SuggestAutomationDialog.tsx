@@ -134,29 +134,11 @@ export function SuggestAutomationDialog({
     };
   };
 
-  // Find ALL similar uncategorized transactions matching the current pattern.
-  // Returns the full list — display-time slicing happens at render so the
-  // count stays accurate as the pattern is edited in real-time.
-  const findSimilarTransactions = (pattern: string, amountOp?: string, amountVal?: string) => {
-    if (!transaction || !pattern) return [];
-    const normalizedPattern = pattern.trim();
-    if (!normalizedPattern) return [];
-    return allTransactions.filter(t => {
-      if (t.id === transaction.id || t.category_id) return false;
-      if (!matchesTextCondition(t.description, 'contains', normalizedPattern)) return false;
-      if (amountOp && amountVal) {
-        if (!matchesAmountCondition(Math.abs(Number(t.amount)), amountOp, amountVal.replace(',', '.'))) return false;
-      }
-      return true;
-    });
-  };
-
   useEffect(() => {
     if (open && transaction && category) {
       const localSuggestion = extractLocalPattern(transaction.description);
       setSuggestion(localSuggestion);
       setEditedPattern(localSuggestion.pattern);
-      setSimilarTransactions(findSimilarTransactions(localSuggestion.pattern));
       setInitialLoading(false);
       setShowAmountCondition(false);
       setAmountOperator('greater_than');
@@ -165,11 +147,10 @@ export function SuggestAutomationDialog({
       setAppliedCount(0);
       setShowBankCondition(false);
       setSelectedBankAccount('');
+      setAcknowledgeRisk(false);
     } else {
       setSuggestion(null);
-      setSimilarTransactions([]);
       setInitialLoading(false);
-      
       setEditedPattern('');
       setShowAmountCondition(false);
       setAmountOperator('greater_than');
@@ -178,19 +159,9 @@ export function SuggestAutomationDialog({
       setAppliedCount(0);
       setShowBankCondition(false);
       setSelectedBankAccount('');
+      setAcknowledgeRisk(false);
     }
   }, [open, transaction?.id, category?.id]);
-
-  // Live-update similar transactions as pattern is edited
-  const liveSimilarTransactions = useMemo(() => {
-    const pattern = editedPattern.trim();
-    if (!pattern || !transaction) return [];
-    return findSimilarTransactions(
-      pattern,
-      showAmountCondition ? amountOperator : undefined,
-      showAmountCondition ? amountValue : undefined,
-    );
-  }, [editedPattern, transaction?.id, allTransactions, showAmountCondition, amountOperator, amountValue]);
 
   // Server-side dry-run preview (PR1) — single source of truth for impact
   const previewRequest = useMemo(() => {
