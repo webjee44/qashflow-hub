@@ -1,84 +1,93 @@
+# Verrou DB anti-réactivation des comptes Bridge
+
 ## Cause racine
 
-`bridge-accounts/get-accounts` retourne la liste brute Bridge sans tenir compte des décisions Qashflow (`company_bridge_accounts.status = excluded`, `company_active_bridge_accounts`). Tant que ce chemin existe, les comptes exclus réapparaissent à chaque appel — et tous les écrans qui consomment cette API contournent la source de vérité.
+L'exclusion actuelle vit uniquement dans `company_bridge_accounts.status='excluded'`. Tout chemin (sync Bridge, script, écran, upsert) qui repasse une ligne à `active` rouvre la fuite. Le trigger actuel `prevent_excluded_to_active_reactivation` ne se déclenche que si les champs d'exclusion sont encore présents — un upsert qui les écrase passe au travers. Il faut donc une **source de vérité indépendante** : une blacklist persistante qui ne peut pas être contournée par la sync.
 
-Principe directeur :
-- Bridge = source des comptes **disponibles**
-- Qashflow = source des comptes **autorisés**
+## Ce que je vais faire
 
-## Corrections
+### 1. Nouvelle table `bridge_account_blocks` (verrou métier)
 
-### 1. Fermer le contournement dans `bridge-accounts`
+Table dédiée, RLS stricte (lecture/gestion réservée aux propriétaires de la société + superadmin), avec index sur `(company_id, bridge_account_id)` et `(company_id, is_active)`.
 
-Action `get-accounts` :
-- Si `company_id` est fourni : ne plus appeler Bridge. Lire `company_active_bridge_accounts` filtré sur `company_id`. Calculer `totalBalance` depuis cette vue. Retourner un champ `source: 'qashflow_company_active_bridge_accounts'`.
-- Si `company_id` n'est pas fourni : refuser l'appel (400) ; le brut Bridge n'est plus exposé sur ce chemin.
+Champs : `company_id`, `bridge_account_id`, `bridge_item_id`, `bridge_user_uuid`, `iban`, `iban_last4`, `account_identity` (calculé via `compute_bridge_account_identity` pour résister au changement d'ID Bridge), `reason`, `blocked_at`, `blocked_by`, `is_active`.
 
-Nouvelle action `get-bridge-raw-accounts` :
-- Réservée debug/admin (vérification superadmin via `is_superadmin`).
-- Conserve l'appel `bridgeClient.fetchAllAccounts()` pour usage technique uniquement.
-- Jamais utilisée par dashboard/paramètres.
+### 2. Trigger `prevent_blocked_bridge_account_activation`
 
-### 2. Aligner les écrans sur la source unique
+`BEFORE INSERT OR UPDATE` sur `company_bridge_accounts`. Si `(company_id, bridge_account_id)` figure dans `bridge_account_blocks` avec `is_active = true`, force `status='excluded'` + remplit `excluded_at` / `exclusion_reason`. Indépendant du trigger existant — les deux cohabitent.
 
-- Dashboard `BankAccounts.tsx` : ne plus dépendre du payload brut. Il consomme déjà partiellement la vue via `useBankBalance`/`useGroupBalances` ; basculer aussi la liste détaillée sur `company_active_bridge_accounts`.
-- Bandeau "Une banque nécessite une reconnexion" : continue de fonctionner via `item_status` lu depuis la vue.
-- `ManageAccountsDialog.tsx` (legacy) : à retirer ou refondre — il fait des `delete` directs sur `company_bridge_accounts` puis réinsère, ce qui efface les décisions d'exclusion. Le seul écran de gestion devient `BankAccountsCard` qui sait gérer `excluded`.
+### 3. Vue `company_active_bridge_accounts` mise à jour
 
-### 3. Paramètres bancaires : rendre les exclusions visibles et pilotables
+Ajout d'un `NOT EXISTS` qui exclut explicitement tout `(company_id, bridge_account_id)` blacklisté. Double sécurité : même si une ligne `cba` reste à `active` par erreur, elle n'apparaît plus dans la vue.
 
-`BankAccountsCard` charge actuellement uniquement la vue active. Étendre :
-- Charger en plus les liens `company_bridge_accounts.status = 'excluded'` rattachés à l'organisation, joints à `bridge_accounts`.
-- Afficher 2 sections distinctes :
-  - "Comptes actifs" (par banque, comportement actuel)
-  - "Comptes masqués / exclus" (collapsée par défaut, avec raison d'exclusion + bouton "Réintégrer")
-- L'action "désactiver" devient explicitement "Exclure durablement" (toast + confirmation), jamais une suppression destructive.
+Aussi : exclusion par `account_identity` (IBAN normalisé). Si Bridge renvoie le même compte sous un nouvel ID, il est bloqué d'office.
 
-### 4. Garantir qu'une sync ne réactive jamais une exclusion
+### 4. Soft-delete des transactions par `bridge_account_id` (jamais par nom)
 
-Dans `bridge-sync` (auto-assign single-company, dedup IBAN, upserts CBA) :
-- Refuser tout `INSERT/UPDATE` sur `company_bridge_accounts` qui ferait passer une ligne `excluded` à `active` sans action utilisateur explicite.
-- Implémenter cette garantie au niveau base de données via un trigger `BEFORE UPDATE` : si `OLD.status = 'excluded'` et `NEW.status = 'active'`, refuser sauf si `excluded_by` est explicitement remis à NULL par un appel de l'UI (signalé par `exclusion_reason = NULL` simultané).
-- Dans le code edge : tous les `upsert(... onConflict: company_id,bridge_account_id)` ne doivent jamais écraser `status` côté serveur ; seul l'utilisateur peut.
+Trigger `soft_delete_transactions_on_block_insert` : à l'insertion d'un block actif, soft-delete toutes les transactions correspondantes via `bridge_account_id` uniquement.
 
-### 5. Doublons : exclusion héritée seulement avec fingerprint fort
+### 5. Recompute soldes
 
-Modifier la logique `dedup` dans `bridge-sync` :
-- Quand un nouveau `bridge_account_id` apparaît avec **même `company_id` (via assignation existante de l'ancien) + même `bridge_user_uuid` + même IBAN normalisé + même `account_type` + ancien item remplacé/obsolète**, propager l'état `excluded` de l'ancien lien vers le nouveau lien (`status='excluded'`, `exclusion_reason='Hérité du compte remplacé'`).
-- Sinon : créer le nouveau lien comme `suspected_duplicate` (champ déjà couvert par `duplicate_confidence` / `duplicate_reason` côté `bridge_accounts`) et **ne pas l'activer automatiquement** : il reste non assigné jusqu'à décision utilisateur.
+Appel à `recompute_company_bank_stats(company_id)` à la fin de la migration et après chaque insertion/désactivation de block (via trigger).
 
-### 6. Nettoyage immédiat SAS Vapeclub
+### 6. Blocage immédiat des 3 comptes Vapeclub
 
-Migration data ciblée :
-- Marquer le compte 61723202 (doublon IBAN ...4072 non assigné) avec `lifecycle_status='replaced'`, `replaced_by_bridge_account_id=61720938`, pour qu'il disparaisse de la vue active sans toucher Bridge.
-- Vérifier que le compte 61720938 (déjà actif côté Vapeclub) reste seul porteur de l'IBAN.
-- Recompute des stats pour SAS Vapeclub.
+Insertion ciblée dans `bridge_account_blocks` pour la société Vapeclub via les critères fournis (IBAN se terminant par 4072 / 6102 / 6902, ou nom contenant 2761 / 9269). Récupération préalable du `company_id` Vapeclub via lecture DB.
 
-### 7. Tests obligatoires
+### 7. Hardening edge functions
 
-Deno tests sur edge functions :
-- `bridge-accounts/get-accounts` avec `company_id` : un compte `excluded` n'est jamais dans `accounts`, et son solde n'est pas dans `totalBalance`.
-- `bridge-accounts/get-accounts` sans `company_id` : retourne 400.
-- `bridge-sync` : un lien `excluded` reste `excluded` après cycle complet.
-- Dedup : nouveau `bridge_account_id` avec fingerprint fort hérite de `excluded` ; sans fingerprint fort, reste non assigné (jamais activé d'office).
+- **`bridge-sync`** : avant tout upsert dans `company_bridge_accounts` ou route de transaction, charger la blacklist de la société et filtrer. Aucun fallback, aucune auto-assignation, aucun routage sur un compte blacklisté.
+- **`bridge-accounts/get-accounts`** : confirmer qu'avec `company_id`, on lit exclusivement `company_active_bridge_accounts` (déjà fait à l'étape précédente, mais re-vérifier qu'aucun chemin n'utilise `fetchAllAccounts` pour l'UI). L'endpoint debug raw reste superadmin only.
 
-Tests intégration légère (vitest) :
-- Le hook qui alimente le dashboard et celui qui alimente les paramètres lisent tous deux la vue `company_active_bridge_accounts` pour les soldes.
+### 8. UI Paramètres — gestion de la blacklist
+
+Dans `BankAccountsCard`, ajouter une 3e section "Comptes bloqués (verrou)" affichant les blocks actifs, avec :
+- bouton "Lever le blocage" (réservé Owner) qui passe `is_active=false` après confirmation forte ;
+- explication courte : "ces comptes ne peuvent plus revenir, même après synchronisation".
+
+### 9. Tests de non-régression
+
+- **Deno test `bridge-sync`** : Bridge renvoie un compte blacklisté → la ligne `company_bridge_accounts` ressort `excluded`, aucune transaction n'est créée, le solde n'est pas impacté.
+- **Deno test `bridge-accounts`** : `get-accounts(company_id)` ne retourne jamais un compte blacklisté.
+- **Test SQL** : tentative manuelle d'`UPDATE company_bridge_accounts SET status='active'` sur une ligne blacklistée → la valeur reste `excluded` après commit.
+- **Test identité** : insertion d'un nouveau `bridge_account_id` partageant l'`account_identity` d'un compte blacklisté → exclu d'office.
+
+### 10. Critères de clôture (5 requêtes)
+
+J'exécute après la migration les 5 SELECT fournis et je joins le résultat. Le ticket n'est clos que si :
+- blocks Vapeclub présents et actifs ;
+- 0 ligne `cba.status='active'` joint blocks ;
+- 0 transaction active sur comptes bloqués ;
+- 0 ligne dans la vue pour ces comptes ;
+- la liste des comptes actifs Vapeclub correspond aux comptes légitimes.
 
 ## Détails techniques
 
-Fichiers impactés :
-- `supabase/functions/bridge-accounts/index.ts` : refonte action `get-accounts`, ajout `get-bridge-raw-accounts`.
-- `supabase/functions/_shared/validation.ts` : schéma de la nouvelle action.
-- `supabase/functions/bridge-sync/index.ts` : protections excluded + refactor dedup.
-- Migration SQL :
-  - Trigger `BEFORE UPDATE ON company_bridge_accounts` interdisant `excluded → active` sans reset explicite des champs d'exclusion.
-  - Trigger `BEFORE INSERT ON company_bridge_accounts` rejetant la création d'un lien `active` si un autre lien `excluded` existe pour la même `(company_id, account_identity)` (force passage par UI de réintégration).
-  - Update data Vapeclub.
-- `src/components/dashboard/BankAccounts.tsx` : passer sur `company_active_bridge_accounts`, supprimer l'usage de `bridge-accounts/get-accounts`.
-- `src/components/settings/BankAccountsCard.tsx` : charger les exclus, ajouter section "Comptes masqués", action "Réintégrer" qui appelle l'API en remettant `status='active'` + `excluded_at/by/reason=NULL`.
-- `src/components/settings/ManageAccountsDialog.tsx` : retiré.
+```text
+                      bridge-sync
+                          │
+                          ▼
+       ┌───────────── filtre blacklist ──────────┐
+       │                                         │
+       ▼                                         ▼
+company_bridge_accounts                    transactions
+       │  ▲                                       │
+       │  └── trigger anti-réactivation ──────────┤
+       ▼                                          ▼
+company_active_bridge_accounts (NOT EXISTS blacklist)
+       │
+       ▼
+        UI (Dashboard, Paramètres)
+```
 
-## Résultat attendu
+Tables/objets touchés :
+- **Nouveau** : `bridge_account_blocks` (+ RLS, index, triggers).
+- **Modifié** : vue `company_active_bridge_accounts`, fonction `bridge-sync/index.ts`, fonction `bridge-accounts/index.ts` (re-vérification).
+- **UI** : `src/components/settings/BankAccountsCard.tsx` (section "Comptes bloqués"), nouvelle API dans `src/features/bank/api` pour CRUD blocks.
+- **Tests** : Deno tests pour `bridge-sync` et `bridge-accounts`, test SQL anti-réactivation.
 
-Même si Bridge continue de renvoyer ces comptes : Qashflow ne les affiche plus, ne les compte plus dans les soldes, et ne synchronise plus leurs transactions pour SAS Vapeclub. Le test API garantit qu'aucune régression future ne ré-ouvrira le contournement.
+## Risque & rollback
+
+- Le block est réversible (`is_active=false` + suppression du block lève le verrou et le compte peut revenir si la sync le renvoie).
+- Aucune donnée n'est supprimée durement : transactions restent en soft-delete, comptes restent en `excluded`.
+- Migration idempotente : `CREATE IF NOT EXISTS`, triggers `DROP IF EXISTS` avant recréation.
