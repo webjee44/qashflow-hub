@@ -512,9 +512,8 @@ export default function Onboarding() {
         } catch (syncErr) {
           logError('Bridge sync before auto-assign failed:', syncErr);
         }
-        // Auto-assign is now handled server-side in bridge-sync for single-company users,
-        // but run client-side as fallback
-        await autoAssignBankAccounts(userCompanies[0].id);
+        // L'assignation bancaire est centralisée côté synchronisation afin de
+        // respecter les exclusions durables par identité bancaire.
       }
 
       // Invalidate all cached data so the app fetches fresh state
