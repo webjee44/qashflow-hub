@@ -314,10 +314,16 @@ export function useAutomationRules() {
       // Separate conditions from rule updates
       const { conditions, ...ruleUpdates } = updates;
 
+      // PR3 — recompute specificity if conditions provided.
+      const ruleUpdatesWithScore: any = { ...ruleUpdates };
+      if (conditions && conditions.length > 0) {
+        ruleUpdatesWithScore.specificity_score = computeSpecificityScore(conditions);
+      }
+
       // Update the rule itself
       const { data, error } = await supabase
         .from('automation_rules')
-        .update(ruleUpdates)
+        .update(ruleUpdatesWithScore)
         .eq('id', id)
         .select(`
           *,
