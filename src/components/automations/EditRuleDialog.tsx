@@ -423,6 +423,7 @@ export function EditRuleDialog({ open, onOpenChange, categories, rule, onUpdateR
               preview={preview}
               loading={previewLoading}
               error={previewError}
+              onLockToMerchant={(s) => setMerchantKey(s.merchant_key)}
             />
           )}
 
