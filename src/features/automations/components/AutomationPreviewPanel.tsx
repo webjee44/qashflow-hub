@@ -1,13 +1,16 @@
-import { ShieldCheck, ShieldAlert, ShieldX, Loader2, AlertTriangle, Info } from 'lucide-react';
+import { ShieldCheck, ShieldAlert, ShieldX, Loader2, AlertTriangle, Info, Lock, TrendingUp, TrendingDown } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import type { AutomationPreview } from '../api/automationPreviewApi';
+import type { AutomationPreview, MerchantSuggestion } from '../api/automationPreviewApi';
+import { SCORE_REASON_LABELS } from '../lib/ruleScoring';
 
 interface AutomationPreviewPanelProps {
   preview: AutomationPreview | null;
   loading: boolean;
   error: string | null;
   className?: string;
+  onLockToMerchant?: (suggestion: MerchantSuggestion) => void;
 }
 
 const WARNING_LABELS: Record<string, string> = {
@@ -42,6 +45,7 @@ export function AutomationPreviewPanel({
   loading,
   error,
   className,
+  onLockToMerchant,
 }: AutomationPreviewPanelProps) {
   if (error) {
     return (
