@@ -370,15 +370,15 @@ export function SuggestAutomationDialog({
                 )}
 
                 {/* Pattern suggéré (toujours éditable inline) */}
-                <div className="border border-accent/30 bg-accent/5 rounded-lg p-4">
+                <div className="border border-border/60 bg-muted/20 rounded-lg p-4">
                   <div className="flex items-center gap-2 mb-2">
-                    <Wand2 className="w-4 h-4 text-accent" />
-                    <span className="text-sm font-medium">Pattern suggéré</span>
+                    <Wand2 className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-sm font-medium">Mot-clé détecté</span>
                     <Pencil className="w-3 h-3 text-muted-foreground ml-auto" />
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm whitespace-nowrap">
-                      Description <span className="font-semibold text-accent">{getOperatorLabel(suggestion.operator)}</span> "
+                    <span className="text-sm whitespace-nowrap text-muted-foreground">
+                      Description {getOperatorLabel(suggestion.operator)} "
                     </span>
                     <Input
                       value={editedPattern}
@@ -386,113 +386,149 @@ export function SuggestAutomationDialog({
                       className="h-7 flex-1 min-w-[120px] font-mono text-sm"
                       placeholder="MOT-CLÉ"
                     />
-                    <span className="text-sm">"</span>
+                    <span className="text-sm text-muted-foreground">"</span>
                   </div>
                 </div>
 
-                {/* Filtre montant optionnel */}
-                {showAmountCondition ? (
-                  <div className="border border-accent/30 bg-accent/5 rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium flex items-center gap-2">
-                        <Euro className="w-4 h-4 text-accent" />
-                        ET le montant...
-                      </span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 px-2 text-muted-foreground hover:text-destructive"
-                        onClick={() => {
-                          setShowAmountCondition(false);
-                          setAmountValue('');
-                        }}
-                      >
-                        <X className="w-3 h-3" />
-                      </Button>
-                    </div>
-                    <div className="flex gap-2 items-center">
-                      <Select value={amountOperator} onValueChange={setAmountOperator}>
-                        <SelectTrigger className="w-[160px] h-8 text-sm">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {amountOperators.map(op => (
-                            <SelectItem key={op.value} value={op.value}>
-                              {op.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <div className="relative flex-1">
-                        <Input
-                          type="text"
-                          inputMode="decimal"
-                          placeholder="100"
-                          value={amountValue}
-                          onChange={(e) => setAmountValue(e.target.value)}
-                          className="pr-8 h-8 text-sm"
-                          autoFocus
-                        />
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">€</span>
+                {/* Critères avancés repliés par défaut */}
+                {(showAmountCondition || showBankCondition) ? (
+                  <div className="space-y-3">
+                    {showAmountCondition && (
+                      <div className="border border-border/60 bg-muted/20 rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium flex items-center gap-2">
+                            <Euro className="w-4 h-4 text-muted-foreground" />
+                            Filtrer par montant
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 px-2 text-muted-foreground hover:text-destructive"
+                            onClick={() => {
+                              setShowAmountCondition(false);
+                              setAmountValue('');
+                            }}
+                          >
+                            <X className="w-3 h-3" />
+                          </Button>
+                        </div>
+                        <div className="flex gap-2 items-center">
+                          <Select value={amountOperator} onValueChange={setAmountOperator}>
+                            <SelectTrigger className="w-[160px] h-8 text-sm">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {amountOperators.map(op => (
+                                <SelectItem key={op.value} value={op.value}>
+                                  {op.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <div className="relative flex-1">
+                            <Input
+                              type="text"
+                              inputMode="decimal"
+                              placeholder="100"
+                              value={amountValue}
+                              onChange={(e) => setAmountValue(e.target.value)}
+                              className="pr-8 h-8 text-sm"
+                              autoFocus
+                            />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">€</span>
+                          </div>
+                        </div>
                       </div>
-                    </div>
+                    )}
+
+                    {showBankCondition && (
+                      <div className="border border-border/60 bg-muted/20 rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium flex items-center gap-2">
+                            <Landmark className="w-4 h-4 text-muted-foreground" />
+                            Filtrer par compte
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 px-2 text-muted-foreground hover:text-destructive"
+                            onClick={() => {
+                              setShowBankCondition(false);
+                              setSelectedBankAccount('');
+                            }}
+                          >
+                            <X className="w-3 h-3" />
+                          </Button>
+                        </div>
+                        <Select value={selectedBankAccount} onValueChange={setSelectedBankAccount}>
+                          <SelectTrigger className="h-8 text-sm">
+                            <SelectValue placeholder="Sélectionner un compte" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {bankAccounts.map(acc => (
+                              <SelectItem key={acc.name} value={acc.name}>
+                                {acc.display}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+
+                    {(!showAmountCondition || (!showBankCondition && bankAccounts.length > 0)) && (
+                      <div className="flex gap-2">
+                        {!showAmountCondition && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setShowAmountCondition(true)}
+                            className="text-xs text-muted-foreground hover:text-foreground"
+                          >
+                            <Euro className="w-3 h-3 mr-1" />
+                            Montant
+                          </Button>
+                        )}
+                        {!showBankCondition && bankAccounts.length > 0 && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setShowBankCondition(true)}
+                            className="text-xs text-muted-foreground hover:text-foreground"
+                          >
+                            <Landmark className="w-3 h-3 mr-1" />
+                            Compte
+                          </Button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ) : (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowAmountCondition(true)}
-                    className="w-full border-dashed border-accent/30 text-accent hover:bg-accent/5 hover:border-accent"
-                  >
-                    <Euro className="w-4 h-4 mr-2" />
-                    + Ajouter un critère de montant
-                  </Button>
+                  <div className="flex items-center justify-center gap-3 text-xs text-muted-foreground">
+                    <span>Affiner :</span>
+                    <button
+                      type="button"
+                      onClick={() => setShowAmountCondition(true)}
+                      className="hover:text-foreground transition-colors inline-flex items-center gap-1"
+                    >
+                      <Euro className="w-3 h-3" />
+                      montant
+                    </button>
+                    {bankAccounts.length > 0 && (
+                      <>
+                        <span className="text-border">·</span>
+                        <button
+                          type="button"
+                          onClick={() => setShowBankCondition(true)}
+                          className="hover:text-foreground transition-colors inline-flex items-center gap-1"
+                        >
+                          <Landmark className="w-3 h-3" />
+                          compte
+                        </button>
+                      </>
+                    )}
+                  </div>
                 )}
 
-                {/* Bank Account Condition (optional) */}
-                {showBankCondition ? (
-                  <div className="border border-accent/30 bg-accent/5 rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium flex items-center gap-2">
-                        <Landmark className="w-4 h-4 text-accent" />
-                        ET le compte bancaire...
-                      </span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 px-2 text-muted-foreground hover:text-destructive"
-                        onClick={() => {
-                          setShowBankCondition(false);
-                          setSelectedBankAccount('');
-                        }}
-                      >
-                        <X className="w-3 h-3" />
-                      </Button>
-                    </div>
-                    <Select value={selectedBankAccount} onValueChange={setSelectedBankAccount}>
-                      <SelectTrigger className="h-8 text-sm">
-                        <SelectValue placeholder="Sélectionner un compte" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {bankAccounts.map(acc => (
-                          <SelectItem key={acc.name} value={acc.name}>
-                            {acc.display}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                ) : bankAccounts.length > 0 ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowBankCondition(true)}
-                    className="w-full border-dashed border-accent/30 text-accent hover:bg-accent/5 hover:border-accent"
-                  >
-                    <Landmark className="w-4 h-4 mr-2" />
-                    + Ajouter un critère de compte bancaire
-                  </Button>
-                ) : null}
 
                 {/* Server-side dry-run preview (PR1) — single source of truth */}
                 {previewRequest && (
