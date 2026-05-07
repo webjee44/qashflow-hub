@@ -11,11 +11,9 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Sparkles, Loader2, ArrowDownRight, ArrowUpRight, Wand2, Pencil, Check, Euro, X, ExternalLink, CheckCircle2, Landmark, AlertCircle } from 'lucide-react';
+import { Sparkles, Loader2, Wand2, Pencil, Check, Euro, X, ExternalLink, CheckCircle2, Landmark, AlertCircle } from 'lucide-react';
 import { Tables } from '@/integrations/supabase/types';
-import { matchesTextCondition } from '@/lib/automationRuleMatching';
-import { matchesAmountCondition } from '@/lib/automationRuleMatching';
-import { cn } from '@/lib/utils';
+// cn removed — no longer used after preview panel refactor
 import {
   Select,
   SelectContent,
@@ -25,6 +23,8 @@ import {
 } from '@/components/ui/select';
 import { RuleCondition, AutomationRule } from '@/hooks/useAutomationRules';
 import { useBankAccountOptions } from '@/hooks/useBankAccountOptions';
+import { useCompany } from '@/hooks/useCompany';
+import { AutomationPreviewPanel, useAutomationRulePreview } from '@/features/automations';
 
 type Transaction = Tables<'transactions'>;
 type Category = Tables<'categories'>;
@@ -72,13 +72,15 @@ export function SuggestAutomationDialog({
 }: SuggestAutomationDialogProps) {
   const navigate = useNavigate();
   const bankAccounts = useBankAccountOptions();
+  const { currentCompany } = useCompany();
   const [initialLoading, setInitialLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [applyingExisting, setApplyingExisting] = useState(false);
   const [createdRuleId, setCreatedRuleId] = useState<string | null>(null);
   const [appliedCount, setAppliedCount] = useState(0);
   const [suggestion, setSuggestion] = useState<SuggestionResult | null>(null);
-  const [similarTransactions, setSimilarTransactions] = useState<Transaction[]>([]);
+  // similarTransactions state removed — server preview is now the source of truth
+  const [acknowledgeRisk, setAcknowledgeRisk] = useState(false);
   
   const [editedPattern, setEditedPattern] = useState('');
   const [showAmountCondition, setShowAmountCondition] = useState(false);
@@ -132,29 +134,11 @@ export function SuggestAutomationDialog({
     };
   };
 
-  // Find ALL similar uncategorized transactions matching the current pattern.
-  // Returns the full list — display-time slicing happens at render so the
-  // count stays accurate as the pattern is edited in real-time.
-  const findSimilarTransactions = (pattern: string, amountOp?: string, amountVal?: string) => {
-    if (!transaction || !pattern) return [];
-    const normalizedPattern = pattern.trim();
-    if (!normalizedPattern) return [];
-    return allTransactions.filter(t => {
-      if (t.id === transaction.id || t.category_id) return false;
-      if (!matchesTextCondition(t.description, 'contains', normalizedPattern)) return false;
-      if (amountOp && amountVal) {
-        if (!matchesAmountCondition(Math.abs(Number(t.amount)), amountOp, amountVal.replace(',', '.'))) return false;
-      }
-      return true;
-    });
-  };
-
   useEffect(() => {
     if (open && transaction && category) {
       const localSuggestion = extractLocalPattern(transaction.description);
       setSuggestion(localSuggestion);
       setEditedPattern(localSuggestion.pattern);
-      setSimilarTransactions(findSimilarTransactions(localSuggestion.pattern));
       setInitialLoading(false);
       setShowAmountCondition(false);
       setAmountOperator('greater_than');
@@ -163,11 +147,10 @@ export function SuggestAutomationDialog({
       setAppliedCount(0);
       setShowBankCondition(false);
       setSelectedBankAccount('');
+      setAcknowledgeRisk(false);
     } else {
       setSuggestion(null);
-      setSimilarTransactions([]);
       setInitialLoading(false);
-      
       setEditedPattern('');
       setShowAmountCondition(false);
       setAmountOperator('greater_than');
@@ -176,19 +159,43 @@ export function SuggestAutomationDialog({
       setAppliedCount(0);
       setShowBankCondition(false);
       setSelectedBankAccount('');
+      setAcknowledgeRisk(false);
     }
   }, [open, transaction?.id, category?.id]);
 
-  // Live-update similar transactions as pattern is edited
-  const liveSimilarTransactions = useMemo(() => {
-    const pattern = editedPattern.trim();
-    if (!pattern || !transaction) return [];
-    return findSimilarTransactions(
-      pattern,
-      showAmountCondition ? amountOperator : undefined,
-      showAmountCondition ? amountValue : undefined,
-    );
-  }, [editedPattern, transaction?.id, allTransactions, showAmountCondition, amountOperator, amountValue]);
+  // Server-side dry-run preview (PR1) — single source of truth for impact
+  const previewRequest = useMemo(() => {
+    if (!currentCompany?.id || !category?.id || !editedPattern.trim()) return null;
+    const conds: { condition_field: string; condition_operator: string; condition_value: string }[] = [
+      { condition_field: 'description', condition_operator: 'contains', condition_value: editedPattern.trim() },
+    ];
+    if (showAmountCondition && amountValue.trim()) {
+      conds.push({
+        condition_field: 'amount',
+        condition_operator: amountOperator,
+        condition_value: amountValue.trim().replace(',', '.'),
+      });
+    }
+    if (showBankCondition && selectedBankAccount) {
+      conds.push({
+        condition_field: 'bank_account_name',
+        condition_operator: 'equals',
+        condition_value: selectedBankAccount,
+      });
+    }
+    return {
+      conditions: conds,
+      target_category_id: category.id,
+      company_id: currentCompany.id,
+    };
+  }, [currentCompany?.id, category?.id, editedPattern, showAmountCondition, amountValue, amountOperator, showBankCondition, selectedBankAccount]);
+
+  const { preview, loading: previewLoading, error: previewError } = useAutomationRulePreview({
+    request: previewRequest,
+    enabled: open,
+  });
+
+  const lowSafety = !!(preview && preview.safety_score < 0.6);
 
 
 
@@ -249,12 +256,7 @@ export function SuggestAutomationDialog({
     }
   };
 
-  const formatAmount = (amount: number) => {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'EUR',
-    }).format(Math.abs(amount));
-  };
+  // formatAmount removed — preview panel handles its own formatting
 
   const getOperatorLabel = (operator: string) => {
     switch (operator) {
@@ -492,50 +494,25 @@ export function SuggestAutomationDialog({
                   </Button>
                 ) : null}
 
-                {/* Transactions similaires */}
-                {liveSimilarTransactions.length > 0 ? (
-                  <div>
-                    <p className="text-sm font-medium mb-2 flex items-center gap-2">
-                      <span className="bg-primary text-primary-foreground text-xs px-2 py-0.5 rounded-full">
-                        {liveSimilarTransactions.length}
-                      </span>
-                      transaction{liveSimilarTransactions.length > 1 ? 's' : ''} similaire{liveSimilarTransactions.length > 1 ? 's' : ''} non catégorisée{liveSimilarTransactions.length > 1 ? 's' : ''}
-                    </p>
-                    <div className="space-y-1">
-                      {liveSimilarTransactions.slice(0, 5).map(t => (
-                        <div
-                          key={t.id}
-                          className="flex items-center justify-between text-sm bg-muted/30 rounded px-3 py-2"
-                        >
-                          <div className="flex items-center gap-2 min-w-0 flex-1">
-                            {t.type === 'income' ? (
-                              <ArrowUpRight className="w-4 h-4 text-success shrink-0" />
-                            ) : (
-                              <ArrowDownRight className="w-4 h-4 text-destructive shrink-0" />
-                            )}
-                            <span className="truncate">{t.description}</span>
-                          </div>
-                          <span
-                            className={cn(
-                              "font-medium shrink-0 ml-2",
-                              t.type === 'income' ? 'text-success' : 'text-destructive'
-                            )}
-                          >
-                            {t.type === 'income' ? '+' : '-'}{formatAmount(Number(t.amount))}
-                          </span>
-                        </div>
-                      ))}
-                      {liveSimilarTransactions.length > 5 && (
-                        <p className="text-xs text-muted-foreground text-center pt-1">
-                          + {liveSimilarTransactions.length - 5} autre{liveSimilarTransactions.length - 5 > 1 ? 's' : ''}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground text-center py-2">
-                    Aucune autre transaction similaire non catégorisée trouvée
-                  </p>
+                {/* Server-side dry-run preview (PR1) — single source of truth */}
+                {previewRequest && (
+                  <AutomationPreviewPanel
+                    preview={preview}
+                    loading={previewLoading}
+                    error={previewError}
+                  />
+                )}
+
+                {lowSafety && (
+                  <label className="flex items-start gap-2 text-xs text-amber-700 bg-amber-500/5 border border-amber-500/30 rounded-md p-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={acknowledgeRisk}
+                      onChange={(e) => setAcknowledgeRisk(e.target.checked)}
+                      className="mt-0.5"
+                    />
+                    <span>Je comprends les risques (score de sécurité bas) et confirme la création.</span>
+                  </label>
                 )}
               </div>
             ) : null}
@@ -560,13 +537,13 @@ export function SuggestAutomationDialog({
                     Voir la règle
                   </Button>
                 </>
-              ) : liveSimilarTransactions.length === 0 ? (
+              ) : (preview && preview.matched_uncategorized === 0) ? (
                 <>
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={handleCreateRule}
-                    disabled={creating || !suggestion}
+                    disabled={creating || !suggestion || (lowSafety && !acknowledgeRisk)}
                     className="gap-2"
                   >
                     {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
@@ -583,7 +560,7 @@ export function SuggestAutomationDialog({
                   </Button>
                   <Button
                     onClick={handleCreateRule}
-                    disabled={creating || !suggestion}
+                    disabled={creating || !suggestion || (lowSafety && !acknowledgeRisk)}
                     className="gap-2"
                   >
                     {creating ? (

@@ -1,5 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Zap, Lightbulb, Check, Euro, X, Landmark } from 'lucide-react';
+import { useCompany } from '@/hooks/useCompany';
+import { AutomationPreviewPanel, useAutomationRulePreview } from '@/features/automations';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -51,10 +53,12 @@ const amountOperators = [
 
 export function EditRuleDialog({ open, onOpenChange, categories, rule, onUpdateRule }: EditRuleDialogProps) {
   const bankAccounts = useBankAccountOptions();
+  const { currentCompany } = useCompany();
   const [loading, setLoading] = useState(false);
   const [conditionValue, setConditionValue] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [ruleName, setRuleName] = useState('');
+  const [acknowledgeRisk, setAcknowledgeRisk] = useState(false);
   
   // Amount condition
   const [showAmountCondition, setShowAmountCondition] = useState(false);
@@ -99,6 +103,41 @@ export function EditRuleDialog({ open, onOpenChange, categories, rule, onUpdateR
   }, [rule]);
 
   const selectedCategory = categories.find(c => c.id === selectedCategoryId);
+
+  // Server-side dry-run preview (PR1) — no local impact calc
+  const previewRequest = useMemo(() => {
+    if (!currentCompany?.id || !conditionValue.trim() || !selectedCategoryId) return null;
+    const conds: { condition_field: string; condition_operator: string; condition_value: string }[] = [
+      { condition_field: 'description', condition_operator: 'contains', condition_value: conditionValue.trim() },
+    ];
+    if (showAmountCondition && amountValue.trim()) {
+      conds.push({
+        condition_field: 'amount',
+        condition_operator: amountOperator,
+        condition_value: amountValue.trim().replace(',', '.'),
+      });
+    }
+    if (showBankCondition && selectedBankAccount) {
+      conds.push({
+        condition_field: 'bank_account_name',
+        condition_operator: 'equals',
+        condition_value: selectedBankAccount,
+      });
+    }
+    return {
+      conditions: conds,
+      target_category_id: selectedCategoryId,
+      company_id: currentCompany.id,
+      exclude_rule_id: rule?.id,
+    };
+  }, [currentCompany?.id, conditionValue, selectedCategoryId, showAmountCondition, amountValue, amountOperator, showBankCondition, selectedBankAccount, rule?.id]);
+
+  const { preview, loading: previewLoading, error: previewError } = useAutomationRulePreview({
+    request: previewRequest,
+    enabled: open,
+  });
+
+  const lowSafety = !!(preview && preview.safety_score < 0.6);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -157,7 +196,7 @@ export function EditRuleDialog({ open, onOpenChange, categories, rule, onUpdateR
     }
   };
 
-  const canSubmit = conditionValue.trim() && selectedCategoryId;
+  const canSubmit = !!(conditionValue.trim() && selectedCategoryId && (!lowSafety || acknowledgeRisk));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -348,6 +387,27 @@ export function EditRuleDialog({ open, onOpenChange, categories, rule, onUpdateR
               className="h-9 text-sm"
             />
           </div>
+
+          {/* Server-side dry-run preview (PR1) */}
+          {previewRequest && (
+            <AutomationPreviewPanel
+              preview={preview}
+              loading={previewLoading}
+              error={previewError}
+            />
+          )}
+
+          {lowSafety && (
+            <label className="flex items-start gap-2 text-xs text-amber-700 bg-amber-500/5 border border-amber-500/30 rounded-md p-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={acknowledgeRisk}
+                onChange={(e) => setAcknowledgeRisk(e.target.checked)}
+                className="mt-0.5"
+              />
+              <span>Je comprends les risques (score de sécurité bas) et confirme la modification de la règle.</span>
+            </label>
+          )}
 
           {/* Actions */}
           <div className="flex justify-end gap-3 pt-2">
