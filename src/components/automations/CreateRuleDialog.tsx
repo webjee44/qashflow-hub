@@ -242,19 +242,39 @@ export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, t
           {/* Description Condition */}
           <div className="space-y-3 p-4 bg-muted/50 rounded-xl border border-border/50">
             <Label htmlFor="condition-value" className="text-base font-medium">
-              Si la description contient...
+              {merchantKey ? 'Verrouillé sur le commerçant' : 'Si la description contient...'}
             </Label>
-            <Input
-              id="condition-value"
-              placeholder="AMAZON, SNCF, SALAIRE..."
-              value={conditionValue}
-              onChange={(e) => setConditionValue(e.target.value)}
-              className="text-base h-11"
-              autoFocus
-            />
+            {merchantKey ? (
+              <div className="flex items-center justify-between gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Lock className="w-4 h-4 text-primary shrink-0" />
+                  <span className="font-mono text-sm truncate">{merchantKey}</span>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setMerchantKey(null)}
+                  className="h-7 px-2"
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+            ) : (
+              <Input
+                id="condition-value"
+                placeholder="AMAZON, SNCF, SALAIRE..."
+                value={conditionValue}
+                onChange={(e) => setConditionValue(e.target.value)}
+                className="text-base h-11"
+                autoFocus
+              />
+            )}
             <p className="text-xs text-muted-foreground flex items-center gap-1.5">
               <Lightbulb className="w-3.5 h-3.5" />
-              Entrez un mot-clé présent dans vos transactions
+              {merchantKey
+                ? 'Match exact sur le commerçant — score +50, zéro faux positif.'
+                : 'Entrez un mot-clé présent dans vos transactions'}
             </p>
           </div>
 
