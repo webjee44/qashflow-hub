@@ -1066,6 +1066,70 @@ export function BankAccountsCard() {
           isOrgAdmin={isOrgAdmin}
         />
 
+        {/* Comptes exclus / masqués — visibles mais inactifs.
+            Servent de preuve au client que la décision est tenue. */}
+        {isOrgAdmin && excludedAccounts.length > 0 && (
+          <div className="mt-6 border-t border-border pt-4">
+            <Collapsible defaultOpen={false}>
+              <CollapsibleTrigger className="flex items-center gap-2 w-full text-left group">
+                <ChevronRight className="w-4 h-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-90" />
+                <span className="text-sm font-medium text-muted-foreground">
+                  Comptes masqués / exclus
+                </span>
+                <Badge variant="outline" className="text-xs ml-1">
+                  {excludedAccounts.length}
+                </Badge>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="mt-3 space-y-2">
+                  {excludedAccounts.map((acc) => (
+                    <div
+                      key={acc.id}
+                      className="flex items-center gap-3 p-3 rounded-lg border border-dashed border-muted bg-muted/20"
+                    >
+                      <Landmark className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-sm text-foreground truncate">
+                            {acc.bank_name || acc.name || 'Compte sans nom'}
+                          </span>
+                          {acc.iban && (
+                            <span className="font-mono text-xs text-muted-foreground">
+                              {formatIban(acc.iban)}
+                            </span>
+                          )}
+                        </div>
+                        {acc.item_status_message && (
+                          <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                            {acc.item_status_message}
+                          </p>
+                        )}
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Société : {companyNameById.get(acc.company_id) ?? '—'}
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleReintegrate(acc)}
+                        disabled={reintegratingId === acc.bridge_account_id}
+                        className="gap-1"
+                      >
+                        {reintegratingId === acc.bridge_account_id ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          <RotateCcw className="w-3 h-3" />
+                        )}
+                        Réintégrer
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+          </div>
+        )}
+
         {hasChanges && (
           <div className="mt-4 p-3 rounded-lg bg-primary/10 border border-primary/20 text-sm text-primary">
             N'oubliez pas d'enregistrer vos modifications
