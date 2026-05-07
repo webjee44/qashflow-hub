@@ -189,6 +189,14 @@ export function useAutomationRules() {
         return null;
       }
 
+      // PR3 — persist specificity_score so the runner can sort/conflict-resolve.
+      const allConds = rule.conditions ?? [{
+        condition_field: rule.condition_field,
+        condition_operator: rule.condition_operator,
+        condition_value: rule.condition_value,
+      }];
+      const specificity = computeSpecificityScore(allConds);
+
       // Create the rule
       const { data, error } = await supabase
         .from('automation_rules')
@@ -202,8 +210,10 @@ export function useAutomationRules() {
           user_id: dataOwnerId,
           company_id: currentCompany.id,
           is_active: true,
-          match_count: 0
-        })
+          match_count: 0,
+          specificity_score: specificity,
+          created_from: 'manual',
+        } as any)
         .select(`
           *,
           category:categories(id, name, color)
