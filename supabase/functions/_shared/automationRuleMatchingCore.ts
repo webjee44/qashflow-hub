@@ -9,6 +9,8 @@ export interface TransactionLikeCore {
   description: string;
   type: string;
   bank_account_name?: string | null;
+  merchant_key?: string | null;
+  normalized_description?: string | null;
 }
 
 export const normalizeMatchableText = (value: string) =>
@@ -118,6 +120,21 @@ export const matchesAutomationCondition = (
         condition.condition_operator,
         condition.condition_value,
       );
+    case 'normalized_description':
+      return matchesTextCondition(
+        transaction.normalized_description ?? transaction.description ?? '',
+        condition.condition_operator,
+        condition.condition_value,
+      );
+    case 'merchant_key':
+      // Strict equality on the canonical merchant key. If the transaction has
+      // no merchant_key (legacy/uncomputed), the rule simply does not match.
+      if (!transaction.merchant_key) return false;
+      return matchesTextCondition(
+        transaction.merchant_key,
+        condition.condition_operator || 'equals',
+        condition.condition_value,
+      );
     case 'type':
       return matchesTextCondition(
         transaction.type,
@@ -131,7 +148,6 @@ export const matchesAutomationCondition = (
         condition.condition_value,
       );
     case 'bank_account_name':
-      // Simple exact match on bank account name
       return (transaction.bank_account_name || '') === condition.condition_value;
     default:
       return false;
