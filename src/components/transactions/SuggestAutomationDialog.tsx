@@ -573,13 +573,13 @@ export function SuggestAutomationDialog({
                     Voir la règle
                   </Button>
                 </>
-              ) : liveSimilarTransactions.length === 0 ? (
+              ) : (preview && preview.matched_uncategorized === 0) ? (
                 <>
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={handleCreateRule}
-                    disabled={creating || !suggestion}
+                    disabled={creating || !suggestion || (lowSafety && !acknowledgeRisk)}
                     className="gap-2"
                   >
                     {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
@@ -596,7 +596,7 @@ export function SuggestAutomationDialog({
                   </Button>
                   <Button
                     onClick={handleCreateRule}
-                    disabled={creating || !suggestion}
+                    disabled={creating || !suggestion || (lowSafety && !acknowledgeRisk)}
                     className="gap-2"
                   >
                     {creating ? (
