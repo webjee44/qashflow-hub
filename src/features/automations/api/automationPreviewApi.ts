@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import type { ScoreBreakdown } from '../lib/ruleScoring';
 
 export interface PreviewConditionInput {
   condition_field: string;
@@ -16,6 +17,12 @@ export interface AutomationPreviewExample {
   status: 'will_apply' | 'already_target' | 'already_other' | 'type_mismatch';
 }
 
+export interface MerchantSuggestion {
+  merchant_key: string;
+  match_count: number;
+  sample_description: string;
+}
+
 export interface AutomationPreview {
   matched_total: number;
   matched_uncategorized: number;
@@ -29,6 +36,8 @@ export interface AutomationPreview {
   safety_score: number;
   warnings: string[];
   examples: AutomationPreviewExample[];
+  specificity_breakdown: ScoreBreakdown;
+  merchant_suggestions: MerchantSuggestion[];
 }
 
 export interface PreviewRequestInput {
