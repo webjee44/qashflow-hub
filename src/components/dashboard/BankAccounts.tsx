@@ -46,42 +46,48 @@ export function BankAccounts() {
 
   const bridgeUserUuid = (currentCompany as any)?.bridge_user_uuid;
 
+  // Source de vérité unique : la vue `company_active_bridge_accounts`.
+  // On NE consulte PAS Bridge ici — sinon les comptes exclus côté Qashflow
+  // ré-apparaîtraient à chaque rafraîchissement.
   const fetchAccounts = async () => {
-    if (!bridgeUserUuid) return;
+    if (!currentCompany?.id) return;
 
     setLoading(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
+      const { data, error } = await supabase
+        .from('company_active_bridge_accounts')
+        .select('bridge_account_id, name, balance, iban, account_type, item_status, updated_at')
+        .eq('company_id', currentCompany.id);
 
-      const { data, error } = await supabase.functions.invoke('bridge-accounts', {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-        body: {
-          action: 'get-accounts',
-          bridge_user_uuid: bridgeUserUuid,
-          company_id: currentCompany?.id,
-        },
-      });
-
-      if (error || !data?.success) {
-        logError('Error fetching accounts:', data?.error || error);
+      if (error) {
+        logError('Error fetching active bridge accounts:', error);
         return;
       }
 
-      const accountsList = data.accounts || [];
+      const accountsList: BridgeAccount[] = (data || []).map((row: any) => ({
+        id: String(row.bridge_account_id),
+        name: row.name ?? 'Compte sans nom',
+        balance: Number(row.balance ?? 0),
+        iban: row.iban,
+        type: row.account_type ?? 'checking',
+        updated_at: row.updated_at,
+        item_status: (['ok', 'needs_action', 'error', 'deleted'].includes(row.item_status)
+          ? row.item_status
+          : null) as ItemStatus | null,
+      }));
+
       setAccounts(accountsList);
-      setTotalBalance(data.total_balance || 0);
+      setTotalBalance(accountsList.reduce((sum, a) => sum + a.balance, 0));
       setLastSync(new Date().toISOString());
-      
-      // Check if any account has a disconnection issue
-      const hasIssue = accountsList.some((a: BridgeAccount) => 
-        a.item_status === 'needs_action' || a.item_status === 'error' || a.item_status === 'deleted'
+
+      const hasIssue = accountsList.some(
+        (a) => a.item_status === 'needs_action' || a.item_status === 'error' || a.item_status === 'deleted',
       );
       setHasDisconnectedBank(hasIssue);
-      
+
       await refetch();
     } catch (error) {
-      logError('Error fetching Bridge accounts:', error);
+      logError('Error fetching bank accounts:', error);
     } finally {
       setLoading(false);
     }
@@ -132,12 +138,12 @@ export function BankAccounts() {
   };
 
   useEffect(() => {
-    if (bridgeUserUuid) {
+    if (currentCompany?.id) {
       fetchAccounts();
     }
-  }, [bridgeUserUuid, currentCompany?.id]);
+  }, [currentCompany?.id]);
 
-  if (!bridgeUserUuid) {
+  if (!currentCompany?.id) {
     return null;
   }
 

@@ -17,10 +17,18 @@ export const bridgeAuthRequestSchema = z.object({
 export type BridgeAuthRequest = z.infer<typeof bridgeAuthRequestSchema>;
 
 export const bridgeAccountsRequestSchema = z.object({
-  action: z.enum(['get-accounts', 'get-transaction-categories']).default('get-accounts'),
-  bridge_user_uuid: z.string().uuid(),
+  action: z
+    .enum(['get-accounts', 'get-transaction-categories', 'get-bridge-raw-accounts'])
+    .default('get-accounts'),
+  // bridge_user_uuid n'est requis que pour les actions qui contactent Bridge.
+  // get-accounts (source Qashflow) lit la vue locale et n'en a plus besoin.
+  bridge_user_uuid: z.string().uuid().optional(),
   company_id: z.string().uuid().optional(),
-});
+}).refine(
+  (data) =>
+    data.action === 'get-accounts' || !!data.bridge_user_uuid,
+  { message: 'bridge_user_uuid requis pour cette action' },
+);
 
 export type BridgeAccountsRequest = z.infer<typeof bridgeAccountsRequestSchema>;
 

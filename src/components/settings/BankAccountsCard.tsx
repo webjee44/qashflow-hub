@@ -196,12 +196,14 @@ export function BankAccountsCard() {
   const orgCompanyIds = useMemo(() => allCompanies.map(c => c.id), [allCompanies]);
 
   const [accounts, setAccounts] = useState<BridgeAccount[]>([]);
+  const [excludedAccounts, setExcludedAccounts] = useState<BridgeAccount[]>([]);
   const [assignments, setAssignments] = useState<Map<number, AccountAssignment>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [reintegratingId, setReintegratingId] = useState<number | null>(null);
 
   // Filter displayed accounts based on role
   const displayedAccounts = useMemo(() => {
@@ -220,7 +222,7 @@ export function BankAccountsCard() {
     return displayedAccounts.reduce((sum, account) => sum + (account.balance || 0), 0);
   }, [displayedAccounts]);
 
-  // Load Bridge accounts from company assignments first: company_bridge_accounts is the source of truth.
+  // Load Bridge accounts: actifs (vue) + exclus (table) — source unique de vérité.
   useEffect(() => {
     const scopedCompanyIds = isOrgAdmin ? orgCompanyIds : (currentCompany?.id ? [currentCompany.id] : []);
     if (scopedCompanyIds.length === 0) {
@@ -231,6 +233,7 @@ export function BankAccountsCard() {
     const loadData = async () => {
       setIsLoading(true);
       try {
+        // 1. Comptes ACTIFS — vue Qashflow
         const { data, error } = await supabase
           .from('company_active_bridge_accounts')
           .select('company_id, bridge_account_id, bridge_item_id, name, iban, balance, account_type, bank_name, bridge_user_uuid, item_status')
@@ -256,6 +259,47 @@ export function BankAccountsCard() {
 
         setAccounts(bridgeAccounts);
 
+        // 2. Comptes EXCLUS — table cba + jointure bridge_accounts
+        // Admin uniquement (les membres ne pilotent pas l'exclusion).
+        if (isOrgAdmin) {
+          const { data: excludedRows, error: excludedErr } = await supabase
+            .from('company_bridge_accounts')
+            .select(`
+              company_id,
+              bridge_account_id,
+              status,
+              exclusion_reason,
+              bridge_accounts!inner (
+                bridge_account_id, bridge_item_id, name, iban, balance, account_type, bank_name, bridge_user_uuid, item_status, lifecycle_status
+              )
+            `)
+            .in('company_id', scopedCompanyIds)
+            .eq('status', 'excluded');
+          if (excludedErr) {
+            logError('Failed to load excluded accounts:', excludedErr);
+          } else {
+            const mapped: BridgeAccount[] = (excludedRows || []).map((row: any) => ({
+              id: `${row.company_id}:${row.bridge_account_id}:excluded`,
+              bridge_account_id: row.bridge_account_id,
+              bridge_item_id: row.bridge_accounts?.bridge_item_id ?? row.bridge_account_id,
+              name: row.bridge_accounts?.name ?? null,
+              iban: row.bridge_accounts?.iban ?? null,
+              balance: row.bridge_accounts?.balance === null || row.bridge_accounts?.balance === undefined
+                ? null
+                : Number(row.bridge_accounts.balance),
+              account_type: row.bridge_accounts?.account_type ?? null,
+              bank_name: row.bridge_accounts?.bank_name ?? null,
+              bridge_user_uuid: row.bridge_accounts?.bridge_user_uuid ?? '',
+              company_id: row.company_id,
+              item_status: null,
+              item_status_message: row.exclusion_reason ?? null,
+            }));
+            setExcludedAccounts(mapped);
+          }
+        } else {
+          setExcludedAccounts([]);
+        }
+
         // Build assignments map
         const assignmentMap = new Map<number, AccountAssignment>();
         bridgeAccounts.forEach(account => {
@@ -277,6 +321,35 @@ export function BankAccountsCard() {
 
     loadData();
   }, [isOrgAdmin, currentCompany?.id, orgCompanyIds.join(',')]);
+
+  // Réintègre un compte exclu (lève l'exclusion + réactive). Le trigger
+  // DB exige que les champs d'exclusion soient explicitement remis à NULL,
+  // pour empêcher toute réactivation accidentelle par la sync.
+  const handleReintegrate = async (account: BridgeAccount) => {
+    setReintegratingId(account.bridge_account_id);
+    try {
+      const { error } = await supabase
+        .from('company_bridge_accounts')
+        .update({
+          status: 'active',
+          excluded_at: null,
+          excluded_by: null,
+          exclusion_reason: null,
+        })
+        .eq('company_id', account.company_id)
+        .eq('bridge_account_id', account.bridge_account_id);
+      if (error) throw error;
+      toast.success('Compte réintégré');
+      setExcludedAccounts(prev => prev.filter(a => a.bridge_account_id !== account.bridge_account_id));
+      // Recharge la vue
+      window.location.reload();
+    } catch (error) {
+      logError('Reintegrate error:', error);
+      toast.error('Impossible de réintégrer ce compte');
+    } finally {
+      setReintegratingId(null);
+    }
+  };
 
   // Résout les noms des sociétés référencées par les assignations qui ne sont pas
   // déjà connues (cas super-admin / impersonation : comptes assignés à d'autres orgs).
@@ -992,6 +1065,70 @@ export function BankAccountsCard() {
           onReconnect={handleReconnectBank}
           isOrgAdmin={isOrgAdmin}
         />
+
+        {/* Comptes exclus / masqués — visibles mais inactifs.
+            Servent de preuve au client que la décision est tenue. */}
+        {isOrgAdmin && excludedAccounts.length > 0 && (
+          <div className="mt-6 border-t border-border pt-4">
+            <Collapsible defaultOpen={false}>
+              <CollapsibleTrigger className="flex items-center gap-2 w-full text-left group">
+                <ChevronRight className="w-4 h-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-90" />
+                <span className="text-sm font-medium text-muted-foreground">
+                  Comptes masqués / exclus
+                </span>
+                <Badge variant="outline" className="text-xs ml-1">
+                  {excludedAccounts.length}
+                </Badge>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="mt-3 space-y-2">
+                  {excludedAccounts.map((acc) => (
+                    <div
+                      key={acc.id}
+                      className="flex items-center gap-3 p-3 rounded-lg border border-dashed border-muted bg-muted/20"
+                    >
+                      <Landmark className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-sm text-foreground truncate">
+                            {acc.bank_name || acc.name || 'Compte sans nom'}
+                          </span>
+                          {acc.iban && (
+                            <span className="font-mono text-xs text-muted-foreground">
+                              {formatIban(acc.iban)}
+                            </span>
+                          )}
+                        </div>
+                        {acc.item_status_message && (
+                          <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                            {acc.item_status_message}
+                          </p>
+                        )}
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Société : {companyNameById.get(acc.company_id) ?? '—'}
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleReintegrate(acc)}
+                        disabled={reintegratingId === acc.bridge_account_id}
+                        className="gap-1"
+                      >
+                        {reintegratingId === acc.bridge_account_id ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          <RotateCcw className="w-3 h-3" />
+                        )}
+                        Réintégrer
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+          </div>
+        )}
 
         {hasChanges && (
           <div className="mt-4 p-3 rounded-lg bg-primary/10 border border-primary/20 text-sm text-primary">
