@@ -66,6 +66,8 @@ export interface PreviewResult {
   safety_score: number;
   warnings: string[];
   examples: PreviewExampleTx[];
+  specificity_breakdown: ScoreBreakdown;
+  merchant_suggestions: MerchantSuggestion[];
 }
 
 const SHORT_PATTERN_THRESHOLD = 4;
