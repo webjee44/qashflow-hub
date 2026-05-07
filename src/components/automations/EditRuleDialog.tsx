@@ -104,7 +104,42 @@ export function EditRuleDialog({ open, onOpenChange, categories, rule, onUpdateR
 
   const selectedCategory = categories.find(c => c.id === selectedCategoryId);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Server-side dry-run preview (PR1) — no local impact calc
+  const previewRequest = useMemo(() => {
+    if (!currentCompany?.id || !conditionValue.trim() || !selectedCategoryId) return null;
+    const conds: { condition_field: string; condition_operator: string; condition_value: string }[] = [
+      { condition_field: 'description', condition_operator: 'contains', condition_value: conditionValue.trim() },
+    ];
+    if (showAmountCondition && amountValue.trim()) {
+      conds.push({
+        condition_field: 'amount',
+        condition_operator: amountOperator,
+        condition_value: amountValue.trim().replace(',', '.'),
+      });
+    }
+    if (showBankCondition && selectedBankAccount) {
+      conds.push({
+        condition_field: 'bank_account_name',
+        condition_operator: 'equals',
+        condition_value: selectedBankAccount,
+      });
+    }
+    return {
+      conditions: conds,
+      target_category_id: selectedCategoryId,
+      company_id: currentCompany.id,
+      exclude_rule_id: rule?.id,
+    };
+  }, [currentCompany?.id, conditionValue, selectedCategoryId, showAmountCondition, amountValue, amountOperator, showBankCondition, selectedBankAccount, rule?.id]);
+
+  const { preview, loading: previewLoading, error: previewError } = useAutomationRulePreview({
+    request: previewRequest,
+    enabled: open,
+  });
+
+  const lowSafety = !!(preview && preview.safety_score < 0.6);
+
+
     e.preventDefault();
     if (!rule || !conditionValue.trim() || !selectedCategoryId) return;
 
