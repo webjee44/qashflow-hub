@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Plus, Zap, PlusCircle, Lightbulb, Check, Euro, X, Search, Landmark } from 'lucide-react';
+import { Plus, Zap, PlusCircle, Lightbulb, Check, Euro, X, Search, Landmark, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -64,8 +64,9 @@ export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, t
   const [loading, setLoading] = useState(false);
   const [showCategoryDialog, setShowCategoryDialog] = useState(false);
   
-  // Main condition (description)
+  // Main condition (description OR merchant_key when locked)
   const [conditionValue, setConditionValue] = useState('');
+  const [merchantKey, setMerchantKey] = useState<string | null>(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [ruleName, setRuleName] = useState('');
   
@@ -85,10 +86,15 @@ export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, t
 
   // Build server-side preview request (single source of truth — no local impact calc).
   const previewRequest = useMemo(() => {
-    if (!currentCompany?.id || !conditionValue.trim() || !selectedCategoryId) return null;
-    const conditions: { condition_field: string; condition_operator: string; condition_value: string }[] = [
-      { condition_field: 'description', condition_operator: 'contains', condition_value: conditionValue.trim() },
-    ];
+    if (!currentCompany?.id || !selectedCategoryId) return null;
+    const conditions: { condition_field: string; condition_operator: string; condition_value: string }[] = [];
+    if (merchantKey) {
+      conditions.push({ condition_field: 'merchant_key', condition_operator: 'equals', condition_value: merchantKey });
+    } else if (conditionValue.trim()) {
+      conditions.push({ condition_field: 'description', condition_operator: 'contains', condition_value: conditionValue.trim() });
+    } else {
+      return null;
+    }
     if (showAmountCondition && amountValue.trim()) {
       conditions.push({
         condition_field: 'amount',
@@ -108,7 +114,7 @@ export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, t
       target_category_id: selectedCategoryId,
       company_id: currentCompany.id,
     };
-  }, [currentCompany?.id, conditionValue, selectedCategoryId, showAmountCondition, amountValue, amountOperator, showBankCondition, selectedBankAccount]);
+  }, [currentCompany?.id, conditionValue, merchantKey, selectedCategoryId, showAmountCondition, amountValue, amountOperator, showBankCondition, selectedBankAccount]);
 
   const { preview, loading: previewLoading, error: previewError } = useAutomationRulePreview({
     request: previewRequest,
@@ -143,6 +149,7 @@ export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, t
 
   const resetForm = () => {
     setConditionValue('');
+    setMerchantKey(null);
     setSelectedCategoryId(null);
     setRuleName('');
     setShowAmountCondition(!!defaultAmount);
@@ -155,18 +162,15 @@ export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, t
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!conditionValue.trim() || !selectedCategoryId) return;
+    const hasPrimary = !!merchantKey || !!conditionValue.trim();
+    if (!hasPrimary || !selectedCategoryId) return;
 
-    // Build conditions array
-    const conditions: RuleCondition[] = [
-      {
-        condition_field: 'description',
-        condition_operator: 'contains',
-        condition_value: conditionValue.trim(),
-      }
-    ];
+    const primaryCondition: RuleCondition = merchantKey
+      ? { condition_field: 'merchant_key', condition_operator: 'equals', condition_value: merchantKey }
+      : { condition_field: 'description', condition_operator: 'contains', condition_value: conditionValue.trim() };
 
-    // Add amount condition if enabled
+    const conditions: RuleCondition[] = [primaryCondition];
+
     if (showAmountCondition && amountValue.trim()) {
       conditions.push({
         condition_field: 'amount',
@@ -175,7 +179,6 @@ export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, t
       });
     }
 
-    // Add bank account condition if enabled
     if (showBankCondition && selectedBankAccount) {
       conditions.push({
         condition_field: 'bank_account_name',
@@ -184,10 +187,10 @@ export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, t
       });
     }
 
-    // Auto-generate name if empty
     let finalName = ruleName.trim();
     if (!finalName) {
-      finalName = `${conditionValue.toUpperCase()}`;
+      const head = merchantKey ? merchantKey : conditionValue.toUpperCase();
+      finalName = head;
       if (showAmountCondition && amountValue.trim()) {
         finalName += ` + ${amountValue} €`;
       }
@@ -197,9 +200,9 @@ export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, t
     setLoading(true);
     const result = await onCreateRule({
       name: finalName,
-      condition_field: 'description',
-      condition_operator: 'contains',
-      condition_value: conditionValue.trim(),
+      condition_field: primaryCondition.condition_field,
+      condition_operator: primaryCondition.condition_operator,
+      condition_value: primaryCondition.condition_value,
       action_type: 'categorize',
       target_category_id: selectedCategoryId,
       conditions,
@@ -212,7 +215,7 @@ export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, t
     }
   };
 
-  const canSubmit = !!conditionValue.trim() && !!selectedCategoryId && (!lowSafety || acknowledgeRisk);
+  const canSubmit = (!!merchantKey || !!conditionValue.trim()) && !!selectedCategoryId && (!lowSafety || acknowledgeRisk);
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => {
@@ -239,19 +242,39 @@ export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, t
           {/* Description Condition */}
           <div className="space-y-3 p-4 bg-muted/50 rounded-xl border border-border/50">
             <Label htmlFor="condition-value" className="text-base font-medium">
-              Si la description contient...
+              {merchantKey ? 'Verrouillé sur le commerçant' : 'Si la description contient...'}
             </Label>
-            <Input
-              id="condition-value"
-              placeholder="AMAZON, SNCF, SALAIRE..."
-              value={conditionValue}
-              onChange={(e) => setConditionValue(e.target.value)}
-              className="text-base h-11"
-              autoFocus
-            />
+            {merchantKey ? (
+              <div className="flex items-center justify-between gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Lock className="w-4 h-4 text-primary shrink-0" />
+                  <span className="font-mono text-sm truncate">{merchantKey}</span>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setMerchantKey(null)}
+                  className="h-7 px-2"
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+            ) : (
+              <Input
+                id="condition-value"
+                placeholder="AMAZON, SNCF, SALAIRE..."
+                value={conditionValue}
+                onChange={(e) => setConditionValue(e.target.value)}
+                className="text-base h-11"
+                autoFocus
+              />
+            )}
             <p className="text-xs text-muted-foreground flex items-center gap-1.5">
               <Lightbulb className="w-3.5 h-3.5" />
-              Entrez un mot-clé présent dans vos transactions
+              {merchantKey
+                ? 'Match exact sur le commerçant — score +50, zéro faux positif.'
+                : 'Entrez un mot-clé présent dans vos transactions'}
             </p>
           </div>
 
@@ -466,6 +489,7 @@ export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, t
               preview={preview}
               loading={previewLoading}
               error={previewError}
+              onLockToMerchant={(s) => setMerchantKey(s.merchant_key)}
             />
           )}
 

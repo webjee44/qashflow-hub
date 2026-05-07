@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Zap, Lightbulb, Check, Euro, X, Landmark } from 'lucide-react';
+import { Zap, Lightbulb, Check, Euro, X, Landmark, Lock } from 'lucide-react';
 import { useCompany } from '@/hooks/useCompany';
 import { AutomationPreviewPanel, useAutomationRulePreview, AutomationRunHistory } from '@/features/automations';
 import { Button } from '@/components/ui/button';
@@ -56,6 +56,7 @@ export function EditRuleDialog({ open, onOpenChange, categories, rule, onUpdateR
   const { currentCompany } = useCompany();
   const [loading, setLoading] = useState(false);
   const [conditionValue, setConditionValue] = useState('');
+  const [merchantKey, setMerchantKey] = useState<string | null>(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [ruleName, setRuleName] = useState('');
   const [acknowledgeRisk, setAcknowledgeRisk] = useState(false);
@@ -76,9 +77,16 @@ export function EditRuleDialog({ open, onOpenChange, categories, rule, onUpdateR
       setSelectedCategoryId(rule.target_category_id);
       
       const conditions = rule.conditions || [];
-      
-      const descCondition = conditions.find(c => c.condition_field === 'description');
-      setConditionValue(descCondition?.condition_value || rule.condition_value || '');
+
+      const merchantCondition = conditions.find(c => c.condition_field === 'merchant_key');
+      if (merchantCondition) {
+        setMerchantKey(merchantCondition.condition_value || null);
+        setConditionValue('');
+      } else {
+        setMerchantKey(null);
+        const descCondition = conditions.find(c => c.condition_field === 'description');
+        setConditionValue(descCondition?.condition_value || rule.condition_value || '');
+      }
       
       const amountCondition = conditions.find(c => c.condition_field === 'amount');
       if (amountCondition) {
@@ -106,10 +114,15 @@ export function EditRuleDialog({ open, onOpenChange, categories, rule, onUpdateR
 
   // Server-side dry-run preview (PR1) — no local impact calc
   const previewRequest = useMemo(() => {
-    if (!currentCompany?.id || !conditionValue.trim() || !selectedCategoryId) return null;
-    const conds: { condition_field: string; condition_operator: string; condition_value: string }[] = [
-      { condition_field: 'description', condition_operator: 'contains', condition_value: conditionValue.trim() },
-    ];
+    if (!currentCompany?.id || !selectedCategoryId) return null;
+    const conds: { condition_field: string; condition_operator: string; condition_value: string }[] = [];
+    if (merchantKey) {
+      conds.push({ condition_field: 'merchant_key', condition_operator: 'equals', condition_value: merchantKey });
+    } else if (conditionValue.trim()) {
+      conds.push({ condition_field: 'description', condition_operator: 'contains', condition_value: conditionValue.trim() });
+    } else {
+      return null;
+    }
     if (showAmountCondition && amountValue.trim()) {
       conds.push({
         condition_field: 'amount',
@@ -128,9 +141,9 @@ export function EditRuleDialog({ open, onOpenChange, categories, rule, onUpdateR
       conditions: conds,
       target_category_id: selectedCategoryId,
       company_id: currentCompany.id,
-      exclude_rule_id: rule?.id,
+      rule_id_being_edited: rule?.id,
     };
-  }, [currentCompany?.id, conditionValue, selectedCategoryId, showAmountCondition, amountValue, amountOperator, showBankCondition, selectedBankAccount, rule?.id]);
+  }, [currentCompany?.id, conditionValue, merchantKey, selectedCategoryId, showAmountCondition, amountValue, amountOperator, showBankCondition, selectedBankAccount, rule?.id]);
 
   const { preview, loading: previewLoading, error: previewError } = useAutomationRulePreview({
     request: previewRequest,
@@ -141,18 +154,15 @@ export function EditRuleDialog({ open, onOpenChange, categories, rule, onUpdateR
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!rule || !conditionValue.trim() || !selectedCategoryId) return;
+    const hasPrimary = !!merchantKey || !!conditionValue.trim();
+    if (!rule || !hasPrimary || !selectedCategoryId) return;
 
-    // Build conditions array
-    const conditions: RuleCondition[] = [
-      {
-        condition_field: 'description',
-        condition_operator: 'contains',
-        condition_value: conditionValue.trim(),
-      }
-    ];
+    const primaryCondition: RuleCondition = merchantKey
+      ? { condition_field: 'merchant_key', condition_operator: 'equals', condition_value: merchantKey }
+      : { condition_field: 'description', condition_operator: 'contains', condition_value: conditionValue.trim() };
 
-    // Add amount condition if enabled
+    const conditions: RuleCondition[] = [primaryCondition];
+
     if (showAmountCondition && amountValue.trim()) {
       conditions.push({
         condition_field: 'amount',
@@ -161,7 +171,6 @@ export function EditRuleDialog({ open, onOpenChange, categories, rule, onUpdateR
       });
     }
 
-    // Add bank account condition if enabled
     if (showBankCondition && selectedBankAccount) {
       conditions.push({
         condition_field: 'bank_account_name',
@@ -170,10 +179,10 @@ export function EditRuleDialog({ open, onOpenChange, categories, rule, onUpdateR
       });
     }
 
-    // Auto-generate name if empty
     let finalName = ruleName.trim();
     if (!finalName) {
-      finalName = `${conditionValue.toUpperCase()}`;
+      const head = merchantKey ? merchantKey : conditionValue.toUpperCase();
+      finalName = head;
       if (showAmountCondition && amountValue.trim()) {
         finalName += ` + ${amountValue} €`;
       }
@@ -183,9 +192,9 @@ export function EditRuleDialog({ open, onOpenChange, categories, rule, onUpdateR
     setLoading(true);
     const result = await onUpdateRule(rule.id, {
       name: finalName,
-      condition_field: 'description',
-      condition_operator: 'contains',
-      condition_value: conditionValue.trim(),
+      condition_field: primaryCondition.condition_field,
+      condition_operator: primaryCondition.condition_operator,
+      condition_value: primaryCondition.condition_value,
       target_category_id: selectedCategoryId,
       conditions,
     });
@@ -196,7 +205,7 @@ export function EditRuleDialog({ open, onOpenChange, categories, rule, onUpdateR
     }
   };
 
-  const canSubmit = !!(conditionValue.trim() && selectedCategoryId && (!lowSafety || acknowledgeRisk));
+  const canSubmit = !!((merchantKey || conditionValue.trim()) && selectedCategoryId && (!lowSafety || acknowledgeRisk));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -212,19 +221,39 @@ export function EditRuleDialog({ open, onOpenChange, categories, rule, onUpdateR
           {/* Description Condition */}
           <div className="space-y-3 p-4 bg-muted/50 rounded-xl border border-border/50">
             <Label htmlFor="edit-condition-value" className="text-base font-medium">
-              Si la description contient...
+              {merchantKey ? 'Verrouillé sur le commerçant' : 'Si la description contient...'}
             </Label>
-            <Input
-              id="edit-condition-value"
-              placeholder="AMAZON, SNCF, SALAIRE..."
-              value={conditionValue}
-              onChange={(e) => setConditionValue(e.target.value)}
-              className="text-base h-11"
-              autoFocus
-            />
+            {merchantKey ? (
+              <div className="flex items-center justify-between gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Lock className="w-4 h-4 text-primary shrink-0" />
+                  <span className="font-mono text-sm truncate">{merchantKey}</span>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setMerchantKey(null)}
+                  className="h-7 px-2"
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+            ) : (
+              <Input
+                id="edit-condition-value"
+                placeholder="AMAZON, SNCF, SALAIRE..."
+                value={conditionValue}
+                onChange={(e) => setConditionValue(e.target.value)}
+                className="text-base h-11"
+                autoFocus
+              />
+            )}
             <p className="text-xs text-muted-foreground flex items-center gap-1.5">
               <Lightbulb className="w-3.5 h-3.5" />
-              Entrez un mot-clé présent dans vos transactions
+              {merchantKey
+                ? 'Match exact sur le commerçant — score +50, zéro faux positif.'
+                : 'Entrez un mot-clé présent dans vos transactions'}
             </p>
           </div>
 
@@ -394,6 +423,7 @@ export function EditRuleDialog({ open, onOpenChange, categories, rule, onUpdateR
               preview={preview}
               loading={previewLoading}
               error={previewError}
+              onLockToMerchant={(s) => setMerchantKey(s.merchant_key)}
             />
           )}
 

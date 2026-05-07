@@ -1,13 +1,16 @@
-import { ShieldCheck, ShieldAlert, ShieldX, Loader2, AlertTriangle, Info } from 'lucide-react';
+import { ShieldCheck, ShieldAlert, ShieldX, Loader2, AlertTriangle, Info, Lock, TrendingUp, TrendingDown } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import type { AutomationPreview } from '../api/automationPreviewApi';
+import type { AutomationPreview, MerchantSuggestion } from '../api/automationPreviewApi';
+import { SCORE_REASON_LABELS } from '../lib/ruleScoring';
 
 interface AutomationPreviewPanelProps {
   preview: AutomationPreview | null;
   loading: boolean;
   error: string | null;
   className?: string;
+  onLockToMerchant?: (suggestion: MerchantSuggestion) => void;
 }
 
 const WARNING_LABELS: Record<string, string> = {
@@ -42,6 +45,7 @@ export function AutomationPreviewPanel({
   loading,
   error,
   className,
+  onLockToMerchant,
 }: AutomationPreviewPanelProps) {
   if (error) {
     return (
@@ -121,7 +125,81 @@ export function AutomationPreviewPanel({
         </div>
       )}
 
-      {/* Examples */}
+      {/* Specificity score breakdown (PR4) */}
+      {preview.specificity_breakdown && preview.specificity_breakdown.contributions.length > 0 && (
+        <div className="rounded-md border border-border/50 bg-muted/20 p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="text-xs font-medium text-muted-foreground">Score de spécificité</div>
+            <span className="text-sm font-semibold tabular-nums">
+              {preview.specificity_breakdown.total >= 0 ? '+' : ''}
+              {preview.specificity_breakdown.total}
+            </span>
+          </div>
+          <ul className="space-y-1">
+            {preview.specificity_breakdown.contributions.map((c, i) => {
+              const positive = c.delta > 0;
+              return (
+                <li key={i} className="flex items-center justify-between text-[11px]">
+                  <span className="flex items-center gap-1.5 text-muted-foreground truncate">
+                    {positive ? (
+                      <TrendingUp className="w-3 h-3 text-success" />
+                    ) : c.delta < 0 ? (
+                      <TrendingDown className="w-3 h-3 text-destructive" />
+                    ) : (
+                      <Info className="w-3 h-3" />
+                    )}
+                    <span className="truncate">{SCORE_REASON_LABELS[c.reason]}</span>
+                  </span>
+                  <span
+                    className={cn(
+                      'font-mono tabular-nums shrink-0 ml-2',
+                      positive && 'text-success',
+                      c.delta < 0 && 'text-destructive',
+                    )}
+                  >
+                    {positive ? '+' : ''}
+                    {c.delta}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
+      {/* Merchant suggestions (PR6) — promote merchant_key locking */}
+      {preview.merchant_suggestions && preview.merchant_suggestions.length > 0 && onLockToMerchant && (
+        <div className="rounded-md border border-primary/20 bg-primary/5 p-3 space-y-2">
+          <div className="flex items-center gap-2 text-xs font-medium text-primary">
+            <Lock className="w-3.5 h-3.5" />
+            Verrouiller au commerçant (recommandé)
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            Augmente le score à +50 et élimine les faux positifs liés à la description.
+          </p>
+          <div className="space-y-1">
+            {preview.merchant_suggestions.map((s) => (
+              <button
+                key={s.merchant_key}
+                type="button"
+                onClick={() => onLockToMerchant(s)}
+                className="w-full flex items-center justify-between gap-2 text-left bg-background hover:bg-primary/10 border border-border/40 rounded px-2 py-1.5 transition-colors"
+              >
+                <span className="flex flex-col min-w-0">
+                  <span className="text-xs font-medium truncate">{s.merchant_key}</span>
+                  <span className="text-[10px] text-muted-foreground truncate">
+                    ex. {s.sample_description}
+                  </span>
+                </span>
+                <Badge variant="outline" className="text-[10px] shrink-0">
+                  {s.match_count} tx
+                </Badge>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {preview.examples.length > 0 && (
         <div className="space-y-1">
           <div className="text-xs font-medium text-muted-foreground">Exemples</div>
