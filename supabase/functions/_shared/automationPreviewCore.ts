@@ -235,6 +235,33 @@ export function computePreview(
     }
   }
 
+  // Merchant suggestions: top merchant_keys among uncategorized matches.
+  // Helps the user "lock to merchant" instead of relying on a fragile keyword.
+  const merchantCounts = new Map<string, { count: number; sample: string }>();
+  for (const t of matched) {
+    if (t.category_id) continue;
+    const key = (t.merchant_key || '').trim();
+    if (!key) continue;
+    const existing = merchantCounts.get(key);
+    if (existing) {
+      existing.count++;
+    } else {
+      merchantCounts.set(key, { count: 1, sample: t.description });
+    }
+  }
+  const merchant_suggestions: MerchantSuggestion[] = [...merchantCounts.entries()]
+    .map(([merchant_key, v]) => ({ merchant_key, match_count: v.count, sample_description: v.sample }))
+    .sort((a, b) => b.match_count - a.match_count)
+    .slice(0, 5);
+
+  const specificity_breakdown = computeSpecificityBreakdown(
+    request.conditions.map((c) => ({
+      condition_field: c.condition_field,
+      condition_operator: c.condition_operator,
+      condition_value: c.condition_value,
+    })),
+  );
+
   const partial: Omit<PreviewResult, 'warnings' | 'safety_score'> = {
     matched_total: matched.length,
     matched_uncategorized,
@@ -248,6 +275,8 @@ export function computePreview(
     conflicts_with_other_rules: conflicts.sort((a, b) => b.overlap_count - a.overlap_count),
     total_amount_impact: Number(total_amount_impact.toFixed(2)),
     examples,
+    specificity_breakdown,
+    merchant_suggestions,
   };
 
   const warnings = computeWarnings(request, partial);
