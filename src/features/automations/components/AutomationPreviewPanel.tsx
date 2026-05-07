@@ -1,9 +1,11 @@
-import { ShieldCheck, ShieldAlert, ShieldX, Loader2, AlertTriangle, Info, Lock, TrendingUp, TrendingDown } from 'lucide-react';
+import { useState } from 'react';
+import { ShieldCheck, ShieldAlert, ShieldX, Loader2, AlertTriangle, Info, Target, TrendingUp, TrendingDown, ChevronDown } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
 import type { AutomationPreview, MerchantSuggestion } from '../api/automationPreviewApi';
 import { SCORE_REASON_LABELS } from '../lib/ruleScoring';
+import { prettifyMerchant } from '../lib/merchantLabel';
 
 interface AutomationPreviewPanelProps {
   preview: AutomationPreview | null;
@@ -127,55 +129,60 @@ export function AutomationPreviewPanel({
 
       {/* Specificity score breakdown (PR4) */}
       {preview.specificity_breakdown && preview.specificity_breakdown.contributions.length > 0 && (
-        <div className="rounded-md border border-border/50 bg-muted/20 p-3 space-y-2">
-          <div className="flex items-center justify-between">
-            <div className="text-xs font-medium text-muted-foreground">Score de spécificité</div>
-            <span className="text-sm font-semibold tabular-nums">
+        <Collapsible>
+          <CollapsibleTrigger className="w-full flex items-center justify-between text-[11px] text-muted-foreground hover:text-foreground transition-colors group">
+            <span className="flex items-center gap-1.5">
+              <ChevronDown className="w-3 h-3 transition-transform group-data-[state=open]:rotate-180" />
+              Détails techniques
+            </span>
+            <span className="font-mono tabular-nums">
               {preview.specificity_breakdown.total >= 0 ? '+' : ''}
               {preview.specificity_breakdown.total}
             </span>
-          </div>
-          <ul className="space-y-1">
-            {preview.specificity_breakdown.contributions.map((c, i) => {
-              const positive = c.delta > 0;
-              return (
-                <li key={i} className="flex items-center justify-between text-[11px]">
-                  <span className="flex items-center gap-1.5 text-muted-foreground truncate">
-                    {positive ? (
-                      <TrendingUp className="w-3 h-3 text-success" />
-                    ) : c.delta < 0 ? (
-                      <TrendingDown className="w-3 h-3 text-destructive" />
-                    ) : (
-                      <Info className="w-3 h-3" />
-                    )}
-                    <span className="truncate">{SCORE_REASON_LABELS[c.reason]}</span>
-                  </span>
-                  <span
-                    className={cn(
-                      'font-mono tabular-nums shrink-0 ml-2',
-                      positive && 'text-success',
-                      c.delta < 0 && 'text-destructive',
-                    )}
-                  >
-                    {positive ? '+' : ''}
-                    {c.delta}
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <ul className="space-y-1 mt-2 rounded-md border border-border/50 bg-muted/20 p-3">
+              {preview.specificity_breakdown.contributions.map((c, i) => {
+                const positive = c.delta > 0;
+                return (
+                  <li key={i} className="flex items-center justify-between text-[11px]">
+                    <span className="flex items-center gap-1.5 text-muted-foreground truncate">
+                      {positive ? (
+                        <TrendingUp className="w-3 h-3 text-success" />
+                      ) : c.delta < 0 ? (
+                        <TrendingDown className="w-3 h-3 text-destructive" />
+                      ) : (
+                        <Info className="w-3 h-3" />
+                      )}
+                      <span className="truncate">{SCORE_REASON_LABELS[c.reason]}</span>
+                    </span>
+                    <span
+                      className={cn(
+                        'font-mono tabular-nums shrink-0 ml-2',
+                        positive && 'text-success',
+                        c.delta < 0 && 'text-destructive',
+                      )}
+                    >
+                      {positive ? '+' : ''}
+                      {c.delta}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          </CollapsibleContent>
+        </Collapsible>
       )}
 
-      {/* Merchant suggestions (PR6) — promote merchant_key locking */}
+      {/* Merchant suggestions — friendlier wording */}
       {preview.merchant_suggestions && preview.merchant_suggestions.length > 0 && onLockToMerchant && (
         <div className="rounded-md border border-primary/20 bg-primary/5 p-3 space-y-2">
           <div className="flex items-center gap-2 text-xs font-medium text-primary">
-            <Lock className="w-3.5 h-3.5" />
-            Verrouiller au commerçant (recommandé)
+            <Target className="w-3.5 h-3.5" />
+            Cibler ce commerçant uniquement
           </div>
           <p className="text-[11px] text-muted-foreground">
-            Augmente le score à +50 et élimine les faux positifs liés à la description.
+            La règle ne s'appliquera qu'aux transactions de ce commerçant — plus précis et sans faux positifs.
           </p>
           <div className="space-y-1">
             {preview.merchant_suggestions.map((s) => (
@@ -186,7 +193,7 @@ export function AutomationPreviewPanel({
                 className="w-full flex items-center justify-between gap-2 text-left bg-background hover:bg-primary/10 border border-border/40 rounded px-2 py-1.5 transition-colors"
               >
                 <span className="flex flex-col min-w-0">
-                  <span className="text-xs font-medium truncate">{s.merchant_key}</span>
+                  <span className="text-xs font-medium truncate">{prettifyMerchant(s.merchant_key)}</span>
                   <span className="text-[10px] text-muted-foreground truncate">
                     ex. {s.sample_description}
                   </span>
@@ -199,6 +206,7 @@ export function AutomationPreviewPanel({
           </div>
         </div>
       )}
+
 
       {preview.examples.length > 0 && (
         <div className="space-y-1">
