@@ -65,7 +65,26 @@ export function computeFundingPlan(
   });
   rows.push({ label: "Capacité d'autofinancement (CAF)", type: 'item', values: caf, indent: 1 });
 
-  const capitalContributions = years.map((_, i) => i === 0 ? Number(settings.initial_cash) || 0 : 0);
+  // Apports en capital = financements explicitement marqués comme capital/apport.
+  // La trésorerie initiale (`initial_cash`) est un solde d'ouverture, pas un flux annuel
+  // d'apport ; la traiter comme un apport double-comptait l'opération avec le solde
+  // d'ouverture du cash flow et faussait la réconciliation FP / Bilan / Cash flow.
+  const capitalContributions = years.map((_, yearIndex) => {
+    const yearStart = plData.years[yearIndex]?.start;
+    const yearEnd = plData.years[yearIndex]?.end;
+    if (!yearStart || !yearEnd) return 0;
+    return financings
+      .filter(f => {
+        const nameLC = (f.name || '').toLowerCase();
+        const isCapital = nameLC.includes('capital') || nameLC.includes('apport');
+        return isCapital;
+      })
+      .filter(f => {
+        const startDate = new Date(f.start_date);
+        return startDate >= yearStart && startDate <= yearEnd;
+      })
+      .reduce((sum, f) => sum + Number(f.amount), 0);
+  });
   rows.push({ label: 'Apports en capital', type: 'item', values: capitalContributions, indent: 1 });
 
   const newLoans = showFinancing ? years.map((_, yearIndex) => {

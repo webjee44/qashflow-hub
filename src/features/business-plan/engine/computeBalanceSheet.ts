@@ -74,7 +74,19 @@ export function computeBalanceSheet(
     return (yearRevenue * customerDelay) / 365;
   });
 
-  const capitalValues = years.map(() => Number(settings.initial_cash) || 0);
+  // Capital social = trésorerie initiale (apport d'ouverture des associés) +
+  // apports en capital explicitement déclarés via financements (cumul jusqu'à l'année N).
+  const capitalValues = years.map(year => {
+    const opening = Number(settings.initial_cash) || 0;
+    const explicitCapital = financings
+      .filter(f => {
+        const nameLC = (f.name || '').toLowerCase();
+        return nameLC.includes('capital') || nameLC.includes('apport');
+      })
+      .filter(f => new Date(f.start_date) <= year.endDate)
+      .reduce((sum, f) => sum + Number(f.amount), 0);
+    return opening + explicitCapital;
+  });
   const retainedEarningsValues = years.map((_, yearIndex) => {
     let cumulative = 0;
     for (let i = 0; i < yearIndex; i++) cumulative += plData.totals.netResult[i] || 0;
