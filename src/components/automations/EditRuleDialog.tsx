@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Zap, Lightbulb, Check, Euro, X, Landmark } from 'lucide-react';
+import { Zap, Lightbulb, Check, Euro, X, Landmark, Lock } from 'lucide-react';
 import { useCompany } from '@/hooks/useCompany';
 import { AutomationPreviewPanel, useAutomationRulePreview, AutomationRunHistory } from '@/features/automations';
 import { Button } from '@/components/ui/button';
@@ -56,6 +56,7 @@ export function EditRuleDialog({ open, onOpenChange, categories, rule, onUpdateR
   const { currentCompany } = useCompany();
   const [loading, setLoading] = useState(false);
   const [conditionValue, setConditionValue] = useState('');
+  const [merchantKey, setMerchantKey] = useState<string | null>(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [ruleName, setRuleName] = useState('');
   const [acknowledgeRisk, setAcknowledgeRisk] = useState(false);
@@ -76,9 +77,16 @@ export function EditRuleDialog({ open, onOpenChange, categories, rule, onUpdateR
       setSelectedCategoryId(rule.target_category_id);
       
       const conditions = rule.conditions || [];
-      
-      const descCondition = conditions.find(c => c.condition_field === 'description');
-      setConditionValue(descCondition?.condition_value || rule.condition_value || '');
+
+      const merchantCondition = conditions.find(c => c.condition_field === 'merchant_key');
+      if (merchantCondition) {
+        setMerchantKey(merchantCondition.condition_value || null);
+        setConditionValue('');
+      } else {
+        setMerchantKey(null);
+        const descCondition = conditions.find(c => c.condition_field === 'description');
+        setConditionValue(descCondition?.condition_value || rule.condition_value || '');
+      }
       
       const amountCondition = conditions.find(c => c.condition_field === 'amount');
       if (amountCondition) {
