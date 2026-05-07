@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Sparkles, Loader2, Wand2, Pencil, Check, Euro, X, ExternalLink, CheckCircle2, Landmark, AlertCircle } from 'lucide-react';
 import { Tables } from '@/integrations/supabase/types';
-import { cn } from '@/lib/utils';
+// cn removed — no longer used after preview panel refactor
 import {
   Select,
   SelectContent,
