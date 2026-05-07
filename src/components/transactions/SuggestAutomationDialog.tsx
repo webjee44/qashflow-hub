@@ -79,7 +79,7 @@ export function SuggestAutomationDialog({
   const [createdRuleId, setCreatedRuleId] = useState<string | null>(null);
   const [appliedCount, setAppliedCount] = useState(0);
   const [suggestion, setSuggestion] = useState<SuggestionResult | null>(null);
-  const [similarTransactions, setSimilarTransactions] = useState<Transaction[]>([]);
+  // similarTransactions state removed — server preview is now the source of truth
   const [acknowledgeRisk, setAcknowledgeRisk] = useState(false);
   
   const [editedPattern, setEditedPattern] = useState('');
