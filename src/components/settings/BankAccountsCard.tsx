@@ -328,16 +328,10 @@ export function BankAccountsCard() {
   const handleReintegrate = async (account: BridgeAccount) => {
     setReintegratingId(account.bridge_account_id);
     try {
-      const { error } = await supabase
-        .from('company_bridge_accounts')
-        .update({
-          status: 'active',
-          excluded_at: null,
-          excluded_by: null,
-          exclusion_reason: null,
-        })
-        .eq('company_id', account.company_id)
-        .eq('bridge_account_id', account.bridge_account_id);
+      const { error } = await supabase.rpc('reintegrate_company_bridge_account', {
+        p_company_id: account.company_id,
+        p_bridge_account_id: account.bridge_account_id,
+      });
       if (error) throw error;
       toast.success('Compte réintégré');
       setExcludedAccounts(prev => prev.filter(a => a.bridge_account_id !== account.bridge_account_id));
