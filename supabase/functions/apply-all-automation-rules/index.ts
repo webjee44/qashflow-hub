@@ -156,19 +156,38 @@ Deno.serve(async (req) => {
 
     const rulesWithConditions: FullRule[] = rules
       .filter(rule => rule.condition_field && rule.condition_operator && rule.condition_value)
-      .map(rule => ({
-        id: rule.id,
-        target_category_id: rule.target_category_id,
-        target_category_type: categoryTypeMap.get(rule.target_category_id) || '',
-        user_id: rule.user_id,
-        company_id: rule.company_id,
-        match_count: rule.match_count || 0,
-        is_active: rule.is_active,
-        condition_field: rule.condition_field,
-        condition_operator: rule.condition_operator,
-        condition_value: rule.condition_value,
-        extra_conditions: extraConditionsByRule.get(rule.id) || [],
-      }));
+      .map(rule => {
+        const extras = extraConditionsByRule.get(rule.id) || [];
+        // PR3 — recompute specificity from current conditions (DB column may lag).
+        const allConds = [
+          { condition_field: rule.condition_field, condition_operator: rule.condition_operator, condition_value: rule.condition_value },
+          ...extras,
+        ];
+        const specificity = (rule as any).specificity_score ?? computeSpecificityScore(allConds);
+        return {
+          id: rule.id,
+          target_category_id: rule.target_category_id,
+          target_category_type: categoryTypeMap.get(rule.target_category_id) || '',
+          user_id: rule.user_id,
+          company_id: rule.company_id,
+          match_count: rule.match_count || 0,
+          is_active: rule.is_active,
+          priority: (rule as any).priority ?? 100,
+          specificity_score: Number(specificity) || 0,
+          created_at: (rule as any).created_at ?? new Date().toISOString(),
+          condition_field: rule.condition_field,
+          condition_operator: rule.condition_operator,
+          condition_value: rule.condition_value,
+          extra_conditions: extras,
+          name: (rule as any).name ?? '',
+        };
+      })
+      // PR3 — sort: priority DESC, specificity DESC, created_at ASC.
+      .sort((a, b) => {
+        if (b.priority !== a.priority) return b.priority - a.priority;
+        if (b.specificity_score !== a.specificity_score) return b.specificity_score - a.specificity_score;
+        return a.created_at.localeCompare(b.created_at);
+      });
 
     if (rulesWithConditions.length === 0) {
       return new Response(
@@ -186,12 +205,27 @@ Deno.serve(async (req) => {
 
     let totalMatched = 0;
     let totalUpdated = 0;
+    let totalSkippedConflict = 0;
     const ruleUpdates: { ruleId: string; additionalMatches: number }[] = [];
+
+    // PR2 — single multi-rule run per invocation, scoped to first company found.
+    const firstUserId = [...rulesByUser.keys()][0] ?? null;
+    const runId = firstUserId
+      ? await createRun(supabaseAdmin, {
+          rule_id: null,
+          company_id: companyFilter,
+          user_id: firstUserId,
+          triggered_by: authHeader ? 'manual' : 'cron',
+          mode: 'apply',
+          metadata: { rules_count: rulesWithConditions.length },
+        })
+      : null;
+
+    const allRunItems: RunItemInput[] = [];
 
     for (const [userId, userRules] of rulesByUser) {
       console.log(`[apply-all-automation-rules] Processing ${userRules.length} rules for user ${userId}`);
 
-      // Fetch uncategorized transactions via repository
       const allTransactions = await transactionRepo.findUncategorized(
         companyFilter ? { companyId: companyFilter } : { userId },
       );
@@ -199,34 +233,58 @@ Deno.serve(async (req) => {
       console.log(`[apply-all-automation-rules] Found ${allTransactions.length} uncategorized transactions for user ${userId}`);
       if (allTransactions.length === 0) continue;
 
-      // Apply rules
-      const transactionUpdates = new Map<string, string>();
+      // Two-pass: first detect candidates per rule, then resolve conflicts.
+      const candidatesByTx = new Map<string, Array<{ rule: FullRule }>>();
 
       for (const rule of userRules) {
         const matchingTxs = (allTransactions as unknown as Transaction[]).filter(tx => {
-          if (transactionUpdates.has(tx.id)) return false;
           if (rule.company_id && tx.company_id !== rule.company_id) return false;
           return matchesRule(tx, rule);
         });
-
         for (const tx of matchingTxs) {
-          transactionUpdates.set(tx.id, rule.target_category_id);
-        }
-
-        if (matchingTxs.length > 0) {
-          ruleUpdates.push({ ruleId: rule.id, additionalMatches: matchingTxs.length });
+          const arr = candidatesByTx.get(tx.id) ?? [];
+          arr.push({ rule });
+          candidatesByTx.set(tx.id, arr);
         }
       }
 
-      totalMatched += transactionUpdates.size;
+      // PR3 — conflict resolution: if top-2 candidates have specificity within
+      // threshold, skip and log as conflict instead of silently applying first.
+      const transactionUpdates = new Map<string, { categoryId: string; rule: FullRule }>();
+      const skipped: Array<{ tx: Transaction; rules: FullRule[] }> = [];
+      for (const [txId, candidates] of candidatesByTx) {
+        // candidates already arrive in priority/specificity order (rules pre-sorted).
+        if (candidates.length >= 2) {
+          const [a, b] = candidates;
+          if (a.rule.target_category_id !== b.rule.target_category_id
+              && isConflictingScore(a.rule.specificity_score, b.rule.specificity_score)) {
+            const tx = (allTransactions as unknown as Transaction[]).find(t => t.id === txId);
+            if (tx) skipped.push({ tx, rules: candidates.map(c => c.rule) });
+            continue;
+          }
+        }
+        const winning = candidates[0].rule;
+        transactionUpdates.set(txId, { categoryId: winning.target_category_id, rule: winning });
+      }
 
-      // Apply updates via repository, grouped by category
+      // Aggregate rule update counters.
+      const perRuleCount = new Map<string, number>();
+      for (const [, { rule }] of transactionUpdates) {
+        perRuleCount.set(rule.id, (perRuleCount.get(rule.id) ?? 0) + 1);
+      }
+      for (const [ruleId, count] of perRuleCount) {
+        ruleUpdates.push({ ruleId, additionalMatches: count });
+      }
+
+      totalMatched += transactionUpdates.size + skipped.length;
+      totalSkippedConflict += skipped.length;
+
+      // Apply updates grouped by category.
       const updatesByCategory = new Map<string, string[]>();
-      for (const [txId, categoryId] of transactionUpdates) {
+      for (const [txId, { categoryId }] of transactionUpdates) {
         if (!updatesByCategory.has(categoryId)) updatesByCategory.set(categoryId, []);
         updatesByCategory.get(categoryId)!.push(txId);
       }
-
       for (const [categoryId, txIds] of updatesByCategory) {
         const batches = chunkArray(txIds, 100);
         for (const batch of batches) {
@@ -238,6 +296,45 @@ Deno.serve(async (req) => {
           }
         }
       }
+
+      // Build run items snapshot (previous null since findUncategorized).
+      for (const [txId, { categoryId, rule }] of transactionUpdates) {
+        allRunItems.push({
+          rule_id: rule.id,
+          transaction_id: txId,
+          previous_category_id: null,
+          new_category_id: categoryId,
+          confidence: 1,
+          confidence_source: 'exact_rule',
+          reason_codes: ['rule_matched'],
+          evidence: { rule_name: rule.name, specificity: rule.specificity_score },
+          status: 'applied',
+        });
+      }
+      for (const { tx, rules: conflictingRules } of skipped) {
+        allRunItems.push({
+          rule_id: conflictingRules[0].id,
+          transaction_id: tx.id,
+          previous_category_id: tx.category_id ?? null,
+          new_category_id: null,
+          confidence: 0,
+          confidence_source: 'exact_rule',
+          reason_codes: ['conflict_specificity_close'],
+          evidence: {
+            competing_rules: conflictingRules.slice(0, 3).map(r => ({
+              id: r.id, name: r.name, specificity: r.specificity_score, target: r.target_category_id,
+            })),
+          },
+          status: 'skipped_conflict',
+        });
+      }
+    }
+
+    if (runId) {
+      await appendRunItems(supabaseAdmin, runId, allRunItems);
+      await finishRun(supabaseAdmin, runId, {
+        matched: totalMatched, applied: totalUpdated, skippedConflict: totalSkippedConflict,
+      });
     }
 
     // Update match counts via repository
