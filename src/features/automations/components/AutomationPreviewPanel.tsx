@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
 import type { AutomationPreview, MerchantSuggestion } from '../api/automationPreviewApi';
+import { SCORE_REASON_LABELS } from '../lib/ruleScoring';
 import { prettifyMerchant } from '../lib/merchantLabel';
 
 interface AutomationPreviewPanelProps {
