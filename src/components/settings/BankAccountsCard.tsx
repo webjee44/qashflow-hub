@@ -1207,15 +1207,63 @@ export function BankAccountsCard() {
           </div>
         )}
 
-        {hasChanges && (
-          <div className="mt-4 p-3 rounded-lg bg-primary/10 border border-primary/20 text-sm text-primary">
-            N'oubliez pas d'enregistrer vos modifications
+        {/* Comptes BLOQUÉS — verrou DB. Aucune sync ne peut les réactiver. */}
+        {isOrgAdmin && blockedAccounts.length > 0 && (
+          <div className="mt-6 border-t border-border pt-4">
+            <Collapsible defaultOpen={false}>
+              <CollapsibleTrigger className="flex items-center gap-2 w-full text-left group">
+                <ChevronRight className="w-4 h-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-90" />
+                <span className="text-sm font-medium text-muted-foreground">
+                  Comptes bloqués (verrou)
+                </span>
+                <Badge variant="outline" className="text-xs ml-1">
+                  {blockedAccounts.length}
+                </Badge>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <p className="text-xs text-muted-foreground mt-2 mb-3">
+                  Ces comptes ne peuvent plus revenir, même après synchronisation bancaire.
+                </p>
+                <div className="space-y-2">
+                  {blockedAccounts.map((b) => (
+                    <div
+                      key={b.id}
+                      className="flex items-center gap-3 p-3 rounded-lg border border-dashed border-destructive/30 bg-destructive/5"
+                    >
+                      <AlertTriangle className="w-4 h-4 text-destructive flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-sm text-foreground truncate">
+                            {b.iban ? formatIban(b.iban) : `Compte #${b.bridge_account_id}`}
+                          </span>
+                          {b.iban_last4 && (
+                            <Badge variant="outline" className="text-xs">••{b.iban_last4}</Badge>
+                          )}
+                        </div>
+                        {b.reason && (
+                          <p className="text-xs text-muted-foreground mt-0.5 truncate">{b.reason}</p>
+                        )}
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Société : {companyNameById.get(b.company_id) ?? '—'}
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleUnblock(b.id)}
+                        disabled={unblockingId === b.id}
+                      >
+                        {unblockingId === b.id ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Lever le blocage'}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
           </div>
         )}
-      </CardContent>
-    </Card>
-  );
-}
+
+
 
 // Read-only list for members
 function BankAccountsListReadOnly({
