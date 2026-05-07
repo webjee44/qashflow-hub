@@ -197,6 +197,7 @@ export function BankAccountsCard() {
 
   const [accounts, setAccounts] = useState<BridgeAccount[]>([]);
   const [excludedAccounts, setExcludedAccounts] = useState<BridgeAccount[]>([]);
+  const [blockedAccounts, setBlockedAccounts] = useState<Array<{ id: string; company_id: string; bridge_account_id: number; iban: string | null; iban_last4: string | null; reason: string | null; blocked_at: string }>>([]);
   const [assignments, setAssignments] = useState<Map<number, AccountAssignment>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -204,6 +205,8 @@ export function BankAccountsCard() {
   const [isConnecting, setIsConnecting] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [reintegratingId, setReintegratingId] = useState<number | null>(null);
+  const [blockingId, setBlockingId] = useState<number | null>(null);
+  const [unblockingId, setUnblockingId] = useState<string | null>(null);
 
   // Filter displayed accounts based on role
   const displayedAccounts = useMemo(() => {
@@ -300,6 +303,24 @@ export function BankAccountsCard() {
           setExcludedAccounts([]);
         }
 
+        // 3. Comptes BLOQUÉS (verrou DB) — admin uniquement.
+        if (isOrgAdmin) {
+          const { data: blockRows, error: blockErr } = await supabase
+            .from('bridge_account_blocks')
+            .select('id, company_id, bridge_account_id, iban, iban_last4, reason, blocked_at')
+            .in('company_id', scopedCompanyIds)
+            .eq('is_active', true)
+            .order('blocked_at', { ascending: false });
+          if (blockErr) {
+            logError('Failed to load blocked accounts:', blockErr);
+            setBlockedAccounts([]);
+          } else {
+            setBlockedAccounts((blockRows || []) as any);
+          }
+        } else {
+          setBlockedAccounts([]);
+        }
+
         // Build assignments map
         const assignmentMap = new Map<number, AccountAssignment>();
         bridgeAccounts.forEach(account => {
@@ -345,7 +366,69 @@ export function BankAccountsCard() {
     }
   };
 
-  // Résout les noms des sociétés référencées par les assignations qui ne sont pas
+  // Bloque définitivement un compte (verrou DB). Le trigger DB exclut auto la liaison
+  // et soft-delete les transactions liées.
+  const handleBlock = async (account: BridgeAccount) => {
+    if (!confirm(
+      `Bloquer définitivement « ${account.bank_name || account.name || 'ce compte'} » ?\n\n` +
+      `Ce compte ne pourra plus jamais être réactivé automatiquement, même après synchronisation. ` +
+      `Ses transactions seront neutralisées.`
+    )) return;
+
+    setBlockingId(account.bridge_account_id);
+    try {
+      // Récupère l'identité du compte pour résister au changement d'ID Bridge
+      const { data: baRow } = await supabase
+        .from('bridge_accounts')
+        .select('bridge_item_id, bridge_user_uuid, account_identity')
+        .eq('bridge_account_id', account.bridge_account_id)
+        .maybeSingle();
+
+      const last4 = account.iban
+        ? account.iban.replace(/\s/g, '').slice(-4)
+        : null;
+
+      const { error } = await supabase.from('bridge_account_blocks').insert({
+        company_id: account.company_id,
+        bridge_account_id: account.bridge_account_id,
+        bridge_item_id: baRow?.bridge_item_id ?? null,
+        bridge_user_uuid: baRow?.bridge_user_uuid ?? null,
+        iban: account.iban,
+        iban_last4: last4,
+        account_identity: baRow?.account_identity ?? null,
+        reason: 'Blocage manuel depuis les paramètres',
+      });
+      if (error) throw error;
+      toast.success('Compte bloqué définitivement');
+      window.location.reload();
+    } catch (error) {
+      logError('Block error:', error);
+      toast.error('Impossible de bloquer ce compte');
+    } finally {
+      setBlockingId(null);
+    }
+  };
+
+  // Lève le blocage : le compte pourra réapparaître si la sync le renvoie.
+  const handleUnblock = async (blockId: string) => {
+    if (!confirm('Lever le blocage ? Le compte pourra réapparaître à la prochaine synchronisation.')) return;
+    setUnblockingId(blockId);
+    try {
+      const { error } = await supabase
+        .from('bridge_account_blocks')
+        .update({ is_active: false })
+        .eq('id', blockId);
+      if (error) throw error;
+      toast.success('Blocage levé');
+      setBlockedAccounts(prev => prev.filter(b => b.id !== blockId));
+    } catch (error) {
+      logError('Unblock error:', error);
+      toast.error('Impossible de lever le blocage');
+    } finally {
+      setUnblockingId(null);
+    }
+  };
+
   // déjà connues (cas super-admin / impersonation : comptes assignés à d'autres orgs).
   useEffect(() => {
     const referencedIds = new Set<string>();
@@ -1102,19 +1185,92 @@ export function BankAccountsCard() {
                           Société : {companyNameById.get(acc.company_id) ?? '—'}
                         </p>
                       </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleReintegrate(acc)}
+                          disabled={reintegratingId === acc.bridge_account_id}
+                          className="gap-1"
+                        >
+                          {reintegratingId === acc.bridge_account_id ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <RotateCcw className="w-3 h-3" />
+                          )}
+                          Réintégrer
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleBlock(acc)}
+                          disabled={blockingId === acc.bridge_account_id}
+                          className="gap-1 text-destructive hover:text-destructive"
+                          title="Bloquer définitivement (verrou DB anti-réactivation)"
+                        >
+                          {blockingId === acc.bridge_account_id ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <X className="w-3 h-3" />
+                          )}
+                          Bloquer
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+          </div>
+        )}
+
+        {/* Comptes BLOQUÉS — verrou DB. Aucune sync ne peut les réactiver. */}
+        {isOrgAdmin && blockedAccounts.length > 0 && (
+          <div className="mt-6 border-t border-border pt-4">
+            <Collapsible defaultOpen={false}>
+              <CollapsibleTrigger className="flex items-center gap-2 w-full text-left group">
+                <ChevronRight className="w-4 h-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-90" />
+                <span className="text-sm font-medium text-muted-foreground">
+                  Comptes bloqués (verrou)
+                </span>
+                <Badge variant="outline" className="text-xs ml-1">
+                  {blockedAccounts.length}
+                </Badge>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <p className="text-xs text-muted-foreground mt-2 mb-3">
+                  Ces comptes ne peuvent plus revenir, même après synchronisation bancaire.
+                </p>
+                <div className="space-y-2">
+                  {blockedAccounts.map((b) => (
+                    <div
+                      key={b.id}
+                      className="flex items-center gap-3 p-3 rounded-lg border border-dashed border-destructive/30 bg-destructive/5"
+                    >
+                      <AlertTriangle className="w-4 h-4 text-destructive flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-sm text-foreground truncate">
+                            {b.iban ? formatIban(b.iban) : `Compte #${b.bridge_account_id}`}
+                          </span>
+                          {b.iban_last4 && (
+                            <Badge variant="outline" className="text-xs">••{b.iban_last4}</Badge>
+                          )}
+                        </div>
+                        {b.reason && (
+                          <p className="text-xs text-muted-foreground mt-0.5 truncate">{b.reason}</p>
+                        )}
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Société : {companyNameById.get(b.company_id) ?? '—'}
+                        </p>
+                      </div>
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => handleReintegrate(acc)}
-                        disabled={reintegratingId === acc.bridge_account_id}
-                        className="gap-1"
+                        onClick={() => handleUnblock(b.id)}
+                        disabled={unblockingId === b.id}
                       >
-                        {reintegratingId === acc.bridge_account_id ? (
-                          <Loader2 className="w-3 h-3 animate-spin" />
-                        ) : (
-                          <RotateCcw className="w-3 h-3" />
-                        )}
-                        Réintégrer
+                        {unblockingId === b.id ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Lever le blocage'}
                       </Button>
                     </div>
                   ))}
@@ -1133,6 +1289,7 @@ export function BankAccountsCard() {
     </Card>
   );
 }
+
 
 // Read-only list for members
 function BankAccountsListReadOnly({
