@@ -1,9 +1,20 @@
-import { ShieldCheck, ShieldAlert, ShieldX, Loader2, AlertTriangle, Info, Lock, TrendingUp, TrendingDown } from 'lucide-react';
+import { useState } from 'react';
+import { ShieldCheck, ShieldAlert, ShieldX, Loader2, AlertTriangle, Info, Target, TrendingUp, TrendingDown, ChevronDown } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
 import type { AutomationPreview, MerchantSuggestion } from '../api/automationPreviewApi';
 import { SCORE_REASON_LABELS } from '../lib/ruleScoring';
+
+/** Convert raw merchant_key (e.g. "CARREFOUR MARKET") into a friendly label ("Carrefour Market"). */
+function prettifyMerchant(key: string): string {
+  return key
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+}
 
 interface AutomationPreviewPanelProps {
   preview: AutomationPreview | null;
