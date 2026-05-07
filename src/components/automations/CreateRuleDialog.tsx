@@ -83,6 +83,41 @@ export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, t
 
   const selectedCategory = categories.find(c => c.id === selectedCategoryId);
 
+  // Build server-side preview request (single source of truth — no local impact calc).
+  const previewRequest = useMemo(() => {
+    if (!currentCompany?.id || !conditionValue.trim() || !selectedCategoryId) return null;
+    const conditions: { condition_field: string; condition_operator: string; condition_value: string }[] = [
+      { condition_field: 'description', condition_operator: 'contains', condition_value: conditionValue.trim() },
+    ];
+    if (showAmountCondition && amountValue.trim()) {
+      conditions.push({
+        condition_field: 'amount',
+        condition_operator: amountOperator,
+        condition_value: amountValue.trim().replace(',', '.'),
+      });
+    }
+    if (showBankCondition && selectedBankAccount) {
+      conditions.push({
+        condition_field: 'bank_account_name',
+        condition_operator: 'equals',
+        condition_value: selectedBankAccount,
+      });
+    }
+    return {
+      conditions,
+      target_category_id: selectedCategoryId,
+      company_id: currentCompany.id,
+    };
+  }, [currentCompany?.id, conditionValue, selectedCategoryId, showAmountCondition, amountValue, amountOperator, showBankCondition, selectedBankAccount]);
+
+  const { preview, loading: previewLoading, error: previewError } = useAutomationRulePreview({
+    request: previewRequest,
+    enabled: open,
+  });
+
+  const lowSafety = preview && preview.safety_score < 0.6;
+  const [acknowledgeRisk, setAcknowledgeRisk] = useState(false);
+
   // Filter categories based on search
   const filteredCategories = useMemo(() => {
     if (!categorySearch.trim()) return categories;
