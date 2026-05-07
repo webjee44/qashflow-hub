@@ -21,6 +21,8 @@ import { Category, RuleCondition } from '@/hooks/useAutomationRules';
 import { CategoryDialog } from '@/components/categories/CategoryDialog';
 import { cn } from '@/lib/utils';
 import { useBankAccountOptions } from '@/hooks/useBankAccountOptions';
+import { useCompany } from '@/hooks/useCompany';
+import { AutomationPreviewPanel, useAutomationRulePreview } from '@/features/automations';
 
 interface CreateRuleDialogProps {
   categories: Category[];
@@ -57,6 +59,7 @@ const amountOperators = [
 
 export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, trigger, defaultAmount }: CreateRuleDialogProps) {
   const bankAccounts = useBankAccountOptions();
+  const { currentCompany } = useCompany();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showCategoryDialog, setShowCategoryDialog] = useState(false);
@@ -79,6 +82,41 @@ export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, t
   const [categorySearch, setCategorySearch] = useState('');
 
   const selectedCategory = categories.find(c => c.id === selectedCategoryId);
+
+  // Build server-side preview request (single source of truth — no local impact calc).
+  const previewRequest = useMemo(() => {
+    if (!currentCompany?.id || !conditionValue.trim() || !selectedCategoryId) return null;
+    const conditions: { condition_field: string; condition_operator: string; condition_value: string }[] = [
+      { condition_field: 'description', condition_operator: 'contains', condition_value: conditionValue.trim() },
+    ];
+    if (showAmountCondition && amountValue.trim()) {
+      conditions.push({
+        condition_field: 'amount',
+        condition_operator: amountOperator,
+        condition_value: amountValue.trim().replace(',', '.'),
+      });
+    }
+    if (showBankCondition && selectedBankAccount) {
+      conditions.push({
+        condition_field: 'bank_account_name',
+        condition_operator: 'equals',
+        condition_value: selectedBankAccount,
+      });
+    }
+    return {
+      conditions,
+      target_category_id: selectedCategoryId,
+      company_id: currentCompany.id,
+    };
+  }, [currentCompany?.id, conditionValue, selectedCategoryId, showAmountCondition, amountValue, amountOperator, showBankCondition, selectedBankAccount]);
+
+  const { preview, loading: previewLoading, error: previewError } = useAutomationRulePreview({
+    request: previewRequest,
+    enabled: open,
+  });
+
+  const lowSafety = preview && preview.safety_score < 0.6;
+  const [acknowledgeRisk, setAcknowledgeRisk] = useState(false);
 
   // Filter categories based on search
   const filteredCategories = useMemo(() => {
@@ -174,7 +212,7 @@ export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, t
     }
   };
 
-  const canSubmit = conditionValue.trim() && selectedCategoryId;
+  const canSubmit = !!conditionValue.trim() && !!selectedCategoryId && (!lowSafety || acknowledgeRisk);
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => {
@@ -422,13 +460,36 @@ export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, t
             onSave={handleCreateCategory}
           />
 
+          {/* Server-side dry-run preview (PR1) */}
+          {previewRequest && (
+            <AutomationPreviewPanel
+              preview={preview}
+              loading={previewLoading}
+              error={previewError}
+            />
+          )}
+
+          {lowSafety && (
+            <label className="flex items-start gap-2 text-xs text-amber-700 bg-amber-500/5 border border-amber-500/30 rounded-md p-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={acknowledgeRisk}
+                onChange={(e) => setAcknowledgeRisk(e.target.checked)}
+                className="mt-0.5"
+              />
+              <span>
+                Le score de sécurité est faible. Je comprends les risques et souhaite quand même créer cette règle.
+              </span>
+            </label>
+          )}
+
           {/* Actions */}
           <div className="flex justify-end gap-3 pt-2">
             <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
               Annuler
             </Button>
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               className="gradient-primary"
               disabled={loading || !canSubmit}
             >

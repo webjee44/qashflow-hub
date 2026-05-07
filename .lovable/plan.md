@@ -1,251 +1,284 @@
-# Refacto BP engine — plan révisé v2
 
-Plan révisé après retour comptable. Trois changements majeurs :
-1. **PR0 obligatoire** (harness + audit + serializer) avant tout refacto.
-2. **Une PR par lot** (plus de bundle PR1+PR2+PR3).
-3. **Source de vérité = `engine/computeBPModel`**, pas `features/hooks/`. Les hooks divergents sont diff-és **manuellement**, pas remplacés par défaut.
+# Refonte "Safe Learning Automation" — v2 (intégration retours CTO)
 
-Note vérifiée : une société = un seul BP (mémoire `business-plan/company-centric-architecture`), donc le scoping `company_id` dans `useBPModel` est correct par construction. Sera reverrouillé par contrainte DB en PR0.
+## Vision produit
 
----
+> Qashflow ne devine pas. Qashflow apprend, explique, applique seulement quand c'est sûr, et permet de rollback.
 
-## PR0 — Harness de non-régression (BLOQUANT)
+**Promesse commerciale Phase 1 :** *Vous pouvez activer les automatisations sans risque : vous voyez l'impact avant, vous avez l'historique après, vous pouvez annuler.*
 
-Sans ce lot, tout refacto est aveugle. Aucun lot suivant ne démarre tant que PR0 n'est pas mergé.
+## Principes non négociables
 
-### Livrables
-
-**1. Sérialiseur déterministe**
-- `engine/__tests__/serializeBPModel.ts` :
-  - Exclut `getBreakEvenData` (fonction).
-  - Convertit toutes les `Date` en `YYYY-MM-DD`.
-  - Exclut `engineVersion` (bruit).
-  - Tri stable des clés.
-  - Arrondi à 2 décimales (évite jitter floating-point).
-- Tests unitaires sur le sérialiseur lui-même.
-
-**2. Golden snapshots**
-- 2 fixtures réelles minimum :
-  - `__fixtures__/cloud-vapor.json` (existe déjà).
-  - `__fixtures__/minimal-bp.json` à créer (BP simple, 1 stream, 1 emprunt, 1 invest).
-- Test `engine/__tests__/computeBPModel.golden.test.ts` qui charge chaque fixture, calcule le modèle, sérialise, compare au JSON figé.
-- Mise à jour : `vitest -u` régénère les snapshots (volontaire).
-
-**3. Tests d'exactitude comptable (différents des goldens)**
-- `engine/__tests__/accounting.invariants.test.ts` :
-  - Cas synthétique : CA HT 1M€, COGS 600k, salaires 100k bruts + 45% patronales, autres 50k, emprunt 120k/60mois/4%, invest 60k amorti 5 ans.
-  - Vérifie : `Σ pl.netResult → equity`, `Σ intérêts P&L === Σ intérêts CF`, `Δ debt === nouveaux − remboursements`, `BS balanced`, `cash CF === cash BS`.
-- Ces tests **doivent rester verts à travers tous les refactors**, contrairement aux goldens qui peuvent évoluer si on corrige un bug métier (auquel cas on documente l'écart et on régénère).
-
-**4. Audit d'imports**
-- Script `scripts/audit-bp-imports.ts` (one-shot) qui liste :
-  - Tous les fichiers important `@/hooks/useBP*` vs `@/features/business-plan/hooks/...`.
-  - Pour chaque hook dupliqué : un diff résumé (lignes, fonctions exportées, signatures).
-- Sortie : `docs/bp-imports-audit.md` commit dans le repo. Sert de base à PR1.
-
-**5. Contrainte DB single-BP**
-- Migration : `CREATE UNIQUE INDEX business_plans_company_id_unique ON business_plans(company_id);` si pas déjà en place.
-- Verrouille par construction l'invariant "1 société = 1 BP" et neutralise tout risque de mix par `company_id`.
-
-**Critères de sortie PR0** : goldens + invariants comptables verts, audit publié, contrainte DB en place.
+1. **Dry-run d'abord.** Toute règle est prévisualisée serveur avant création/édition. Le front ne calcule plus l'impact.
+2. **Le LLM n'est jamais souverain.** LLM seul = `suggest` ou `review`. Auto-application seulement si règle validée + historique fort + score combiné.
+3. **Aucune écrasement silencieux d'une décision humaine.** Par défaut, le runner ne touche que les transactions non catégorisées. `reclassify_existing=false` par défaut, mode explicite sinon.
+4. **Tout est explicable et réversible.** Chaque action stocke `confidence`, `confidence_source`, `reason_codes`, `evidence` et appartient à un `automation_run` rollback-able.
+5. **L'apprentissage prend en compte les signaux négatifs** (refus, corrections, désactivations, rollbacks), pas seulement les validations.
+6. **Vocabulaire honnête.** Pas de mot `accuracy` : on parle de `stability_rate_30d`, `correction_rate`, `explicit_validation_rate`, `conflict_rate`.
 
 ---
 
-## PR1 — Déduplication des hooks (Lot A révisé)
+## Ordre d'exécution révisé
 
-**Changement vs v1** : la source de vérité **n'est pas** `features/hooks/` par défaut. Pour chaque hook divergent, on choisit explicitement la version la plus **complète et correcte**, pas la plus récemment déplacée.
-
-### Méthode hook par hook
-
-Pour chaque paire `src/hooks/useBPX.ts` vs `src/features/business-plan/hooks/useBPX.ts` :
-
-1. Diff exhaustif (déjà fait dans audit PR0).
-2. **Décision documentée** dans `docs/bp-hook-consolidation.md` :
-   - Quelle version garder ?
-   - Quelles fonctions/champs manquent dans l'autre ?
-   - Y a-t-il une régression masquée si on garde la version "features" plus simple ?
-3. Cible long terme : tous les hooks deviennent **sélecteurs** sur `useBPModel()`. Exemple `useProfitLoss` (déjà fait) :
-   ```ts
-   export function useProfitLoss() {
-     const { data, isLoading } = useBPModel();
-     return { data: data?.pl ?? EMPTY_PL, isLoading };
-   }
-   ```
-4. Pour les hooks qui contiennent encore de la logique métier (ex. `src/hooks/useBPCashFlow.ts` 463 lignes vs 141 lignes côté features) :
-   - Identifier ce qui est déjà couvert par `model.cashFlow`.
-   - Migrer le reste dans le moteur ou justifier qu'il s'agit d'un calcul UI-only (KPI dérivé).
-   - **Ne pas** supprimer la version riche au profit de la version pauvre.
-
-### Livraison
-
-- Re-exports temporaires dans `src/hooks/useBP*.ts` pour compat zéro casse.
-- Migration des consommateurs (~70 imports) en un seul commit séparé.
-- Suppression des re-exports.
-- **Goldens + invariants doivent rester verts à chaque étape.**
-
-**Effort réel** : 3-4h (pas 1h). **Risque** : moyen, mitigé par PR0.
+| PR | Contenu | Phase | Valeur |
+|----|---------|-------|--------|
+| **PR1** | Dry-run serveur (`automation-rule-preview`) | 1 — Sécurisation | Confiance avant action |
+| **PR2** | Audit log + rollback (`automation_runs`, `automation_run_items`) | 1 | Réversibilité |
+| **PR3** | Priorité + conflits + `specificity_score` défini + stats réelles | 1 | Honnêteté + non-silence |
+| **PR4** | Pattern scorer v1 (sans merchant_key) | 2 — Intelligence | Remplace "2 mots" naïfs |
+| **PR5** | Normalizer + `merchant_key` + backfill safe versionné | 2 | Fondation merchant |
+| **PR6** | Conditions enrichies + dépréciation `bank_account_name` | 2 | Règles robustes |
+| **PR7** | `classify-transaction` contextuel (LLM en arbitrage borné) | 3 — IA utile | Suggestion intelligente |
+| **PR8** | Review queue persistante (`transaction_category_suggestions`) + feedback events | 3 | Workflow réel des 20% |
+| **PR9** | CRON `detect-automation-opportunities` (non destructif) | 4 — Apprentissage | Suggestions continues |
+| **PR10** | Modes avancés + sensitive categories + reclassify_existing | 4 | Garde-fous finaux |
 
 ---
 
-## PR2 — Helpers de période partagés (Lot B révisé)
+## Phase 1 — Sécurisation (PR1 → PR3)
 
-**Changement vs v1** : ce n'est PAS sans risque. Les bornes de date sont une source connue d'écarts.
+### PR1 — Dry-run serveur
 
-### Actions
+Nouvelle edge function `automation-rule-preview`.
 
-1. Créer `engine/_shared/period.ts` :
-   - `isActiveInMonth(startDate, endDate, currentMonth)` — bornes inclusives explicites.
-   - `buildFiscalYears(bpStart, fiscalYearStartMonth, durationMonths)`.
-   - `monthsBetween(a, b)`.
-2. **Avant migration** : tests unitaires exhaustifs sur ces helpers (mois début, mois fin, dates nulles, cross-year, fiscal start = juillet).
-3. Migrer `computePL`, `computeCashFlow`, `computeBalanceSheet` un fichier à la fois, **avec golden tests entre chaque migration**.
-4. Si un golden bouge : stop, diff la cause, décider si bug ancien (régénérer + documenter) ou bug introduit (rollback).
+Input : `{ conditions[], target_category_id, scope: { company_id }, mode_simulation?: 'apply'|'reclassify' }`
 
-**Effort** : 1h30. **Risque** : faible si goldens en place, élevé sans.
-
----
-
-## PR3 — Indexation Map + ladder croissance (Lot C révisé)
-
-### Corrections vs v1
-
-**1. Préserver la sémantique `.find()` (premier match)** :
-```ts
-const forecastByKey = new Map<string, number>();
-for (const f of forecasts) {
-  const key = `${f.stream_id}:${ymKey(f.month)}`;
-  if (!forecastByKey.has(key)) forecastByKey.set(key, Number(f.amount));
+Output :
+```
+{
+  matched_total: 47,
+  matched_uncategorized: 23,
+  matched_already_categorized: 24,
+  same_category_count: 18,         // déjà classées dans la cible
+  other_category_count: 6,         // classées ailleurs (signal de conflit historique)
+  existing_categories_distribution: [{ category_id, count }],
+  conflicts_with_other_rules: [{ rule_id, overlap_count }],
+  total_amount_impact: 4812.45,
+  safety_score: 0.82,
+  warnings: ['sensitive_category', 'high_amount', 'pattern_too_short'],
+  examples: [10 transactions]
 }
 ```
 
-**2. Ladder avec fallback correct sur `stream.growth_rate`** :
-```ts
-const ladder = [s.growth_rate_year2, s.growth_rate_year3, s.growth_rate_year4];
-const specific = ladder[Math.min(yearOffset - 1, 2)];
-const rate = (specific ?? s.growth_rate ?? 0);
+Front (`SuggestAutomationDialog`, `CreateRuleDialog`, `EditRuleDialog`) :
+- Suppression complète du calcul local sur `allTransactions`
+- Affichage du panneau de preview standardisé
+- Bouton "Créer la règle" désactivé si `safety_score < 0.6` sans confirmation explicite (checkbox "Je comprends les risques")
+
+### PR2 — Audit log + rollback
+
+Tables :
+- `automation_runs` (id, rule_id NULL si run multi-règles, triggered_by, mode, total_matched, total_applied, total_skipped_conflict, started_at, finished_at, status, can_rollback bool, rolled_back_at)
+- `automation_run_items` (id, run_id, transaction_id, previous_category_id, new_category_id, confidence, confidence_source, reason_codes jsonb, evidence jsonb, status, rolled_back_at)
+
+Refactor :
+- `apply-automation-rule` et `apply-all-automation-rules` créent toujours un run + items
+- Nouvelle edge function `rollback-automation-run` : restaure les `previous_category_id`, marque `status='rolled_back'`, **émet un `automation_feedback_event`** (cf PR8)
+- UI : section "Historique" sur la fiche règle avec liste runs + bouton Annuler
+
+### PR3 — Priorité, conflits, stats réelles
+
+Migrations sur `automation_rules` :
+- `priority int default 100`
+- `created_from text` (`manual`|`ai_suggestion`|`learned`)
+- `validated_examples_count int`
+- `false_positive_count int`
+- `last_correction_at`
+- `specificity_score numeric` (recalculé à chaque save)
+
+**Définition explicite de `specificity_score`** (à coder dans `_shared/ruleScoring.ts`) :
+```
++50  merchant_key exact
++20  bank_account_id / bridge_account_id
++15  amount_around / amount_between
++10  recurrence true
++5   day_of_month
++2   description contains (≥4 chars)
+-20  description contains pattern court (<4 chars) ou trop générique
 ```
 
-**3. Hors scope (à lister, pas à corriger ici)** :
-- Bug métier : `if (forecast?.amount)` ignore les forecasts à 0. À traiter dans PR métier dédiée.
+Runner : tri `(priority DESC, specificity_score DESC, created_at ASC)`. **Si delta de score < 5 entre 2 règles candidates → pas d'application, status `conflict` dans `automation_run_items`, surfacé UI.**
 
-### Livraison
-
-- Bench `console.time('computeBPModel')` avant/après sur Cloud Vapor.
-- Goldens stricts verts.
-
-**Effort** : 45 min. **Risque** : faible avec les correctifs ci-dessus.
+Stats réelles (suppression de `accuracy: 96` et `timeSaved: '12h'`) :
+- `stability_rate_30d` = items non corrigés sous 30j / total appliqué (jamais appelé "accuracy")
+- `correction_rate` = items corrigés / total appliqué
+- `explicit_validation_rate` = items confirmés explicitement / total appliqué
+- `conflict_rate` = runs avec conflit / total runs
+- Par règle : `precision`, `false_positive_count`, `last_correction_at`
+- `time_saved_estimate` = total appliqué × 8s (constante documentée)
 
 ---
 
-## PR4 — Couche `normalizeBPInput()` + typage (Lot D révisé)
+## Phase 2 — Intelligence locale (PR4 → PR6)
 
-**Changement vs v1** : on **ne supprime pas** les `Number(x) || 0` du moteur. On les **déplace** dans une frontière unique.
+### PR4 — Pattern scorer v1 (sans merchant_key)
 
-### Architecture
+Edge function `score-rule-patterns`. Génère N candidats à partir du libellé normalisé : n-grams (2-4 tokens), préfixes, tokens distinctifs (≥4 chars, hors stopwords bancaires), combinaisons texte+compte+montant_band.
 
-```text
-DB raw rows  ──►  normalizeBPInput()  ──►  BPModelInput typé strict  ──►  computeBPModel()
-                  (Number, defaults,         (no any, no defensive       (pure, typesafe)
-                   coercion, dates)           coercion)
+Pour chaque candidat sur **toutes** les transactions (catégorisées + non) :
+- `precision` = transactions cohérentes / matches
+- `recall` = matches / population estimée
+- `f1`
+
+Output : top 3 patterns triés f1 avec exemples positifs/négatifs.
+
+`SuggestAutomationDialog` propose les 3 candidats au lieu de l'extraction "2 mots". L'extraction locale `extractPatternLocally` est supprimée.
+
+### PR5 — Normalizer + merchant_key + backfill safe
+
+Module `_shared/transactionNormalizer.ts` :
+```
+normalize(raw) => {
+  raw_description, normalized_description, clean_label,
+  merchant_key, merchant_name, merchant_type,
+  merchant_confidence,
+  bank_account_id, amount_abs, amount_sign,
+  day_of_month, is_recurring,
+  fingerprint,
+  normalizer_version
+}
 ```
 
-### Actions
+Dictionnaire :
+- `_shared/merchants/dictionary.yml` global versionné (URSSAF, ACOSS, Amazon, Stripe, Shopify, Google, Meta, Orange, EDF, Free, SFR, OVH, AWS, Hetzner, ...)
+- Table `company_merchant_overrides` (company_id, alias_pattern, merchant_key, merchant_category_preference) — chaque société peut surcharger ("AMAZON" → fournitures vs AWS)
+- Table `merchant_category_preferences` (company_id, merchant_key, default_category_id) — préférence locale
 
-1. Créer `engine/normalizeBPInput.ts` qui prend les rows Supabase brutes et retourne `BPModelInput` propre.
-2. Définir les types stricts dans `engine/types.ts` (importés depuis hooks ou redéfinis).
-3. Modifier `useBPModel` pour appeler `normalizeBPInput(rawRows)` avant `computeBPModel`.
-4. Supprimer les `Number(x) || 0` UNIQUEMENT à l'intérieur du moteur, pas à la frontière.
-5. Tests unitaires sur `normalizeBPInput` : nulls, strings, undefined, dates malformées.
+Migrations `transactions` :
+- `merchant_key`, `merchant_name`, `merchant_type`, `merchant_confidence`
+- `fingerprint`, `is_recurring`
+- `normalizer_version`, `normalized_at`
+- `merchant_locked_by_user bool` (true si édité manuellement)
+- Index sur `(company_id, merchant_key)`, `(company_id, fingerprint)`
 
-**Effort** : 2h. **Risque** : moyen, gardé sous contrôle par les goldens et le test sur le normaliseur.
+**Backfill safe** :
+- Job batch en mode `dry-run` d'abord (écrit dans table miroir `transactions_normalization_preview`)
+- Ne rien écrire si `merchant_confidence < seuil`
+- **Ne jamais écraser un `merchant_key` avec `merchant_locked_by_user=true`**
+- Stocke `normalizer_version` à chaque écriture pour permettre re-normalisations ciblées
 
----
+Hook `bridge-sync` : appelle le normalizer à l'insertion.
 
-## PR5 — Split `computePL` + injection schedules (Lot E)
+### PR6 — Conditions enrichies + dépréciation `bank_account_name`
 
-Inchangé sur le fond. Voir plan v1. Goldens obligatoires (déjà en place depuis PR0).
+Étend `automation_rule_conditions.condition_field` :
+- `merchant_key` (equals)
+- `bridge_account_id` / `bank_account_id`
+- `amount_around` (±%)
+- `recurrence` (bool)
+- `day_of_month_between`
 
-**Effort** : 1h30.
+`bank_account_name` : marqué `legacy` dans l'UI avec bandeau "Convertir en condition par compte (ID stable)". Toujours fonctionnel pour règles existantes mais absent des nouveaux formulaires.
 
----
-
-## PR6 — Split `BPDocument.tsx` (Lot F)
-
-Secondaire. À planifier après stabilisation du moteur. Voir plan v1.
-
----
-
-## PR7+ — Corrections métier (HORS refacto)
-
-À traiter en PRs séparées, **après** stabilisation du moteur. Chaque correction casse volontairement les goldens — on les régénère et on documente.
-
-### Bugs à instruire
-
-1. **`purchase_price` ambigu** :
-   - Stocké/affiché comme prix unitaire HT (`Unit purchase price HT`).
-   - Utilisé dans `computePL` comme **pourcentage du CA** : `purchaseCost = revenue * (purchase_price / 100)`.
-   - Décision produit nécessaire : Option A (prix unitaire × unités) ou Option B (renommer en `purchase_cost_rate` et garder le %).
-   - Migration data si Option A.
-
-2. **Forecast à zéro ignoré** :
-   - `if (forecast?.amount)` traite 0 comme falsy → fallback sur `monthly_price`.
-   - Correction : `if (forecast && forecast.amount != null)`.
-   - Impact : permet activité saisonnière, fermetures, transitions.
-
-3. **Variation de stock douteuse** :
-   - Formule actuelle : `initial_stock + purchase_amount - final_stock`.
-   - Si achats déjà comptés en 607/601, double comptage.
-   - Audit comptable nécessaire avant correction.
-
-4. **Tax regime sensible à la casse** :
-   - `bp_settings.tax_regime = 'is'` mais comparaison `=== 'IS'` ailleurs.
-   - Normaliser via `normalizeBPInput` (`.toUpperCase()`).
-
-5. **Réconciliation cashflow vs P&L** :
-   - Écarts mesurés en PR0 sur Cloud Vapor (~1,3 M€ d'outflows manquants).
-   - Doit converger après PR4+PR5 ; sinon investigation dédiée.
+Pattern scorer (PR4) enrichi : pondère désormais `merchant_key` quand disponible.
 
 ---
 
-## Séquencement
+## Phase 3 — IA contextuelle + workflow review (PR7 → PR8)
 
-```text
-PR0 (harness, BLOQUANT)
-  ├─ serializer
-  ├─ goldens (2 fixtures)
-  ├─ invariants comptables
-  ├─ audit imports
-  └─ contrainte DB unique BP/société
-        │
-        ▼
-PR1 (hooks, hook-par-hook avec décision documentée)  — 3-4h
-        ▼
-PR2 (period helpers, migration fichier-par-fichier)  — 1h30
-        ▼
-PR3 (Map + ladder, sémantique .find() préservée)     — 45 min
-        ▼
-PR4 (normalizeBPInput + typage)                       — 2h
-        ▼
-PR5 (split PL + schedules injectés)                   — 1h30
-        ▼
-PR6 (split BPDocument)                                — 30 min
-        ▼
-PR7+ (corrections métier, une par bug)
+### PR7 — `classify-transaction` (remplace `suggest-category`)
+
+Edge function combinant, dans cet ordre, avec **`confidence_source` tracé** :
+
+1. `exact_rule` — règle validée auto_apply, confidence ≥ 0.98
+2. `fingerprint_history` — même fingerprint déjà classé ≥ 3× même catégorie
+3. `merchant_history` — merchant_key même société classé ≥ 5× même catégorie
+4. `global_dictionary` — préférence merchant globale
+5. `llm` — Lovable AI (`google/gemini-3-flash-preview`) en arbitrage avec contexte enrichi (merchant_key, 5 derniers similaires, règles existantes, montant, compte, type)
+
+Output (tool calling) :
+```
+{
+  category_id, confidence, confidence_source,
+  decision: 'auto'|'suggest'|'review',
+  reason_codes, evidence
+}
 ```
 
-## Garde-fous transverses (non négociables)
+**Politique de décision stricte** :
+- `auto` UNIQUEMENT si `confidence_source ∈ {exact_rule, fingerprint_history, merchant_history}` ET `confidence ≥ 0.98` ET catégorie non-sensible
+- `llm` seul → max `suggest` (jamais `auto`)
+- Catégorie sensible (cf PR10) → toujours max `suggest`
+- Montant > seuil société → toujours max `suggest`
 
-- **Aucun lot ne merge si un golden ou un invariant comptable casse sans justification documentée.**
-- Toute régénération de golden est accompagnée d'un commit séparé `chore(bp): regenerate goldens — <raison>`.
-- Bench `computeBPModel` avant/après chaque PR (acceptable : ne se dégrade pas).
-- Pas de `Number(x) || 0` ajouté hors `normalizeBPInput` après PR4.
+### PR8 — Review queue persistante + feedback events
 
-## Hors scope confirmé
+Table `transaction_category_suggestions` :
+- `transaction_id`, `suggested_category_id`
+- `confidence`, `confidence_source`
+- `reason_codes jsonb`, `evidence jsonb`
+- `source` (`classify`|`rule_suggest_only`|`recommender`)
+- `status` (`pending`|`accepted`|`rejected`|`expired`)
+- `created_at`, `resolved_at`, `resolved_by`
+- Expiration auto à 30j
 
-- Lots 2.2, 2.4, 2.5, 2.6, 2.9 du plan comptable PCG (data modeling).
-- Migration React Query Suspense.
-- Memoization globale.
+Table `automation_feedback_events` :
+- `event_type` (`suggestion_accepted`, `suggestion_rejected`, `category_changed_before_validation`, `rule_disabled`, `rule_ignored`, `run_rolled_back`, `auto_application_corrected`)
+- `transaction_id`, `rule_id`, `suggestion_id`, `run_id`
+- `previous_value`, `new_value`, `user_id`, `created_at`
 
-## Recommandation
+Le runner en mode `suggest_only` écrit dans `transaction_category_suggestions` au lieu d'appliquer. UI : page Transactions → filtre "À valider (X)".
 
-Démarrer **uniquement** par PR0. Sans le harness, PR1 est aveugle et le risque de régression silencieuse sur le cash-flow est réel (versions divergentes de `useBPCashFlow`).
+Tous les signaux (acceptation, refus, correction, désactivation, rollback) alimentent `automation_feedback_events` → consommé par PR9.
+
+---
+
+## Phase 4 — Apprentissage continu + garde-fous (PR9 → PR10)
+
+### PR9 — CRON `detect-automation-opportunities`
+
+pg_cron quotidien 6h UTC. **Non destructif : ne crée jamais de règle active, propose toujours.**
+
+Détecte :
+- merchant_key classé ≥ 5× pareil sans règle
+- fingerprint mensuel récurrent
+- règle existante qui aurait matché 40 transactions historiques (élargissement)
+- règle souvent corrigée (signal `automation_feedback_events`) → propose restriction (compte / montant / merchant)
+- règles en conflit → propose fusion ou ajustement priorité
+- catégories souvent corrigées → suggère retraining mapping local
+
+Sortie : `automation_rule_suggestions` (id, company_id, type, payload jsonb, status, dismissed_at, accepted_rule_id, evidence_examples jsonb).
+
+UI : carte "X opportunités détectées" avec accept/dismiss/éditer.
+
+### PR10 — Modes + garde-fous sensibles + reclassify_existing
+
+`automation_rules` :
+- `mode` : `disabled` / `suggest_only` / `auto_apply_after_review` / `auto_apply`
+- `min_confidence`, `max_amount`
+- `bank_account_scope[]`, `category_type_scope`
+- `review_required_if_conflict bool`
+- `reclassify_existing bool default false`
+
+`categories` :
+- `is_sensitive bool` (URSSAF, salaires, impôts, TVA, emprunts, virements intercomptes, remboursements) → bloque `auto_apply` direct
+- `review_threshold_amount numeric` (override par catégorie)
+
+Runner :
+- Par défaut : `findUncategorized` uniquement (préserve principe actuel)
+- Si `reclassify_existing=true` : confirmation explicite + double dry-run + log dédié
+
+---
+
+## Ce qui n'est volontairement PAS fait
+
+- Pas d'apprentissage cross-tenants (RGPD)
+- Pas de ML custom (Lovable AI suffit en arbitrage)
+- Pas de migration forcée des règles legacy `bank_account_name` (deprecation soft)
+- `action_type` reste `categorize` pour Phase 1-3, mais migration `categorize|set_vat|set_recurring|ignore|mark_intercompany|split_hint` anticipée dans le schéma (enum extensible)
+
+---
+
+## Tests & observabilité
+
+- Vitest : normalizer, pattern scorer, ruleScoring (`specificity_score`), calcul stats réelles
+- Deno tests : toutes les nouvelles edge functions
+- Golden fixtures : 50 libellés bancaires français réels
+- Dashboard super-admin : `stability_rate_30d`, `correction_rate`, `conflict_rate`, top merchants non couverts, taux d'auto-application
+
+---
+
+## Décision attendue
+
+Démarrer par **PR1 (dry-run serveur)** seul, le valider en production avec quelques clients pilotes, puis enchaîner PR2 et PR3. Cette séquence donne une promesse commerciale activable dès PR1+PR2+PR3 sans dépendre de la Phase 2.
+
