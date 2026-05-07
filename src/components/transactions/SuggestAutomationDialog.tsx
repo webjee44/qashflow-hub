@@ -25,6 +25,8 @@ import {
 } from '@/components/ui/select';
 import { RuleCondition, AutomationRule } from '@/hooks/useAutomationRules';
 import { useBankAccountOptions } from '@/hooks/useBankAccountOptions';
+import { useCompany } from '@/hooks/useCompany';
+import { AutomationPreviewPanel, useAutomationRulePreview } from '@/features/automations';
 
 type Transaction = Tables<'transactions'>;
 type Category = Tables<'categories'>;
