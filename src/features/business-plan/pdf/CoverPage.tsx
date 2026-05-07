@@ -8,6 +8,7 @@ interface CoverPageProps {
   introText?: string;
   startYear: number;
   years: number;
+  // Champs internes conservés pour compat de signature, non rendus dans le PDF banquier.
   warnings?: string[];
   reconciled?: boolean;
   engineVersion?: string;
@@ -19,9 +20,6 @@ export function CoverPage({
   introText,
   startYear,
   years,
-  warnings,
-  reconciled,
-  engineVersion,
 }: CoverPageProps) {
   return (
     <Page size="A4" style={styles.page}>
@@ -37,31 +35,7 @@ export function CoverPage({
         Période : {startYear} - {startYear + years - 1} ({years} exercices)
       </Text>
 
-      {reconciled !== undefined && (
-        <View style={{ marginTop: 16, alignItems: 'center' }}>
-          <Text style={[styles.badge, reconciled ? styles.badgeOk : styles.badgeKo]}>
-            {reconciled ? 'États financiers réconciliés' : 'Écarts de réconciliation détectés'}
-          </Text>
-          {engineVersion && (
-            <Text style={{ fontSize: 7, color: '#94a3b8', marginTop: 4 }}>
-              Moteur de calcul v{engineVersion}
-            </Text>
-          )}
-        </View>
-      )}
-
       {introText ? <Text style={styles.coverIntro}>{introText}</Text> : null}
-
-      {warnings && warnings.length > 0 && (
-        <View style={styles.warningBox}>
-          <Text style={{ ...styles.warningText, fontFamily: 'Helvetica-Bold', marginBottom: 3 }}>
-            Points d'attention :
-          </Text>
-          {warnings.map((w, i) => (
-            <Text key={i} style={styles.warningText}>• {w}</Text>
-          ))}
-        </View>
-      )}
 
       <View style={styles.coverConfidential}>
         <Text style={styles.coverConfidentialText}>DOCUMENT CONFIDENTIEL</Text>
