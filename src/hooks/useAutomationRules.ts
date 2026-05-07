@@ -4,6 +4,7 @@ import { useAuth } from './useAuth';
 import { useCompany } from './useCompany';
 import { toast } from 'sonner';
 import { logError } from '@/lib/logger';
+import { computeSpecificityScore } from '@/features/automations';
 
 export interface RuleCondition {
   id?: string;
@@ -52,8 +53,6 @@ export function useAutomationRules() {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
     totalAutomated: 0,
-    accuracy: 96,
-    timeSaved: '12h'
   });
 
   const fetchRules = async () => {
@@ -190,6 +189,14 @@ export function useAutomationRules() {
         return null;
       }
 
+      // PR3 — persist specificity_score so the runner can sort/conflict-resolve.
+      const allConds = rule.conditions ?? [{
+        condition_field: rule.condition_field,
+        condition_operator: rule.condition_operator,
+        condition_value: rule.condition_value,
+      }];
+      const specificity = computeSpecificityScore(allConds);
+
       // Create the rule
       const { data, error } = await supabase
         .from('automation_rules')
@@ -203,8 +210,10 @@ export function useAutomationRules() {
           user_id: dataOwnerId,
           company_id: currentCompany.id,
           is_active: true,
-          match_count: 0
-        })
+          match_count: 0,
+          specificity_score: specificity,
+          created_from: 'manual',
+        } as any)
         .select(`
           *,
           category:categories(id, name, color)
@@ -305,10 +314,16 @@ export function useAutomationRules() {
       // Separate conditions from rule updates
       const { conditions, ...ruleUpdates } = updates;
 
+      // PR3 — recompute specificity if conditions provided.
+      const ruleUpdatesWithScore: any = { ...ruleUpdates };
+      if (conditions && conditions.length > 0) {
+        ruleUpdatesWithScore.specificity_score = computeSpecificityScore(conditions);
+      }
+
       // Update the rule itself
       const { data, error } = await supabase
         .from('automation_rules')
-        .update(ruleUpdates)
+        .update(ruleUpdatesWithScore)
         .eq('id', id)
         .select(`
           *,

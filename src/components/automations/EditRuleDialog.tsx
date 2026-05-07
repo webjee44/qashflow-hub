@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Zap, Lightbulb, Check, Euro, X, Landmark } from 'lucide-react';
 import { useCompany } from '@/hooks/useCompany';
-import { AutomationPreviewPanel, useAutomationRulePreview } from '@/features/automations';
+import { AutomationPreviewPanel, useAutomationRulePreview, AutomationRunHistory } from '@/features/automations';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -407,6 +407,13 @@ export function EditRuleDialog({ open, onOpenChange, categories, rule, onUpdateR
               />
               <span>Je comprends les risques (score de sécurité bas) et confirme la modification de la règle.</span>
             </label>
+          )}
+
+          {/* PR2 — Run history & rollback */}
+          {rule?.id && (
+            <div className="pt-2 border-t border-border/40">
+              <AutomationRunHistory ruleId={rule.id} />
+            </div>
           )}
 
           {/* Actions */}

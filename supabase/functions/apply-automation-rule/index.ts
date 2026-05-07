@@ -3,6 +3,7 @@ import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
 import { createSupabaseServices } from '../_shared/serviceFactory.ts';
 import { type RuleCondition } from '../_shared/repositories/AutomationRepository.ts';
 import { matchesAutomationCondition } from '../_shared/automationRuleMatchingCore.ts';
+import { createRun, appendRunItems, finishRun, type RunItemInput } from '../_shared/automationRunLogger.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -189,12 +190,37 @@ Deno.serve(async (req) => {
 
     console.log(`[apply-automation-rule] ${matchingTransactions.length} transactions match the rule`);
 
+    // PR2 — always create a run (even at 0 matches), for full audit trail.
+    const runId = await createRun(supabaseAdmin, {
+      rule_id: rule.id,
+      company_id: rule.company_id ?? null,
+      user_id: user.id,
+      triggered_by: 'manual',
+      mode: 'apply',
+      metadata: { invoked_by: user.id },
+    });
+
     if (matchingTransactions.length === 0) {
+      await finishRun(supabaseAdmin, runId, { matched: 0, applied: 0, skippedConflict: 0 }, 'completed');
       return new Response(
-        JSON.stringify({ matched: 0, updated: 0 }),
+        JSON.stringify({ matched: 0, updated: 0, run_id: runId }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    // Snapshot previous_category_id BEFORE bulk update (for rollback exactness).
+    // findUncategorized → previous is null by definition; we still record the item.
+    const items: RunItemInput[] = matchingTransactions.map(tx => ({
+      rule_id: rule.id,
+      transaction_id: (tx as any).id as string,
+      previous_category_id: (tx as any).category_id ?? null,
+      new_category_id: rule.target_category_id,
+      confidence: 1,
+      confidence_source: 'exact_rule',
+      reason_codes: ['rule_matched'],
+      evidence: { rule_name: rule.name },
+      status: 'applied',
+    }));
 
     // Update in batches via repository
     const transactionIds = matchingTransactions.map(tx => (tx as any).id as string);
@@ -210,13 +236,20 @@ Deno.serve(async (req) => {
       }
     }
 
+    await appendRunItems(supabaseAdmin, runId, items.slice(0, totalUpdated));
+    await finishRun(supabaseAdmin, runId, {
+      matched: matchingTransactions.length,
+      applied: totalUpdated,
+      skippedConflict: 0,
+    });
+
     // Update match count
     await automationRepo.updateMatchCount(rule_id, (rule.match_count || 0) + totalUpdated);
 
-    console.log(`[apply-automation-rule] Successfully updated ${totalUpdated} transactions`);
+    console.log(`[apply-automation-rule] Successfully updated ${totalUpdated} transactions (run ${runId})`);
 
     return new Response(
-      JSON.stringify({ matched: matchingTransactions.length, updated: totalUpdated }),
+      JSON.stringify({ matched: matchingTransactions.length, updated: totalUpdated, run_id: runId }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 

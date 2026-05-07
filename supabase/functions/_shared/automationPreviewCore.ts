@@ -233,6 +233,7 @@ export function computePreview(
       .sort((a, b) => b.count - a.count),
     conflicts_with_other_rules: conflicts.sort((a, b) => b.overlap_count - a.overlap_count),
     total_amount_impact: Number(total_amount_impact.toFixed(2)),
+    examples,
   };
 
   const warnings = computeWarnings(request, partial);

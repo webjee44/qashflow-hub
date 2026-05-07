@@ -96,13 +96,19 @@ export type Database = {
           condition_operator: string
           condition_value: string
           created_at: string
+          created_from: string
+          false_positive_count: number
           id: string
           is_active: boolean
+          last_correction_at: string | null
           match_count: number
           name: string
+          priority: number
+          specificity_score: number
           target_category_id: string | null
           updated_at: string
           user_id: string
+          validated_examples_count: number
         }
         Insert: {
           action_type?: string
@@ -111,13 +117,19 @@ export type Database = {
           condition_operator: string
           condition_value: string
           created_at?: string
+          created_from?: string
+          false_positive_count?: number
           id?: string
           is_active?: boolean
+          last_correction_at?: string | null
           match_count?: number
           name: string
+          priority?: number
+          specificity_score?: number
           target_category_id?: string | null
           updated_at?: string
           user_id: string
+          validated_examples_count?: number
         }
         Update: {
           action_type?: string
@@ -126,13 +138,19 @@ export type Database = {
           condition_operator?: string
           condition_value?: string
           created_at?: string
+          created_from?: string
+          false_positive_count?: number
           id?: string
           is_active?: boolean
+          last_correction_at?: string | null
           match_count?: number
           name?: string
+          priority?: number
+          specificity_score?: number
           target_category_id?: string | null
           updated_at?: string
           user_id?: string
+          validated_examples_count?: number
         }
         Relationships: [
           {
@@ -150,6 +168,128 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      automation_run_items: {
+        Row: {
+          confidence: number | null
+          confidence_source: string | null
+          corrected_at: string | null
+          corrected_to_category_id: string | null
+          created_at: string
+          evidence: Json
+          id: string
+          new_category_id: string | null
+          previous_category_id: string | null
+          reason_codes: Json
+          rolled_back_at: string | null
+          rule_id: string | null
+          run_id: string
+          status: string
+          transaction_id: string
+        }
+        Insert: {
+          confidence?: number | null
+          confidence_source?: string | null
+          corrected_at?: string | null
+          corrected_to_category_id?: string | null
+          created_at?: string
+          evidence?: Json
+          id?: string
+          new_category_id?: string | null
+          previous_category_id?: string | null
+          reason_codes?: Json
+          rolled_back_at?: string | null
+          rule_id?: string | null
+          run_id: string
+          status?: string
+          transaction_id: string
+        }
+        Update: {
+          confidence?: number | null
+          confidence_source?: string | null
+          corrected_at?: string | null
+          corrected_to_category_id?: string | null
+          created_at?: string
+          evidence?: Json
+          id?: string
+          new_category_id?: string | null
+          previous_category_id?: string | null
+          reason_codes?: Json
+          rolled_back_at?: string | null
+          rule_id?: string | null
+          run_id?: string
+          status?: string
+          transaction_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_run_items_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "automation_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      automation_runs: {
+        Row: {
+          can_rollback: boolean
+          company_id: string | null
+          created_at: string
+          finished_at: string | null
+          id: string
+          metadata: Json
+          mode: string
+          rolled_back_at: string | null
+          rolled_back_by: string | null
+          rule_id: string | null
+          started_at: string
+          status: string
+          total_applied: number
+          total_matched: number
+          total_skipped_conflict: number
+          triggered_by: string
+          user_id: string
+        }
+        Insert: {
+          can_rollback?: boolean
+          company_id?: string | null
+          created_at?: string
+          finished_at?: string | null
+          id?: string
+          metadata?: Json
+          mode?: string
+          rolled_back_at?: string | null
+          rolled_back_by?: string | null
+          rule_id?: string | null
+          started_at?: string
+          status?: string
+          total_applied?: number
+          total_matched?: number
+          total_skipped_conflict?: number
+          triggered_by?: string
+          user_id: string
+        }
+        Update: {
+          can_rollback?: boolean
+          company_id?: string | null
+          created_at?: string
+          finished_at?: string | null
+          id?: string
+          metadata?: Json
+          mode?: string
+          rolled_back_at?: string | null
+          rolled_back_by?: string | null
+          rule_id?: string | null
+          started_at?: string
+          status?: string
+          total_applied?: number
+          total_matched?: number
+          total_skipped_conflict?: number
+          triggered_by?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       balance_overrides: {
         Row: {

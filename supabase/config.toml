@@ -92,3 +92,6 @@ verify_jwt = false
 
 [functions.automation-rule-preview]
 verify_jwt = false
+
+[functions.rollback-automation-run]
+verify_jwt = false
