@@ -196,7 +196,7 @@ export function EditRuleDialog({ open, onOpenChange, categories, rule, onUpdateR
     }
   };
 
-  const canSubmit = conditionValue.trim() && selectedCategoryId;
+  const canSubmit = !!(conditionValue.trim() && selectedCategoryId && (!lowSafety || acknowledgeRisk));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
