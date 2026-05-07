@@ -1362,6 +1362,65 @@ export type Database = {
           },
         ]
       }
+      bridge_account_blocks: {
+        Row: {
+          account_identity: string | null
+          blocked_at: string
+          blocked_by: string | null
+          bridge_account_id: number | null
+          bridge_item_id: number | null
+          bridge_user_uuid: string | null
+          company_id: string
+          created_at: string
+          iban: string | null
+          iban_last4: string | null
+          id: string
+          is_active: boolean
+          reason: string | null
+          updated_at: string
+        }
+        Insert: {
+          account_identity?: string | null
+          blocked_at?: string
+          blocked_by?: string | null
+          bridge_account_id?: number | null
+          bridge_item_id?: number | null
+          bridge_user_uuid?: string | null
+          company_id: string
+          created_at?: string
+          iban?: string | null
+          iban_last4?: string | null
+          id?: string
+          is_active?: boolean
+          reason?: string | null
+          updated_at?: string
+        }
+        Update: {
+          account_identity?: string | null
+          blocked_at?: string
+          blocked_by?: string | null
+          bridge_account_id?: number | null
+          bridge_item_id?: number | null
+          bridge_user_uuid?: string | null
+          company_id?: string
+          created_at?: string
+          iban?: string | null
+          iban_last4?: string | null
+          id?: string
+          is_active?: boolean
+          reason?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bridge_account_blocks_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bridge_accounts: {
         Row: {
           account_identity: string | null
