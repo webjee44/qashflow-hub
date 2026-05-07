@@ -330,18 +330,8 @@ export function BPDocument(props: BPDocumentProps) {
         </PageWrapper>
       )}
 
-      {/* ═══ RECONCILIATION ANNEX (PR 3 + PR 4) ═══ */}
-      {has('reconciliation') && validation && (
-        <PageWrapper styles={styles} companyName={companyName} documentTitle={documentTitle} engineVersion={engineVersion}>
-          <SectionTitle title="Annexe — Rapport de réconciliation" />
-          <Text style={styles.paragraph}>
-            Vérification automatique de la cohérence entre le compte de résultat, le bilan, le plan
-            de trésorerie et le plan de financement. Cette annexe garantit au lecteur que les états
-            financiers présentés sont issus d'un modèle unifié et réconcilié.
-          </Text>
-          <ReconciliationSection styles={styles} report={validation} />
-        </PageWrapper>
-      )}
+      {/* Annexe réconciliation retirée du PDF banquier : c'est un outil de contrôle
+          interne (validateBPModel), pas un livrable destiné à un tiers financier. */}
     </Document>
   );
 }

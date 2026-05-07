@@ -40,7 +40,6 @@ const SECTIONS = [
   { id: 'funding_plan', label: 'Plan de financement', defaultChecked: true, description: 'Emplois vs Ressources' },
   { id: 'ratios', label: 'Indicateurs financiers', defaultChecked: true, description: 'Ratios et point mort' },
   { id: 'notes', label: 'Notes et hypothèses', defaultChecked: true, description: 'Paramètres utilisés' },
-  { id: 'reconciliation', label: 'Annexe — Réconciliation', defaultChecked: true, description: 'Rapport de cohérence des états financiers (PR 3)' },
 ];
 
 const COLOR_PRESETS = [
