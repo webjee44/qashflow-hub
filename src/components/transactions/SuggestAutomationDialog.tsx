@@ -530,50 +530,25 @@ export function SuggestAutomationDialog({
                   </Button>
                 ) : null}
 
-                {/* Transactions similaires */}
-                {liveSimilarTransactions.length > 0 ? (
-                  <div>
-                    <p className="text-sm font-medium mb-2 flex items-center gap-2">
-                      <span className="bg-primary text-primary-foreground text-xs px-2 py-0.5 rounded-full">
-                        {liveSimilarTransactions.length}
-                      </span>
-                      transaction{liveSimilarTransactions.length > 1 ? 's' : ''} similaire{liveSimilarTransactions.length > 1 ? 's' : ''} non catégorisée{liveSimilarTransactions.length > 1 ? 's' : ''}
-                    </p>
-                    <div className="space-y-1">
-                      {liveSimilarTransactions.slice(0, 5).map(t => (
-                        <div
-                          key={t.id}
-                          className="flex items-center justify-between text-sm bg-muted/30 rounded px-3 py-2"
-                        >
-                          <div className="flex items-center gap-2 min-w-0 flex-1">
-                            {t.type === 'income' ? (
-                              <ArrowUpRight className="w-4 h-4 text-success shrink-0" />
-                            ) : (
-                              <ArrowDownRight className="w-4 h-4 text-destructive shrink-0" />
-                            )}
-                            <span className="truncate">{t.description}</span>
-                          </div>
-                          <span
-                            className={cn(
-                              "font-medium shrink-0 ml-2",
-                              t.type === 'income' ? 'text-success' : 'text-destructive'
-                            )}
-                          >
-                            {t.type === 'income' ? '+' : '-'}{formatAmount(Number(t.amount))}
-                          </span>
-                        </div>
-                      ))}
-                      {liveSimilarTransactions.length > 5 && (
-                        <p className="text-xs text-muted-foreground text-center pt-1">
-                          + {liveSimilarTransactions.length - 5} autre{liveSimilarTransactions.length - 5 > 1 ? 's' : ''}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground text-center py-2">
-                    Aucune autre transaction similaire non catégorisée trouvée
-                  </p>
+                {/* Server-side dry-run preview (PR1) — single source of truth */}
+                {previewRequest && (
+                  <AutomationPreviewPanel
+                    preview={preview}
+                    loading={previewLoading}
+                    error={previewError}
+                  />
+                )}
+
+                {lowSafety && (
+                  <label className="flex items-start gap-2 text-xs text-amber-700 bg-amber-500/5 border border-amber-500/30 rounded-md p-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={acknowledgeRisk}
+                      onChange={(e) => setAcknowledgeRisk(e.target.checked)}
+                      className="mt-0.5"
+                    />
+                    <span>Je comprends les risques (score de sécurité bas) et confirme la création.</span>
+                  </label>
                 )}
               </div>
             ) : null}
