@@ -21,6 +21,12 @@ import {
 } from '../_shared/validation.ts';
 import { deriveTransactionNormalization } from '../_shared/merchantNormalizer.ts';
 
+function publicComputeAccountIdentity(iban: string | null | undefined, name: string | null | undefined, accountType: string | null | undefined): string {
+  const normalizedIban = (iban || '').toLowerCase().replace(/\s+/g, '');
+  if (normalizedIban) return normalizedIban;
+  return `fallback:${(name || '').toLowerCase()}:${(accountType || '').toLowerCase()}`;
+}
+
 // ============================================
 // Helper: Build account_id -> company_id map
 // ============================================
@@ -169,7 +175,7 @@ async function syncBridgeAccounts(
       if (candidates.length === 0) continue;
       const incomingAccount = incomingByAccountId.get(incoming.id);
       if (!incomingAccount) continue;
-      const incomingType = (incomingAccount as any).account_type || null;
+      const incomingType = (incomingAccount as any).account_type || (incomingAccount as any).type || null;
 
       for (const old of candidates) {
         if (old.lifecycle_status !== 'active') continue; // déjà décidé
