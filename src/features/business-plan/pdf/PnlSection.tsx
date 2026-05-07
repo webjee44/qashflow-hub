@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text } from '@react-pdf/renderer';
 import { createStyles } from './styles';
 import type { PLData } from '../hooks/useProfitLoss';
-import { formatCurrency } from './helpers';
+import { formatCurrency, formatPercent } from './helpers';
 
 interface PnlSectionProps {
   styles: ReturnType<typeof createStyles>;
