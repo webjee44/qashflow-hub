@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Plus, Zap, PlusCircle, Lightbulb, Check, Euro, X, Search, Landmark } from 'lucide-react';
+import { Plus, Zap, PlusCircle, Lightbulb, Check, Euro, X, Search, Landmark, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
