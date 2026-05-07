@@ -85,10 +85,15 @@ export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, t
 
   // Build server-side preview request (single source of truth — no local impact calc).
   const previewRequest = useMemo(() => {
-    if (!currentCompany?.id || !conditionValue.trim() || !selectedCategoryId) return null;
-    const conditions: { condition_field: string; condition_operator: string; condition_value: string }[] = [
-      { condition_field: 'description', condition_operator: 'contains', condition_value: conditionValue.trim() },
-    ];
+    if (!currentCompany?.id || !selectedCategoryId) return null;
+    const conditions: { condition_field: string; condition_operator: string; condition_value: string }[] = [];
+    if (merchantKey) {
+      conditions.push({ condition_field: 'merchant_key', condition_operator: 'equals', condition_value: merchantKey });
+    } else if (conditionValue.trim()) {
+      conditions.push({ condition_field: 'description', condition_operator: 'contains', condition_value: conditionValue.trim() });
+    } else {
+      return null;
+    }
     if (showAmountCondition && amountValue.trim()) {
       conditions.push({
         condition_field: 'amount',
@@ -108,7 +113,7 @@ export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, t
       target_category_id: selectedCategoryId,
       company_id: currentCompany.id,
     };
-  }, [currentCompany?.id, conditionValue, selectedCategoryId, showAmountCondition, amountValue, amountOperator, showBankCondition, selectedBankAccount]);
+  }, [currentCompany?.id, conditionValue, merchantKey, selectedCategoryId, showAmountCondition, amountValue, amountOperator, showBankCondition, selectedBankAccount]);
 
   const { preview, loading: previewLoading, error: previewError } = useAutomationRulePreview({
     request: previewRequest,
@@ -143,6 +148,7 @@ export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, t
 
   const resetForm = () => {
     setConditionValue('');
+    setMerchantKey(null);
     setSelectedCategoryId(null);
     setRuleName('');
     setShowAmountCondition(!!defaultAmount);
