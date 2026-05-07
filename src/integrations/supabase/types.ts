@@ -2834,6 +2834,10 @@ export type Database = {
         Args: { p_company_id: string }
         Returns: undefined
       }
+      reintegrate_company_bridge_account: {
+        Args: { p_bridge_account_id: number; p_company_id: string }
+        Returns: undefined
+      }
       remove_organization_member: {
         Args: { _org_id: string; _user_id: string }
         Returns: boolean
