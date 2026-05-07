@@ -34,6 +34,8 @@ interface TxRow {
   category_id: string | null;
   bank_account_name: string | null;
   date: string | null;
+  merchant_key: string | null;
+  normalized_description: string | null;
 }
 
 interface RuleRow {
@@ -131,7 +133,7 @@ Deno.serve(async (req) => {
     while (true) {
       const { data, error } = await supabaseAdmin
         .from('transactions')
-        .select('id, description, amount, type, category_id, bank_account_name, date')
+        .select('id, description, amount, type, category_id, bank_account_name, date, merchant_key, normalized_description')
         .eq('company_id', company_id)
         .is('deleted_at', null)
         .range(page * pageSize, (page + 1) * pageSize - 1);
@@ -146,6 +148,8 @@ Deno.serve(async (req) => {
           category_id: row.category_id,
           bank_account_name: row.bank_account_name,
           date: row.date,
+          merchant_key: row.merchant_key,
+          normalized_description: row.normalized_description,
         });
       }
       if (data.length < pageSize) break;
