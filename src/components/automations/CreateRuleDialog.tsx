@@ -460,13 +460,36 @@ export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, t
             onSave={handleCreateCategory}
           />
 
+          {/* Server-side dry-run preview (PR1) */}
+          {previewRequest && (
+            <AutomationPreviewPanel
+              preview={preview}
+              loading={previewLoading}
+              error={previewError}
+            />
+          )}
+
+          {lowSafety && (
+            <label className="flex items-start gap-2 text-xs text-amber-700 bg-amber-500/5 border border-amber-500/30 rounded-md p-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={acknowledgeRisk}
+                onChange={(e) => setAcknowledgeRisk(e.target.checked)}
+                className="mt-0.5"
+              />
+              <span>
+                Le score de sécurité est faible. Je comprends les risques et souhaite quand même créer cette règle.
+              </span>
+            </label>
+          )}
+
           {/* Actions */}
           <div className="flex justify-end gap-3 pt-2">
             <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
               Annuler
             </Button>
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               className="gradient-primary"
               disabled={loading || !canSubmit}
             >
