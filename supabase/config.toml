@@ -89,3 +89,6 @@ verify_jwt = false
 
 [functions.check-clients]
 verify_jwt = false
+
+[functions.automation-rule-preview]
+verify_jwt = false
