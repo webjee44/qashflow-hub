@@ -4,6 +4,7 @@ import { useAuth } from './useAuth';
 import { useCompany } from './useCompany';
 import { toast } from 'sonner';
 import { logError } from '@/lib/logger';
+import { computeSpecificityScore } from '@/features/automations';
 
 export interface RuleCondition {
   id?: string;
