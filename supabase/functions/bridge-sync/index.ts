@@ -19,6 +19,7 @@ import {
   validateRequest, 
   validationErrorResponse 
 } from '../_shared/validation.ts';
+import { deriveTransactionNormalization } from '../_shared/merchantNormalizer.ts';
 
 // ============================================
 // Helper: Build account_id -> company_id map
@@ -455,6 +456,7 @@ async function syncCompanyTransactions(
       }
 
       if (existingId) {
+        const norm = deriveTransactionNormalization(description);
         toUpdate.push({
           id: existingId,
           data: {
@@ -467,10 +469,13 @@ async function syncCompanyTransactions(
             source: 'bridge',
             bridge_transaction_id: transaction.id,
             company_id: correctCompanyId,
+            merchant_key: norm.merchant_key,
+            normalized_description: norm.normalized_description,
             updated_at: new Date().toISOString(),
           }
         });
       } else {
+        const norm = deriveTransactionNormalization(description);
         toInsert.push({
           user_id: ownerByCompany[correctCompanyId] ?? fallbackUserId,
           company_id: correctCompanyId,
@@ -483,6 +488,8 @@ async function syncCompanyTransactions(
           bank_account_name: accountName,
           bridge_account_id: transaction.account_id,
           source: 'bridge',
+          merchant_key: norm.merchant_key,
+          normalized_description: norm.normalized_description,
           is_reconciled: false,
         });
       }

@@ -2346,6 +2346,8 @@ export type Database = {
           id: string
           is_ignored: boolean
           is_reconciled: boolean
+          merchant_key: string | null
+          normalized_description: string | null
           parent_transaction_id: string | null
           pennylane_id: string | null
           source: string | null
@@ -2368,6 +2370,8 @@ export type Database = {
           id?: string
           is_ignored?: boolean
           is_reconciled?: boolean
+          merchant_key?: string | null
+          normalized_description?: string | null
           parent_transaction_id?: string | null
           pennylane_id?: string | null
           source?: string | null
@@ -2390,6 +2394,8 @@ export type Database = {
           id?: string
           is_ignored?: boolean
           is_reconciled?: boolean
+          merchant_key?: string | null
+          normalized_description?: string | null
           parent_transaction_id?: string | null
           pennylane_id?: string | null
           source?: string | null

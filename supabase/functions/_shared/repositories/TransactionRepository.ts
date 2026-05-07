@@ -126,7 +126,7 @@ export class TransactionRepository {
     while (hasMore) {
       let query = this.client
         .from('transactions')
-        .select('id, description, amount, type, category_id, user_id, company_id, bank_account_name')
+        .select('id, description, amount, type, category_id, user_id, company_id, bank_account_name, merchant_key, normalized_description')
         .is('category_id', null)
         .is('deleted_at', null)
         .range(page * pageSize, (page + 1) * pageSize - 1);
