@@ -1185,20 +1185,37 @@ export function BankAccountsCard() {
                           Société : {companyNameById.get(acc.company_id) ?? '—'}
                         </p>
                       </div>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleReintegrate(acc)}
-                        disabled={reintegratingId === acc.bridge_account_id}
-                        className="gap-1"
-                      >
-                        {reintegratingId === acc.bridge_account_id ? (
-                          <Loader2 className="w-3 h-3 animate-spin" />
-                        ) : (
-                          <RotateCcw className="w-3 h-3" />
-                        )}
-                        Réintégrer
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleReintegrate(acc)}
+                          disabled={reintegratingId === acc.bridge_account_id}
+                          className="gap-1"
+                        >
+                          {reintegratingId === acc.bridge_account_id ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <RotateCcw className="w-3 h-3" />
+                          )}
+                          Réintégrer
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleBlock(acc)}
+                          disabled={blockingId === acc.bridge_account_id}
+                          className="gap-1 text-destructive hover:text-destructive"
+                          title="Bloquer définitivement (verrou DB anti-réactivation)"
+                        >
+                          {blockingId === acc.bridge_account_id ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <X className="w-3 h-3" />
+                          )}
+                          Bloquer
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
