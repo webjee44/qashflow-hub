@@ -64,8 +64,9 @@ export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, t
   const [loading, setLoading] = useState(false);
   const [showCategoryDialog, setShowCategoryDialog] = useState(false);
   
-  // Main condition (description)
+  // Main condition (description OR merchant_key when locked)
   const [conditionValue, setConditionValue] = useState('');
+  const [merchantKey, setMerchantKey] = useState<string | null>(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [ruleName, setRuleName] = useState('');
   
