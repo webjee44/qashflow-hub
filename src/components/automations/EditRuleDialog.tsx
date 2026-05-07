@@ -154,18 +154,15 @@ export function EditRuleDialog({ open, onOpenChange, categories, rule, onUpdateR
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!rule || !conditionValue.trim() || !selectedCategoryId) return;
+    const hasPrimary = !!merchantKey || !!conditionValue.trim();
+    if (!rule || !hasPrimary || !selectedCategoryId) return;
 
-    // Build conditions array
-    const conditions: RuleCondition[] = [
-      {
-        condition_field: 'description',
-        condition_operator: 'contains',
-        condition_value: conditionValue.trim(),
-      }
-    ];
+    const primaryCondition: RuleCondition = merchantKey
+      ? { condition_field: 'merchant_key', condition_operator: 'equals', condition_value: merchantKey }
+      : { condition_field: 'description', condition_operator: 'contains', condition_value: conditionValue.trim() };
 
-    // Add amount condition if enabled
+    const conditions: RuleCondition[] = [primaryCondition];
+
     if (showAmountCondition && amountValue.trim()) {
       conditions.push({
         condition_field: 'amount',
@@ -174,7 +171,6 @@ export function EditRuleDialog({ open, onOpenChange, categories, rule, onUpdateR
       });
     }
 
-    // Add bank account condition if enabled
     if (showBankCondition && selectedBankAccount) {
       conditions.push({
         condition_field: 'bank_account_name',
@@ -183,10 +179,10 @@ export function EditRuleDialog({ open, onOpenChange, categories, rule, onUpdateR
       });
     }
 
-    // Auto-generate name if empty
     let finalName = ruleName.trim();
     if (!finalName) {
-      finalName = `${conditionValue.toUpperCase()}`;
+      const head = merchantKey ? merchantKey : conditionValue.toUpperCase();
+      finalName = head;
       if (showAmountCondition && amountValue.trim()) {
         finalName += ` + ${amountValue} €`;
       }
@@ -196,9 +192,9 @@ export function EditRuleDialog({ open, onOpenChange, categories, rule, onUpdateR
     setLoading(true);
     const result = await onUpdateRule(rule.id, {
       name: finalName,
-      condition_field: 'description',
-      condition_operator: 'contains',
-      condition_value: conditionValue.trim(),
+      condition_field: primaryCondition.condition_field,
+      condition_operator: primaryCondition.condition_operator,
+      condition_value: primaryCondition.condition_value,
       target_category_id: selectedCategoryId,
       conditions,
     });
