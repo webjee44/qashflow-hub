@@ -59,6 +59,7 @@ const amountOperators = [
 
 export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, trigger, defaultAmount }: CreateRuleDialogProps) {
   const bankAccounts = useBankAccountOptions();
+  const { currentCompany } = useCompany();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showCategoryDialog, setShowCategoryDialog] = useState(false);
