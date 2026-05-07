@@ -93,8 +93,8 @@ export function useBPModel(): { data: BPFinancialModel; isLoading: boolean } {
     queries.some(q => q.isLoading) ||
     forecastsQ.isLoading;
 
-  const data = useMemo<BPFinancialModel | null>(() => {
-    if (!enabled || isLoading) return null;
+  const data = useMemo<BPFinancialModel>(() => {
+    if (!enabled || isLoading) return EMPTY_MODEL;
     const input: BPModelInput = {
       settings,
       streams,
