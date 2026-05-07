@@ -489,6 +489,7 @@ export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, t
               preview={preview}
               loading={previewLoading}
               error={previewError}
+              onLockToMerchant={(s) => setMerchantKey(s.merchant_key)}
             />
           )}
 
