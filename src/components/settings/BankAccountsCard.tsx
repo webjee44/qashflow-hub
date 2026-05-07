@@ -366,7 +366,69 @@ export function BankAccountsCard() {
     }
   };
 
-  // Résout les noms des sociétés référencées par les assignations qui ne sont pas
+  // Bloque définitivement un compte (verrou DB). Le trigger DB exclut auto la liaison
+  // et soft-delete les transactions liées.
+  const handleBlock = async (account: BridgeAccount) => {
+    if (!confirm(
+      `Bloquer définitivement « ${account.bank_name || account.name || 'ce compte'} » ?\n\n` +
+      `Ce compte ne pourra plus jamais être réactivé automatiquement, même après synchronisation. ` +
+      `Ses transactions seront neutralisées.`
+    )) return;
+
+    setBlockingId(account.bridge_account_id);
+    try {
+      // Récupère l'identité du compte pour résister au changement d'ID Bridge
+      const { data: baRow } = await supabase
+        .from('bridge_accounts')
+        .select('bridge_item_id, bridge_user_uuid, account_identity')
+        .eq('bridge_account_id', account.bridge_account_id)
+        .maybeSingle();
+
+      const last4 = account.iban
+        ? account.iban.replace(/\s/g, '').slice(-4)
+        : null;
+
+      const { error } = await supabase.from('bridge_account_blocks').insert({
+        company_id: account.company_id,
+        bridge_account_id: account.bridge_account_id,
+        bridge_item_id: baRow?.bridge_item_id ?? null,
+        bridge_user_uuid: baRow?.bridge_user_uuid ?? null,
+        iban: account.iban,
+        iban_last4: last4,
+        account_identity: baRow?.account_identity ?? null,
+        reason: 'Blocage manuel depuis les paramètres',
+      });
+      if (error) throw error;
+      toast.success('Compte bloqué définitivement');
+      window.location.reload();
+    } catch (error) {
+      logError('Block error:', error);
+      toast.error('Impossible de bloquer ce compte');
+    } finally {
+      setBlockingId(null);
+    }
+  };
+
+  // Lève le blocage : le compte pourra réapparaître si la sync le renvoie.
+  const handleUnblock = async (blockId: string) => {
+    if (!confirm('Lever le blocage ? Le compte pourra réapparaître à la prochaine synchronisation.')) return;
+    setUnblockingId(blockId);
+    try {
+      const { error } = await supabase
+        .from('bridge_account_blocks')
+        .update({ is_active: false })
+        .eq('id', blockId);
+      if (error) throw error;
+      toast.success('Blocage levé');
+      setBlockedAccounts(prev => prev.filter(b => b.id !== blockId));
+    } catch (error) {
+      logError('Unblock error:', error);
+      toast.error('Impossible de lever le blocage');
+    } finally {
+      setUnblockingId(null);
+    }
+  };
+
   // déjà connues (cas super-admin / impersonation : comptes assignés à d'autres orgs).
   useEffect(() => {
     const referencedIds = new Set<string>();
