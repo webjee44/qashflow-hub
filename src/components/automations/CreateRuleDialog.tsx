@@ -162,18 +162,15 @@ export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, t
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!conditionValue.trim() || !selectedCategoryId) return;
+    const hasPrimary = !!merchantKey || !!conditionValue.trim();
+    if (!hasPrimary || !selectedCategoryId) return;
 
-    // Build conditions array
-    const conditions: RuleCondition[] = [
-      {
-        condition_field: 'description',
-        condition_operator: 'contains',
-        condition_value: conditionValue.trim(),
-      }
-    ];
+    const primaryCondition: RuleCondition = merchantKey
+      ? { condition_field: 'merchant_key', condition_operator: 'equals', condition_value: merchantKey }
+      : { condition_field: 'description', condition_operator: 'contains', condition_value: conditionValue.trim() };
 
-    // Add amount condition if enabled
+    const conditions: RuleCondition[] = [primaryCondition];
+
     if (showAmountCondition && amountValue.trim()) {
       conditions.push({
         condition_field: 'amount',
@@ -182,7 +179,6 @@ export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, t
       });
     }
 
-    // Add bank account condition if enabled
     if (showBankCondition && selectedBankAccount) {
       conditions.push({
         condition_field: 'bank_account_name',
@@ -191,10 +187,10 @@ export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, t
       });
     }
 
-    // Auto-generate name if empty
     let finalName = ruleName.trim();
     if (!finalName) {
-      finalName = `${conditionValue.toUpperCase()}`;
+      const head = merchantKey ? merchantKey : conditionValue.toUpperCase();
+      finalName = head;
       if (showAmountCondition && amountValue.trim()) {
         finalName += ` + ${amountValue} €`;
       }
@@ -204,9 +200,9 @@ export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, t
     setLoading(true);
     const result = await onCreateRule({
       name: finalName,
-      condition_field: 'description',
-      condition_operator: 'contains',
-      condition_value: conditionValue.trim(),
+      condition_field: primaryCondition.condition_field,
+      condition_operator: primaryCondition.condition_operator,
+      condition_value: primaryCondition.condition_value,
       action_type: 'categorize',
       target_category_id: selectedCategoryId,
       conditions,
@@ -219,7 +215,7 @@ export function CreateRuleDialog({ categories, onCreateRule, onCreateCategory, t
     }
   };
 
-  const canSubmit = !!conditionValue.trim() && !!selectedCategoryId && (!lowSafety || acknowledgeRisk);
+  const canSubmit = (!!merchantKey || !!conditionValue.trim()) && !!selectedCategoryId && (!lowSafety || acknowledgeRisk);
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => {
