@@ -256,12 +256,7 @@ export function SuggestAutomationDialog({
     }
   };
 
-  const formatAmount = (amount: number) => {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'EUR',
-    }).format(Math.abs(amount));
-  };
+  // formatAmount removed — preview panel handles its own formatting
 
   const getOperatorLabel = (operator: string) => {
     switch (operator) {
