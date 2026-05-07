@@ -409,6 +409,13 @@ export function EditRuleDialog({ open, onOpenChange, categories, rule, onUpdateR
             </label>
           )}
 
+          {/* PR2 — Run history & rollback */}
+          {rule?.id && (
+            <div className="pt-2 border-t border-border/40">
+              <AutomationRunHistory ruleId={rule.id} />
+            </div>
+          )}
+
           {/* Actions */}
           <div className="flex justify-end gap-3 pt-2">
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
