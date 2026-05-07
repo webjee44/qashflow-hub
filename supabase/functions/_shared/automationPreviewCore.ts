@@ -6,6 +6,10 @@ import {
   type AutomationRuleConditionLikeCore,
   type TransactionLikeCore,
 } from './automationRuleMatchingCore.ts';
+import {
+  computeSpecificityBreakdown,
+  type ScoreBreakdown,
+} from './ruleScoring.ts';
 
 export interface PreviewCondition extends AutomationRuleConditionLikeCore {}
 
@@ -14,6 +18,14 @@ export interface PreviewTransaction extends TransactionLikeCore {
   category_id: string | null;
   amount: number | string;
   date?: string | null;
+  merchant_key?: string | null;
+  normalized_description?: string | null;
+}
+
+export interface MerchantSuggestion {
+  merchant_key: string;
+  match_count: number;
+  sample_description: string;
 }
 
 export interface PreviewExistingRule {
