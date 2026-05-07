@@ -197,6 +197,7 @@ export function BankAccountsCard() {
 
   const [accounts, setAccounts] = useState<BridgeAccount[]>([]);
   const [excludedAccounts, setExcludedAccounts] = useState<BridgeAccount[]>([]);
+  const [blockedAccounts, setBlockedAccounts] = useState<Array<{ id: string; company_id: string; bridge_account_id: number; iban: string | null; iban_last4: string | null; reason: string | null; blocked_at: string }>>([]);
   const [assignments, setAssignments] = useState<Map<number, AccountAssignment>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -204,6 +205,8 @@ export function BankAccountsCard() {
   const [isConnecting, setIsConnecting] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [reintegratingId, setReintegratingId] = useState<number | null>(null);
+  const [blockingId, setBlockingId] = useState<number | null>(null);
+  const [unblockingId, setUnblockingId] = useState<string | null>(null);
 
   // Filter displayed accounts based on role
   const displayedAccounts = useMemo(() => {
