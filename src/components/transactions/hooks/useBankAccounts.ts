@@ -1,17 +1,24 @@
 import { useMemo, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { useCompany } from '@/hooks/useCompany';
 
 export function useBankAccounts() {
+  const { currentCompany } = useCompany();
+
   const { data: bridgeAccounts = [] } = useQuery({
-    queryKey: ['bridge-accounts-all'],
+    queryKey: ['bridge-accounts-authorized', currentCompany?.id],
     queryFn: async () => {
+      if (!currentCompany?.id) return [];
+
       const { data, error } = await supabase
-        .from('bridge_accounts')
-        .select('name, bank_name');
+        .from('company_active_bridge_accounts')
+        .select('name, bank_name')
+        .eq('company_id', currentCompany.id);
       if (error) throw error;
       return data || [];
     },
+    enabled: !!currentCompany?.id,
     staleTime: 5 * 60 * 1000,
   });
 

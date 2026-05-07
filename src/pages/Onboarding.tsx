@@ -460,66 +460,6 @@ export default function Onboarding() {
     }
   };
 
-  const autoAssignBankAccounts = async (companyId: string) => {
-    try {
-      // Fetch all bridge accounts for this company
-      const { data: bridgeAccounts, error: fetchError } = await supabase
-        .from('bridge_accounts')
-        .select('bridge_account_id')
-        .eq('company_id', companyId);
-
-      if (fetchError || !bridgeAccounts?.length) return;
-
-      // Check existing assignments
-      const { data: existing } = await supabase
-        .from('company_bridge_accounts')
-        .select('bridge_account_id')
-        .eq('company_id', companyId);
-
-      const existingIds = new Set((existing || []).map(e => e.bridge_account_id));
-      const newAssignments = bridgeAccounts
-        .filter(a => !existingIds.has(a.bridge_account_id))
-        .map(a => ({ company_id: companyId, bridge_account_id: a.bridge_account_id }));
-
-      if (newAssignments.length > 0) {
-        await supabase.from('company_bridge_accounts').insert(newAssignments);
-      }
-
-      // Update company balance & count using company_bridge_accounts as source of truth
-      const { data: finalAssignments } = await supabase
-        .from('company_bridge_accounts')
-        .select('bridge_account_id')
-        .eq('company_id', companyId);
-
-      const finalIds = (finalAssignments || []).map(a => a.bridge_account_id);
-      let totalBalance = 0;
-      let accountCount = 0;
-
-      if (finalIds.length > 0) {
-        const { data: assignedAccounts } = await supabase
-          .from('bridge_accounts')
-          .select('balance')
-          .in('bridge_account_id', finalIds);
-
-        totalBalance = (assignedAccounts || []).reduce((sum, a) => sum + (Number(a.balance) || 0), 0);
-        accountCount = assignedAccounts?.length || 0;
-      }
-
-      await supabase
-        .from('companies')
-        .update({
-          bridge_accounts_count: accountCount,
-          bank_balance: totalBalance,
-          bank_balance_updated_at: new Date().toISOString(),
-        })
-        .eq('id', companyId);
-
-      logDebug('Auto-assigned bank accounts to company', { companyId, count: newAssignments.length });
-    } catch (err) {
-      logError('Auto-assign bank accounts error:', err);
-    }
-  };
-
   const handleComplete = async () => {
     if (!user) return;
     try {
@@ -572,9 +512,8 @@ export default function Onboarding() {
         } catch (syncErr) {
           logError('Bridge sync before auto-assign failed:', syncErr);
         }
-        // Auto-assign is now handled server-side in bridge-sync for single-company users,
-        // but run client-side as fallback
-        await autoAssignBankAccounts(userCompanies[0].id);
+        // L'assignation bancaire est centralisée côté synchronisation afin de
+        // respecter les exclusions durables par identité bancaire.
       }
 
       // Invalidate all cached data so the app fetches fresh state

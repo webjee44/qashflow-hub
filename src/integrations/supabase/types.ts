@@ -1769,6 +1769,50 @@ export type Database = {
           },
         ]
       }
+      company_bridge_account_identity_exclusions: {
+        Row: {
+          account_identity: string
+          account_type: string | null
+          bridge_user_uuid: string | null
+          company_id: string
+          created_at: string
+          excluded_by: string | null
+          id: string
+          reason: string | null
+          updated_at: string
+        }
+        Insert: {
+          account_identity: string
+          account_type?: string | null
+          bridge_user_uuid?: string | null
+          company_id: string
+          created_at?: string
+          excluded_by?: string | null
+          id?: string
+          reason?: string | null
+          updated_at?: string
+        }
+        Update: {
+          account_identity?: string
+          account_type?: string | null
+          bridge_user_uuid?: string | null
+          company_id?: string
+          created_at?: string
+          excluded_by?: string | null
+          id?: string
+          reason?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_bridge_account_identity_exclusions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       company_bridge_accounts: {
         Row: {
           bridge_account_id: number
@@ -2788,6 +2832,10 @@ export type Database = {
       is_superadmin: { Args: { _user_id: string }; Returns: boolean }
       recompute_company_bank_stats: {
         Args: { p_company_id: string }
+        Returns: undefined
+      }
+      reintegrate_company_bridge_account: {
+        Args: { p_bridge_account_id: number; p_company_id: string }
         Returns: undefined
       }
       remove_organization_member: {

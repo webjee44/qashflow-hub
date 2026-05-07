@@ -21,6 +21,12 @@ import {
 } from '../_shared/validation.ts';
 import { deriveTransactionNormalization } from '../_shared/merchantNormalizer.ts';
 
+function publicComputeAccountIdentity(iban: string | null | undefined, name: string | null | undefined, accountType: string | null | undefined): string {
+  const normalizedIban = (iban || '').toLowerCase().replace(/\s+/g, '');
+  if (normalizedIban) return normalizedIban;
+  return `fallback:${(name || '').toLowerCase()}:${(accountType || '').toLowerCase()}`;
+}
+
 // ============================================
 // Helper: Build account_id -> company_id map
 // ============================================
@@ -169,7 +175,7 @@ async function syncBridgeAccounts(
       if (candidates.length === 0) continue;
       const incomingAccount = incomingByAccountId.get(incoming.id);
       if (!incomingAccount) continue;
-      const incomingType = (incomingAccount as any).account_type || null;
+      const incomingType = (incomingAccount as any).account_type || (incomingAccount as any).type || null;
 
       for (const old of candidates) {
         if (old.lifecycle_status !== 'active') continue; // déjà décidé
@@ -211,6 +217,23 @@ async function syncBridgeAccounts(
           .from('company_bridge_accounts')
           .select('company_id, status, excluded_at, excluded_by, exclusion_reason')
           .eq('bridge_account_id', old.bridge_account_id);
+
+        const excludedMappings = (oldMappings || []).filter((m: any) => m.status === 'excluded');
+        if (excludedMappings.length > 0) {
+          await supabaseAdmin
+            .from('company_bridge_account_identity_exclusions')
+            .upsert(
+              excludedMappings.map((m: any) => ({
+                company_id: m.company_id,
+                bridge_user_uuid: bridgeUserUuid,
+                account_identity: incoming.iban.toLowerCase(),
+                account_type: incomingType,
+                reason: m.exclusion_reason || 'Compte exclu durablement',
+                excluded_by: m.excluded_by,
+              })),
+              { onConflict: 'company_id,account_identity' },
+            );
+        }
 
         const toCreate = (oldMappings || [])
           .filter((m: any) => !existingCompanies.has(m.company_id))
@@ -886,8 +909,19 @@ Deno.serve(async (req) => {
           .in('bridge_account_id', bridgeAccountIds);
 
         const alreadyDecided = new Set((existingAssignments || []).map((a: any) => a.bridge_account_id));
+        const { data: identityExclusions } = await supabaseAdmin
+          .from('company_bridge_account_identity_exclusions')
+          .select('account_identity')
+          .eq('company_id', singleCompanyId);
+        const blockedIdentities = new Set((identityExclusions || []).map((e: any) => e.account_identity));
+        const accountIdentityById = new Map(
+          allAccounts.map((a: BridgeAccount) => [
+            a.id,
+            publicComputeAccountIdentity(a.iban, a.name, (a as any).account_type || a.type || null),
+          ]),
+        );
         const toAutoAssign = bridgeAccountIds.filter(
-          (id: number) => !alreadyDecided.has(id) && !nonActiveSet.has(id)
+          (id: number) => !alreadyDecided.has(id) && !nonActiveSet.has(id) && !blockedIdentities.has(accountIdentityById.get(id))
         );
 
         if (toAutoAssign.length > 0) {

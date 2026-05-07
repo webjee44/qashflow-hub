@@ -18,14 +18,12 @@ export function useBankAccountOptions() {
   const { data: accounts = [] } = useQuery({
     queryKey: ['bank-account-options', currentCompany?.id],
     queryFn: async () => {
-      if (!currentCompany?.bridge_user_uuid) return [];
+      if (!currentCompany?.id) return [];
 
       const { data, error } = await supabase
-        .from('bridge_accounts')
+        .from('company_active_bridge_accounts')
         .select('name, bank_name')
-        .eq('bridge_user_uuid', currentCompany.bridge_user_uuid)
-        .eq('status', 'active')
-        .eq('lifecycle_status', 'active');
+        .eq('company_id', currentCompany.id);
 
       if (error) throw error;
 
@@ -39,7 +37,7 @@ export function useBankAccountOptions() {
             : a.name,
         }));
     },
-    enabled: !!currentCompany?.bridge_user_uuid,
+    enabled: !!currentCompany?.id,
     staleTime: 5 * 60 * 1000,
   });
 
