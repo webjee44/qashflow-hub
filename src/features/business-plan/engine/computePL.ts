@@ -268,31 +268,21 @@ export function computePL(input: BPModelInput): PLData {
 
   const getFiscalYears = (): FiscalYear[] => {
     const startDate = settings.bp_start_date ? new Date(settings.bp_start_date) : new Date();
-    const startMonth = settings.fiscal_year_start_month || 1;
-    const startDay = settings.fiscal_year_start_day || 1;
-    const numYears = settings.bp_years || 3;
-
-    const years: FiscalYear[] = [];
-    let fiscalYearStart = new Date(startDate.getFullYear(), startMonth - 1, startDay);
-    if (fiscalYearStart > startDate) {
-      fiscalYearStart = new Date(startDate.getFullYear() - 1, startMonth - 1, startDay);
-    }
-
-    for (let i = 0; i < numYears; i++) {
-      const yearStart = new Date(fiscalYearStart);
-      yearStart.setFullYear(yearStart.getFullYear() + i);
-      const yearEnd = new Date(yearStart);
-      yearEnd.setFullYear(yearEnd.getFullYear() + 1);
-      yearEnd.setDate(yearEnd.getDate() - 1);
-      const months: Date[] = [];
-      let currentMonth = startOfMonth(yearStart);
-      while (currentMonth <= yearEnd) {
-        months.push(currentMonth);
-        currentMonth = addMonths(currentMonth, 1);
-      }
-      years.push({ start: yearStart, end: yearEnd, label: `Année ${i + 1}`, months });
-    }
-    return years;
+    const fiscalYears = buildFiscalYears({
+      bpStartDate: startDate,
+      bpYears: settings.bp_years || 3,
+      fiscalYearStartMonth: settings.fiscal_year_start_month || 1,
+      fiscalYearStartDay: settings.fiscal_year_start_day || 1,
+      firstFiscalYearEndDate: settings.first_fiscal_year_end_date
+        ? new Date(settings.first_fiscal_year_end_date)
+        : null,
+    });
+    return fiscalYears.map(fy => ({
+      start: fy.start,
+      end: fy.end,
+      label: fy.label,
+      months: fy.months,
+    }));
   };
 
   // ── Build P&L (verbatim from useProfitLoss useMemo) ──
