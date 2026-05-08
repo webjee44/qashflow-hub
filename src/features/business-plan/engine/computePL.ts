@@ -18,6 +18,7 @@ import { PAYMENT_FREQUENCIES, DEPARTURE_TYPES } from '@/constants/bpConstants';
 import { normalizeRate } from '@/lib/rateUtils';
 import type { BPModelInput } from './types';
 import type { PLData, PLRow, FiscalYear } from '../hooks/useProfitLoss';
+import { buildFiscalYears } from './buildFiscalYears';
 
 // Stock variation helper — same formula as useStocks.getStockVariation
 function makeGetStockVariation(stocks: any[]) {
