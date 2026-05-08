@@ -37,6 +37,7 @@ const EMPTY_INPUT: BPModelInput = {
     fiscal_year_start_day: 1,
     bp_start_date: null,
     bp_years: 3,
+    first_fiscal_year_end_date: null,
     show_stocks: true,
     show_financing: true,
     show_funding_plan: true,

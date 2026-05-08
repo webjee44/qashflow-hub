@@ -14,6 +14,7 @@ export const minimalBPInput: BPModelInput = {
     fiscal_year_start_day: 1,
     bp_start_date: '2025-01-01',
     bp_years: 3,
+    first_fiscal_year_end_date: null,
     show_stocks: false,
     show_financing: true,
     show_funding_plan: true,
