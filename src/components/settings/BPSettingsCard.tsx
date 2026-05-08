@@ -186,7 +186,34 @@ export function BPSettingsCard() {
           </div>
         </div>
 
-        <Button onClick={handleSave} disabled={isSaving} className="gap-2">
+        {/* Premier exercice fiscal long (optionnel) */}
+        <div className="space-y-2">
+          <Label htmlFor="first-fy-end">Date de clôture du 1er exercice (optionnel)</Label>
+          <Input
+            id="first-fy-end"
+            type="date"
+            value={firstFyEnd}
+            onChange={(e) => setFirstFyEnd(e.target.value)}
+            min={bpStartDate || undefined}
+            className="max-w-xs"
+          />
+          <p className="text-xs text-muted-foreground">
+            Si renseigné, définit la fin du 1er exercice fiscal (premier exercice long, max 24 mois — légal France pour création).
+            Sinon, exercice calendaire 12 mois par défaut.
+          </p>
+          {y1Months !== null && (
+            <div className="p-3 bg-muted/50 rounded-lg">
+              <p className="text-sm">
+                <span className="font-medium">Durée du 1er exercice : </span>
+                {y1Months} mois
+                {y1Months > 12 && <span className="ml-2 text-primary">(premier exercice long)</span>}
+                {y1Months > 24 && <span className="ml-2 text-destructive">(dépasse la limite de 24 mois)</span>}
+              </p>
+            </div>
+          )}
+        </div>
+
+        <Button onClick={handleSave} disabled={isSaving || (y1Months !== null && y1Months > 24)} className="gap-2">
           {isSaving ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
