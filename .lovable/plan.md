@@ -1,93 +1,61 @@
-# Verrou DB anti-réactivation des comptes Bridge
+## Contexte
+
+Aujourd'hui le moteur BP est figé à **24 mois / 3 exercices fiscaux de 12 mois**, alignés sur l'année calendaire de `bp_start_date`. Cas E-fumeur Internet :
+
+- Démarrage : **Septembre 2025**
+- Fin Y1 : **31 Décembre 2026** (premier exercice long de 16 mois — légal en France, max 24 mois pour une création)
+- Y2 : 2027 complet (12 mois)
+- Y3 : 2028 complet (12 mois)
+- Total : **40 mois projetés**
+
+Le pattern "premier exercice long" est universel (toute SAS/SARL créée hors janvier l'utilise). Le résoudre proprement débloque tous les futurs BP, pas juste E-fumeur.
 
 ## Cause racine
 
-L'exclusion actuelle vit uniquement dans `company_bridge_accounts.status='excluded'`. Tout chemin (sync Bridge, script, écran, upsert) qui repasse une ligne à `active` rouvre la fuite. Le trigger actuel `prevent_excluded_to_active_reactivation` ne se déclenche que si les champs d'exclusion sont encore présents — un upsert qui les écrase passe au travers. Il faut donc une **source de vérité indépendante** : une blacklist persistante qui ne peut pas être contournée par la sync.
+`bp_settings` stocke déjà `bp_start_date`, `bp_years`, `fiscal_year_start_month`, `fiscal_year_start_day` — mais le moteur ignore ces champs et applique partout 24 mois calendaires. Il manque **un seul concept métier** : la **date de fin du premier exercice fiscal** (`first_fiscal_year_end_date`).
 
-## Ce que je vais faire
+À partir de là, tout se déduit :
+- Durée Y1 = `first_fiscal_year_end_date - bp_start_date`
+- Y2, Y3 = 12 mois calendaires à partir de la fin Y1
+- Total mois projetés = somme des 3 exercices
 
-### 1. Nouvelle table `bridge_account_blocks` (verrou métier)
+## Plan technique
 
-Table dédiée, RLS stricte (lecture/gestion réservée aux propriétaires de la société + superadmin), avec index sur `(company_id, bridge_account_id)` et `(company_id, is_active)`.
+### 1. Schéma DB (migration)
+Ajouter sur `bp_settings` :
+- `first_fiscal_year_end_date date` (nullable, fallback = 31/12 de l'année de `bp_start_date`)
+- Trigger de cohérence : Y1 entre 1 et 24 mois.
 
-Champs : `company_id`, `bridge_account_id`, `bridge_item_id`, `bridge_user_uuid`, `iban`, `iban_last4`, `account_identity` (calculé via `compute_bridge_account_identity` pour résister au changement d'ID Bridge), `reason`, `blocked_at`, `blocked_by`, `is_active`.
+### 2. Moteur (`src/features/business-plan/engine/`)
+- `buildPeriodAxis()` : nouvelle fonction qui construit la liste `months[]` + `fiscalYears[{ index, startDate, endDate, monthCount }]` depuis `bp_start_date` + `first_fiscal_year_end_date` + `bp_years`.
+- Remplacer toutes les boucles "24 mois" / "année 1, 2, 3 = 12 mois" par cet axe partagé : `computePL`, `computeCashFlow`, `computeBalanceSheet`, `computeFundingPlan`, `computeRatios`, `loanSchedule`.
+- Validator : assouplir contrainte 24 mois.
 
-### 2. Trigger `prevent_blocked_bridge_account_activation`
+### 3. Hooks & sélecteurs
+- `useBPSettings` : exposer `firstFiscalYearEndDate` + helper `getFiscalYears()`.
+- Tous les sélecteurs annuels (`useBPRatios`, `useProfitLoss`, etc.) consomment l'axe.
 
-`BEFORE INSERT OR UPDATE` sur `company_bridge_accounts`. Si `(company_id, bridge_account_id)` figure dans `bridge_account_blocks` avec `is_active = true`, force `status='excluded'` + remplit `excluded_at` / `exclusion_reason`. Indépendant du trigger existant — les deux cohabitent.
+### 4. UI
+- `BPWizardStep1Settings.tsx` : ajouter un champ **"Date de clôture du 1er exercice"** (par défaut 31/12 de l'année de démarrage). Validation visuelle si Y1 > 12 mois → badge "Premier exercice long".
+- Affichage colonne année : `Y1 (Sept 25 → Déc 26 — 16 mois)`, `Y2 (2027)`, `Y3 (2028)`.
+- Suppression du sélecteur "3 ans / 5 ans / 7 ans" actuellement non câblé OU on le garde mais on le borne réellement (max 3 exercices reste la règle business).
 
-### 3. Vue `company_active_bridge_accounts` mise à jour
+### 5. PDF
+- `PnlSection.tsx`, `CashFlowSection.tsx`, etc. consomment le même axe → libellés cohérents.
+- Encadré pédagogique : adapter les % YoY pour qu'ils tiennent compte de la durée Y1 (annualisation pour comparaison juste).
 
-Ajout d'un `NOT EXISTS` qui exclut explicitement tout `(company_id, bridge_account_id)` blacklisté. Double sécurité : même si une ligne `cba` reste à `active` par erreur, elle n'apparaît plus dans la vue.
+### 6. Mémoire produit
+Mettre à jour la règle core "Hardcoded to 24 months / 3 fiscal years" → "**3 exercices fiscaux, Y1 entre 1 et 24 mois (premier exercice long supporté), Y2 et Y3 calendaires**".
 
-Aussi : exclusion par `account_identity` (IBAN normalisé). Si Bridge renvoie le même compte sous un nouvel ID, il est bloqué d'office.
+## Impacts & non-régressions
 
-### 4. Soft-delete des transactions par `bridge_account_id` (jamais par nom)
+- Tous les BP existants : `first_fiscal_year_end_date = bp_start_date.year-12-31` par défaut → comportement identique au 24 mois actuel pour les BP démarrés en janvier, et les BP en cours seront automatiquement migrés (Y1 partiel jusqu'à fin année calendaire — ce qui est déjà ce que les utilisateurs voient).
+- Tests unitaires `engine/` à étendre : cas Y1 = 4 mois, Y1 = 12 mois, Y1 = 16 mois, Y1 = 24 mois.
 
-Trigger `soft_delete_transactions_on_block_insert` : à l'insertion d'un block actif, soft-delete toutes les transactions correspondantes via `bridge_account_id` uniquement.
+## Après merge
 
-### 5. Recompute soldes
+J'enchaîne sur la mise à jour des données E-fumeur (CA, charges, équipe, invest, financements, stocks) avec le nouvel axe Y1=16 mois.
 
-Appel à `recompute_company_bank_stats(company_id)` à la fin de la migration et après chaque insertion/désactivation de block (via trigger).
+## Question avant de coder
 
-### 6. Blocage immédiat des 3 comptes Vapeclub
-
-Insertion ciblée dans `bridge_account_blocks` pour la société Vapeclub via les critères fournis (IBAN se terminant par 4072 / 6102 / 6902, ou nom contenant 2761 / 9269). Récupération préalable du `company_id` Vapeclub via lecture DB.
-
-### 7. Hardening edge functions
-
-- **`bridge-sync`** : avant tout upsert dans `company_bridge_accounts` ou route de transaction, charger la blacklist de la société et filtrer. Aucun fallback, aucune auto-assignation, aucun routage sur un compte blacklisté.
-- **`bridge-accounts/get-accounts`** : confirmer qu'avec `company_id`, on lit exclusivement `company_active_bridge_accounts` (déjà fait à l'étape précédente, mais re-vérifier qu'aucun chemin n'utilise `fetchAllAccounts` pour l'UI). L'endpoint debug raw reste superadmin only.
-
-### 8. UI Paramètres — gestion de la blacklist
-
-Dans `BankAccountsCard`, ajouter une 3e section "Comptes bloqués (verrou)" affichant les blocks actifs, avec :
-- bouton "Lever le blocage" (réservé Owner) qui passe `is_active=false` après confirmation forte ;
-- explication courte : "ces comptes ne peuvent plus revenir, même après synchronisation".
-
-### 9. Tests de non-régression
-
-- **Deno test `bridge-sync`** : Bridge renvoie un compte blacklisté → la ligne `company_bridge_accounts` ressort `excluded`, aucune transaction n'est créée, le solde n'est pas impacté.
-- **Deno test `bridge-accounts`** : `get-accounts(company_id)` ne retourne jamais un compte blacklisté.
-- **Test SQL** : tentative manuelle d'`UPDATE company_bridge_accounts SET status='active'` sur une ligne blacklistée → la valeur reste `excluded` après commit.
-- **Test identité** : insertion d'un nouveau `bridge_account_id` partageant l'`account_identity` d'un compte blacklisté → exclu d'office.
-
-### 10. Critères de clôture (5 requêtes)
-
-J'exécute après la migration les 5 SELECT fournis et je joins le résultat. Le ticket n'est clos que si :
-- blocks Vapeclub présents et actifs ;
-- 0 ligne `cba.status='active'` joint blocks ;
-- 0 transaction active sur comptes bloqués ;
-- 0 ligne dans la vue pour ces comptes ;
-- la liste des comptes actifs Vapeclub correspond aux comptes légitimes.
-
-## Détails techniques
-
-```text
-                      bridge-sync
-                          │
-                          ▼
-       ┌───────────── filtre blacklist ──────────┐
-       │                                         │
-       ▼                                         ▼
-company_bridge_accounts                    transactions
-       │  ▲                                       │
-       │  └── trigger anti-réactivation ──────────┤
-       ▼                                          ▼
-company_active_bridge_accounts (NOT EXISTS blacklist)
-       │
-       ▼
-        UI (Dashboard, Paramètres)
-```
-
-Tables/objets touchés :
-- **Nouveau** : `bridge_account_blocks` (+ RLS, index, triggers).
-- **Modifié** : vue `company_active_bridge_accounts`, fonction `bridge-sync/index.ts`, fonction `bridge-accounts/index.ts` (re-vérification).
-- **UI** : `src/components/settings/BankAccountsCard.tsx` (section "Comptes bloqués"), nouvelle API dans `src/features/bank/api` pour CRUD blocks.
-- **Tests** : Deno tests pour `bridge-sync` et `bridge-accounts`, test SQL anti-réactivation.
-
-## Risque & rollback
-
-- Le block est réversible (`is_active=false` + suppression du block lève le verrou et le compte peut revenir si la sync le renvoie).
-- Aucune donnée n'est supprimée durement : transactions restent en soft-delete, comptes restent en `excluded`.
-- Migration idempotente : `CREATE IF NOT EXISTS`, triggers `DROP IF EXISTS` avant recréation.
+Veux-tu que j'embarque aussi dans cette PR la **suppression du sélecteur "3/5/7 ans"** dans le wizard (pour aligner le produit sur la règle "toujours 3 exercices") ou on le laisse pour une PR ultérieure ?

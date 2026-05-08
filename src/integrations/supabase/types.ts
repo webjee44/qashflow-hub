@@ -1133,6 +1133,7 @@ export type Database = {
           company_id: string | null
           created_at: string | null
           customer_payment_delay: number | null
+          first_fiscal_year_end_date: string | null
           fiscal_year_start_day: number | null
           fiscal_year_start_month: number | null
           id: string
@@ -1153,6 +1154,7 @@ export type Database = {
           company_id?: string | null
           created_at?: string | null
           customer_payment_delay?: number | null
+          first_fiscal_year_end_date?: string | null
           fiscal_year_start_day?: number | null
           fiscal_year_start_month?: number | null
           id?: string
@@ -1173,6 +1175,7 @@ export type Database = {
           company_id?: string | null
           created_at?: string | null
           customer_payment_delay?: number | null
+          first_fiscal_year_end_date?: string | null
           fiscal_year_start_day?: number | null
           fiscal_year_start_month?: number | null
           id?: string

@@ -5,6 +5,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { useEffect } from 'react';
 import { logError } from '@/lib/logger';
+import { buildFiscalYears } from '@/features/business-plan/engine/buildFiscalYears';
 
 export interface BPSettings {
   id: string;
@@ -20,6 +21,7 @@ export interface BPSettings {
   fiscal_year_start_day: number;
   bp_start_date: string | null;
   bp_years: number;
+  first_fiscal_year_end_date: string | null;
   show_stocks: boolean;
   show_financing: boolean;
   show_funding_plan: boolean;
@@ -38,6 +40,7 @@ const DEFAULT_SETTINGS = {
   fiscal_year_start_day: 1,
   bp_start_date: null,
   bp_years: 3,
+  first_fiscal_year_end_date: null,
   show_stocks: true,
   show_financing: true,
   show_funding_plan: true,
@@ -145,39 +148,21 @@ export function useBPSettings() {
     updated_at: '',
   };
 
-  // Helper to get fiscal year dates
+  // Helper to get fiscal year dates — uses shared engine helper for consistency
   const getFiscalYears = () => {
-    const startDate = effectiveSettings.bp_start_date 
-      ? new Date(effectiveSettings.bp_start_date) 
+    const startDate = effectiveSettings.bp_start_date
+      ? new Date(effectiveSettings.bp_start_date)
       : new Date();
-    const startMonth = effectiveSettings.fiscal_year_start_month;
-    const startDay = effectiveSettings.fiscal_year_start_day;
-    const numYears = effectiveSettings.bp_years;
-
-    const years: { start: Date; end: Date; label: string }[] = [];
-
-    // Find the first fiscal year that contains or follows bp_start_date
-    let fiscalYearStart = new Date(startDate.getFullYear(), startMonth - 1, startDay);
-    if (fiscalYearStart > startDate) {
-      fiscalYearStart = new Date(startDate.getFullYear() - 1, startMonth - 1, startDay);
-    }
-
-    for (let i = 0; i < numYears; i++) {
-      const yearStart = new Date(fiscalYearStart);
-      yearStart.setFullYear(yearStart.getFullYear() + i);
-      
-      const yearEnd = new Date(yearStart);
-      yearEnd.setFullYear(yearEnd.getFullYear() + 1);
-      yearEnd.setDate(yearEnd.getDate() - 1);
-
-      years.push({
-        start: yearStart,
-        end: yearEnd,
-        label: `Année ${i + 1}`,
-      });
-    }
-
-    return years;
+    const fiscalYears = buildFiscalYears({
+      bpStartDate: startDate,
+      bpYears: effectiveSettings.bp_years,
+      fiscalYearStartMonth: effectiveSettings.fiscal_year_start_month,
+      fiscalYearStartDay: effectiveSettings.fiscal_year_start_day,
+      firstFiscalYearEndDate: effectiveSettings.first_fiscal_year_end_date
+        ? new Date(effectiveSettings.first_fiscal_year_end_date)
+        : null,
+    });
+    return fiscalYears.map(fy => ({ start: fy.start, end: fy.end, label: fy.label }));
   };
 
   return {

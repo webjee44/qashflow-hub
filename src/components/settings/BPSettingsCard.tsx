@@ -36,6 +36,7 @@ export function BPSettingsCard() {
   const [bpYears, setBpYears] = useState(3);
   const [fiscalMonth, setFiscalMonth] = useState(1);
   const [fiscalDay, setFiscalDay] = useState(1);
+  const [firstFyEnd, setFirstFyEnd] = useState<string>('');
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
@@ -44,6 +45,7 @@ export function BPSettingsCard() {
       setBpYears(settings.bp_years || 3);
       setFiscalMonth(settings.fiscal_year_start_month || 1);
       setFiscalDay(settings.fiscal_year_start_day || 1);
+      setFirstFyEnd(settings.first_fiscal_year_end_date || '');
     }
   }, [settings]);
 
@@ -55,11 +57,21 @@ export function BPSettingsCard() {
         bp_years: bpYears,
         fiscal_year_start_month: fiscalMonth,
         fiscal_year_start_day: fiscalDay,
+        first_fiscal_year_end_date: firstFyEnd || null,
       });
     } finally {
       setIsSaving(false);
     }
   };
+
+  // Compute Y1 duration in months for display feedback
+  const y1Months = (() => {
+    if (!bpStartDate || !firstFyEnd) return null;
+    const start = new Date(bpStartDate);
+    const end = new Date(firstFyEnd);
+    if (end <= start) return null;
+    return Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 30.4375));
+  })();
 
   // Generate days for selected month
   const getDaysInMonth = (month: number) => {
@@ -174,7 +186,34 @@ export function BPSettingsCard() {
           </div>
         </div>
 
-        <Button onClick={handleSave} disabled={isSaving} className="gap-2">
+        {/* Premier exercice fiscal long (optionnel) */}
+        <div className="space-y-2">
+          <Label htmlFor="first-fy-end">Date de clôture du 1er exercice (optionnel)</Label>
+          <Input
+            id="first-fy-end"
+            type="date"
+            value={firstFyEnd}
+            onChange={(e) => setFirstFyEnd(e.target.value)}
+            min={bpStartDate || undefined}
+            className="max-w-xs"
+          />
+          <p className="text-xs text-muted-foreground">
+            Si renseigné, définit la fin du 1er exercice fiscal (premier exercice long, max 24 mois — légal France pour création).
+            Sinon, exercice calendaire 12 mois par défaut.
+          </p>
+          {y1Months !== null && (
+            <div className="p-3 bg-muted/50 rounded-lg">
+              <p className="text-sm">
+                <span className="font-medium">Durée du 1er exercice : </span>
+                {y1Months} mois
+                {y1Months > 12 && <span className="ml-2 text-primary">(premier exercice long)</span>}
+                {y1Months > 24 && <span className="ml-2 text-destructive">(dépasse la limite de 24 mois)</span>}
+              </p>
+            </div>
+          )}
+        </div>
+
+        <Button onClick={handleSave} disabled={isSaving || (y1Months !== null && y1Months > 24)} className="gap-2">
           {isSaving ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
