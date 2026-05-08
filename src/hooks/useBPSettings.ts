@@ -20,6 +20,7 @@ export interface BPSettings {
   fiscal_year_start_day: number;
   bp_start_date: string | null;
   bp_years: number;
+  first_fiscal_year_end_date: string | null;
   show_stocks: boolean;
   show_financing: boolean;
   show_funding_plan: boolean;
@@ -38,6 +39,7 @@ const DEFAULT_SETTINGS = {
   fiscal_year_start_day: 1,
   bp_start_date: null,
   bp_years: 3,
+  first_fiscal_year_end_date: null,
   show_stocks: true,
   show_financing: true,
   show_funding_plan: true,
