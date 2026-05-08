@@ -36,6 +36,7 @@ export function BPSettingsCard() {
   const [bpYears, setBpYears] = useState(3);
   const [fiscalMonth, setFiscalMonth] = useState(1);
   const [fiscalDay, setFiscalDay] = useState(1);
+  const [firstFyEnd, setFirstFyEnd] = useState<string>('');
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
@@ -44,6 +45,7 @@ export function BPSettingsCard() {
       setBpYears(settings.bp_years || 3);
       setFiscalMonth(settings.fiscal_year_start_month || 1);
       setFiscalDay(settings.fiscal_year_start_day || 1);
+      setFirstFyEnd(settings.first_fiscal_year_end_date || '');
     }
   }, [settings]);
 
@@ -55,11 +57,21 @@ export function BPSettingsCard() {
         bp_years: bpYears,
         fiscal_year_start_month: fiscalMonth,
         fiscal_year_start_day: fiscalDay,
+        first_fiscal_year_end_date: firstFyEnd || null,
       });
     } finally {
       setIsSaving(false);
     }
   };
+
+  // Compute Y1 duration in months for display feedback
+  const y1Months = (() => {
+    if (!bpStartDate || !firstFyEnd) return null;
+    const start = new Date(bpStartDate);
+    const end = new Date(firstFyEnd);
+    if (end <= start) return null;
+    return Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 30.4375));
+  })();
 
   // Generate days for selected month
   const getDaysInMonth = (month: number) => {

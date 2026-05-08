@@ -23,7 +23,6 @@ export function BPWizardStep1Settings({ businessPlan, onCreated, onUpdated }: BP
     bp_start_date: new Date().toISOString().split('T')[0],
     bp_years: 3,
     fiscal_year_start_month: 1,
-    first_fiscal_year_end_date: '' as string,
     customer_payment_delay: 30,
     supplier_payment_delay: 30,
     initial_cash: 0,
