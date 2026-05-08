@@ -1,0 +1,1 @@
+UPDATE bp_personnel SET position=$$Rédactrice WEB$$ WHERE id='59274831-bd9d-465d-98ac-8be3e6a69ee9'; UPDATE bp_personnel SET position=$$Préparatrice de commandes$$ WHERE id IN ('a55312bd-8ed4-437d-94cc-4c7ad92d1cf2','5fdb035d-7f17-43ba-9141-eedd2b4b1bd3'); UPDATE bp_personnel SET position=$$Chef d'équipe logistique$$ WHERE id='052c18c3-c437-4317-b53d-b022c08c989f';
