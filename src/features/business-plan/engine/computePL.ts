@@ -19,6 +19,8 @@ import { normalizeRate } from '@/lib/rateUtils';
 import type { BPModelInput } from './types';
 import type { PLData, PLRow, FiscalYear } from '../hooks/useProfitLoss';
 import { buildFiscalYears } from './buildFiscalYears';
+import type { RevenueModel } from './revenue/types';
+import { getMonthlyRevenue } from './revenue/computeRevenue';
 
 // Stock variation helper — same formula as useStocks.getStockVariation
 function makeGetStockVariation(stocks: any[]) {
