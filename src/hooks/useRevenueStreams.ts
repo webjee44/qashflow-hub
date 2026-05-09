@@ -274,23 +274,13 @@ export function useRevenueStreams() {
     }
   };
 
-  // Helper: get yearly revenue for a stream, with automatic projection for years 2+
-  const getYearlyRevenue = (streamId: string, yearIndex: number, year1Months: Date[]): number => {
+  // Helper: get yearly revenue for a stream from the canonical fiscal-year months.
+  // Revenue forecasts are the source of truth for every fiscal year; the UI must
+  // not recreate a separate annual projection model.
+  const getYearlyRevenue = (streamId: string, _yearIndex: number, fiscalYearMonths: Date[]): number => {
     const stream = streams.find(s => s.id === streamId);
     if (!stream) return 0;
-
-    // Year 1: sum of monthly forecasts
-    const year1Total = year1Months.reduce((sum, month) => sum + getForecast(streamId, month), 0);
-    
-    if (yearIndex === 0) return year1Total;
-
-    // Years 2+: apply compound growth with year-specific rates
-    let projectedTotal = year1Total;
-    for (let i = 1; i <= yearIndex; i++) {
-      const rate = getYearGrowthRate(stream, i);
-      projectedTotal *= (1 + rate);
-    }
-    return projectedTotal;
+    return fiscalYearMonths.reduce((sum, month) => sum + getForecast(streamId, month), 0);
   };
 
   // Helper: get total yearly revenue across all streams
