@@ -66,7 +66,7 @@ export default function ProfitLoss() {
               <RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin")} />
               Actualiser
             </Button>
-            <Link to="/settings">
+            <Link to="/parametres">
               <Button variant="ghost" size="icon" title="Configurer les dates">
                 <Settings className="h-4 w-4" />
               </Button>
