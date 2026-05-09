@@ -321,7 +321,7 @@ export function RevenueTable({ onEditStream }: RevenueTableProps) {
                                     ? "bg-success/10 text-success hover:bg-success/20" 
                                     : "text-muted-foreground hover:bg-muted"
                               )}
-                              onClick={() => !isEditing && !showPopover && handleCellClick(stream.id, monthIndex, value)}
+                              onClick={() => !isEditing && !showPopover && handleCellClick(stream.id, monthIndex, getRawForecast(stream.id, year1Months[monthIndex]))}
                             >
                               {isEditing ? (
                                 <Input
