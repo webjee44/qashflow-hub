@@ -485,7 +485,7 @@ export function RevenueTable({ onEditStream }: RevenueTableProps) {
                     yearIndex === 0 ? "bg-muted/50" : "bg-primary/10"
                   )}
                 >
-                  {formatCurrency(getTotalYearlyRevenue(yearIndex, fiscalYears[yearIndex]?.months || []))}
+                  {formatCurrency(getYearlyTotal(revenue, yearIndex))}
                 </TableCell>
               ))}
               <TableCell></TableCell>
