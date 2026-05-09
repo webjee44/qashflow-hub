@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { format, addMonths, startOfMonth, setMonth, setDate, setYear, getYear, parseISO } from 'date-fns';
+import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Trash2, Edit, TrendingUp, Info, Copy, Check } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -18,7 +18,7 @@ interface RevenueTableProps {
 
 export function RevenueTable({ onEditStream }: RevenueTableProps) {
   const { streams, getForecast, upsertForecast, deleteStream, updateStream, getYearlyRevenue, getTotalYearlyRevenue, isLoading } = useRevenueStreams();
-  const { settings } = useBPSettings();
+  const { getFiscalYears } = useBPSettings();
   const [editingCell, setEditingCell] = useState<{ streamId: string; monthIndex: number } | null>(null);
   const [inputValue, setInputValue] = useState('');
   const [editingName, setEditingName] = useState<string | null>(null);
@@ -31,45 +31,7 @@ export function RevenueTable({ onEditStream }: RevenueTableProps) {
   const [growthPercent, setGrowthPercent] = useState<string>('5');
   const [showGrowthInput, setShowGrowthInput] = useState(false);
 
-  // Calculate fiscal years based on settings
-  const fiscalYears = useMemo(() => {
-    const bpStartDate = settings?.bp_start_date ? parseISO(settings.bp_start_date) : new Date();
-    const bpYears = settings?.bp_years || 3;
-    const fiscalStartMonth = (settings?.fiscal_year_start_month || 1) - 1; // Convert to 0-indexed
-    const fiscalStartDay = settings?.fiscal_year_start_day || 1;
-
-    const years: { label: string; startDate: Date; endDate: Date; months: Date[] }[] = [];
-    
-    let currentStart = setDate(setMonth(bpStartDate, fiscalStartMonth), fiscalStartDay);
-    if (currentStart > bpStartDate) {
-      currentStart = setYear(currentStart, getYear(currentStart) - 1);
-    }
-
-    for (let i = 0; i < bpYears; i++) {
-      const yearStart = i === 0 ? bpStartDate : addMonths(currentStart, 12 * i);
-      const yearEnd = addMonths(setDate(setMonth(yearStart, fiscalStartMonth), fiscalStartDay), 12);
-      
-      const months: Date[] = [];
-      let monthCursor = startOfMonth(yearStart);
-      while (monthCursor < yearEnd) {
-        months.push(monthCursor);
-        monthCursor = addMonths(monthCursor, 1);
-      }
-      
-      const startYear = getYear(yearStart);
-      const endYear = getYear(yearEnd);
-      const label = startYear === endYear ? `Année ${i + 1} (${startYear})` : `Année ${i + 1} (${startYear}-${endYear})`;
-      
-      years.push({
-        label,
-        startDate: yearStart,
-        endDate: yearEnd,
-        months: months.slice(0, 12), // Cap at 12 months
-      });
-    }
-
-    return years;
-  }, [settings]);
+  const fiscalYears = useMemo(() => getFiscalYears(), [getFiscalYears]);
 
   // Year 1 months for calculations
   const year1Months = fiscalYears[0]?.months || [];
