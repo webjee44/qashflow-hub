@@ -129,6 +129,41 @@ export function BPExportDialog({ trigger }: BPExportDialogProps) {
     }
   };
 
+  const handleExportExcel = async () => {
+    if (!bpModel || !bpInput) {
+      toast.error('Modèle BP non chargé');
+      return;
+    }
+    setIsExporting(true);
+    try {
+      const meta = {
+        companyName: companyName || currentCompany?.name || 'Business Plan',
+        companyId: currentCompany?.id ?? null,
+        businessPlanId: null,
+        exportedAt: new Date(),
+        currency: 'EUR',
+      };
+      const wb = buildBPWorkbook(bpModel, bpInput, meta);
+      const buf = await wb.xlsx.writeBuffer();
+      const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = buildExportFilename(meta.companyName, meta.exportedAt);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      toast.success('Export Excel généré');
+      setOpen(false);
+    } catch (error: any) {
+      logError('Export Excel error:', error);
+      toast.error(error?.message || "Erreur lors de l'export Excel");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -335,6 +370,16 @@ export function BPExportDialog({ trigger }: BPExportDialogProps) {
             </p>
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => setOpen(false)}>Annuler</Button>
+              <Button
+                variant="outline"
+                onClick={handleExportExcel}
+                disabled={isExporting}
+                className="gap-2"
+                title="Export d'audit (10 onglets) — généré depuis le moteur BP"
+              >
+                {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                Exporter Excel
+              </Button>
               <Button
                 onClick={handleExport}
                 disabled={isExporting || selectedSections.length === 0}
