@@ -150,6 +150,8 @@ export function useRevenueStreams() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bp_revenue_streams'] });
+      queryClient.invalidateQueries({ queryKey: ['bp_revenue_forecasts'] });
+      queryClient.invalidateQueries({ queryKey: ['bp_revenue_forecasts_by_streams'] });
       toast({ title: 'Flux créé', description: 'Le flux de revenus a été créé' });
     },
     onError: (error) => {
@@ -169,6 +171,7 @@ export function useRevenueStreams() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bp_revenue_streams'] });
+      queryClient.invalidateQueries({ queryKey: ['bp_revenue_forecasts_by_streams'] });
       toast({ title: 'Flux mis à jour' });
     },
     onError: (error) => {
@@ -189,6 +192,7 @@ export function useRevenueStreams() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bp_revenue_streams'] });
       queryClient.invalidateQueries({ queryKey: ['bp_revenue_forecasts'] });
+      queryClient.invalidateQueries({ queryKey: ['bp_revenue_forecasts_by_streams'] });
       toast({ title: 'Flux supprimé' });
     },
     onError: (error) => {
@@ -221,6 +225,7 @@ export function useRevenueStreams() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bp_revenue_forecasts'] });
+      queryClient.invalidateQueries({ queryKey: ['bp_revenue_forecasts_by_streams'] });
     },
     onError: (error) => {
       toast({ title: 'Erreur', description: error.message, variant: 'destructive' });
