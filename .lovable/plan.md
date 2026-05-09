@@ -1,96 +1,125 @@
-## Objectif
-Classer toutes les charges de Cloud Vapor selon le Plan Comptable Général français (PCG), en remplissant la colonne `pcg_subcategory` et en corrigeant la `category` interne quand elle est mal positionnée.
+## Cause racine
 
-## Charges variables (3)
+Deux moteurs de CA en parallèle :
+- **Page Revenus** : `useRevenueStreams.getYearlyRevenue()` projette les années N+1/N+2 par croissance composée appliquée au total Année 1.
+- **Compte de résultat** : `computePL.getRevenueForecast()` projette mois par mois en cherchant un forecast manuel pour le même mois de l'année de base, puis applique la croissance.
 
-| Ligne | Code PCG | Action |
-|---|---|---|
-| Achats laboratoire (44.3% CA) | **6071** Achats de marchandises | Déjà OK, je confirme |
-| Frais Payplug (0.22%) | **6275** Commissions cartes bancaires | Ajouter PCG + corriger category `payment_fees` |
-| Transport sur ventes (2.8%) | **6242** Transports sur ventes | Ajouter PCG + corriger category `shipping` |
+Deux algorithmes → deux totaux. Aucune correction écran ne peut résoudre ça durablement.
 
-## Charges fixes (37)
+## Principe directeur
 
-### Locations & immobilier
-| Ligne | PCG |
-|---|---|
-| Locations immobilières (13 190€) | **6132** Locations immobilières |
-| Charges locatives & copropriété (794€) | **614** Charges locatives et copropriété |
-| Location GRENKE (3 616€) | **6135** Locations mobilières |
-| Location Peugeot 308 (822€) | **6135** Locations mobilières (véhicule) |
-| Crédit-bail Ford GS250MR (680€) | **6122** Crédit-bail mobilier |
-| Crédit-bail mat. informatique (237€) | **6122** Crédit-bail mobilier |
+Le revenu devient une **brique centrale du modèle financier**, pas un sous-produit du P&L. Tous les écrans (Revenus, P&L, PDF, Excel) consomment la même structure.
 
-### Entretien, énergie, fournitures
-| Ligne | PCG |
-|---|---|
-| Entretien & maintenance (733€) | **6152** Entretien & réparations sur biens immobiliers |
-| Énergie & carburants (363€) | **6061** Fournitures non stockables (eau, énergie) |
-| Fournitures administratives (222€) | **6064** Fournitures administratives |
-| Fournitures entretien (60€) | **6068** Autres matières et fournitures |
-| Packaging & emballages (2 911€) | **60267** Emballages perdus (expédition produits) |
+## Architecture cible
 
-### Honoraires & sous-traitance
-| Ligne | PCG |
-|---|---|
-| Honoraires divers (1 984€) | **6228** Honoraires divers (mixte) |
-| Refacturation Frédérique holding 50% (2 508€) | **628** Divers (management fees intra-groupe) |
-| **Rémunération présidence facturée par holding (3 614€)** | **628** Divers (management fees présidence personne morale) — voir note |
-| Sous-traitance administrative (1 470€) | **6041** Achats prestations de services |
-| Sous-traitance sociale (200€) | **6041** Achats prestations de services |
-| Personnel intérimaire (203€) | **6211** Personnel intérimaire |
+### 1. Nouveau module pur `engine/revenue/computeRevenue.ts`
 
-### Marketing
-| Ligne | PCG |
-|---|---|
-| Publicité & annonces (3 434€) | **6231** Annonces et insertions |
-| Cadeaux clientèle (2 055€) | **6234** Cadeaux à la clientèle |
-| Réceptions (166€) | **6257** Réceptions |
+Sortie :
+```text
+RevenueModel = {
+  months: Date[]                              // axe temporel commun (tous mois du BP)
+  byStream: Record<streamId, {
+    monthly: number[]                         // un montant par mois de `months`
+    yearly: number[]                          // agrégé par exercice fiscal
+    metadata: {
+      mode: 'variable' | 'subscription'
+      revenueType: 'merchandise' | 'production' | 'service'
+      monthlySources: Array<                  // traçabilité par mois
+        'manual_forecast' | 'subscription' | 'growth_projection' | 'empty'
+      >
+      growthApplied: number[]                 // taux appliqué par année
+    }
+  }>
+  totals: {
+    monthly: number[]
+    yearly: number[]
+  }
+}
+```
 
-### Logiciels & licences
-| Ligne | PCG |
-|---|---|
-| Location licences logicielles (2 407€) | **6511** Redevances licences |
-| Redevances brevets & licences (206€) | **6516** Droits d'auteur et de reproduction |
+Règles strictes du moteur :
+- **Forecast à 0 = vraie donnée**. Interdiction de `if (forecast?.amount)`. Utiliser `forecast && forecast.amount !== null && forecast.amount !== undefined`.
+- Subscription : MRR calculé depuis `bp_start_date`.
+- Variable : si forecast manuel présent (même nul) → on l'utilise. Sinon, projection par croissance depuis le mois équivalent de l'année de base.
+- Pas de fallback silencieux vers `monthly_price`.
 
-### Assurances, banque, télécom, transport
-| Ligne | PCG |
-|---|---|
-| Primes d'assurance (1 042€) | **6161** Multirisques |
-| Services bancaires (828€) | **627** Services bancaires |
-| Téléphone & internet (156€) | **626** Frais postaux et télécoms |
-| Transports sur achats (37€) | **6241** Transports sur achats |
-| Voyages & déplacements (121€) | **6251** Voyages et déplacements |
+### 2. Intégration dans `BPFinancialModel`
 
-### Impôts & taxes (classe 63)
-| Ligne | PCG |
-|---|---|
-| Taxe d'apprentissage (75€) | **6312** Taxe d'apprentissage |
-| Contribution employeur formation (63€) | **6313** Participation formation continue |
-| Fonds paritarisme (11€) | **6358** Autres impôts et taxes |
-| Taxes foncières (958€) | **6354** Taxes foncières |
-| Taxe véhicules sociétés (1€) | **63514** TVS |
+```text
+BPFinancialModel = {
+  revenue: RevenueModel        // NOUVEAU — calculé en premier
+  pl, cashFlow, balanceSheet, fundingPlan, ratios, ...
+}
+```
 
-### Divers
-| Ligne | PCG |
-|---|---|
-| Cotisations & concours divers (353€) | **6281** Cotisations professionnelles |
-| Documentation (14€) | **6183** Documentation générale |
-| Formation professionnelle (61€) | **6184** Formation du personnel |
-| Frais d'entreprise (145€) | **6257** Réceptions / frais professionnels |
-| Ajustement charges externes (12 647€) | **6288** Charges externes diverses |
+`computeBPModel` ordonne :
+1. `loanSchedules`
+2. `revenue = computeRevenue(input)`     ← nouveau
+3. `pl = computePL(input, revenue)`
+4. `cashFlow`, `balanceSheet`, `fundingPlan`, `ratios`
 
-## Note importante : Rémunération présidence (3 614€)
+### 3. `computePL` consomme `revenue`
 
-Tu m'as précisé que c'est **la holding (personne morale) qui facture la présidence** à Cloud Vapor. Comptablement, ce ne sont **pas** des charges de personnel (642/644) mais des **honoraires de management fees** facturés par une autre société. Je vais donc :
-- **Garder** la ligne dans `bp_fixed_expenses` (catégorie `professional_fees`)
-- L'affecter au compte **628** « Divers » (sous-compte usuellement 6286 ou 62286 selon les plans, mais 628/6228 reste le standard PCG officiel)
-- Ajouter une note explicative : *"Management fees facturés par la holding pour le mandat de présidence (personne morale)"*
+Suppression de `getRevenueForecast` interne. Les lignes 707/701/706 sont alimentées par `revenue.byStream[id].monthly` filtré par `revenue_type`. Les coûts d'achat (`getPurchaseCostForMonth`) consomment aussi `revenue` pour rester cohérents.
 
-Idem pour la **Refacturation Frédérique holding 50%** : management fees → **628**.
+### 4. Hooks frontend
 
-## Périmètre technique
+- `useBPModel()` continue d'exposer le modèle complet, désormais avec `data.revenue`.
+- Nouveau sélecteur : `useRevenue()` → `useBPModel().data.revenue`.
+- `useRevenueStreams` reste **uniquement pour l'édition** : streams + forecasts mensuels + mutations. Tous ses helpers d'agrégation (`getYearlyRevenue`, `getTotalYearlyRevenue`, `getTotalRevenue`) sont **supprimés**.
+- Consolidation des deux fichiers `useRevenueStreams` (`src/hooks/` et `src/features/business-plan/hooks/`) en une seule source.
 
-- 1 seul appel SQL `UPDATE` groupé sur `bp_fixed_expenses` (37 lignes) + 1 sur `bp_variable_expenses` (3 lignes), filtrés par `company_id = 12ea5853-35f4-46d3-a97d-3d8f466e59d8`
-- Aucune modification de schéma, aucun code frontend touché
-- Les changements sont visibles immédiatement dans le P&L (regroupement par compte PCG via `CATEGORY_TO_PCG_MAPPING`)
+### 5. Composants Revenus
+
+- `RevenueTable` : conserve l'édition cellule par cellule (mutation forecasts). Les totaux mois et année viennent de `useRevenue()`.
+- `RevenueSummaryCard` : lit `revenue.totals.yearly`.
+- Idem pour `useVariableExpenses` (calcul du % de revenu) → branche sur `useRevenue()`.
+
+### 6. Invalidation React Query
+
+À chaque mutation de stream ou forecast, invalider :
+- `bp_revenue_streams`
+- `bp_revenue_forecasts`
+- `bp_revenue_forecasts_by_streams`
+
+`useBPModel` est un `useMemo` dérivé, il se recalcule automatiquement.
+
+### 7. Tests anti-régression
+
+Fixtures :
+- `minimal-revenue` : 1 stream, exercice calendaire, contrôlable à la main.
+- `e-fumeur-like` : exercice fiscal décalé (sept→déc Y1), forecasts mensuels réels Y1, projection Y2/Y3 par croissance.
+- `with-zero-forecast` : forecast explicitement à 0 sur certains mois.
+- `mid-year-stream` : stream démarrant en cours d'année.
+- `subscription` : MRR avec churn et growth.
+
+Assertions communes :
+1. `model.pl.totals.revenue[i] === model.revenue.totals.yearly[i]` pour chaque année.
+2. `Σ revenue.totals.monthly[mois de Y_i] === revenue.totals.yearly[i]`.
+3. Forecast à 0 → reste à 0 dans `byStream.monthly`, pas de fallback.
+4. Page Revenus total = `revenue.totals.yearly` (test composant avec mock du modèle).
+5. Snapshot golden mis à jour intentionnellement après refactor.
+
+### 8. Critère de validation
+
+Sur `/bp/revenue` et `/bp/pnl`, le CA Année 1, Année 2, Année 3 doit être **strictement identique**. Sinon la PR est refusée.
+
+## Plan d'exécution
+
+1. Créer `engine/revenue/computeRevenue.ts` + types + tests unitaires sur les 5 fixtures.
+2. Brancher `revenue` dans `computeBPModel` et `BPFinancialModel`.
+3. Refactorer `computePL` pour consommer `revenue` (suppression de `getRevenueForecast`).
+4. Mettre à jour la golden snapshot (changement intentionnel documenté).
+5. Créer `useRevenue()` sélecteur, brancher `RevenueTable` + `RevenueSummaryCard`.
+6. Nettoyer `useRevenueStreams` (suppression des helpers d'agrégation, fusion des deux fichiers).
+7. Vérifier l'invalidation React Query côté mutations.
+8. Tests de parité Revenus ↔ P&L.
+9. Vérification fonctionnelle prod sur E-fumeur Internet : CA Année 1 identique sur les deux écrans.
+
+## Pourquoi ce n'est pas une rustine
+
+- Une seule fonction calcule le revenu pour tout le module BP.
+- Aucun cas spécifique à un client.
+- Le contrat `RevenueModel` est typé, traçable (metadata `monthlySources`), testé.
+- Les deux écrans incohérents disparaissent par construction : ils lisent la même structure.
+- L'export Excel et le PDF profitent de la même brique sans modification supplémentaire.
