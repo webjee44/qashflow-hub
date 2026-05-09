@@ -410,7 +410,7 @@ export function RevenueTable({ onEditStream }: RevenueTableProps) {
                   })}
                   {/* Yearly summary cells */}
                   {fiscalYears.map((_, yearIndex) => {
-                    const yearlyValue = getYearlyRevenue(stream.id, yearIndex, fiscalYears[yearIndex]?.months || []);
+                    const yearlyValue = getStreamYearly(revenue, stream.id, yearIndex);
                     const isProjected = yearIndex > 0;
                     const yearGrowthRate = yearIndex > 0 ? growthRates[yearIndex - 1] : 0;
                     
