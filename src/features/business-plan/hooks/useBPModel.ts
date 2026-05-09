@@ -47,7 +47,7 @@ const EMPTY_INPUT: BPModelInput = {
 };
 const EMPTY_MODEL: BPFinancialModel = computeBPModel(EMPTY_INPUT);
 
-export function useBPModel(): { data: BPFinancialModel; isLoading: boolean } {
+export function useBPModel(): { data: BPFinancialModel; input: BPModelInput; isLoading: boolean } {
   const { user } = useAuth();
   const { currentCompany } = useCompany();
   const { settings, isLoading: settingsLoading } = useBPSettings();
@@ -94,9 +94,9 @@ export function useBPModel(): { data: BPFinancialModel; isLoading: boolean } {
     queries.some(q => q.isLoading) ||
     forecastsQ.isLoading;
 
-  const data = useMemo<BPFinancialModel>(() => {
-    if (!enabled || isLoading) return EMPTY_MODEL;
-    const input: BPModelInput = {
+  const { data, input } = useMemo(() => {
+    if (!enabled || isLoading) return { data: EMPTY_MODEL, input: EMPTY_INPUT };
+    const built: BPModelInput = {
       settings,
       streams,
       forecasts: (forecastsQ.data as any[]) || [],
@@ -108,7 +108,7 @@ export function useBPModel(): { data: BPFinancialModel; isLoading: boolean } {
       financings: (financingsQ.data as any[]) || [],
       stocks: (stocksQ.data as any[]) || [],
     };
-    return computeBPModel(input);
+    return { data: computeBPModel(built), input: built };
   }, [
     enabled, isLoading, settings,
     streamsQ.data, fixedQ.data, variableQ.data, personnelQ.data,
@@ -116,5 +116,5 @@ export function useBPModel(): { data: BPFinancialModel; isLoading: boolean } {
     forecastsQ.data,
   ]);
 
-  return { data, isLoading };
+  return { data, input, isLoading };
 }
