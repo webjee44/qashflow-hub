@@ -162,7 +162,14 @@ export function useBPSettings() {
         ? new Date(effectiveSettings.first_fiscal_year_end_date)
         : null,
     });
-    return fiscalYears.map(fy => ({ start: fy.start, end: fy.end, label: fy.label }));
+    return fiscalYears.map(fy => ({
+      start: fy.start,
+      end: fy.end,
+      label: fy.label,
+      months: fy.months,
+      monthCount: fy.monthCount,
+      isLongFirstYear: fy.isLongFirstYear,
+    }));
   };
 
   return {
