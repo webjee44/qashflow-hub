@@ -194,8 +194,10 @@ export interface BreakEvenData {
 
 // ─── Aggregate ───
 import type { ValidationReport } from './validateBPModel';
+import type { RevenueModel } from './revenue/types';
 
 export interface BPFinancialModel {
+  revenue: RevenueModel;
   pl: PLData;
   cashFlow: CashFlowData;
   balanceSheet: BalanceSheetData;
@@ -205,3 +207,5 @@ export interface BPFinancialModel {
   validation: ValidationReport;
   engineVersion: string;
 }
+
+export type { RevenueModel } from './revenue/types';
