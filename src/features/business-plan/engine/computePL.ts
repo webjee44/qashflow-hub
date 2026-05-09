@@ -32,7 +32,7 @@ function makeGetStockVariation(stocks: any[]) {
   };
 }
 
-export function computePL(input: BPModelInput): PLData {
+export function computePL(input: BPModelInput, revenue: RevenueModel): PLData {
   const {
     settings,
     streams,
