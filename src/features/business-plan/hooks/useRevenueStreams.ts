@@ -225,7 +225,9 @@ export function useRevenueStreams() {
     },
   });
 
-  // Helper: get forecast for a stream and month
+  // ⚠️ Read-side helpers retained ONLY for legacy consumers (BP import to
+  // treasury, expenses % calculations). Inside the BP module (Revenue page,
+  // P&L, exports), all totals MUST come from `useRevenue()`.
   const getForecast = (streamId: string, month: Date): number => {
     const stream = streams.find(s => s.id === streamId);
     if (!stream) return 0;
@@ -233,19 +235,16 @@ export function useRevenueStreams() {
     const monthStr = format(startOfMonth(month), 'yyyy-MM-dd');
     const manualForecast = forecasts.find(f => f.stream_id === streamId && f.month === monthStr);
 
-    // PRIORITY: Always use manual forecast if it exists (for ALL models)
-    if (manualForecast && manualForecast.amount != null && manualForecast.amount > 0) {
-      return manualForecast.amount;
+    // Strict rule: a manual forecast row is the source of truth, even at 0.
+    if (manualForecast && manualForecast.amount !== null && manualForecast.amount !== undefined) {
+      return Number(manualForecast.amount);
     }
 
-    // FALLBACK: For subscription model, calculate MRR automatically from BP start date
     if (stream.model === 'subscription') {
       const startMonth = bpStartDate;
       const targetMonth = startOfMonth(month);
       const monthsDiff = Math.round((targetMonth.getTime() - startMonth.getTime()) / (1000 * 60 * 60 * 24 * 30));
-      
       if (monthsDiff < 0) return 0;
-      
       const growthPct = (stream.growth_rate ?? 10) / 100;
       const churnPct = (stream.churn_rate ?? 5) / 100;
       const netGrowth = growthPct - churnPct;
@@ -253,47 +252,7 @@ export function useRevenueStreams() {
       return subscribers * (stream.monthly_price || 0);
     }
 
-    // For variable model with no manual entry, return 0
     return 0;
-  };
-
-  // Helper: get total revenue for a month
-  const getTotalRevenue = (month: Date): number => {
-    return streams.reduce((sum, stream) => sum + getForecast(stream.id, month), 0);
-  };
-
-  // Helper: get growth rate for a specific year
-  const getYearGrowthRate = (stream: any, yearIndex: number): number => {
-    switch (yearIndex) {
-      case 1: return (stream.growth_rate_year2 ?? stream.annual_growth_rate ?? 10) / 100;
-      case 2: return (stream.growth_rate_year3 ?? stream.annual_growth_rate ?? 10) / 100;
-      case 3: return (stream.growth_rate_year4 ?? stream.annual_growth_rate ?? 10) / 100;
-      default: return (stream.growth_rate_year4 ?? stream.annual_growth_rate ?? 10) / 100;
-    }
-  };
-
-  // Helper: get yearly revenue for a stream, with automatic projection for years 2+
-  const getYearlyRevenue = (streamId: string, yearIndex: number, year1Months: Date[]): number => {
-    const stream = streams.find(s => s.id === streamId);
-    if (!stream) return 0;
-
-    // Year 1: sum of monthly forecasts
-    const year1Total = year1Months.reduce((sum, month) => sum + getForecast(streamId, month), 0);
-    
-    if (yearIndex === 0) return year1Total;
-
-    // Years 2+: apply compound growth with year-specific rates
-    let projectedTotal = year1Total;
-    for (let i = 1; i <= yearIndex; i++) {
-      const rate = getYearGrowthRate(stream, i);
-      projectedTotal *= (1 + rate);
-    }
-    return projectedTotal;
-  };
-
-  // Helper: get total yearly revenue across all streams
-  const getTotalYearlyRevenue = (yearIndex: number, year1Months: Date[]): number => {
-    return streams.reduce((sum, stream) => sum + getYearlyRevenue(stream.id, yearIndex, year1Months), 0);
   };
 
   return {
@@ -304,9 +263,7 @@ export function useRevenueStreams() {
     updateStream,
     deleteStream,
     upsertForecast,
+    /** @deprecated Use `useRevenue()` for projected values inside the BP module. */
     getForecast,
-    getTotalRevenue,
-    getYearlyRevenue,
-    getTotalYearlyRevenue,
   };
 }
