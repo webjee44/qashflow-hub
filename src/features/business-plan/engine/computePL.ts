@@ -126,52 +126,11 @@ export function computePL(input: BPModelInput, revenue: RevenueModel): PLData {
     return (Number(expense.monthly_amount) || 0) / multiplier;
   };
 
+  // Lot 4.1 — revenue is now sourced from the dedicated revenue engine.
+  // computePL must NEVER recompute its own revenue projections; it would
+  // immediately drift from the Revenue page and the exports.
   const getRevenueForecast = (streamId: string, month: Date): number => {
-    const stream = streams.find(s => s.id === streamId);
-    if (!stream) return 0;
-    const startDate = settings.bp_start_date ? new Date(settings.bp_start_date) : new Date();
-    const targetMonth = startOfMonth(month);
-
-    if (stream.model === 'subscription') {
-      const startMonth = startOfMonth(startDate);
-      const monthsDiff = Math.round((targetMonth.getTime() - startMonth.getTime()) / (1000 * 60 * 60 * 24 * 30));
-      if (monthsDiff < 0) return 0;
-      const growthPct = normalizeRate(stream.growth_rate, 0.10);
-      const churnPct = normalizeRate(stream.churn_rate, 0.05);
-      const netGrowth = growthPct - churnPct;
-      const subscribers = Math.round((stream.initial_subscribers || 0) * Math.pow(1 + netGrowth, monthsDiff));
-      return subscribers * (stream.monthly_price || 0);
-    }
-
-    const monthStr = format(targetMonth, 'yyyy-MM-dd');
-    const forecast = forecasts.find(f => f.stream_id === streamId && f.month === monthStr);
-    if (forecast?.amount) return forecast.amount;
-
-    const targetMonthOfYear = targetMonth.getMonth();
-    const bpStartYear = startDate.getFullYear();
-    const targetYear = targetMonth.getFullYear();
-    const yearOffset = targetYear - bpStartYear;
-
-    if (yearOffset <= 0) {
-      return stream.monthly_price || 0;
-    }
-
-    const baseMonthStr = format(new Date(bpStartYear, targetMonthOfYear, 1), 'yyyy-MM-dd');
-    const baseForecast = forecasts.find(f => f.stream_id === streamId && f.month === baseMonthStr);
-    const baseAmount = baseForecast?.amount || stream.monthly_price || 0;
-
-    if (baseAmount === 0) return 0;
-
-    let projectedAmount = baseAmount;
-    for (let y = 1; y <= yearOffset; y++) {
-      let growthRate = normalizeRate(stream.growth_rate, 0);
-      if (y === 1) growthRate = normalizeRate(stream.growth_rate_year2 ?? stream.growth_rate, 0);
-      else if (y === 2) growthRate = normalizeRate(stream.growth_rate_year3 ?? stream.growth_rate, 0);
-      else growthRate = normalizeRate(stream.growth_rate_year4 ?? stream.growth_rate, 0);
-      projectedAmount = projectedAmount * (1 + growthRate);
-    }
-
-    return Math.round(projectedAmount * 100) / 100;
+    return getMonthlyRevenue(revenue, streamId, month);
   };
 
   const getDepreciationForMonth = (month: Date): number => {
