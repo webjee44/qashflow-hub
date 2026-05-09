@@ -191,14 +191,8 @@ export function RevenueTable({ onEditStream }: RevenueTableProps) {
     }
   }, [editingName]);
 
-  const getMonthlyTotals = () => {
-    return year1Months.map(month => 
-      streams.reduce((sum, stream) => sum + getForecast(stream.id, month), 0)
-    );
-  };
-
-  const monthlyTotals = getMonthlyTotals();
-  const grandTotal = fiscalYears.reduce((sum, _, i) => sum + getTotalYearlyRevenue(i, year1Months), 0);
+  const monthlyTotals = year1Months.map((m) => getMonthlyTotal(revenue, m));
+  const grandTotal = fiscalYears.reduce((sum, _, i) => sum + getYearlyTotal(revenue, i), 0);
 
   if (isLoading) {
     return (
