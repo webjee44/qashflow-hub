@@ -1,6 +1,6 @@
-import { computeBPModel } from '../../src/features/business-plan/engine/computeBPModel';
-import { minimalBPInput } from '../../src/features/business-plan/engine/__tests__/__fixtures__/minimal-bp';
-import { buildBPWorkbook, buildExportFilename } from '../../src/features/business-plan/export/excel/buildBPWorkbook';
+import { computeBPModel } from '@/features/business-plan/engine/computeBPModel';
+import { minimalBPInput } from '@/features/business-plan/engine/__tests__/__fixtures__/minimal-bp';
+import { buildBPWorkbook, buildExportFilename } from '@/features/business-plan/export/excel/buildBPWorkbook';
 import { writeFileSync } from 'fs';
 
 const model = computeBPModel(minimalBPInput);
