@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useRevenueStreams, RevenueStream } from '@/hooks/useRevenueStreams';
-import { useBPSettings } from '@/hooks/useBPSettings';
+import { useRevenue, getStreamMonthly, getStreamYearly, getMonthlyTotal, getYearlyTotal } from '../hooks/useRevenue';
 import { cn } from '@/lib/utils';
 
 interface RevenueTableProps {
@@ -17,24 +17,41 @@ interface RevenueTableProps {
 }
 
 export function RevenueTable({ onEditStream }: RevenueTableProps) {
-  const { streams, getForecast, upsertForecast, deleteStream, updateStream, getYearlyRevenue, getTotalYearlyRevenue, isLoading } = useRevenueStreams();
-  const { getFiscalYears } = useBPSettings();
+  // Editing inputs (raw forecasts) come from useRevenueStreams.
+  // All displayed totals come from the financial model — single source of truth.
+  const { streams, forecasts, upsertForecast, deleteStream, updateStream, isLoading: streamsLoading } = useRevenueStreams();
+  const { revenue, isLoading: revenueLoading } = useRevenue();
+  const isLoading = streamsLoading || revenueLoading;
   const [editingCell, setEditingCell] = useState<{ streamId: string; monthIndex: number } | null>(null);
   const [inputValue, setInputValue] = useState('');
   const [editingName, setEditingName] = useState<string | null>(null);
   const [nameValue, setNameValue] = useState('');
   const nameInputRef = useRef<HTMLInputElement>(null);
-  
+
   // Copy option states
   const [showCopyOption, setShowCopyOption] = useState(false);
   const [pendingSave, setPendingSave] = useState<{ streamId: string; monthIndex: number; value: number } | null>(null);
   const [growthPercent, setGrowthPercent] = useState<string>('5');
   const [showGrowthInput, setShowGrowthInput] = useState(false);
 
-  const fiscalYears = useMemo(() => getFiscalYears(), [getFiscalYears]);
+  const fiscalYears = revenue.fiscalYears;
 
-  // Year 1 months for calculations
+  // Year 1 months for editing (only Y1 is editable cell-by-cell)
   const year1Months = fiscalYears[0]?.months || [];
+
+  // Raw forecast lookup (for the cell input default value, not for display totals).
+  const rawForecastMap = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const f of forecasts) {
+      if (f.amount === null || f.amount === undefined) continue;
+      m.set(`${f.stream_id}|${f.month}`, Number(f.amount));
+    }
+    return m;
+  }, [forecasts]);
+  const getRawForecast = (streamId: string, month: Date): number => {
+    const key = `${streamId}|${format(month, 'yyyy-MM-dd')}`;
+    return rawForecastMap.get(key) ?? 0;
+  };
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('fr-FR', {
