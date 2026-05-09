@@ -185,6 +185,7 @@ export function useRevenueStreams() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bp_revenue_streams'] });
       queryClient.invalidateQueries({ queryKey: ['bp_revenue_forecasts'] });
+      queryClient.invalidateQueries({ queryKey: ['bp_revenue_forecasts_by_streams'] });
       toast({ title: 'Flux supprimé' });
     },
     onError: (error) => {
@@ -217,6 +218,7 @@ export function useRevenueStreams() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bp_revenue_forecasts'] });
+      queryClient.invalidateQueries({ queryKey: ['bp_revenue_forecasts_by_streams'] });
     },
     onError: (error) => {
       toast({ title: 'Erreur', description: error.message, variant: 'destructive' });
