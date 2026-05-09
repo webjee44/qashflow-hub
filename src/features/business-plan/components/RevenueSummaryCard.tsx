@@ -3,57 +3,18 @@ import { TrendingUp, Euro, Calendar } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { useRevenueStreams } from '@/hooks/useRevenueStreams';
 import { useBPSettings } from '@/hooks/useBPSettings';
-import { parseISO, addMonths, startOfMonth, setMonth, setDate, setYear, getYear } from 'date-fns';
 
 export function RevenueSummaryCard() {
   const { streams, getForecast, getTotalYearlyRevenue } = useRevenueStreams();
-  const { settings } = useBPSettings();
+  const { getFiscalYears } = useBPSettings();
 
-  // Calculate fiscal years (same logic as RevenueTable)
-  const fiscalYears = useMemo(() => {
-    const bpStartDate = settings?.bp_start_date ? parseISO(settings.bp_start_date) : new Date();
-    const bpYears = settings?.bp_years || 3;
-    const fiscalStartMonth = (settings?.fiscal_year_start_month || 1) - 1;
-    const fiscalStartDay = settings?.fiscal_year_start_day || 1;
-
-    const years: { label: string; startDate: Date; endDate: Date; months: Date[] }[] = [];
-    
-    let currentStart = setDate(setMonth(bpStartDate, fiscalStartMonth), fiscalStartDay);
-    if (currentStart > bpStartDate) {
-      currentStart = setYear(currentStart, getYear(currentStart) - 1);
-    }
-
-    for (let i = 0; i < bpYears; i++) {
-      const yearStart = i === 0 ? bpStartDate : addMonths(currentStart, 12 * i);
-      const yearEnd = addMonths(setDate(setMonth(yearStart, fiscalStartMonth), fiscalStartDay), 12);
-      
-      const months: Date[] = [];
-      let monthCursor = startOfMonth(yearStart);
-      while (monthCursor < yearEnd) {
-        months.push(monthCursor);
-        monthCursor = addMonths(monthCursor, 1);
-      }
-      
-      const startYear = getYear(yearStart);
-      const endYear = getYear(yearEnd);
-      const label = startYear === endYear ? `${startYear}` : `${startYear}-${endYear}`;
-      
-      years.push({
-        label,
-        startDate: yearStart,
-        endDate: yearEnd,
-        months: months.slice(0, 12),
-      });
-    }
-
-    return years;
-  }, [settings]);
+  const fiscalYears = useMemo(() => getFiscalYears(), [getFiscalYears]);
 
   const year1Months = fiscalYears[0]?.months || [];
 
   // Calculate totals per year
   const yearlyTotals = useMemo(() => {
-    return fiscalYears.map((_, yearIndex) => getTotalYearlyRevenue(yearIndex, year1Months));
+    return fiscalYears.map((year, yearIndex) => getTotalYearlyRevenue(yearIndex, year.months));
   }, [fiscalYears, getTotalYearlyRevenue, year1Months]);
 
   const grandTotal = yearlyTotals.reduce((sum, val) => sum + val, 0);
