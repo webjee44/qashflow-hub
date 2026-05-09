@@ -295,7 +295,7 @@ export function RevenueTable({ onEditStream }: RevenueTableProps) {
                   </TableCell>
                   {/* Year 1 monthly cells - editable */}
                   {year1Months.map((month, monthIndex) => {
-                    const value = getForecast(stream.id, month);
+                    const value = getStreamMonthly(revenue, stream.id, month);
                     const isEditing = editingCell?.streamId === stream.id && editingCell?.monthIndex === monthIndex;
                     const showPopover = showCopyOption && pendingSave?.streamId === stream.id && pendingSave?.monthIndex === monthIndex;
 
