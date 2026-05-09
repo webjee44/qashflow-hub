@@ -72,7 +72,9 @@ export function useBPModel(): { data: BPFinancialModel; input: BPModelInput; isL
   );
 
   const [streamsQ, fixedQ, variableQ, personnelQ, directorsQ, investmentsQ, financingsQ, stocksQ] = queries;
-  const streams = (streamsQ.data as any[]) || [];
+  // Lot 4.1 — align with the Revenue page: only active streams contribute to
+  // the financial model. Inactive streams are excluded from every output.
+  const streams = ((streamsQ.data as any[]) || []).filter(s => s.is_active !== false);
   const streamIds = streams.map(s => s.id);
 
   const forecastsQ = useQuery({

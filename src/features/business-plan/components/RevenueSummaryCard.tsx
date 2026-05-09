@@ -1,23 +1,17 @@
 import { useMemo } from 'react';
-import { TrendingUp, Euro, Calendar } from 'lucide-react';
+import { Euro } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { useRevenueStreams } from '@/hooks/useRevenueStreams';
-import { useBPSettings } from '@/hooks/useBPSettings';
+import { useRevenue } from '../hooks/useRevenue';
 
 export function RevenueSummaryCard() {
-  const { streams, getForecast, getTotalYearlyRevenue } = useRevenueStreams();
-  const { getFiscalYears } = useBPSettings();
+  const { streams } = useRevenueStreams();
+  const { revenue } = useRevenue();
 
-  const fiscalYears = useMemo(() => getFiscalYears(), [getFiscalYears]);
-
-  const year1Months = fiscalYears[0]?.months || [];
-
-  // Calculate totals per year
-  const yearlyTotals = useMemo(() => {
-    return fiscalYears.map((year, yearIndex) => getTotalYearlyRevenue(yearIndex, year.months));
-  }, [fiscalYears, getTotalYearlyRevenue, year1Months]);
-
-  const grandTotal = yearlyTotals.reduce((sum, val) => sum + val, 0);
+  // Lot 4.1 — totals come from the financial model, NOT from a parallel
+  // aggregation. This guarantees Revenue page = P&L = exports.
+  const yearlyTotals = useMemo(() => revenue.totals.yearly, [revenue]);
+  const fiscalYears = revenue.fiscalYears;
   const year1Total = yearlyTotals[0] || 0;
 
   const formatCurrency = (value: number) => {
@@ -55,9 +49,9 @@ export function RevenueSummaryCard() {
           <div className="flex flex-wrap items-center gap-6">
             {fiscalYears.map((year, i) => (
               <div key={i} className="text-center">
-                <p className="text-xs text-muted-foreground">Année {i + 1}</p>
+                <p className="text-xs text-muted-foreground">{year.label}</p>
                 <p className={`text-lg font-semibold ${i === 0 ? 'text-success' : 'text-foreground'}`}>
-                  {formatCurrency(yearlyTotals[i])}
+                  {formatCurrency(yearlyTotals[i] || 0)}
                 </p>
               </div>
             ))}

@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useRevenueStreams, RevenueStream } from '@/hooks/useRevenueStreams';
-import { useBPSettings } from '@/hooks/useBPSettings';
+import { useRevenue, getStreamMonthly, getStreamYearly, getMonthlyTotal, getYearlyTotal } from '../hooks/useRevenue';
 import { cn } from '@/lib/utils';
 
 interface RevenueTableProps {
@@ -17,24 +17,41 @@ interface RevenueTableProps {
 }
 
 export function RevenueTable({ onEditStream }: RevenueTableProps) {
-  const { streams, getForecast, upsertForecast, deleteStream, updateStream, getYearlyRevenue, getTotalYearlyRevenue, isLoading } = useRevenueStreams();
-  const { getFiscalYears } = useBPSettings();
+  // Editing inputs (raw forecasts) come from useRevenueStreams.
+  // All displayed totals come from the financial model — single source of truth.
+  const { streams, forecasts, upsertForecast, deleteStream, updateStream, isLoading: streamsLoading } = useRevenueStreams();
+  const { revenue, isLoading: revenueLoading } = useRevenue();
+  const isLoading = streamsLoading || revenueLoading;
   const [editingCell, setEditingCell] = useState<{ streamId: string; monthIndex: number } | null>(null);
   const [inputValue, setInputValue] = useState('');
   const [editingName, setEditingName] = useState<string | null>(null);
   const [nameValue, setNameValue] = useState('');
   const nameInputRef = useRef<HTMLInputElement>(null);
-  
+
   // Copy option states
   const [showCopyOption, setShowCopyOption] = useState(false);
   const [pendingSave, setPendingSave] = useState<{ streamId: string; monthIndex: number; value: number } | null>(null);
   const [growthPercent, setGrowthPercent] = useState<string>('5');
   const [showGrowthInput, setShowGrowthInput] = useState(false);
 
-  const fiscalYears = useMemo(() => getFiscalYears(), [getFiscalYears]);
+  const fiscalYears = revenue.fiscalYears;
 
-  // Year 1 months for calculations
+  // Year 1 months for editing (only Y1 is editable cell-by-cell)
   const year1Months = fiscalYears[0]?.months || [];
+
+  // Raw forecast lookup (for the cell input default value, not for display totals).
+  const rawForecastMap = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const f of forecasts) {
+      if (f.amount === null || f.amount === undefined) continue;
+      m.set(`${f.stream_id}|${f.month}`, Number(f.amount));
+    }
+    return m;
+  }, [forecasts]);
+  const getRawForecast = (streamId: string, month: Date): number => {
+    const key = `${streamId}|${format(month, 'yyyy-MM-dd')}`;
+    return rawForecastMap.get(key) ?? 0;
+  };
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('fr-FR', {
@@ -174,14 +191,8 @@ export function RevenueTable({ onEditStream }: RevenueTableProps) {
     }
   }, [editingName]);
 
-  const getMonthlyTotals = () => {
-    return year1Months.map(month => 
-      streams.reduce((sum, stream) => sum + getForecast(stream.id, month), 0)
-    );
-  };
-
-  const monthlyTotals = getMonthlyTotals();
-  const grandTotal = fiscalYears.reduce((sum, _, i) => sum + getTotalYearlyRevenue(i, year1Months), 0);
+  const monthlyTotals = year1Months.map((m) => getMonthlyTotal(revenue, m));
+  const grandTotal = fiscalYears.reduce((sum, _, i) => sum + getYearlyTotal(revenue, i), 0);
 
   if (isLoading) {
     return (
@@ -284,7 +295,7 @@ export function RevenueTable({ onEditStream }: RevenueTableProps) {
                   </TableCell>
                   {/* Year 1 monthly cells - editable */}
                   {year1Months.map((month, monthIndex) => {
-                    const value = getForecast(stream.id, month);
+                    const value = getStreamMonthly(revenue, stream.id, month);
                     const isEditing = editingCell?.streamId === stream.id && editingCell?.monthIndex === monthIndex;
                     const showPopover = showCopyOption && pendingSave?.streamId === stream.id && pendingSave?.monthIndex === monthIndex;
 
@@ -310,7 +321,7 @@ export function RevenueTable({ onEditStream }: RevenueTableProps) {
                                     ? "bg-success/10 text-success hover:bg-success/20" 
                                     : "text-muted-foreground hover:bg-muted"
                               )}
-                              onClick={() => !isEditing && !showPopover && handleCellClick(stream.id, monthIndex, value)}
+                              onClick={() => !isEditing && !showPopover && handleCellClick(stream.id, monthIndex, getRawForecast(stream.id, year1Months[monthIndex]))}
                             >
                               {isEditing ? (
                                 <Input
@@ -399,7 +410,7 @@ export function RevenueTable({ onEditStream }: RevenueTableProps) {
                   })}
                   {/* Yearly summary cells */}
                   {fiscalYears.map((_, yearIndex) => {
-                    const yearlyValue = getYearlyRevenue(stream.id, yearIndex, fiscalYears[yearIndex]?.months || []);
+                    const yearlyValue = getStreamYearly(revenue, stream.id, yearIndex);
                     const isProjected = yearIndex > 0;
                     const yearGrowthRate = yearIndex > 0 ? growthRates[yearIndex - 1] : 0;
                     
@@ -474,7 +485,7 @@ export function RevenueTable({ onEditStream }: RevenueTableProps) {
                     yearIndex === 0 ? "bg-muted/50" : "bg-primary/10"
                   )}
                 >
-                  {formatCurrency(getTotalYearlyRevenue(yearIndex, fiscalYears[yearIndex]?.months || []))}
+                  {formatCurrency(getYearlyTotal(revenue, yearIndex))}
                 </TableCell>
               ))}
               <TableCell></TableCell>

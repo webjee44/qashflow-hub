@@ -4,6 +4,7 @@ import type { BPFinancialModel } from '../types';
 
 function makeMinimalModel(): BPFinancialModel {
   return {
+    revenue: { months: [], monthIndex: {}, fiscalYears: [], byStream: {}, totals: { monthly: [], yearly: [] } },
     pl: { years: [], rows: [], totals: {} as any, tva: { collected: [], deductible: [], balance: [] } } as any,
     cashFlow: { months: [new Date(Date.UTC(2025, 0, 1))], monthlyData: [], inflows: {} as any, outflows: {} as any, netFlow: [], balance: [], initialBalance: 0, finalBalance: 0, minBalance: 0, maxBalance: 0, monthsWithNegativeBalance: 0, lowestMonth: null, highestMonth: null, totalInflows: 0, totalOutflows: 0 } as any,
     balanceSheet: { years: [], rows: [], totals: {} as any, bfr: [], workingCapital: [], cash: [] } as any,

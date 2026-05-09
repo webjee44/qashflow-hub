@@ -16,19 +16,23 @@ import { computeCashFlow } from './computeCashFlow';
 import { computeBalanceSheet } from './computeBalanceSheet';
 import { computeFundingPlan } from './computeFundingPlan';
 import { computeRatios } from './computeRatios';
+import { computeRevenue } from './revenue/computeRevenue';
 import { buildAllLoanSchedules } from './schedules/loanSchedule';
 import { validateBPModel, ENGINE_VERSION } from './validateBPModel';
 import type { BPModelInput, BPFinancialModel } from './types';
 
 export function computeBPModel(input: BPModelInput): BPFinancialModel {
   const schedules = buildAllLoanSchedules(input.financings);
-  const pl = computePL(input);
+  // Lot 4.1 — revenue is a first-class citizen of the financial model.
+  // Every consumer (P&L, exports, Revenue page) reads from this same source.
+  const revenue = computeRevenue(input);
+  const pl = computePL(input, revenue);
   const cashFlow = computeCashFlow(input, pl, schedules);
   const balanceSheet = computeBalanceSheet(input, pl, cashFlow, schedules);
   const fundingPlan = computeFundingPlan(input, pl, balanceSheet, schedules);
   const { ratios, getBreakEvenData } = computeRatios(pl, balanceSheet);
 
-  const partial = { pl, cashFlow, balanceSheet, fundingPlan, ratios, getBreakEvenData };
+  const partial = { revenue, pl, cashFlow, balanceSheet, fundingPlan, ratios, getBreakEvenData };
   const validation = validateBPModel(partial, input);
 
   return { ...partial, validation, engineVersion: ENGINE_VERSION };
