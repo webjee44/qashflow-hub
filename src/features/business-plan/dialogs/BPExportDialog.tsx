@@ -23,7 +23,6 @@ import { toast } from 'sonner';
 import { pdf } from '@react-pdf/renderer';
 import { BPDocument } from '../pdf/BPDocument';
 import { buildBPWorkbook, buildExportFilename } from '../export/excel/buildBPWorkbook';
-import { useBPModelInput } from '../export/excel/useBPModelInput';
 
 interface BPExportDialogProps {
   trigger?: React.ReactNode;
@@ -72,7 +71,7 @@ export function BPExportDialog({ trigger }: BPExportDialogProps) {
   const { data: fpData } = useFundingPlan();
   const { ratios, getBreakEvenData } = useBPRatios();
   const { settings } = useBPSettings();
-  const { data: bpModel } = useBPModel();
+  const { data: bpModel, input: bpInput } = useBPModel();
 
   const startYear = settings.bp_start_date ? new Date(settings.bp_start_date).getFullYear() : new Date().getFullYear();
   const years = settings.bp_years || 3;
