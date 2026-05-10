@@ -140,6 +140,7 @@ export function useRevenueStreams() {
           growth_rate_year2: data.growth_rate_year2 ?? 0.10,
           growth_rate_year3: data.growth_rate_year3 ?? 0.10,
           growth_rate_year4: data.growth_rate_year4 ?? 0.10,
+          is_one_shot: data.is_one_shot ?? false,
           has_purchase_cost: data.has_purchase_cost ?? false,
           purchase_price: data.purchase_price ?? 0,
         })
