@@ -93,7 +93,7 @@ export function buildFiscalYears(input: BuildFiscalYearsInput): FiscalYear[] {
   years.push({
     start: y1Start,
     end: y1End,
-    label: 'Année 1',
+    label: formatFiscalYearLabel(0, y1Start, y1End, y1Months.length),
     months: y1Months,
     monthCount: y1Months.length,
     isLongFirstYear: y1Months.length > 12,
