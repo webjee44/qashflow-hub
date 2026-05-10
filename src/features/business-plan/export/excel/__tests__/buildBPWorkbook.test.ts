@@ -83,8 +83,9 @@ describe('buildBPWorkbook', () => {
     expect(finalRow).not.toBeNull();
     const lastCol = model.cashFlow.months.length + 1;
     const finalFromSheet = Number(getCell(cfWS, finalRow!, lastCol)) || 0;
-    expect(finalFromSheet).toBeCloseTo(lastCashCF, 2);
-    expect(finalFromSheet).toBeCloseTo(lastCashBS, 2);
+    // PR 9 — l'export arrondit à l'euro (frontière), tolérance 1€
+    expect(Math.abs(finalFromSheet - lastCashCF)).toBeLessThanOrEqual(1);
+    expect(Math.abs(finalFromSheet - lastCashBS)).toBeLessThanOrEqual(1);
   });
 
   it('loans sheet exposes amortization rows when financings exist', () => {
