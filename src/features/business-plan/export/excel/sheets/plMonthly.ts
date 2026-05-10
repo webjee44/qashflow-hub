@@ -38,7 +38,7 @@ export function addPLMonthlySheet(wb: Workbook, model: BPFinancialModel): Worksh
     if (!row.values || row.values.length === 0) continue;
     // values length === months count when monthly; if it equals years count it's annual aggregated row → skip here
     if (row.values.length !== months.length) continue;
-    const r = ws.addRow([row.label, ...row.values]);
+    const r = ws.addRow([row.label, ...row.values.map(roundEuro)]);
     r.getCell(1).alignment = { vertical: 'middle', horizontal: 'left', indent: row.indent ?? 0 };
     for (let c = 2; c <= months.length + 1; c++) {
       r.getCell(c).numFmt = FMT_EUR;
