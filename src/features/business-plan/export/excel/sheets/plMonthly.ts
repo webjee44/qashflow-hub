@@ -2,6 +2,7 @@
 import type { Workbook, Worksheet } from 'exceljs';
 import type { BPFinancialModel } from '../../../engine/types';
 import { FMT_EUR, TAB_COLOR, applyBaseLayout, styleHeaderRow, styleTotalRow } from '../styles';
+import { roundEuro } from '../rounding';
 import { format } from 'date-fns';
 
 interface LineDef {
