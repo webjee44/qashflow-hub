@@ -138,6 +138,7 @@ export function useRevenueStreams() {
           growth_rate_year2: data.growth_rate_year2 ?? 10,
           growth_rate_year3: data.growth_rate_year3 ?? 10,
           growth_rate_year4: data.growth_rate_year4 ?? 10,
+          is_one_shot: data.is_one_shot ?? false,
         })
         .select()
         .single();
