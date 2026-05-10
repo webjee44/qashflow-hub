@@ -55,7 +55,7 @@ describe('buildBPWorkbook', () => {
   const model = computeBPModel(minimalBPInput);
   const wb = buildBPWorkbook(model, minimalBPInput, META);
 
-  it('contains all 10 expected sheets in order', () => {
+  it('contains all expected sheets in order', () => {
     const names = wb.worksheets.map(w => w.name);
     expect(names).toEqual(EXPECTED_SHEETS);
   });
