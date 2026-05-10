@@ -105,6 +105,7 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
       growth_rate_year4: rate3,
       has_purchase_cost: hasPurchaseCost,
       purchase_price: parseFloat(purchasePrice) || 0,
+      is_one_shot: isOneShot,
     } as any);
     onOpenChange(false);
   };
