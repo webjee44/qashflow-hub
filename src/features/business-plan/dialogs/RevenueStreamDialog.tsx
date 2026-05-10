@@ -41,6 +41,9 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
   const [hasPurchaseCost, setHasPurchaseCost] = useState(false);
   const [purchasePrice, setPurchasePrice] = useState('');
 
+  // One-shot (non-recurring) revenue
+  const [isOneShot, setIsOneShot] = useState(false);
+
   useEffect(() => {
     if (stream) {
       setName(stream.name);
@@ -57,6 +60,7 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
       setGrowthRateYear3(((stream.growth_rate_year3 ?? stream.annual_growth_rate ?? 0.10) * 100).toString());
       setHasPurchaseCost((stream as any).has_purchase_cost ?? false);
       setPurchasePrice((stream as any).purchase_price?.toString() || '');
+      setIsOneShot((stream as any).is_one_shot ?? false);
     } else {
       setName('');
       setDescription('');
@@ -70,6 +74,7 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
       setGrowthRateYear3('10');
       setHasPurchaseCost(false);
       setPurchasePrice('');
+      setIsOneShot(false);
     }
   }, [stream, open]);
 
@@ -100,6 +105,7 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
       growth_rate_year4: rate3,
       has_purchase_cost: hasPurchaseCost,
       purchase_price: parseFloat(purchasePrice) || 0,
+      is_one_shot: isOneShot,
     } as any);
     onOpenChange(false);
   };
@@ -225,7 +231,27 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
             )}
           </div>
 
+          {/* One-shot toggle */}
+          <div className="grid gap-2 p-4 bg-muted/30 rounded-lg border">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="isOneShot" className="cursor-pointer">
+                  Produit exceptionnel (one-shot)
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Revenu non récurrent : compté uniquement sur l'Année 1, ignoré sur les années suivantes.
+                </p>
+              </div>
+              <Switch
+                id="isOneShot"
+                checked={isOneShot}
+                onCheckedChange={setIsOneShot}
+              />
+            </div>
+          </div>
+
           {/* Year-specific growth rates (3-year BP: N+1 and N+2) */}
+          {!isOneShot && (
           <div className="grid gap-4 p-4 bg-muted/30 rounded-lg border">
             <Label className="flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-primary" />
@@ -269,7 +295,7 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
               </div>
             </div>
           </div>
-          {/* Subscription model specific fields */}
+          )}
           {model === 'subscription' && (
             <div className="space-y-4 p-4 bg-muted/30 rounded-lg border">
               <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">

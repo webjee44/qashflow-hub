@@ -157,7 +157,14 @@ function computeStream(
       continue;
     }
 
-    // 4. Year N >= 1 → derive from base month in Year 0 × compound growth.
+    // 4. One-shot streams: revenue exists only on Year 1, never reconducted.
+    if (stream?.is_one_shot) {
+      monthly[i] = 0;
+      monthlySources[i] = 'empty';
+      continue;
+    }
+
+    // 5. Year N >= 1 → derive from base month in Year 0 × compound growth.
     const baseKey = `${bpStartYear}-${String(m.getMonth() + 1).padStart(2, '0')}`;
     const baseAmount = streamForecasts.get(baseKey);
     if (baseAmount === undefined || baseAmount === 0) {

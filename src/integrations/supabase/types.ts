@@ -942,6 +942,7 @@ export type Database = {
           initial_subscribers: number | null
           is_active: boolean | null
           is_demo: boolean | null
+          is_one_shot: boolean
           model: string | null
           monthly_price: number | null
           name: string
@@ -969,6 +970,7 @@ export type Database = {
           initial_subscribers?: number | null
           is_active?: boolean | null
           is_demo?: boolean | null
+          is_one_shot?: boolean
           model?: string | null
           monthly_price?: number | null
           name: string
@@ -996,6 +998,7 @@ export type Database = {
           initial_subscribers?: number | null
           is_active?: boolean | null
           is_demo?: boolean | null
+          is_one_shot?: boolean
           model?: string | null
           monthly_price?: number | null
           name?: string
