@@ -41,6 +41,9 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
   const [hasPurchaseCost, setHasPurchaseCost] = useState(false);
   const [purchasePrice, setPurchasePrice] = useState('');
 
+  // One-shot (non-recurring) revenue
+  const [isOneShot, setIsOneShot] = useState(false);
+
   useEffect(() => {
     if (stream) {
       setName(stream.name);
