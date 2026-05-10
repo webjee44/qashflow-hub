@@ -60,6 +60,7 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
       setGrowthRateYear3(((stream.growth_rate_year3 ?? stream.annual_growth_rate ?? 0.10) * 100).toString());
       setHasPurchaseCost((stream as any).has_purchase_cost ?? false);
       setPurchasePrice((stream as any).purchase_price?.toString() || '');
+      setIsOneShot((stream as any).is_one_shot ?? false);
     } else {
       setName('');
       setDescription('');
