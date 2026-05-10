@@ -22,7 +22,9 @@ describe('PR 0 RED — pl.monthlyRows (PR 6)', () => {
   });
 
   it.fails('chaque monthlyRow a values.length === total des mois', () => {
-    for (const row of pl.monthlyRows ?? []) {
+    expect(pl.monthlyRows).toBeDefined();
+    expect(pl.monthlyRows.length).toBeGreaterThan(0);
+    for (const row of pl.monthlyRows) {
       expect(row.values.length).toBe(totalMonths);
     }
   });
