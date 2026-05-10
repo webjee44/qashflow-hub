@@ -195,6 +195,17 @@ export function computeBalanceSheet(
   rows.push({ label: 'PASSIF', type: 'header', values: [] });
   rows.push({ label: 'Capitaux propres', type: 'header', values: [], indent: 1 });
   rows.push({ label: 'Capital social', type: 'item', values: capitalValues, indent: 2 });
+  if (openingNetWorthValues.some(v => Math.abs(v) > 0.5)) {
+    // PR 2 — Ligne d'ouverture explicite. Apparaît uniquement quand
+    // l'utilisateur a saisi de la trésorerie ou un stock initial sans
+    // contrepartie en capital. Visible côté comptable, jamais cachée.
+    rows.push({
+      label: 'Situation nette initiale (report à nouveau non détaillé)',
+      type: 'item',
+      values: openingNetWorthValues,
+      indent: 2,
+    });
+  }
   rows.push({ label: 'Report à nouveau', type: 'item', values: retainedEarningsValues, indent: 2 });
   rows.push({ label: "Résultat de l'exercice", type: 'item', values: currentYearResultValues, indent: 2 });
   if (investmentGrantValues.some(v => v > 0)) {
