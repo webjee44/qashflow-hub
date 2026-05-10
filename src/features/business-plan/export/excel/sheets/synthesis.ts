@@ -51,8 +51,8 @@ export function addSynthesisSheet(wb: Workbook, model: BPFinancialModel): Worksh
 
   const kpiRows: Array<{ label: string; values: number[]; fmt: string; type?: 'subtotal' | 'total' }> = [
     { label: "Chiffre d'affaires", values: totals.revenue ?? [], fmt: FMT_EUR },
-    { label: "Marge brute", values: (totals.grossMargin ?? totals.revenue ?? []).map((v: number) => v), fmt: FMT_EUR },
-    { label: "EBE / EBITDA", values: (totals.ebe ?? totals.ebitda ?? []).map((v: number) => v), fmt: FMT_EUR, type: 'subtotal' },
+    { label: "Résultat d'exploitation", values: totals.operatingResult ?? [], fmt: FMT_EUR },
+    { label: "EBITDA", values: totals.ebitda ?? [], fmt: FMT_EUR, type: 'subtotal' },
     { label: "Résultat net", values: totals.netResult ?? [], fmt: FMT_EUR, type: 'total' },
     { label: "Trésorerie finale", values: cash, fmt: FMT_EUR },
     { label: "Dettes financières", values: debts, fmt: FMT_EUR },
