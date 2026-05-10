@@ -40,6 +40,8 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
   // Purchase cost fields
   const [hasPurchaseCost, setHasPurchaseCost] = useState(false);
   const [purchasePrice, setPurchasePrice] = useState('');
+  const [purchasePriceYear2, setPurchasePriceYear2] = useState('');
+  const [purchasePriceYear3, setPurchasePriceYear3] = useState('');
 
   // One-shot (non-recurring) revenue
   const [isOneShot, setIsOneShot] = useState(false);
@@ -60,6 +62,16 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
       setGrowthRateYear3(((stream.growth_rate_year3 ?? stream.annual_growth_rate ?? 0.10) * 100).toString());
       setHasPurchaseCost((stream as any).has_purchase_cost ?? false);
       setPurchasePrice((stream as any).purchase_price?.toString() || '');
+      setPurchasePriceYear2(
+        (stream as any).purchase_price_year2 !== null && (stream as any).purchase_price_year2 !== undefined
+          ? String((stream as any).purchase_price_year2)
+          : ''
+      );
+      setPurchasePriceYear3(
+        (stream as any).purchase_price_year3 !== null && (stream as any).purchase_price_year3 !== undefined
+          ? String((stream as any).purchase_price_year3)
+          : ''
+      );
       setIsOneShot((stream as any).is_one_shot ?? false);
     } else {
       setName('');
@@ -74,6 +86,8 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
       setGrowthRateYear3('10');
       setHasPurchaseCost(false);
       setPurchasePrice('');
+      setPurchasePriceYear2('');
+      setPurchasePriceYear3('');
       setIsOneShot(false);
     }
   }, [stream, open]);
@@ -105,6 +119,9 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
       growth_rate_year4: rate3,
       has_purchase_cost: hasPurchaseCost,
       purchase_price: parseFloat(purchasePrice) || 0,
+      purchase_price_year2: purchasePriceYear2.trim() === '' ? null : (parseFloat(purchasePriceYear2) || 0),
+      purchase_price_year3: purchasePriceYear3.trim() === '' ? null : (parseFloat(purchasePriceYear3) || 0),
+      purchase_price_year4: purchasePriceYear3.trim() === '' ? null : (parseFloat(purchasePriceYear3) || 0),
       is_one_shot: isOneShot,
     } as any);
     onOpenChange(false);
@@ -207,27 +224,70 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
             </div>
             
             {hasPurchaseCost && (
-              <div className="flex items-center gap-3 pt-2 border-t">
-                <Label htmlFor="purchasePercent" className="text-sm whitespace-nowrap">
-                  % des achats
-                </Label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    id="purchasePercent"
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={purchasePrice}
-                    onChange={(e) => setPurchasePrice(e.target.value)}
-                    placeholder="60"
-                    className="w-20"
-                  />
-                  <span className="text-sm text-muted-foreground">%</span>
+              <>
+                <div className="flex items-center gap-3 pt-2 border-t">
+                  <Label htmlFor="purchasePercent" className="text-sm whitespace-nowrap">
+                    % des achats (Année 1)
+                  </Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="purchasePercent"
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={purchasePrice}
+                      onChange={(e) => setPurchasePrice(e.target.value)}
+                      placeholder="60"
+                      className="w-20"
+                    />
+                    <span className="text-sm text-muted-foreground">%</span>
+                  </div>
+                  <span className="text-xs text-muted-foreground ml-auto">
+                    Marge brute {(100 - (parseFloat(purchasePrice) || 0)).toFixed(0)}%
+                  </span>
                 </div>
-                <span className="text-xs text-muted-foreground ml-auto">
-                  = Marge brute de {(100 - (parseFloat(purchasePrice) || 0)).toFixed(0)}%
-                </span>
-              </div>
+
+                {!isOneShot && (
+                  <div className="grid grid-cols-2 gap-4 pt-2">
+                    <div className="grid gap-1">
+                      <Label htmlFor="purchaseYear2" className="text-xs text-muted-foreground">
+                        % achats N+1 (vide = idem A1)
+                      </Label>
+                      <div className="flex items-center gap-1">
+                        <Input
+                          id="purchaseYear2"
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={purchasePriceYear2}
+                          onChange={(e) => setPurchasePriceYear2(e.target.value)}
+                          placeholder={purchasePrice || '60'}
+                          className="h-8"
+                        />
+                        <span className="text-xs text-muted-foreground">%</span>
+                      </div>
+                    </div>
+                    <div className="grid gap-1">
+                      <Label htmlFor="purchaseYear3" className="text-xs text-muted-foreground">
+                        % achats N+2 (vide = idem A1)
+                      </Label>
+                      <div className="flex items-center gap-1">
+                        <Input
+                          id="purchaseYear3"
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={purchasePriceYear3}
+                          onChange={(e) => setPurchasePriceYear3(e.target.value)}
+                          placeholder={purchasePrice || '60'}
+                          className="h-8"
+                        />
+                        <span className="text-xs text-muted-foreground">%</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
 
