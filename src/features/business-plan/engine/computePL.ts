@@ -203,12 +203,33 @@ export function computePL(input: BPModelInput, revenue: RevenueModel): PLData {
     return (expense.unit_cost || 0);
   };
 
+  // Resolve cost-of-goods % for a given stream and month, with year overrides.
+  // Year offset is calendar-based vs bp_start year (matches computeRevenue semantics).
+  const bpStartYear = settings.bp_start_date
+    ? new Date(settings.bp_start_date).getFullYear()
+    : new Date().getFullYear();
+  const resolvePurchasePricePct = (stream: any, month: Date): number => {
+    const baseY1 = Number(stream.purchase_price) || 0;
+    const yearOffset = month.getFullYear() - bpStartYear;
+    const pickOverride = (raw: unknown): number | null => {
+      if (raw === null || raw === undefined || raw === '') return null;
+      const num = Number(raw);
+      return Number.isFinite(num) ? num : null;
+    };
+    if (yearOffset === 1) return pickOverride(stream.purchase_price_year2) ?? baseY1;
+    if (yearOffset === 2) return pickOverride(stream.purchase_price_year3) ?? baseY1;
+    if (yearOffset >= 3) return pickOverride(stream.purchase_price_year4) ?? baseY1;
+    return baseY1;
+  };
+
   const getPurchaseCostForMonth = (month: Date, revenueType?: 'merchandise' | 'production'): number => {
     return streams.reduce((sum, stream) => {
-      if (!stream.has_purchase_cost || !stream.purchase_price) return sum;
+      if (!stream.has_purchase_cost) return sum;
       if (revenueType && stream.revenue_type !== revenueType) return sum;
+      const pct = resolvePurchasePricePct(stream, month);
+      if (!pct) return sum;
       const revenue = getRevenueForecast(stream.id, month);
-      const purchaseCost = revenue * (stream.purchase_price / 100);
+      const purchaseCost = revenue * (pct / 100);
       return sum + purchaseCost;
     }, 0);
   };
