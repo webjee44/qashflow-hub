@@ -170,7 +170,7 @@ export function BPExportDialog({ trigger }: BPExportDialogProps) {
         {trigger || (
           <Button variant="outline" className="gap-2">
             <Download className="h-4 w-4" />
-            Exporter PDF
+            Exporter
           </Button>
         )}
       </DialogTrigger>
