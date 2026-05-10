@@ -545,14 +545,16 @@ export function computePL(input: BPModelInput, revenue: RevenueModel): PLData {
   const tvaCollectedValues = calculateYearlyValues(month =>
     streams.reduce((sum, stream) => {
       const revenue = getRevenueForecast(stream.id, month);
-      const vatRate = stream.vat_rate ?? TVA_RATES_FR.standard;
+      // PR 1 — `vat_rate` peut arriver en décimal (0.20) ou en pourcent (20).
+      // normalizeRate harmonise dans tous les cas.
+      const vatRate = normalizeRate(stream.vat_rate, TVA_RATES_FR.standard);
       return sum + (revenue * vatRate);
     }, 0)
   );
   const tvaDeductibleValues = calculateYearlyValues(month =>
     fixedExpenses.reduce((sum, expense) => {
       const expenseAmount = getFixedExpenseForMonth(expense, month);
-      const vatRate = expense.vat_rate ?? TVA_RATES_FR.standard;
+      const vatRate = normalizeRate(expense.vat_rate, TVA_RATES_FR.standard);
       const isDeductible = expense.is_vat_deductible !== false;
       return sum + (isDeductible ? expenseAmount * vatRate : 0);
     }, 0)

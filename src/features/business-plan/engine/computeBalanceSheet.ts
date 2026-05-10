@@ -74,7 +74,23 @@ export function computeBalanceSheet(
     return (yearRevenue * customerDelay) / 365;
   });
 
-  const capitalValues = years.map(() => Number(settings.initial_cash) || 0);
+  // ── PR 2 — Ouverture comptable explicite ──
+  // Capital social = uniquement ce que l'utilisateur a saisi. Aucun
+  // équilibrage silencieux à partir de `initial_cash`. Si `initial_cash`
+  // (ou un stock initial) est saisi sans contrepartie, l'écart apparaît
+  // sur une ligne dédiée « Situation nette initiale (report à nouveau
+  // non détaillé) ».
+  const capitalDeclared = Number(settings.initial_capital ?? 0) || 0;
+  const initialCashOpening = Number(settings.initial_cash) || 0;
+  const initialStockOpening = stocks
+    .filter((s: any) => s.fiscal_year === 1)
+    .reduce((sum: number, s: any) => sum + (Number(s.initial_stock) || 0), 0);
+  // Tout actif d'ouverture (cash + stock) sans contrepartie connue
+  // (capital social) doit apparaître au passif.
+  const openingNetWorth = initialCashOpening + initialStockOpening - capitalDeclared;
+
+  const capitalValues = years.map(() => capitalDeclared);
+  const openingNetWorthValues = years.map(() => openingNetWorth);
   const retainedEarningsValues = years.map((_, yearIndex) => {
     let cumulative = 0;
     for (let i = 0; i < yearIndex; i++) cumulative += plData.totals.netResult[i] || 0;
@@ -90,7 +106,11 @@ export function computeBalanceSheet(
   );
 
   const equityValues = years.map((_, i) =>
-    capitalValues[i] + retainedEarningsValues[i] + currentYearResultValues[i] + investmentGrantValues[i]
+    capitalValues[i]
+      + openingNetWorthValues[i]
+      + retainedEarningsValues[i]
+      + currentYearResultValues[i]
+      + investmentGrantValues[i]
   );
 
   // ── Lot 2.3: capital restant dû via échéancier unique ──
@@ -175,6 +195,17 @@ export function computeBalanceSheet(
   rows.push({ label: 'PASSIF', type: 'header', values: [] });
   rows.push({ label: 'Capitaux propres', type: 'header', values: [], indent: 1 });
   rows.push({ label: 'Capital social', type: 'item', values: capitalValues, indent: 2 });
+  if (openingNetWorthValues.some(v => Math.abs(v) > 0.5)) {
+    // PR 2 — Ligne d'ouverture explicite. Apparaît uniquement quand
+    // l'utilisateur a saisi de la trésorerie ou un stock initial sans
+    // contrepartie en capital. Visible côté comptable, jamais cachée.
+    rows.push({
+      label: 'Situation nette initiale (report à nouveau non détaillé)',
+      type: 'item',
+      values: openingNetWorthValues,
+      indent: 2,
+    });
+  }
   rows.push({ label: 'Report à nouveau', type: 'item', values: retainedEarningsValues, indent: 2 });
   rows.push({ label: "Résultat de l'exercice", type: 'item', values: currentYearResultValues, indent: 2 });
   if (investmentGrantValues.some(v => v > 0)) {

@@ -1149,6 +1149,7 @@ export type Database = {
           fiscal_year_start_day: number | null
           fiscal_year_start_month: number | null
           id: string
+          initial_capital: number | null
           initial_cash: number | null
           is_pme: boolean | null
           projection_months: number | null
@@ -1170,6 +1171,7 @@ export type Database = {
           fiscal_year_start_day?: number | null
           fiscal_year_start_month?: number | null
           id?: string
+          initial_capital?: number | null
           initial_cash?: number | null
           is_pme?: boolean | null
           projection_months?: number | null
@@ -1191,6 +1193,7 @@ export type Database = {
           fiscal_year_start_day?: number | null
           fiscal_year_start_month?: number | null
           id?: string
+          initial_capital?: number | null
           initial_cash?: number | null
           is_pme?: boolean | null
           projection_months?: number | null

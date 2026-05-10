@@ -12,6 +12,8 @@ export interface BPSettings {
   user_id: string;
   company_id: string | null;
   initial_cash: number;
+  /** PR 2 — Capital social explicite. Null tant que non saisi. */
+  initial_capital: number | null;
   customer_payment_delay: number;
   supplier_payment_delay: number;
   projection_months: number;
@@ -31,6 +33,7 @@ export interface BPSettings {
 
 const DEFAULT_SETTINGS = {
   initial_cash: 0,
+  initial_capital: null as number | null,
   customer_payment_delay: 30,
   supplier_payment_delay: 30,
   projection_months: 24,

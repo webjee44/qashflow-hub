@@ -9,6 +9,13 @@ import type { PLData } from '../hooks/useProfitLoss.types';
 
 export interface BPSettingsInput {
   initial_cash: number;
+  /**
+   * PR 2 — Capital social explicitement saisi par l'utilisateur. Jamais
+   * dérivé de `initial_cash`. Si `null`/`undefined`, le bilan ne fabrique
+   * PAS de capital fictif : tout écart d'ouverture est exposé via la ligne
+   * « Situation nette initiale ».
+   */
+  initial_capital?: number | null;
   customer_payment_delay: number;
   supplier_payment_delay: number;
   tax_regime: string;

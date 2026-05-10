@@ -1,0 +1,1 @@
+ALTER TABLE public.bp_settings ADD COLUMN IF NOT EXISTS initial_capital numeric;
