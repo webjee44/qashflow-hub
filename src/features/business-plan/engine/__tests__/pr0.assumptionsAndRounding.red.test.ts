@@ -49,7 +49,9 @@ describe('PR 0 RED — assumptions export mapping (PR 7)', () => {
     expect(nums.some((n) => Math.abs(n - 1200) < 0.5)).toBe(true);
   });
 
-  it.fails('personnel (gross_salary=3000) → cellule non nulle', async () => {
+  // Note : `gross_salary=3000` est déjà correctement exporté aujourd'hui,
+  // donc ce test sert d'anti-régression (pas `it.fails`).
+  it('personnel (gross_salary=3000) → cellule non nulle', async () => {
     const { wb } = await buildWb();
     const ws = wb.getWorksheet('Hypothèses') ?? wb.worksheets.find((w) => /hypoth/i.test(w.name));
     const nums = collectNumericCells(ws!);
