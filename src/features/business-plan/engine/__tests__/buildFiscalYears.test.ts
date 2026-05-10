@@ -32,7 +32,7 @@ describe('buildFiscalYears', () => {
     expect(years).toHaveLength(3);
     expect(years[0].monthCount).toBe(16);
     expect(years[0].isLongFirstYear).toBe(true);
-    expect(years[0].label).toBe('Année 1');
+    expect(years[0].label).toMatch(/^Année 1 \(.*16 mois\)$/);
     expect(years[0].start.toISOString().slice(0, 10)).toBe('2025-09-01');
     expect(years[0].end.toISOString().slice(0, 10)).toBe('2026-12-31');
 
