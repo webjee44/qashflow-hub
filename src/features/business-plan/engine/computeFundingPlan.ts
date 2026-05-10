@@ -65,8 +65,17 @@ export function computeFundingPlan(
   });
   rows.push({ label: "Capacité d'autofinancement (CAF)", type: 'item', values: caf, indent: 1 });
 
-  const capitalContributions = years.map((_, i) => i === 0 ? Number(settings.initial_cash) || 0 : 0);
+  // PR 5 — Apports = capital social déclaré (jamais dérivé de la trésorerie initiale).
+  // Si l'utilisateur n'a pas saisi de capital, la ligne est à zéro et l'écart
+  // d'ouverture éventuel est exposé via la « Situation nette initiale » au bilan.
+  const capitalContributions = years.map((_, i) => i === 0 ? Number(settings.initial_capital ?? 0) || 0 : 0);
   rows.push({ label: 'Apports en capital', type: 'item', values: capitalContributions, indent: 1 });
+
+  // PR 5 — Trésorerie initiale (ressource d'ouverture, distincte du capital).
+  const openingCashContribution = years.map((_, i) => i === 0 ? Number(settings.initial_cash) || 0 : 0);
+  if (openingCashContribution[0] > 0) {
+    rows.push({ label: 'Trésorerie initiale (ouverture)', type: 'item', values: openingCashContribution, indent: 1 });
+  }
 
   const newLoans = showFinancing ? years.map((_, yearIndex) => {
     const yearStart = plData.years[yearIndex]?.start;
