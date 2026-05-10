@@ -24,6 +24,7 @@ const META = {
 
 const EXPECTED_SHEETS = [
   'README',
+  'Synthèse',
   'Hypothèses',
   'P&L mensuel',
   'P&L annuel',
