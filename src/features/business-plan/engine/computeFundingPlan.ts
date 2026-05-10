@@ -13,7 +13,7 @@ export function computeFundingPlan(
   const { settings, investments, financings } = input;
   const schedules = loanSchedules ?? buildAllLoanSchedules(financings);
   const showFinancing = settings.show_financing !== false;
-  const years = plData.years.map((_, i) => `Année ${i + 1}`);
+  const years = plData.years.map((y) => y.label);
   const rows: FundingPlanRow[] = [];
 
   rows.push({ label: 'BESOINS', type: 'header', values: [], isNeed: true });
