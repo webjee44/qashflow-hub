@@ -947,6 +947,9 @@ export type Database = {
           monthly_price: number | null
           name: string
           purchase_price: number | null
+          purchase_price_year2: number | null
+          purchase_price_year3: number | null
+          purchase_price_year4: number | null
           revenue_type: string | null
           updated_at: string | null
           user_id: string
@@ -975,6 +978,9 @@ export type Database = {
           monthly_price?: number | null
           name: string
           purchase_price?: number | null
+          purchase_price_year2?: number | null
+          purchase_price_year3?: number | null
+          purchase_price_year4?: number | null
           revenue_type?: string | null
           updated_at?: string | null
           user_id: string
@@ -1003,6 +1009,9 @@ export type Database = {
           monthly_price?: number | null
           name?: string
           purchase_price?: number | null
+          purchase_price_year2?: number | null
+          purchase_price_year3?: number | null
+          purchase_price_year4?: number | null
           revenue_type?: string | null
           updated_at?: string | null
           user_id?: string
