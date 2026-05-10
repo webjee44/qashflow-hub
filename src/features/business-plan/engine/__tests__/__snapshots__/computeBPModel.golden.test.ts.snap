@@ -264,15 +264,15 @@ exports[`computeBPModel — golden snapshots > minimal-bp fixture is stable 1`] 
     "years": [
       {
         "endDate": "2025-12-31",
-        "label": "Année 1",
+        "label": "Année 1 (janv. 2025 → déc. 2025)",
       },
       {
         "endDate": "2026-12-31",
-        "label": "Année 2",
+        "label": "Année 2 (janv. 2026 → déc. 2026)",
       },
       {
         "endDate": "2027-12-31",
-        "label": "Année 3",
+        "label": "Année 3 (janv. 2027 → déc. 2027)",
       },
     ],
   },
@@ -2244,9 +2244,9 @@ exports[`computeBPModel — golden snapshots > minimal-bp fixture is stable 1`] 
       },
     ],
     "years": [
-      "Année 1",
-      "Année 2",
-      "Année 3",
+      "Année 1 (janv. 2025 → déc. 2025)",
+      "Année 2 (janv. 2026 → déc. 2026)",
+      "Année 3 (janv. 2027 → déc. 2027)",
     ],
   },
   "pl": {
@@ -2779,7 +2779,7 @@ exports[`computeBPModel — golden snapshots > minimal-bp fixture is stable 1`] 
     "years": [
       {
         "end": "2025-12-31",
-        "label": "Année 1",
+        "label": "Année 1 (janv. 2025 → déc. 2025)",
         "months": [
           "2025-01-01",
           "2025-02-01",
@@ -2798,7 +2798,7 @@ exports[`computeBPModel — golden snapshots > minimal-bp fixture is stable 1`] 
       },
       {
         "end": "2026-12-31",
-        "label": "Année 2",
+        "label": "Année 2 (janv. 2026 → déc. 2026)",
         "months": [
           "2026-01-01",
           "2026-02-01",
@@ -2817,7 +2817,7 @@ exports[`computeBPModel — golden snapshots > minimal-bp fixture is stable 1`] 
       },
       {
         "end": "2027-12-31",
-        "label": "Année 3",
+        "label": "Année 3 (janv. 2027 → déc. 2027)",
         "months": [
           "2027-01-01",
           "2027-02-01",
@@ -3021,7 +3021,7 @@ exports[`computeBPModel — golden snapshots > minimal-bp fixture is stable 1`] 
     "fiscalYears": [
       {
         "end": "2025-12-31",
-        "label": "Année 1",
+        "label": "Année 1 (janv. 2025 → déc. 2025)",
         "months": [
           "2025-01-01",
           "2025-02-01",
@@ -3040,7 +3040,7 @@ exports[`computeBPModel — golden snapshots > minimal-bp fixture is stable 1`] 
       },
       {
         "end": "2026-12-31",
-        "label": "Année 2",
+        "label": "Année 2 (janv. 2026 → déc. 2026)",
         "months": [
           "2026-01-01",
           "2026-02-01",
@@ -3059,7 +3059,7 @@ exports[`computeBPModel — golden snapshots > minimal-bp fixture is stable 1`] 
       },
       {
         "end": "2027-12-31",
-        "label": "Année 3",
+        "label": "Année 3 (janv. 2027 → déc. 2027)",
         "months": [
           "2027-01-01",
           "2027-02-01",
