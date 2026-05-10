@@ -13,7 +13,29 @@
 // `fiscal_year_start_month/day`.
 // ============================================================
 
-import { addMonths, startOfMonth } from 'date-fns';
+import { addMonths, format, startOfMonth } from 'date-fns';
+import { fr } from 'date-fns/locale';
+
+/**
+ * Format a fiscal year label including its real period.
+ * Examples:
+ *   "Année 1 (sept. 2025 → août 2026)"
+ *   "Année 1 (sept. 2025 → févr. 2027, 18 mois)"  // long first year
+ */
+export function formatFiscalYearLabel(
+  index: number,
+  start: Date,
+  end: Date,
+  monthCount: number,
+): string {
+  const startStr = format(start, 'LLL yyyy', { locale: fr });
+  const endStr = format(end, 'LLL yyyy', { locale: fr });
+  const isLong = monthCount > 12;
+  const period = isLong
+    ? `${startStr} → ${endStr}, ${monthCount} mois`
+    : `${startStr} → ${endStr}`;
+  return `Année ${index + 1} (${period})`;
+}
 
 export interface FiscalYear {
   start: Date;
@@ -71,7 +93,7 @@ export function buildFiscalYears(input: BuildFiscalYearsInput): FiscalYear[] {
   years.push({
     start: y1Start,
     end: y1End,
-    label: 'Année 1',
+    label: formatFiscalYearLabel(0, y1Start, y1End, y1Months.length),
     months: y1Months,
     monthCount: y1Months.length,
     isLongFirstYear: y1Months.length > 12,
@@ -89,7 +111,7 @@ export function buildFiscalYears(input: BuildFiscalYearsInput): FiscalYear[] {
     years.push({
       start,
       end,
-      label: `Année ${i + 1}`,
+      label: formatFiscalYearLabel(i, start, end, months.length),
       months,
       monthCount: months.length,
       isLongFirstYear: false,

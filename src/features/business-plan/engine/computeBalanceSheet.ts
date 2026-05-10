@@ -42,7 +42,7 @@ export function computeBalanceSheet(
   // Build loan schedules once if not provided
   const schedules = loanSchedules ?? buildAllLoanSchedules(financings);
 
-  const years = plData.years.map((y, i) => ({ label: `Année ${i + 1}`, endDate: y.end }));
+  const years = plData.years.map((y) => ({ label: y.label, endDate: y.end }));
 
   const customerDelay = settings.customer_payment_delay || 30;
   const supplierDelay = settings.supplier_payment_delay || 30;

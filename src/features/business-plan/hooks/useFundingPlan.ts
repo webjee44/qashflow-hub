@@ -44,7 +44,7 @@ export function useFundingPlan() {
   const isLoading = plLoading || investmentsLoading || financingsLoading || bsLoading || settingsLoading;
 
   const data = useMemo<FundingPlanData>(() => {
-    const years = plData.years.map((_, i) => `Année ${i + 1}`);
+    const years = plData.years.map((y) => y.label);
     const rows: FundingPlanRow[] = [];
 
     // ═══════════════════════════════════════════════════════════════
