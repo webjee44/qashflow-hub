@@ -6,14 +6,15 @@ import { FONT_BASE, FONT_BOLD, FONT_TITLE, TAB_COLOR, applyBaseLayout, styleHead
 import { format } from 'date-fns';
 
 const SHEETS_DESCRIPTION: Array<{ name: string; description: string; source: string }> = [
-  { name: 'Hypothèses', description: "Toutes les données saisies (paramètres, revenus, charges, personnel, investissements, financements)", source: 'BPModelInput' },
-  { name: 'P&L mensuel', description: 'Compte de résultat détaillé mois par mois', source: 'computeBPModel.pl' },
-  { name: 'P&L annuel', description: 'Compte de résultat agrégé par exercice fiscal', source: 'computeBPModel.pl' },
+  { name: 'Synthèse', description: 'KPI annuels + matrice rouge/vert des contrôles d\'intégrité (point d\'entrée comptable)', source: 'computeBPModel + validateBPModel' },
+  { name: 'Hypothèses', description: "Données saisies (paramètres, revenus, charges, personnel avec taux brut DB + taux normalisé moteur, investissements, financements)", source: 'BPModelInput' },
+  { name: 'P&L mensuel', description: 'Compte de résultat détaillé mois par mois (source de vérité — l\'annuel en est la somme)', source: 'computeBPModel.pl.rows monthly' },
+  { name: 'P&L annuel', description: 'Compte de résultat agrégé par exercice fiscal', source: 'computeBPModel.pl.totals' },
   { name: 'Cash-flow mensuel', description: 'Flux de trésorerie mensuel détaillé (encaissements / décaissements)', source: 'computeBPModel.cashFlow' },
-  { name: 'Bilan annuel', description: 'Actif et passif par exercice + écart de contrôle', source: 'computeBPModel.balanceSheet' },
-  { name: 'Plan de financement', description: 'Besoins vs ressources par exercice + variation de trésorerie', source: 'computeBPModel.fundingPlan' },
+  { name: 'Bilan annuel', description: 'Actif et passif par exercice + ligne de contrôle (formule Excel actif − passif)', source: 'computeBPModel.balanceSheet' },
+  { name: 'Plan de financement', description: 'Besoins vs ressources par exercice (capital social distinct de la trésorerie initiale)', source: 'computeBPModel.fundingPlan' },
   { name: 'Emprunts', description: "Tableau d'amortissement mensuel par emprunt", source: 'buildLoanSchedule' },
-  { name: 'Contrôles', description: 'Rapport de validation (réconciliation, équilibres)', source: 'validateBPModel' },
+  { name: 'Contrôles', description: 'Liste exhaustive des incohérences détectées (réconciliation, équilibres)', source: 'validateBPModel' },
   { name: 'Données techniques', description: "Identifiants, version moteur et hash d'export", source: 'meta' },
 ];
 
