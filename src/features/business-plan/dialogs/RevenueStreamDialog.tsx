@@ -119,6 +119,9 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
       growth_rate_year4: rate3,
       has_purchase_cost: hasPurchaseCost,
       purchase_price: parseFloat(purchasePrice) || 0,
+      purchase_price_year2: purchasePriceYear2.trim() === '' ? null : (parseFloat(purchasePriceYear2) || 0),
+      purchase_price_year3: purchasePriceYear3.trim() === '' ? null : (parseFloat(purchasePriceYear3) || 0),
+      purchase_price_year4: purchasePriceYear3.trim() === '' ? null : (parseFloat(purchasePriceYear3) || 0),
       is_one_shot: isOneShot,
     } as any);
     onOpenChange(false);
