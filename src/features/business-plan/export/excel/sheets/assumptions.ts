@@ -3,6 +3,7 @@
 import type { Workbook, Worksheet, Row } from 'exceljs';
 import type { BPModelInput } from '../../../engine/types';
 import { FONT_BOLD, FMT_EUR, FMT_PCT, TAB_COLOR, applyBaseLayout, styleHeaderRow } from '../styles';
+import { normalizeRate } from '@/lib/rateUtils';
 
 function addSectionHeader(ws: Worksheet, title: string) {
   ws.addRow([]);
