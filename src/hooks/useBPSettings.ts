@@ -33,6 +33,7 @@ export interface BPSettings {
 
 const DEFAULT_SETTINGS = {
   initial_cash: 0,
+  initial_capital: null as number | null,
   customer_payment_delay: 30,
   supplier_payment_delay: 30,
   projection_months: 24,
