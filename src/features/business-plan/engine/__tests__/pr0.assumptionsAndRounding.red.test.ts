@@ -58,7 +58,7 @@ describe('PR 0 RED — assumptions export mapping (PR 7)', () => {
     expect(nums.some((n) => Math.abs(n - 3000) < 0.5)).toBe(true);
   });
 
-  it.fails('stocks (initial_stock=100, purchase=500, final=150) → cellules non nulles', async () => {
+  it('stocks (initial_stock=100, purchase=500, final=150) → cellules non nulles', async () => {
     const { wb } = await buildWb();
     const ws = wb.getWorksheet('Hypothèses') ?? wb.worksheets.find((w) => /hypoth/i.test(w.name));
     const nums = collectNumericCells(ws!);
