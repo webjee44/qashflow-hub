@@ -67,7 +67,7 @@ describe('PR 0 RED — assumptions export mapping (PR 7)', () => {
     expect(nums.some((n) => Math.abs(n - 150) < 0.5)).toBe(true);
   });
 
-  it.fails('charges patronales : valeur DB brute ET valeur normalisée affichées', async () => {
+  it('charges patronales : valeur DB brute ET valeur normalisée affichées', async () => {
     // Cible PR 7 : deux colonnes "DB brute" / "moteur (normalizeRate)".
     // On teste qu'on retrouve à la fois 0.45 (normalisé) et un libellé
     // distinguant les deux colonnes.
