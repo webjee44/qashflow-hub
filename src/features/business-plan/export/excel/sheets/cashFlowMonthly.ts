@@ -2,6 +2,7 @@
 import type { Workbook, Worksheet } from 'exceljs';
 import type { BPFinancialModel } from '../../../engine/types';
 import { FMT_EUR, TAB_COLOR, applyBaseLayout, styleHeaderRow, styleTotalRow } from '../styles';
+import { roundEuro } from '../rounding';
 import { format } from 'date-fns';
 
 export function addCashFlowMonthlySheet(wb: Workbook, model: BPFinancialModel): Worksheet {
@@ -42,7 +43,7 @@ export function addCashFlowMonthlySheet(wb: Workbook, model: BPFinancialModel): 
   ];
 
   for (const line of LINES) {
-    const r = ws.addRow([line.label, ...line.values]);
+    const r = ws.addRow([line.label, ...line.values.map(roundEuro)]);
     for (let c = 2; c <= months.length + 1; c++) r.getCell(c).numFmt = FMT_EUR;
     if (line.type) styleTotalRow(r, line.type);
   }

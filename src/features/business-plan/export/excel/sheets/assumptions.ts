@@ -3,6 +3,7 @@
 import type { Workbook, Worksheet, Row } from 'exceljs';
 import type { BPModelInput } from '../../../engine/types';
 import { FONT_BOLD, FMT_EUR, FMT_PCT, TAB_COLOR, applyBaseLayout, styleHeaderRow } from '../styles';
+import { normalizeRate } from '@/lib/rateUtils';
 
 function addSectionHeader(ws: Worksheet, title: string) {
   ws.addRow([]);
@@ -79,25 +80,28 @@ export function addAssumptionsSheet(wb: Workbook, input: BPModelInput): Workshee
     Number(e.tva_rate ?? 0) / 100,
   ]), [], [4, 5]);
 
-  // Personnel
+  // Personnel — PR 7 : on expose taux brut DB + taux normalisé moteur
+  // pour qu'un comptable repère immédiatement une saisie 45 vs 0.45.
   addSectionHeader(ws, 'Personnel');
-  addTable(ws, ['Poste', 'Salaire brut mensuel', 'Charges patronales', 'Date début', 'Date fin'], (input.personnel || []).map((p: any) => [
+  addTable(ws, ['Poste', 'Salaire brut mensuel', 'Charges patronales (saisie DB)', 'Charges patronales (utilisé moteur)', 'Date début', 'Date fin'], (input.personnel || []).map((p: any) => [
     p.position ?? p.name ?? '—',
     Number(p.gross_salary ?? p.salary ?? 0),
-    Number(p.employer_charges ?? p.employer_tax_rate ?? 0),
+    Number(p.employer_charges_rate ?? p.employer_charges ?? p.employer_tax_rate ?? 0),
+    normalizeRate(p.employer_charges_rate ?? p.employer_charges ?? p.employer_tax_rate),
     p.start_date ?? '—',
     p.end_date ?? '—',
-  ]), [2, 3]);
+  ]), [2], [3, 4]);
 
-  // Dirigeants
+  // Dirigeants — idem
   addSectionHeader(ws, 'Dirigeants');
-  addTable(ws, ['Nom', 'Rémunération mensuelle', 'Charges', 'Date début', 'Date fin'], (input.directors || []).map((d: any) => [
+  addTable(ws, ['Nom', 'Rémunération mensuelle', 'Charges (saisie DB)', 'Charges (utilisé moteur)', 'Date début', 'Date fin'], (input.directors || []).map((d: any) => [
     d.name ?? '—',
-    Number(d.gross_salary ?? d.compensation ?? 0),
-    Number(d.employer_charges ?? d.charges ?? 0),
+    Number(d.monthly_remuneration ?? d.gross_salary ?? d.compensation ?? 0),
+    Number(d.charges_rate ?? d.employer_charges ?? d.charges ?? 0),
+    normalizeRate(d.charges_rate ?? d.employer_charges ?? d.charges),
     d.start_date ?? '—',
     d.end_date ?? '—',
-  ]), [2, 3]);
+  ]), [2], [3, 4]);
 
   // Investissements
   addSectionHeader(ws, 'Investissements');

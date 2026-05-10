@@ -24,6 +24,7 @@ const META = {
 
 const EXPECTED_SHEETS = [
   'README',
+  'Synthèse',
   'Hypothèses',
   'P&L mensuel',
   'P&L annuel',
@@ -54,7 +55,7 @@ describe('buildBPWorkbook', () => {
   const model = computeBPModel(minimalBPInput);
   const wb = buildBPWorkbook(model, minimalBPInput, META);
 
-  it('contains all 10 expected sheets in order', () => {
+  it('contains all expected sheets in order', () => {
     const names = wb.worksheets.map(w => w.name);
     expect(names).toEqual(EXPECTED_SHEETS);
   });
@@ -82,8 +83,9 @@ describe('buildBPWorkbook', () => {
     expect(finalRow).not.toBeNull();
     const lastCol = model.cashFlow.months.length + 1;
     const finalFromSheet = Number(getCell(cfWS, finalRow!, lastCol)) || 0;
-    expect(finalFromSheet).toBeCloseTo(lastCashCF, 2);
-    expect(finalFromSheet).toBeCloseTo(lastCashBS, 2);
+    // PR 9 — l'export arrondit à l'euro (frontière), tolérance 1€
+    expect(Math.abs(finalFromSheet - lastCashCF)).toBeLessThanOrEqual(1);
+    expect(Math.abs(finalFromSheet - lastCashBS)).toBeLessThanOrEqual(1);
   });
 
   it('loans sheet exposes amortization rows when financings exist', () => {

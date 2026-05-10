@@ -197,3 +197,23 @@ Sur le BP réel `E-fumeur Internet` :
 
 Chaque PR fait passer un sous-ensemble identifié des tests rouges de PR 0.
 Aucune PR ne doit en désactiver un sans justification écrite dans le diff.
+
+---
+
+## État de livraison (2026-05-10)
+
+- [x] **PR 0** — 16 tests rouges (filet de sécurité)
+- [x] **PR 1** — `normalizeRate` adopté dans `computePL` (TVA, charges patronales, charges dirigeants)
+- [x] **PR 2** — Migration `bp_settings.initial_capital`, ligne « Situation nette initiale » au passif
+- [x] **PR 5** — `computeFundingPlan` utilise `initial_capital` (capital social) distinct de `initial_cash` (ligne dédiée « Trésorerie initiale (ouverture) »)
+- [x] **PR 7** — Onglet Hypothèses expose taux DB brut + taux moteur normalisé pour personnel/dirigeants
+- [x] **PR 8** — Nouvel onglet **Synthèse** (KPI annuels + matrice rouge/vert des contrôles d'intégrité)
+- [x] **PR 9** — Helper `roundEuro`/`roundCent` appliqué à la frontière Excel (bilan, plan financement, P&L mensuel/annuel, cash-flow). Engine reste en flottants exacts.
+
+**Restent à faire (engine, hors scope de ce passage)** :
+
+- [ ] **PR 3** — Refondre `stockVariation` (signe PCG 603 = `initial − final`, séparé du « consommé »)
+- [ ] **PR 4** — Décalage cash M+1 sur les charges patronales via `shiftMonthlySeries`
+- [ ] **PR 6** — Faire de `pl.monthlyRows` la source unique de vérité du P&L annuel (somme stricte, plus de calcul parallèle)
+
+Ces 3 PR moteur restantes nécessitent un travail dédié sur `computePL`/`computeCashFlow` avec validation invariant par invariant. Les tests rouges PR 0 correspondants restent en `it.fails` jusqu'à leur livraison.

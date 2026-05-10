@@ -11,6 +11,7 @@ import ExcelJS from 'exceljs';
 import type { BPFinancialModel, BPModelInput } from '../../engine/types';
 import type { ExportMeta } from './types';
 import { addReadmeSheet } from './sheets/readme';
+import { addSynthesisSheet } from './sheets/synthesis';
 import { addAssumptionsSheet } from './sheets/assumptions';
 import { addPLMonthlySheet } from './sheets/plMonthly';
 import { addPLYearlySheet } from './sheets/plYearly';
@@ -32,6 +33,7 @@ export function buildBPWorkbook(
   wb.modified = meta.exportedAt;
 
   addReadmeSheet(wb, model, meta);
+  addSynthesisSheet(wb, model);
   addAssumptionsSheet(wb, input);
   addPLMonthlySheet(wb, model);
   addPLYearlySheet(wb, model);

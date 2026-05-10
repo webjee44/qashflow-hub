@@ -105,6 +105,16 @@ exports[`computeBPModel — golden snapshots > minimal-bp fixture is stable 1`] 
         "label": "Capital social",
         "type": "item",
         "values": [
+          0,
+          0,
+          0,
+        ],
+      },
+      {
+        "indent": 2,
+        "label": "Situation nette initiale (report à nouveau non détaillé)",
+        "type": "item",
+        "values": [
           50000,
           50000,
           50000,
@@ -2068,7 +2078,7 @@ exports[`computeBPModel — golden snapshots > minimal-bp fixture is stable 1`] 
         -98386.08,
       ],
       "capitalContributions": [
-        50000,
+        0,
         0,
         0,
       ],
@@ -2167,6 +2177,16 @@ exports[`computeBPModel — golden snapshots > minimal-bp fixture is stable 1`] 
       {
         "indent": 1,
         "label": "Apports en capital",
+        "type": "item",
+        "values": [
+          0,
+          0,
+          0,
+        ],
+      },
+      {
+        "indent": 1,
+        "label": "Trésorerie initiale (ouverture)",
         "type": "item",
         "values": [
           50000,
@@ -3198,6 +3218,14 @@ exports[`computeBPModel — golden snapshots > minimal-bp fixture is stable 1`] 
         "yearIndex": 0,
       },
       {
+        "code": "PL_NET_RESULT_TO_EQUITY",
+        "delta": 50000,
+        "message": "Variation capitaux propres année 1 ≠ résultat net + apports",
+        "severity": "warning",
+        "tolerance": 106.05,
+        "yearIndex": 0,
+      },
+      {
         "code": "BS_BALANCED",
         "delta": -39157.88,
         "message": "Bilan année 2: total actif ≠ total passif",
@@ -3266,7 +3294,7 @@ exports[`computeBPModel — golden snapshots > minimal-bp fixture is stable 1`] 
     "summary": {
       "errors": 3,
       "infos": 3,
-      "warnings": 4,
+      "warnings": 5,
     },
   },
 }

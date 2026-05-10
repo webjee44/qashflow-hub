@@ -2,6 +2,7 @@
 import type { Workbook, Worksheet } from 'exceljs';
 import type { BPFinancialModel } from '../../../engine/types';
 import { FMT_EUR, TAB_COLOR, applyBaseLayout, styleHeaderRow, styleTotalRow } from '../styles';
+import { roundEuro } from '../rounding';
 
 export function addBalanceSheetYearlySheet(wb: Workbook, model: BPFinancialModel): Worksheet {
   const ws = wb.addWorksheet('Bilan annuel', { properties: { tabColor: { argb: TAB_COLOR.balance } } });
@@ -17,7 +18,7 @@ export function addBalanceSheetYearlySheet(wb: Workbook, model: BPFinancialModel
   let totalAssetsRow = -1;
   let totalLiabRow = -1;
   for (const row of model.balanceSheet.rows) {
-    const r = ws.addRow([row.label, ...row.values]);
+    const r = ws.addRow([row.label, ...row.values.map(roundEuro)]);
     r.getCell(1).alignment = { vertical: 'middle', horizontal: 'left', indent: row.indent ?? 0 };
     for (let c = 2; c <= years.length + 1; c++) r.getCell(c).numFmt = FMT_EUR;
     if (row.type === 'subtotal') styleTotalRow(r, 'subtotal');
