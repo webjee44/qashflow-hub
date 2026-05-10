@@ -2,6 +2,7 @@
 import type { Workbook, Worksheet } from 'exceljs';
 import type { BPFinancialModel } from '../../../engine/types';
 import { FMT_EUR, TAB_COLOR, applyBaseLayout, styleHeaderRow, styleTotalRow } from '../styles';
+import { roundEuro } from '../rounding';
 
 export function addBalanceSheetYearlySheet(wb: Workbook, model: BPFinancialModel): Worksheet {
   const ws = wb.addWorksheet('Bilan annuel', { properties: { tabColor: { argb: TAB_COLOR.balance } } });
