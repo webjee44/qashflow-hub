@@ -24,6 +24,7 @@ export interface RevenueStream {
   growth_rate_year2: number;
   growth_rate_year3: number;
   growth_rate_year4: number;
+  is_one_shot: boolean;
   // Purchase cost fields (for gross margin calculation)
   has_purchase_cost: boolean;
   purchase_price: number;
