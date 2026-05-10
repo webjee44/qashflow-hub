@@ -224,27 +224,70 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
             </div>
             
             {hasPurchaseCost && (
-              <div className="flex items-center gap-3 pt-2 border-t">
-                <Label htmlFor="purchasePercent" className="text-sm whitespace-nowrap">
-                  % des achats
-                </Label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    id="purchasePercent"
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={purchasePrice}
-                    onChange={(e) => setPurchasePrice(e.target.value)}
-                    placeholder="60"
-                    className="w-20"
-                  />
-                  <span className="text-sm text-muted-foreground">%</span>
+              <>
+                <div className="flex items-center gap-3 pt-2 border-t">
+                  <Label htmlFor="purchasePercent" className="text-sm whitespace-nowrap">
+                    % des achats (Année 1)
+                  </Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="purchasePercent"
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={purchasePrice}
+                      onChange={(e) => setPurchasePrice(e.target.value)}
+                      placeholder="60"
+                      className="w-20"
+                    />
+                    <span className="text-sm text-muted-foreground">%</span>
+                  </div>
+                  <span className="text-xs text-muted-foreground ml-auto">
+                    Marge brute {(100 - (parseFloat(purchasePrice) || 0)).toFixed(0)}%
+                  </span>
                 </div>
-                <span className="text-xs text-muted-foreground ml-auto">
-                  = Marge brute de {(100 - (parseFloat(purchasePrice) || 0)).toFixed(0)}%
-                </span>
-              </div>
+
+                {!isOneShot && (
+                  <div className="grid grid-cols-2 gap-4 pt-2">
+                    <div className="grid gap-1">
+                      <Label htmlFor="purchaseYear2" className="text-xs text-muted-foreground">
+                        % achats N+1 (vide = idem A1)
+                      </Label>
+                      <div className="flex items-center gap-1">
+                        <Input
+                          id="purchaseYear2"
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={purchasePriceYear2}
+                          onChange={(e) => setPurchasePriceYear2(e.target.value)}
+                          placeholder={purchasePrice || '60'}
+                          className="h-8"
+                        />
+                        <span className="text-xs text-muted-foreground">%</span>
+                      </div>
+                    </div>
+                    <div className="grid gap-1">
+                      <Label htmlFor="purchaseYear3" className="text-xs text-muted-foreground">
+                        % achats N+2 (vide = idem A1)
+                      </Label>
+                      <div className="flex items-center gap-1">
+                        <Input
+                          id="purchaseYear3"
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={purchasePriceYear3}
+                          onChange={(e) => setPurchasePriceYear3(e.target.value)}
+                          placeholder={purchasePrice || '60'}
+                          className="h-8"
+                        />
+                        <span className="text-xs text-muted-foreground">%</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
 
