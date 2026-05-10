@@ -115,7 +115,7 @@ export function computeFundingPlan(
   }
 
   const totalResources = years.map((_, i) =>
-    caf[i] + capitalContributions[i] + newLoans[i] + currentAccounts[i] + bfrDecrease[i]
+    caf[i] + capitalContributions[i] + openingCashContribution[i] + newLoans[i] + currentAccounts[i] + bfrDecrease[i]
   );
   rows.push({ label: 'TOTAL RESSOURCES', type: 'subtotal', values: totalResources });
 
