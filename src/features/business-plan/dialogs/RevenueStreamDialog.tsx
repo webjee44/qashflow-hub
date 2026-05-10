@@ -231,7 +231,27 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
             )}
           </div>
 
+          {/* One-shot toggle */}
+          <div className="grid gap-2 p-4 bg-muted/30 rounded-lg border">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="isOneShot" className="cursor-pointer">
+                  Produit exceptionnel (one-shot)
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Revenu non récurrent : compté uniquement sur l'Année 1, ignoré sur les années suivantes.
+                </p>
+              </div>
+              <Switch
+                id="isOneShot"
+                checked={isOneShot}
+                onCheckedChange={setIsOneShot}
+              />
+            </div>
+          </div>
+
           {/* Year-specific growth rates (3-year BP: N+1 and N+2) */}
+          {!isOneShot && (
           <div className="grid gap-4 p-4 bg-muted/30 rounded-lg border">
             <Label className="flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-primary" />
@@ -275,7 +295,7 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
               </div>
             </div>
           </div>
-          {/* Subscription model specific fields */}
+          )}
           {model === 'subscription' && (
             <div className="space-y-4 p-4 bg-muted/30 rounded-lg border">
               <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
