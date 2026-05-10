@@ -74,6 +74,7 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
       setGrowthRateYear3('10');
       setHasPurchaseCost(false);
       setPurchasePrice('');
+      setIsOneShot(false);
     }
   }, [stream, open]);
 
