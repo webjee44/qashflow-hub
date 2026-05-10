@@ -40,6 +40,8 @@ export function RevenueStreamDialog({ open, onOpenChange, stream, onSave }: Reve
   // Purchase cost fields
   const [hasPurchaseCost, setHasPurchaseCost] = useState(false);
   const [purchasePrice, setPurchasePrice] = useState('');
+  const [purchasePriceYear2, setPurchasePriceYear2] = useState('');
+  const [purchasePriceYear3, setPurchasePriceYear3] = useState('');
 
   // One-shot (non-recurring) revenue
   const [isOneShot, setIsOneShot] = useState(false);
