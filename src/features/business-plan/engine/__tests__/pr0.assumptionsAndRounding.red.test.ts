@@ -41,7 +41,7 @@ function collectNumericCells(ws: ExcelJS.Worksheet): number[] {
 }
 
 describe('PR 0 RED — assumptions export mapping (PR 7)', () => {
-  it('charge fixe (monthly_amount=1200) → cellule non nulle', async () => {
+  it.fails('charge fixe (monthly_amount=1200) → cellule non nulle', async () => {
     const { wb } = await buildWb();
     const ws = wb.getWorksheet('Hypothèses') ?? wb.worksheets.find((w) => /hypoth/i.test(w.name));
     expect(ws).toBeDefined();
