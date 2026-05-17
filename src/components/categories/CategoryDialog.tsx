@@ -98,6 +98,7 @@ export function CategoryDialog({
     parent_id: null as string | null,
     forecast_mode: 'manual' as 'manual' | 'percent_of_revenue',
     forecast_percent: 0,
+    cash_flow_bucket: null as StoredCashFlowBucket | null,
   });
 
   const isControlled = controlledOpen !== undefined;
@@ -120,6 +121,7 @@ export function CategoryDialog({
         parent_id: category.parent_id || null,
         forecast_mode: category.forecast_mode || 'manual',
         forecast_percent: category.forecast_percent || 0,
+        cash_flow_bucket: category.cash_flow_bucket ?? null,
       });
     } else {
       setShowCustomVat(false);
@@ -132,9 +134,20 @@ export function CategoryDialog({
         parent_id: null,
         forecast_mode: 'manual',
         forecast_percent: 0,
+        cash_flow_bucket: null,
       });
     }
   }, [category, open]);
+
+  // Reset bucket when type changes (income vs expense buckets are disjoint)
+  useEffect(() => {
+    if (!form.cash_flow_bucket) return;
+    const allowed = (form.type === 'income' ? INCOME_BUCKETS : EXPENSE_BUCKETS)
+      .map(b => b.value);
+    if (!allowed.includes(form.cash_flow_bucket)) {
+      setForm(prev => ({ ...prev, cash_flow_bucket: null }));
+    }
+  }, [form.type, form.cash_flow_bucket]);
 
   // Reset parent_id when type changes (groups are type-specific)
   useEffect(() => {
