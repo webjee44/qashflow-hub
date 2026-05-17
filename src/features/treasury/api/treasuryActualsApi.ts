@@ -55,7 +55,7 @@ export async function getTreasuryActuals(
     description: string | null;
     category_id: string | null;
     bridge_account_id: number | null;
-    categories: { id: string; name: string } | null;
+    categories: { id: string; name: string; cash_flow_bucket: StoredCashFlowBucket | null } | null;
   }> = [];
 
   let from = 0;
@@ -65,7 +65,7 @@ export async function getTreasuryActuals(
       .from('transactions')
       .select(`
         id, company_id, date, type, amount, description, category_id, bridge_account_id,
-        categories ( id, name )
+        categories ( id, name, cash_flow_bucket )
       `)
       .eq('company_id', companyId)
       .is('deleted_at', null)
