@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Category } from '@/hooks/useCategories';
+import type { StoredCashFlowBucket } from '@/features/treasury/types/treasuryActuals';
 import { cn } from '@/lib/utils';
 
 interface CategoryDialogProps {
@@ -32,12 +33,29 @@ interface CategoryDialogProps {
     parent_id?: string | null;
     forecast_mode?: 'manual' | 'percent_of_revenue';
     forecast_percent?: number;
+    cash_flow_bucket?: StoredCashFlowBucket | null;
   }) => Promise<any>;
   onClose?: () => void;
   trigger?: React.ReactNode;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 }
+
+const INCOME_BUCKETS: { value: StoredCashFlowBucket; label: string }[] = [
+  { value: 'revenue', label: "Chiffre d'affaires" },
+  { value: 'other_inflow', label: 'Autre encaissement' },
+];
+
+const EXPENSE_BUCKETS: { value: StoredCashFlowBucket; label: string }[] = [
+  { value: 'fixed_expenses', label: 'Charges fixes' },
+  { value: 'variable_expenses', label: 'Charges variables' },
+  { value: 'personnel', label: 'Personnel' },
+  { value: 'payroll_taxes', label: 'Charges sociales' },
+  { value: 'investments', label: 'Investissements' },
+  { value: 'loan_payments', label: "Remboursements d'emprunt" },
+  { value: 'vat_payments', label: 'TVA' },
+  { value: 'tax_payments', label: 'Impôts & taxes' },
+];
 
 const colorOptions = [
   { value: 'hsl(142, 76%, 36%)', label: 'Vert' },
