@@ -24,9 +24,8 @@ const PAGE_SIZE = 1000;
  *
  * Pagination > 1000 rows via range loop.
  *
- * NOTE — PR1 ships without reading `categories.cash_flow_bucket` (the column
- * is added in PR3). The field is returned as `null` here; PR3 will update
- * the select.
+ * The category's `cash_flow_bucket` is included (nullable). Transactions
+ * without a bucket are routed to `uncategorized_*` by `buildTreasuryActuals`.
  */
 export async function getTreasuryActuals(
   params: GetTreasuryActualsParams,
