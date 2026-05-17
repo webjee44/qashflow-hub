@@ -133,6 +133,7 @@ export function useCategories() {
       parent_id?: string | null;
       forecast_mode?: 'manual' | 'percent_of_revenue';
       forecast_percent?: number;
+      cash_flow_bucket?: StoredCashFlowBucket | null;
     }) => {
       if (!user || !currentCompany) throw new Error('User not authenticated or no company');
       return categoryApi.create({
@@ -160,6 +161,7 @@ export function useCategories() {
     parent_id?: string | null;
     forecast_mode?: 'manual' | 'percent_of_revenue';
     forecast_percent?: number;
+    cash_flow_bucket?: StoredCashFlowBucket | null;
   }) => {
     try {
       return await createMutation.mutateAsync(category);
