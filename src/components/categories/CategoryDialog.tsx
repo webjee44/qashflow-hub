@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Category } from '@/hooks/useCategories';
+import type { StoredCashFlowBucket } from '@/features/treasury/types/treasuryActuals';
 import { cn } from '@/lib/utils';
 
 interface CategoryDialogProps {
@@ -32,12 +33,29 @@ interface CategoryDialogProps {
     parent_id?: string | null;
     forecast_mode?: 'manual' | 'percent_of_revenue';
     forecast_percent?: number;
+    cash_flow_bucket?: StoredCashFlowBucket | null;
   }) => Promise<any>;
   onClose?: () => void;
   trigger?: React.ReactNode;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 }
+
+const INCOME_BUCKETS: { value: StoredCashFlowBucket; label: string }[] = [
+  { value: 'revenue', label: "Chiffre d'affaires" },
+  { value: 'other_inflow', label: 'Autre encaissement' },
+];
+
+const EXPENSE_BUCKETS: { value: StoredCashFlowBucket; label: string }[] = [
+  { value: 'fixed_expenses', label: 'Charges fixes' },
+  { value: 'variable_expenses', label: 'Charges variables' },
+  { value: 'personnel', label: 'Personnel' },
+  { value: 'payroll_taxes', label: 'Charges sociales' },
+  { value: 'investments', label: 'Investissements' },
+  { value: 'loan_payments', label: "Remboursements d'emprunt" },
+  { value: 'vat_payments', label: 'TVA' },
+  { value: 'tax_payments', label: 'Impôts & taxes' },
+];
 
 const colorOptions = [
   { value: 'hsl(142, 76%, 36%)', label: 'Vert' },
@@ -80,6 +98,7 @@ export function CategoryDialog({
     parent_id: null as string | null,
     forecast_mode: 'manual' as 'manual' | 'percent_of_revenue',
     forecast_percent: 0,
+    cash_flow_bucket: null as StoredCashFlowBucket | null,
   });
 
   const isControlled = controlledOpen !== undefined;
@@ -102,6 +121,7 @@ export function CategoryDialog({
         parent_id: category.parent_id || null,
         forecast_mode: category.forecast_mode || 'manual',
         forecast_percent: category.forecast_percent || 0,
+        cash_flow_bucket: category.cash_flow_bucket ?? null,
       });
     } else {
       setShowCustomVat(false);
@@ -114,9 +134,20 @@ export function CategoryDialog({
         parent_id: null,
         forecast_mode: 'manual',
         forecast_percent: 0,
+        cash_flow_bucket: null,
       });
     }
   }, [category, open]);
+
+  // Reset bucket when type changes (income vs expense buckets are disjoint)
+  useEffect(() => {
+    if (!form.cash_flow_bucket) return;
+    const allowed = (form.type === 'income' ? INCOME_BUCKETS : EXPENSE_BUCKETS)
+      .map(b => b.value);
+    if (!allowed.includes(form.cash_flow_bucket)) {
+      setForm(prev => ({ ...prev, cash_flow_bucket: null }));
+    }
+  }, [form.type, form.cash_flow_bucket]);
 
   // Reset parent_id when type changes (groups are type-specific)
   useEffect(() => {
@@ -262,6 +293,35 @@ export function CategoryDialog({
               )}
             </div>
           )}
+
+          {/* Cash flow bucket (used by Treasury engine) */}
+          <div className="space-y-2">
+            <Label>Catégorie de flux de trésorerie</Label>
+            <Select
+              value={form.cash_flow_bucket ?? 'none'}
+              onValueChange={(value) =>
+                setForm({
+                  ...form,
+                  cash_flow_bucket: value === 'none' ? null : (value as StoredCashFlowBucket),
+                })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Non classé" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">
+                  <span className="text-muted-foreground">Non classé</span>
+                </SelectItem>
+                {(form.type === 'income' ? INCOME_BUCKETS : EXPENSE_BUCKETS).map((b) => (
+                  <SelectItem key={b.value} value={b.value}>{b.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Détermine comment cette catégorie apparaît dans la trésorerie réelle.
+            </p>
+          </div>
 
           {/* Group Selection */}
           {filteredGroups.length > 0 && (

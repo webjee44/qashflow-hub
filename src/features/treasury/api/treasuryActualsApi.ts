@@ -24,9 +24,8 @@ const PAGE_SIZE = 1000;
  *
  * Pagination > 1000 rows via range loop.
  *
- * NOTE — PR1 ships without reading `categories.cash_flow_bucket` (the column
- * is added in PR3). The field is returned as `null` here; PR3 will update
- * the select.
+ * The category's `cash_flow_bucket` is included (nullable). Transactions
+ * without a bucket are routed to `uncategorized_*` by `buildTreasuryActuals`.
  */
 export async function getTreasuryActuals(
   params: GetTreasuryActualsParams,
@@ -55,7 +54,7 @@ export async function getTreasuryActuals(
     description: string | null;
     category_id: string | null;
     bridge_account_id: number | null;
-    categories: { id: string; name: string } | null;
+    categories: { id: string; name: string; cash_flow_bucket: StoredCashFlowBucket | null } | null;
   }> = [];
 
   let from = 0;
@@ -65,7 +64,7 @@ export async function getTreasuryActuals(
       .from('transactions')
       .select(`
         id, company_id, date, type, amount, description, category_id, bridge_account_id,
-        categories ( id, name )
+        categories ( id, name, cash_flow_bucket )
       `)
       .eq('company_id', companyId)
       .is('deleted_at', null)
@@ -99,8 +98,7 @@ export async function getTreasuryActuals(
       description: r.description ?? '',
       categoryId: r.category_id,
       categoryName,
-      // PR3 will populate this; nullable by design.
-      cashFlowBucket: null as StoredCashFlowBucket | null,
+      cashFlowBucket: r.categories?.cash_flow_bucket ?? null,
       bridgeAccountId: r.bridge_account_id,
       isInternalTransfer: categoryName === INTERNAL_TRANSFER_CATEGORY_NAME,
     });

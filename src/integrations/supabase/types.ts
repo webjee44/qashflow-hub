@@ -1640,6 +1640,10 @@ export type Database = {
       }
       categories: {
         Row: {
+          cash_flow_bucket:
+            | Database["public"]["Enums"]["cash_flow_bucket"]
+            | null
+          cash_flow_bucket_confidence: string | null
           color: string
           company_id: string | null
           created_at: string
@@ -1657,6 +1661,10 @@ export type Database = {
           vat_rate: number
         }
         Insert: {
+          cash_flow_bucket?:
+            | Database["public"]["Enums"]["cash_flow_bucket"]
+            | null
+          cash_flow_bucket_confidence?: string | null
           color?: string
           company_id?: string | null
           created_at?: string
@@ -1674,6 +1682,10 @@ export type Database = {
           vat_rate?: number
         }
         Update: {
+          cash_flow_bucket?:
+            | Database["public"]["Enums"]["cash_flow_bucket"]
+            | null
+          cash_flow_bucket_confidence?: string | null
           color?: string
           company_id?: string | null
           created_at?: string
@@ -2930,6 +2942,17 @@ export type Database = {
     }
     Enums: {
       app_role: "owner" | "admin" | "member" | "viewer" | "superadmin"
+      cash_flow_bucket:
+        | "revenue"
+        | "other_inflow"
+        | "fixed_expenses"
+        | "variable_expenses"
+        | "personnel"
+        | "payroll_taxes"
+        | "investments"
+        | "loan_payments"
+        | "vat_payments"
+        | "tax_payments"
       transaction_type: "income" | "expense"
     }
     CompositeTypes: {
@@ -3059,6 +3082,18 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["owner", "admin", "member", "viewer", "superadmin"],
+      cash_flow_bucket: [
+        "revenue",
+        "other_inflow",
+        "fixed_expenses",
+        "variable_expenses",
+        "personnel",
+        "payroll_taxes",
+        "investments",
+        "loan_payments",
+        "vat_payments",
+        "tax_payments",
+      ],
       transaction_type: ["income", "expense"],
     },
   },
