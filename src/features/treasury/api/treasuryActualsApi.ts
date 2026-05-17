@@ -99,8 +99,7 @@ export async function getTreasuryActuals(
       description: r.description ?? '',
       categoryId: r.category_id,
       categoryName,
-      // PR3 will populate this; nullable by design.
-      cashFlowBucket: null as StoredCashFlowBucket | null,
+      cashFlowBucket: r.categories?.cash_flow_bucket ?? null,
       bridgeAccountId: r.bridge_account_id,
       isInternalTransfer: categoryName === INTERNAL_TRANSFER_CATEGORY_NAME,
     });
