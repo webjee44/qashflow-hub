@@ -1,61 +1,200 @@
-## Contexte
+# Séparation stricte BP / Trésorerie — plan v2 validé
 
-- Société cible : **Vapostore Vannes** (`a10b3af4-…`) — seule société "Vannes" en base.
-- Source : PDF "Cloud Vapor" du 5 mai 2026 (3 ans, 2026-2028, IR/PME, IS, trésorerie initiale 0).
-- Stratégie validée : **compléter sans écraser**. On garde les lignes existantes et on ajoute des lignes "Autres / complément" pour couvrir les écarts vs PDF.
+## Décisions produit (verrouillées)
 
-## Diagnostic existant vs PDF
+- **BP** = scénario prévisionnel pur. `computeCashFlow` reste inchangé, ne lit jamais les transactions.
+- **Trésorerie** = moteur dédié, réel + prévi datés.
+- **CTA** = copie one-shot auditée, jamais lien vivant.
+- **Réel vs BP** = écran lecture seule.
+- **Aucune logique métier partagée** entre BP et trésorerie. On partage uniquement des primitives techniques.
 
-| Bloc | Existant Vapostore Vannes | PDF Cloud Vapor (an 1) | Action |
-|---|---|---|---|
-| Settings | 2 lignes (doublon), `bp_start_date=2025-09-01`, exercice sept→août, IS, PME, 24 mois, cash 0, payment 30/15 | IS, PME, 30/30, cash 0 | Aligner délai fournisseur 15→30 sur la ligne active. Pas de suppression du doublon (hors scope). |
-| Revenus | 1 stream "Ventes BtC" variable, 17 forecasts éparses (sum 465 k€) | 3 004 678 € / 3 006 180 € / 3 007 683 € | Upsert forecasts mensuels (36 mois, Sep-25→Aug-28) à 250 390 / 250 515 / 250 640 €/mois. |
-| Charges variables | 50 % achats + 4,5 % redevance + 0,7 % TPE = 55,2 % du CA (~1,66 M€) | 1 421 814 € (47,3 %) | **Aucun ajout** (déjà supérieur au PDF, on garde). |
-| Services extérieurs | — | 446 793 €/an | Ajout 1 ligne fixe "Autres services extérieurs (complément BP)" 37 233 €/mois, catégorie `services_exterieurs`, TVA 20 %. |
-| Charges fixes | Loyer 1 607 €/mois (19 284 €/an) | 695 628 €/an | Ajout 1 ligne fixe "Autres charges fixes (complément BP)" 56 362 €/mois, catégorie `other`, TVA 20 %. |
-| Impôts & taxes | — | 14 756 €/an | Ajout 1 ligne fixe "Impôts et taxes (CFE/CVAE)" 1 230 €/mois, catégorie `taxes`, non déductible TVA. |
-| Personnel | Typhen 2 452 € + Marvin 2 116 € + Benjamin freelance 0 = ~74 k€/an chargé | 222 329 €/an | Ajout 1 personnel "Effectif complémentaire (BP)" salaire brut 9 149 €/mois, charges 35,07 %, CDI, employee. |
-| Investissements | Caisse 2 000 € (3 ans) | 30 000 € (an 1) | Ajout 1 investissement "Autres immobilisations (complément BP)" 28 000 €, amort. 5 ans, date 2025-09-01. |
-| Financements | Crédit Mutuel 100 k€ | aucun nouvel emprunt | Rien. |
-| Stocks | — | — | Rien (ecommerce/retail, pas de stock dans PDF). |
-| Capital initial | non renseigné (`initial_capital` NULL) | non explicite | Rien (le PDF ne donne pas de capital social). |
+## Primitives partagées (et seulement celles-ci)
 
-## Plan d'action
+Nouvelle lib : `src/lib/finance/` (utilisable BP + trésorerie sans coupler les moteurs).
 
-### Étape 1 — Migration SQL (un seul `migration` call)
+- `monthKey(date)` — `YYYY-MM`, normalisé Europe/Paris.
+- `buildMonthRange(from, to)` — array de `Date` premier du mois, TZ Paris.
+- `isSameOrBeforeDay(a, b)` — comparaison à la journée, TZ Paris.
+- `normalizeAmount(raw)` — montant absolu positif, jamais signé.
+- `isInternalTransfer(tx)` — détection virement interne (réutilise la logique actuelle déjà neutralisée ailleurs).
+- `isActiveBridgeAccount(account)` — wrapper sur `company_active_bridge_accounts` (mémoire `bridge-accounts-two-level-model`).
 
-Insertions ciblées sur `company_id = a10b3af4-…`, `user_id = cb5d33be-…`, `business_plan_id = NULL` (cohérent avec l'existant) :
+Pas de buckets, pas de mapping P&L, pas de moteur ici. Pures fonctions.
 
-1. **bp_fixed_expenses** : 3 INSERT
-   - Autres services extérieurs — 37 233 €/mois — `services_exterieurs` — TVA 20 % déductible
-   - Autres charges fixes (complément BP) — 56 362 €/mois — `other` — TVA 20 % déductible
-   - Impôts et taxes (CFE/CVAE) — 1 230 €/mois — `taxes` — non déductible
-   - `start_date = 2025-09-01`, `payment_frequency = monthly`, `end_date = NULL`
-2. **bp_personnel** : 1 INSERT
-   - "Effectif complémentaire (BP)", `gross_salary=9149`, `employer_charges_rate=0.3507`, `contract_type=cdi`, `worker_type=employee`, `start_date=2025-09-01`
-3. **bp_investments** : 1 INSERT
-   - "Autres immobilisations (complément BP)", `purchase_amount=28000`, `depreciation_years=5`, `category=equipment`, `purchase_date=2025-09-01`
-4. **bp_revenue_forecasts** : UPSERT 36 mois pour le stream `d455c1c3-…`
-   - Sep-25 → Aug-26 : 250 390 €/mois
-   - Sep-26 → Aug-27 : 250 515 €/mois
-   - Sep-27 → Aug-28 : 250 640 €/mois
-   - `ON CONFLICT (stream_id, month)` → DO UPDATE (préserver les ids existants)
-5. **bp_settings** : UPDATE `supplier_payment_delay = 30` sur la ligne `a17cd37c-…` (alignement avec PDF). On ne touche pas à la 2e ligne (doublon hors scope).
+## Ordre de livraison (PR par PR)
 
-### Étape 2 — Vérification
+### PR1 — Types + helpers + `getTreasuryActuals`
 
-- Requête SQL de contrôle agrégée (sommes annuelles par bloc) → comparer aux totaux PDF avec tolérance ±2 %.
-- Pas de modification UI / code applicatif. Tout passe par le moteur BP existant qui recalculera les agrégats.
+**Nouveaux fichiers :**
+- `src/lib/finance/monthKey.ts`, `buildMonthRange.ts`, `isSameOrBeforeDay.ts`, `normalizeAmount.ts`, `isInternalTransfer.ts`, `isActiveBridgeAccount.ts` (+ tests unitaires).
+- `src/features/treasury/types/treasuryActuals.ts` :
 
-## Détails techniques
+```ts
+export type CashFlowBucket =
+  | 'revenue'
+  | 'other_inflow'
+  | 'fixed_expenses'
+  | 'variable_expenses'
+  | 'personnel'
+  | 'payroll_taxes'
+  | 'investments'
+  | 'loan_payments'
+  | 'vat_payments'
+  | 'tax_payments'
+  | 'uncategorized_inflow'
+  | 'uncategorized_outflow';
 
-- Aucune table créée, aucune colonne ajoutée — uniquement des INSERT/UPDATE de données métier.
-- Conformément à la mémoire projet "Strict single BP per company" : on ne corrige pas le doublon `bp_settings` ici (il préexistait, hors scope).
-- `bp_revenue_forecasts` n'a pas de contrainte unique visible sur `(stream_id, month)` ; je vérifierai et utiliserai soit `ON CONFLICT` si l'index existe, soit DELETE + INSERT pour les 36 mois ciblés du stream.
-- Toutes les valeurs viennent du PDF — aucun chiffre inventé en dehors du calcul mécanique du complément (PDF − existant).
+export interface TreasuryActualLine {
+  bucket: CashFlowBucket;
+  amount: number;          // signé : >0 inflow, <0 outflow
+  transactionIds: string[];
+}
 
-## Hors scope (à traiter séparément si tu veux)
+export interface TreasuryActualMonth {
+  month: Date;             // 1er du mois Europe/Paris
+  lines: TreasuryActualLine[];
+  totalInflows: number;
+  totalOutflows: number;
+  net: number;
+}
+```
 
-- Déduplication des `bp_settings`.
-- Renseignement d'un `initial_capital` réaliste (le PDF n'en donne pas, je refuse d'inventer).
-- Création d'un `business_plan` formel (`business_plans` row) — l'existant fonctionne sans.
+- `src/features/treasury/api/treasuryActualsApi.ts` :
+
+```ts
+getTreasuryActuals(params: {
+  companyId: string;
+  fromDate: string;        // ISO 'YYYY-MM-DD'
+  toDate:   string;
+}): Promise<TreasuryActualTransaction[]>
+```
+
+Filtres obligatoires (un seul round-trip + pagination > 1000) :
+- `company_id = :companyId`
+- `deleted_at IS NULL`
+- `is_ignored = false`
+- `date BETWEEN :fromDate AND :toDate`
+- Jointure `company_active_bridge_accounts` pour exclure les comptes non actifs (transactions manuelles `bridge_account_id IS NULL` conservées).
+- Jointure `categories` pour récupérer `cash_flow_bucket` (nullable) en une requête.
+- Virements internes marqués (champ dérivé), pas filtrés ici — c'est `buildTreasuryActuals` qui décide.
+
+Hook : `useTreasuryActuals(fromDate, toDate)` React Query, clé `['treasury-actuals', companyId, fromDate, toDate]`.
+
+Tests : pagination > 1000, `is_ignored` exclus, période, comptes exclus, transactions manuelles conservées.
+
+### PR2 — `buildTreasuryActuals` + `computeTreasuryPlan`
+
+**`src/features/treasury/engine/buildTreasuryActuals.ts`** (pur) :
+- Input : `transactions[]` (sortie PR1) + `asOfDate`.
+- Skip virements internes.
+- Classement par `categories.cash_flow_bucket` :
+  - bucket défini → utilisé tel quel.
+  - bucket `NULL` ET `type=income` → `uncategorized_inflow`.
+  - bucket `NULL` ET `type=expense` → `uncategorized_outflow`.
+- Agrégation par `(month, bucket)` → `TreasuryActualLine[]`.
+- Calcul `totalInflows / totalOutflows / net` par mois.
+
+**`src/features/treasury/engine/computeTreasuryPlan.ts`** :
+- Input :
+  - `actuals: TreasuryActualMonth[]`
+  - `forecasts: TreasuryForecastEntry[]` (lignes prévi trésorerie existantes, avec leur `date` précise)
+  - `asOfDate: Date`, `openingBalance: number`, `openingDate: Date`
+- Règle par mois M :
+  - `endOfMonth(M) < startOfDay(asOfDate)` → **actuals seuls**, `source='actual'`.
+  - `startOfMonth(M) > startOfDay(asOfDate)` → **forecasts seuls**, `source='forecast'`.
+  - Sinon (mois courant) → **actuals à date + forecasts dont `date > asOfDate`**, `source='blended'`. **Pas de prorata.**
+- Toutes les comparaisons via `isSameOrBeforeDay` en Europe/Paris.
+- Invariant `Opening + Σ Net = Closing` garanti, vérifié par test.
+
+Tests : passé pur, futur pur, mois courant blend (cas asOfDate=15, forecasts datés 10, 20, 25 → seuls 20 et 25 retenus), invariant balance, cas Cloud Vapor avril 2026.
+
+### PR3 — `categories.cash_flow_bucket` + UI
+
+**Migration :**
+```sql
+CREATE TYPE cash_flow_bucket AS ENUM (
+  'revenue','other_inflow','fixed_expenses','variable_expenses',
+  'personnel','payroll_taxes','investments','loan_payments',
+  'vat_payments','tax_payments'
+  -- 'uncategorized_*' jamais stockés, déduits côté engine
+);
+ALTER TABLE categories ADD COLUMN cash_flow_bucket cash_flow_bucket;
+ALTER TABLE categories ADD COLUMN cash_flow_bucket_confidence text
+  CHECK (cash_flow_bucket_confidence IN ('system','suggested',NULL));
+```
+
+- Reste **nullable**. Aucun backfill heuristique agressif.
+- Backfill uniquement pour : catégories **système** (`is_system=true`) au mapping évident (ex. système "TVA collectée/déductible" → `vat_payments`, "Salaires" → `personnel`, etc.) → `confidence='system'`.
+- Autres : laissées `NULL`. UI proposera un bucket suggéré non validé.
+
+**UI :**
+- `CategoryDialog` : select `cash_flow_bucket` + badge "Système" / "Suggéré" / "À définir".
+- Aucun impact BP.
+
+### PR4 — CTA import BP avec audit + rollback
+
+**Migration :**
+```sql
+CREATE TABLE treasury_forecast_import_runs (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id uuid NOT NULL,
+  user_id uuid NOT NULL,
+  business_plan_id uuid,
+  source text NOT NULL DEFAULT 'bp_revenue',
+  include_current_month boolean NOT NULL DEFAULT false,
+  as_of_date date NOT NULL,
+  months_affected int NOT NULL,
+  total_amount numeric NOT NULL,
+  rolled_back_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE forecast_entries  -- ou table équivalente des forecasts trésorerie
+  ADD COLUMN origin text,                       -- 'bp_import' | NULL
+  ADD COLUMN origin_business_plan_id uuid,
+  ADD COLUMN origin_stream_id uuid,
+  ADD COLUMN origin_import_run_id uuid REFERENCES treasury_forecast_import_runs(id);
+
+-- Garantie API : pas de modif des mois passés
+CREATE OR REPLACE FUNCTION enforce_no_past_forecast_write() RETURNS trigger ...
+-- INSERT/UPDATE/DELETE refusé si entry.month < current_month_start(Europe/Paris)
+-- ET origin='bp_import' (l'utilisateur garde la main sur ses propres lignes)
+```
+
+**Edge Function `import-bp-revenue-to-treasury`** (verify_jwt=false, auth via `getUser`) :
+1. Charge `bp_revenue_forecasts` du company → agrégat mensuel.
+2. Détermine `asOfDate` (now, Europe/Paris), `include_current_month` depuis le payload.
+3. Filtre mois éligibles : `month > asOfDate` (et inclut mois courant si demandé).
+4. Crée la ligne `treasury_forecast_import_runs`.
+5. **UPSERT** des forecasts par `(company_id, month, stream_id, origin='bp_import')` — idempotent, jamais de duplicat.
+6. Aucun écrit sur mois passé (trigger garantit).
+7. Retourne run_id + résumé.
+
+**Endpoint rollback** : marque `rolled_back_at` + supprime les forecasts liés au `import_run_id` (uniquement futurs, jamais passés).
+
+**UI Forecasts.tsx :**
+- Bouton "Importer le CA du BP".
+- Dialog : checkbox "Inclure le mois courant" (décochée par défaut), résumé mois/montants, bouton confirmer.
+- Bandeau sur les forecasts importés : `Importé depuis BP le {date}. Non synchronisé automatiquement. Réimporter pour actualiser.` + bouton "Annuler ce import" (rollback du run).
+- Historique des runs dans un panneau pliable.
+
+### PR5 — Page "Réel vs BP" (lecture seule)
+
+- Route `BusinessPlan/RealVsForecast.tsx`.
+- Lit indépendamment : `computeTreasuryPlan` (réel) + `computeCashFlow` BP (prévi).
+- Tableau mensuel : CA réel / CA BP / écart / écart %. Idem charges principales.
+- Aucun moteur partagé, aucun upsert.
+
+## Hors scope
+
+- Refonte de `useForecasts` (PR ultérieur si besoin).
+- Saisonnalité du split mensuel dans `bp_revenue_forecasts` côté P&L BP (sujet indépendant).
+- Lien vivant BP ↔ Trésorerie : explicitement refusé.
+
+## Garde-fous transversaux
+
+- Toutes les dates : Europe/Paris, comparaison à la journée.
+- `cash_flow_bucket` nullable, jamais inféré côté BP.
+- Mois passés jamais modifiés par l'import — **garanti par trigger DB**, pas par le front.
+- Aucun `supabase.from()` direct depuis les composants : tout passe par les API features.
+- Tests Vitest pour chaque pure function ; tests Deno pour l'edge function.
