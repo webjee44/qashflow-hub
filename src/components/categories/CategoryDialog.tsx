@@ -294,6 +294,35 @@ export function CategoryDialog({
             </div>
           )}
 
+          {/* Cash flow bucket (used by Treasury engine) */}
+          <div className="space-y-2">
+            <Label>Catégorie de flux de trésorerie</Label>
+            <Select
+              value={form.cash_flow_bucket ?? 'none'}
+              onValueChange={(value) =>
+                setForm({
+                  ...form,
+                  cash_flow_bucket: value === 'none' ? null : (value as StoredCashFlowBucket),
+                })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Non classé" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">
+                  <span className="text-muted-foreground">Non classé</span>
+                </SelectItem>
+                {(form.type === 'income' ? INCOME_BUCKETS : EXPENSE_BUCKETS).map((b) => (
+                  <SelectItem key={b.value} value={b.value}>{b.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Détermine comment cette catégorie apparaît dans la trésorerie réelle.
+            </p>
+          </div>
+
           {/* Group Selection */}
           {filteredGroups.length > 0 && (
             <div className="space-y-2">
