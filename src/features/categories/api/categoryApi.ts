@@ -1,6 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { z } from 'zod';
 import { categorySchema } from '@/lib/schemas';
+import type { StoredCashFlowBucket } from '@/features/treasury/types/treasuryActuals';
 
 export interface CategoryInsert {
   name: string;
@@ -12,6 +13,8 @@ export interface CategoryInsert {
   forecast_mode?: 'manual' | 'percent_of_revenue';
   forecast_percent?: number;
   is_system?: boolean;
+  cash_flow_bucket?: StoredCashFlowBucket | null;
+  cash_flow_bucket_confidence?: 'system' | 'suggested' | null;
   user_id: string;
   company_id: string;
 }
