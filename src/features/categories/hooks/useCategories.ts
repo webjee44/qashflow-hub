@@ -6,6 +6,8 @@ import { toast } from 'sonner';
 import { logError } from '@/lib/logger';
 import { categoryApi } from '../api/categoryApi';
 
+import type { StoredCashFlowBucket } from '@/features/treasury/types/treasuryActuals';
+
 export interface Category {
   id: string;
   name: string;
@@ -24,6 +26,10 @@ export interface Category {
   is_system?: boolean;
   /** True for the system "TVA à payer" category (one per company). */
   is_vat_payment?: boolean;
+  /** Cash-flow bucket used by the Treasury engine. Nullable → routed to uncategorized_*. */
+  cash_flow_bucket?: StoredCashFlowBucket | null;
+  /** How the bucket was assigned: 'system' (backfill) or 'suggested' (heuristic). */
+  cash_flow_bucket_confidence?: 'system' | 'suggested' | null;
 }
 
 export const SYSTEM_CATEGORY_INTERCOMPTE = 'Virement intercompte';
