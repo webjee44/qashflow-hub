@@ -42,7 +42,7 @@ vi.mock('@/integrations/supabase/client', () => {
   };
 });
 
-import { getTreasuryActuals } from '../api/treasuryActualsApi';
+import { getTreasuryActuals } from '../treasuryActualsApi';
 
 beforeEach(() => {
   mockState.activeAccounts = [];
