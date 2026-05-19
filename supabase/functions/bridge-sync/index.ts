@@ -1102,7 +1102,7 @@ Deno.serve(async (req) => {
           }
 
           // Apply automation rules after full-sync if new transactions were inserted
-          if (inserted > 0) {
+          if (inserted > 0 || updated > 0) {
             try {
               console.info(`[bridge-sync] Applying automation rules after full-sync for company ${company_id}...`);
               const applyRes = await fetch(
