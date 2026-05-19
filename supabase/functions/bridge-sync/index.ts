@@ -1010,7 +1010,7 @@ Deno.serve(async (req) => {
           console.info(`[bridge-sync] Background sync complete: ${inserted} new, ${updated} updated transactions`);
 
           // Auto-apply automation rules for impacted companies (full-sync path)
-          if (inserted > 0) {
+          if (inserted > 0 || updated > 0) {
             const impactedCompanyIds = Array.from(
               new Set(
                 Object.values(acctToCompanyMap).filter((id): id is string => !!id)
