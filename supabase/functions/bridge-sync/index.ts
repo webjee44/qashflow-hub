@@ -782,7 +782,10 @@ Deno.serve(async (req) => {
           );
 
           // Apply automation rules per impacted company when new transactions came in
-          if (inserted > 0) {
+          // Trigger on inserts OR updates: Bridge frequently marks settled/pending
+          // transitions as "updated", and signature-based dedup can also bucket
+          // genuinely new transactions there. apply-all is idempotent (uncategorized only).
+          if (inserted > 0 || updated > 0) {
             for (const cid of impactedCompanyIds) {
               try {
                 const applyRes = await fetch(
@@ -1007,7 +1010,7 @@ Deno.serve(async (req) => {
           console.info(`[bridge-sync] Background sync complete: ${inserted} new, ${updated} updated transactions`);
 
           // Auto-apply automation rules for impacted companies (full-sync path)
-          if (inserted > 0) {
+          if (inserted > 0 || updated > 0) {
             const impactedCompanyIds = Array.from(
               new Set(
                 Object.values(acctToCompanyMap).filter((id): id is string => !!id)
@@ -1099,7 +1102,7 @@ Deno.serve(async (req) => {
           }
 
           // Apply automation rules after full-sync if new transactions were inserted
-          if (inserted > 0) {
+          if (inserted > 0 || updated > 0) {
             try {
               console.info(`[bridge-sync] Applying automation rules after full-sync for company ${company_id}...`);
               const applyRes = await fetch(
