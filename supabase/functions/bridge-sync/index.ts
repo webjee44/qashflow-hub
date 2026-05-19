@@ -782,7 +782,10 @@ Deno.serve(async (req) => {
           );
 
           // Apply automation rules per impacted company when new transactions came in
-          if (inserted > 0) {
+          // Trigger on inserts OR updates: Bridge frequently marks settled/pending
+          // transitions as "updated", and signature-based dedup can also bucket
+          // genuinely new transactions there. apply-all is idempotent (uncategorized only).
+          if (inserted > 0 || updated > 0) {
             for (const cid of impactedCompanyIds) {
               try {
                 const applyRes = await fetch(
