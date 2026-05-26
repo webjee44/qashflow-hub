@@ -584,7 +584,7 @@ async function syncCompanyTransactions(
       updatedCount += results.filter(r => !r.error).length;
     }
 
-    console.info(`[bridge-sync] Company ${correctCompanyId}: ${toInsert.length} new, ${toUpdate.length} updated`);
+    console.info(`[bridge-sync] Company ${correctCompanyId}: ${toInsert.length} new, ${toUpdate.length} updated, ${skippedAlreadySplitOrDeleted} skipped (already split/deleted)`);
   }
 
   return { inserted: insertedCount, updated: updatedCount };
