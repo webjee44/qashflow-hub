@@ -401,44 +401,55 @@ async function syncCompanyTransactions(
   console.info(`[bridge-sync] Processing transactions for ${txByCompany.size} companies`);
 
   for (const [correctCompanyId, companyTransactions] of txByCompany) {
-    // Get existing bridge_transaction_ids for this company in one query
+    // Get existing bridge_transaction_ids for this company in one query.
+    // IMPORTANT: include soft-deleted rows so we can detect transactions already split
+    // (parent is soft-deleted but keeps its bridge_transaction_id). Without this, when
+    // Bridge re-issues an ID (e.g. pending -> settled or refresh), the split parent
+    // becomes invisible and the transaction is re-inserted as a new uncategorized row.
     const bridgeIds = companyTransactions.map(t => t.id);
     const { data: existingTxs } = await supabaseAdmin
       .from('transactions')
-      .select('id, bridge_transaction_id, pennylane_id')
+      .select('id, bridge_transaction_id, pennylane_id, deleted_at')
       .eq('company_id', correctCompanyId)
       .or(
         `bridge_transaction_id.in.(${bridgeIds.join(',')}),` +
         `pennylane_id.in.(${bridgeIds.map(id => `bridge_${id}`).join(',')})`
       );
 
-    // Build lookup maps
-    const existingByBridgeId = new Map<number, string>();
-    const existingByPennylaneId = new Map<string, string>();
+    // Build lookup maps (track deleted_at to detect already-split / deleted parents)
+    type MatchEntry = { id: string; deletedAt: string | null };
+    const existingByBridgeId = new Map<number, MatchEntry>();
+    const existingByPennylaneId = new Map<string, MatchEntry>();
     for (const tx of existingTxs || []) {
-      if (tx.bridge_transaction_id) existingByBridgeId.set(tx.bridge_transaction_id, tx.id);
-      if (tx.pennylane_id) existingByPennylaneId.set(tx.pennylane_id, tx.id);
+      const entry: MatchEntry = { id: tx.id, deletedAt: tx.deleted_at };
+      if (tx.bridge_transaction_id) existingByBridgeId.set(tx.bridge_transaction_id, entry);
+      if (tx.pennylane_id) existingByPennylaneId.set(tx.pennylane_id, entry);
     }
 
-    // Pre-fetch ALL existing transactions for this company for in-memory signature matching
-    // This replaces per-transaction DB queries and prevents timeout
+    // Pre-fetch ALL existing transactions for this company for in-memory signature matching.
+    // We INCLUDE soft-deleted rows: if a Bridge transaction signature-matches a soft-deleted
+    // parent, the user has already split (or deleted) it and we must NOT re-insert.
     const { data: allExistingTxs } = await supabaseAdmin
       .from('transactions')
-      .select('id, description, date, amount, type, bank_account_name')
+      .select('id, description, date, amount, type, bank_account_name, deleted_at')
       .eq('company_id', correctCompanyId)
-      .is('deleted_at', null)
       .limit(10000);
 
-    // Build signature lookup: "description|date|amount|type|bank_account_name" -> id
-    const signatureMap = new Map<string, string>();
+    // Build signature lookup. When both an active and a soft-deleted row share the same
+    // signature, prefer the active one so normal updates still go through.
+    const signatureMap = new Map<string, MatchEntry>();
     for (const tx of allExistingTxs || []) {
       const sig = `${tx.description}|${tx.date}|${tx.amount}|${tx.type}|${tx.bank_account_name || ''}`;
-      signatureMap.set(sig, tx.id);
+      const prev = signatureMap.get(sig);
+      if (!prev || (prev.deletedAt && !tx.deleted_at)) {
+        signatureMap.set(sig, { id: tx.id, deletedAt: tx.deleted_at });
+      }
     }
 
     // Batch inserts and updates
     const toInsert: any[] = [];
     const toUpdate: { id: string; data: any }[] = [];
+    let skippedAlreadySplitOrDeleted = 0;
 
     for (const transaction of companyTransactions) {
       const transactionType = bridgeClient.getTransactionType(transaction);
@@ -466,17 +477,33 @@ async function syncCompanyTransactions(
       }
 
       // Check if already exists by bridge_transaction_id OR legacy pennylane_id
-      let existingId = existingByBridgeId.get(transaction.id) 
+      let match: MatchEntry | undefined = existingByBridgeId.get(transaction.id)
         || existingByPennylaneId.get(`bridge_${transaction.id}`);
 
       // Phase 3: In-memory signature match (replaces per-tx DB query)
-      if (!existingId) {
+      if (!match) {
         const sig = `${description}|${transaction.date}|${absAmount}|${transactionType}|${accountName || ''}`;
-        const matchId = signatureMap.get(sig);
-        if (matchId) {
-          existingId = matchId;
-        }
+        const sigMatch = signatureMap.get(sig);
+        if (sigMatch) match = sigMatch;
       }
+
+      // If the matched row is soft-deleted, the user has already split or deleted this
+      // transaction. We must NOT re-insert it. Refresh bridge_transaction_id on the
+      // soft-deleted parent so future syncs keep matching even if Bridge changes IDs.
+      if (match && match.deletedAt) {
+        skippedAlreadySplitOrDeleted++;
+        toUpdate.push({
+          id: match.id,
+          data: {
+            bridge_transaction_id: transaction.id,
+            pennylane_id: `bridge_${transaction.id}`,
+            updated_at: new Date().toISOString(),
+          },
+        });
+        continue;
+      }
+
+      const existingId = match?.id;
 
       if (existingId) {
         const norm = deriveTransactionNormalization(description);
@@ -557,7 +584,7 @@ async function syncCompanyTransactions(
       updatedCount += results.filter(r => !r.error).length;
     }
 
-    console.info(`[bridge-sync] Company ${correctCompanyId}: ${toInsert.length} new, ${toUpdate.length} updated`);
+    console.info(`[bridge-sync] Company ${correctCompanyId}: ${toInsert.length} new, ${toUpdate.length} updated, ${skippedAlreadySplitOrDeleted} skipped (already split/deleted)`);
   }
 
   return { inserted: insertedCount, updated: updatedCount };
