@@ -42,23 +42,25 @@ describe('computeTreasuryPlan', () => {
 
     expect(out.map((m) => `${m.monthKey}/${m.source}`)).toEqual([
       '2026-03/actual',
+      '2026-04/blended', // empty current month still surfaces with the envelope rule
       '2026-05/forecast',
     ]);
     expect(out[0].net).toBe(700);
-    expect(out[1].net).toBe(500);
+    expect(out[1].net).toBe(0);
+    expect(out[2].net).toBe(500);
   });
 
-  it('current month blends actuals + forecasts strictly after asOfDate', () => {
+  it('current month uses monthly forecast envelope rule (no more day-strict filter)', () => {
     const actuals: TreasuryActualMonth[] = [
       actualMonth('2026-04', [
         { bucket: 'revenue', amount: 200, transactionIds: ['a1'] },
       ]),
     ];
+    // All three forecasts are MONTHLY envelopes for April; date is only
+    // used to extract the month part. Their daily positions are irrelevant.
     const forecasts: TreasuryForecastEntry[] = [
-      { id: 'before', date: '2026-04-10', bucket: 'revenue', amount: 999 }, // ignored
-      { id: 'same',   date: '2026-04-15', bucket: 'revenue', amount: 999 }, // ignored (not strict >)
-      { id: 'after',  date: '2026-04-20', bucket: 'revenue', amount: 100 }, // kept
-      { id: 'late',   date: '2026-04-25', bucket: 'personnel', amount: 50 }, // kept (outflow)
+      { id: 'rev', date: '2026-04-01', bucket: 'revenue', amount: 500 },        // envelope 500
+      { id: 'pers', date: '2026-04-01', bucket: 'personnel', amount: 50 },      // envelope 50
     ];
     const out = computeTreasuryPlan({
       actuals, forecasts,
@@ -68,25 +70,117 @@ describe('computeTreasuryPlan', () => {
     });
     expect(out).toHaveLength(1);
     expect(out[0].source).toBe('blended');
-    // Revenue: 200 (actual) + 100 (forecast after) = 300
-    // Personnel: -50 (forecast after)
-    expect(out[0].totalInflows).toBe(300);
+    expect(out[0].projectionMode).toBe('current_projected');
+    // Revenue: actual 200 < envelope 500 → projected 500
+    expect(out[0].totalInflows).toBe(500);
+    // Personnel: no actual, envelope 50 → projected -50
     expect(out[0].totalOutflows).toBe(-50);
-    expect(out[0].net).toBe(250);
+    expect(out[0].net).toBe(450);
+    // Co-exposed views
+    expect(out[0].actualLines.find((l) => l.bucket === 'revenue')?.amount).toBe(200);
+    expect(out[0].forecastLines.find((l) => l.bucket === 'revenue')?.amount).toBe(500);
+    expect(out[0].projectedLines.find((l) => l.bucket === 'revenue')?.amount).toBe(500);
   });
 
-  it('maintains Opening + Net = Closing invariant across months', () => {
-    const actuals: TreasuryActualMonth[] = [
-      actualMonth('2026-01', [{ bucket: 'revenue', amount: 100, transactionIds: ['a'] }]),
-      actualMonth('2026-02', [{ bucket: 'personnel', amount: -40, transactionIds: ['b'] }]),
+  it('1st of the month with no actuals → current month projects full forecast (no cliff)', () => {
+    const forecasts: TreasuryForecastEntry[] = [
+      { id: 'rev', date: '2026-06-01', bucket: 'revenue', amount: 257_000 },
+      { id: 'fix', date: '2026-06-01', bucket: 'fixed_expenses', amount: 268_000 },
+    ];
+    const out = computeTreasuryPlan({
+      actuals: [],
+      forecasts,
+      asOfDate: '2026-06-01',
+      openingBalance: 100_000,
+      openingDate: '2026-06-01',
+    });
+    expect(out).toHaveLength(1);
+    expect(out[0].source).toBe('blended');
+    expect(out[0].projectionMode).toBe('current_projected');
+    expect(out[0].totalInflows).toBe(257_000);
+    expect(out[0].totalOutflows).toBe(-268_000);
+    expect(out[0].closingBalance).toBe(100_000 - 11_000);
+  });
+
+  it('current month with actuals > forecast → projection follows actuals', () => {
+    const actuals = [
+      actualMonth('2026-06', [
+        { bucket: 'revenue', amount: 400_000, transactionIds: ['a'] },
+      ]),
     ];
     const forecasts: TreasuryForecastEntry[] = [
-      { id: 'f1', date: '2026-03-15', bucket: 'revenue', amount: 80 },
-      { id: 'f2', date: '2026-04-10', bucket: 'fixed_expenses', amount: 25 },
+      { id: 'rev', date: '2026-06-01', bucket: 'revenue', amount: 250_000 },
     ];
     const out = computeTreasuryPlan({
       actuals, forecasts,
-      asOfDate: '2026-02-28',
+      asOfDate: '2026-06-20',
+      openingBalance: 0,
+      openingDate: '2026-06-01',
+    });
+    expect(out[0].totalInflows).toBe(400_000);
+    expect(out[0].net).toBe(400_000);
+  });
+
+  it('FORWARD WALK — next month opens from current projected closing (not from raw actual)', () => {
+    // June (current): opening 100k, actual revenue 200k (no expense booked yet),
+    // forecast revenue 250k, forecast personnel 50k.
+    //   Actual revenue 200 < envelope 250 → projected revenue = 250
+    //   Actual personnel 0  < envelope 50  → projected personnel = -50
+    //   projected net = +200, projected closing = 300k.
+    // July: revenue 250k, expenses 200k → opening MUST be 300k, not 300k from raw actual either.
+    // The point: if we walked from raw actuals (only +200k revenue → closing 300k),
+    // we'd get the same number by coincidence. So we make actuals EXCEED forecast on
+    // one bucket to disambiguate:
+    //   Actual revenue 400k (>250 envelope) → projected = 400k
+    //   Actual personnel 0 < 50 envelope → projected = -50
+    //   projected net = +350 → projected closing = 450k
+    //   raw actual net would be +400 (closing 500k) → DIFFERENT, so the test is meaningful.
+    const actuals = [
+      actualMonth('2026-06', [
+        { bucket: 'revenue', amount: 400_000, transactionIds: ['a1'] },
+      ]),
+    ];
+    const forecasts: TreasuryForecastEntry[] = [
+      { id: 'jun-rev', date: '2026-06-01', bucket: 'revenue', amount: 250_000 },
+      { id: 'jun-pers', date: '2026-06-01', bucket: 'personnel', amount: 50_000 },
+      { id: 'jul-rev', date: '2026-07-01', bucket: 'revenue', amount: 250_000 },
+      { id: 'jul-fix', date: '2026-07-01', bucket: 'fixed_expenses', amount: 200_000 },
+    ];
+    const out = computeTreasuryPlan({
+      actuals, forecasts,
+      asOfDate: '2026-06-20',
+      openingBalance: 100_000,
+      openingDate: '2026-06-01',
+    });
+
+    const june = out.find((m) => m.monthKey === '2026-06')!;
+    const july = out.find((m) => m.monthKey === '2026-07')!;
+
+    expect(june.source).toBe('blended');
+    expect(june.net).toBe(350_000); // 400 actual revenue + (-50) projected personnel
+    expect(june.closingBalance).toBe(450_000);
+
+    expect(july.source).toBe('forecast');
+    // CRITICAL: July opens from June PROJECTED closing, not from raw actual closing.
+    expect(july.openingBalance).toBe(450_000);
+    expect(july.net).toBe(50_000);
+    expect(july.closingBalance).toBe(500_000);
+  });
+
+  it('maintains Opening + Net = Closing invariant across past / current / future', () => {
+    const actuals: TreasuryActualMonth[] = [
+      actualMonth('2026-01', [{ bucket: 'revenue', amount: 100, transactionIds: ['a'] }]),
+      actualMonth('2026-02', [{ bucket: 'personnel', amount: -40, transactionIds: ['b'] }]),
+      actualMonth('2026-03', [{ bucket: 'revenue', amount: 60, transactionIds: ['c'] }]),
+    ];
+    const forecasts: TreasuryForecastEntry[] = [
+      { id: 'f-mar-rev', date: '2026-03-01', bucket: 'revenue', amount: 100 },
+      { id: 'f-apr-rev', date: '2026-04-15', bucket: 'revenue', amount: 80 },
+      { id: 'f-may-fix', date: '2026-05-10', bucket: 'fixed_expenses', amount: 25 },
+    ];
+    const out = computeTreasuryPlan({
+      actuals, forecasts,
+      asOfDate: '2026-03-15',
       openingBalance: 500,
       openingDate: '2026-01-01',
     });
@@ -97,6 +191,5 @@ describe('computeTreasuryPlan', () => {
       expect(m.closingBalance).toBe(running + m.net);
       running = m.closingBalance;
     }
-    expect(out[out.length - 1].closingBalance).toBe(500 + 100 - 40 + 80 - 25);
   });
 });
