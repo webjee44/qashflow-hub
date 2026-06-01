@@ -1,107 +1,141 @@
 
-# Fiabilisation du prévisionnel Cloud Vapor
+# Plan — Fiabilisation projection trésorerie (enveloppes mensuelles) — v2
 
-Objectif : aligner le prévisionnel sur la réalité observée des 3 derniers mois, **uniquement via des écritures SQL ciblées** sur la société `12ea5853-35f4-46d3-a97d-3d8f466e59d8`. Aucun code applicatif, aucune nouvelle feature.
+## Cause racine retenue
 
-Périmètre strict : **Cloud Vapor uniquement**. Aucun autre tenant touché. Toutes les écritures sont idempotentes et réversibles (audit_log + snapshot SQL préalable).
+Les forecasts catégoriels sont stockés au 1er du mois (`category_forecasts.month = YYYY-MM-01`). Le moteur les traite comme des événements datés avec un filtre `forecast.date > asOfDate`. Chaque 1er du mois, tous les forecasts du mois courant sont exclus → falaise structurelle. Le `ForecastChart` aggrave en lisant les `actual` pour le mois courant (vide en début de mois).
 
----
+## Règle métier cible (single source of truth)
 
-## Étape 0 — Filet de sécurité (avant toute écriture)
+Par bucket et par mois :
 
-- Export SQL complet (SELECT → COPY) des tables impactées pour Cloud Vapor :
-  - `category_forecasts` (toutes lignes company_id = Cloud Vapor)
-  - `forecasts` (idem)
-  - `categories` (idem)
-  - `companies` (ligne Cloud Vapor)
-- Sauvegarde dans `bp_snapshots` avec nom `pre-forecast-cleanup-2026-05-30`.
-- Recompte des montants attendus (moyenne réelle 3 derniers mois par catégorie) → table temporaire de travail, pas de modification destructive avant validation des chiffres.
+```text
+mois passé clos     → actuals
+mois futur          → forecast (enveloppe mensuelle entière)
+mois courant        → actualsToDate + max(monthlyForecast − actualsToDate, 0)
+```
 
----
+Invariant `Opening + Net = Closing` préservé (addition de non-négatifs).
 
-## Étape A — Nettoyage structurel (cause racine n°1)
+## Architecture — helper unique, pas de duplication
 
-A.1 **Recatégoriser « Virement intercompte » en transfert interne**
-- Vérifier le nom canonique côté code (`INTERNAL_TRANSFER_CATEGORY_NAME`).
-- UPDATE de la `category` cible : `type = 'INTERNAL_TRANSFER'` (ou renommage vers la catégorie système existante selon ce que le code attend — à confirmer par lecture du fichier `categoryConstants`).
-- Effet : neutralisation automatique dans les stats (logique déjà en place, cf. mémoire `treasury-internal-transfer-neutralization-logic`).
-- ~20 500 €/mois disparaissent des dépenses fantômes.
+### Nouveau fichier `src/features/treasury/engine/currentMonthProjection.ts`
 
-A.2 **Aligner le point zéro de la trésorerie**
-- Si `companies.initial_balance = 0` alors que le solde bancaire consolidé réel est de **-15 573,80 €** au moment du snapshot ledger, mettre à jour `initial_balance` pour refléter la vérité.
-- Vérifier d'abord la convention exacte (snapshot date, source de vérité `company_active_bridge_accounts`) avant tout UPDATE — la mémoire `treasury-forecast-ledger-architecture` impose cohérence avec le zero-point snapshot.
+Helper pur, sans I/O, sans dépendance React :
 
-A.3 **Audit livré au client** (read-only, pas d'écriture)
-- Liste exhaustive des catégories actives sans forecast (les 10 identifiées).
-- Liste des mois sans couverture par catégorie.
-- Tableau « réel 3 derniers mois vs forecast actuel » par catégorie.
+```ts
+export interface BucketAmounts {
+  // Map bucket → signed amount (>0 inflow, <0 outflow), même convention que TreasuryActualLine
+  [bucket: string]: number;
+}
 
----
+export interface CurrentMonthProjectionInput {
+  actualByBucket: BucketAmounts;
+  forecastByBucket: BucketAmounts;
+}
 
-## Étape B — Prolongation des forecasts (cause racine n°2)
+export interface CurrentMonthProjectionOutput {
+  projectedByBucket: BucketAmounts;
+  // Pour debug / UI : par bucket, le surplus pris du forecast restant
+  remainingByBucket: BucketAmounts;
+}
 
-Les forecasts s'arrêtent en septembre 2026 → divergence exponentielle à partir d'octobre.
+// Règle unique :
+//   projected[b] = sign(b) * (|actual[b]| + max(|forecast[b]| − |actual[b]|, 0))
+// Travaille sur valeurs absolues puis ré-applique le signe du bucket.
+export function computeCurrentMonthProjection(
+  input: CurrentMonthProjectionInput,
+): CurrentMonthProjectionOutput;
+```
 
-B.1 Pour **chaque catégorie ayant un forecast en septembre 2026**, dupliquer la dernière valeur connue sur **octobre, novembre, décembre 2026**.
-- Hypothèse explicite : stabilité (pas d'inflation ni de saisonnalité inventée).
-- Insertion via `INSERT ... ON CONFLICT DO NOTHING` pour ne pas écraser d'éventuelles saisies manuelles existantes.
-- Champ `notes` rempli avec `"Prolongation auto stabilité — 2026-05-30"` pour traçabilité.
+**Cette fonction est l'UNIQUE source de la règle métier.** Tout autre code qui veut une projection du mois courant doit l'appeler.
 
-B.2 Vérification post-écriture : compter le nombre de mois couverts par catégorie, confirmer qu'aucune ligne n'a écrasé une saisie manuelle.
+### Consommateurs
 
----
+1. **`computeTreasuryPlan.ts`** — l'agrégation bucket-par-bucket du mois courant délègue à `computeCurrentMonthProjection`.
+2. **`useForecasts.ts`** — nouveau helper `getMonthProjected(type, month)` qui appelle `computeCurrentMonthProjection` après avoir regroupé les catégories par bucket. `getMonthNetForecast` du mois courant lit la sortie projetée. `getClosingBalance` du mois courant expose `projectedBalance` = `opening + netProjected`.
 
-## Étape C — Backfill par moyenne réelle (cause racine n°3)
+Test unitaire dédié `currentMonthProjection.test.ts` qui couvre la règle à l'unité (mix inflow/outflow, dépassement, sous-consommation, vide).
 
-Pour les **10 catégories actives sans aucun forecast** (Toutatis 81k, Virement intercompte ⚠️ traité en A.1, Chemnovatic 12,9k, Marketing 11,6k, Loyer 8,1k, Coachflix 6,6k, Remboursement clients 4,9k, etc.) :
+## Contrat `source` — pas de rename partiel
 
-C.1 Calcul de la moyenne mobile des 3 derniers mois réels (mars, avril, mai 2026) par catégorie, via SQL pur sur `transactions`.
+Décision : **on garde `'blended'` et on ajoute un champ orthogonal `projectionMode`**.
 
-C.2 Création de lignes `category_forecasts` pour **chaque mois de juin 2026 à décembre 2026** (~7 mois) avec ce montant moyen.
-- Type respecté (`expense` / `income`) selon la catégorie.
-- Champ `notes` : `"Backfill moyenne réelle 3M — 2026-05-30"`.
-- Idempotent : ON CONFLICT (company_id, category_id, month) DO NOTHING.
+```ts
+export interface TreasuryPlanMonth extends TreasuryActualMonth {
+  source: 'actual' | 'forecast' | 'blended';          // INCHANGÉ
+  projectionMode?: 'current_projected';                // nouveau, présent ssi source==='blended'
+  openingBalance: number;
+  closingBalance: number;
+  // Co-exposition pour l'UI (pas de recalcul côté composant)
+  actualLines: TreasuryActualLine[];
+  forecastLines: TreasuryActualLine[];
+  projectedLines: TreasuryActualLine[];
+}
+```
 
-C.3 Cas spéciaux signalés au client (pas d'écriture automatique) :
-- Catégories à forte volatilité (écart-type > moyenne) → liste séparée, à valider manuellement.
-- Catégories ponctuelles non récurrentes → exclues du backfill.
+Tous les consommateurs existants qui matchent sur `source === 'blended'` continuent de fonctionner. Le nouveau champ est consulté uniquement par l'UI Forecast (chart + tooltip) pour afficher la projection.
 
----
+## Surface technique
 
-## Étape D — Ajustements ciblés des forecasts sous-estimés
+### 1. `src/features/treasury/engine/currentMonthProjection.ts` (NOUVEAU)
+Helper pur + tests.
 
-Pour les catégories où le forecast existant est manifestement trop bas (Flavor District 8,4k réel vs 6k forecast, BPGO 3,3k vs 1,1k, Retraite 4,5k vs 2,5k) :
+### 2. `src/features/treasury/engine/computeTreasuryPlan.ts`
+- Indexer les forecasts par `monthKey` (enveloppes mensuelles), retirer le filtre `date > asOfDate`.
+- Mois courant : appeler `computeCurrentMonthProjection`. `source` reste `'blended'`, on ajoute `projectionMode: 'current_projected'`.
+- Renvoyer `actualLines`, `forecastLines`, `projectedLines` co-exposés.
 
-D.1 UPDATE des `category_forecasts` futurs (à partir de juin 2026) pour aligner sur la moyenne réelle 3M.
-D.2 Anciens mois (passés) **non touchés** — l'historique de prévision reste auditables.
+### 3. `src/hooks/useForecasts.ts`
+- `getMonthProjected(type, month)` (passe par le helper unique).
+- `getMonthNetForecast` mois courant → utilise projeté.
+- `getClosingBalance` mois courant → champ supplémentaire `projectedBalance = opening + netProjected` (rétro-compat : `balance` et `forecastBalance` conservés).
+- **Marche avant futurs** : la boucle `getOpeningBalance` qui projette mois par mois doit, pour le mois courant, additionner `netProjected` (pas `netForecast` brut, ni `netActual`). C'est ce qui garantit que juillet démarre depuis la projection juin.
 
----
+### 4. `src/components/forecasts/ForecastChart.tsx`
+- Mois passés : `actual`. Mois futurs : `forecast`. Mois courant : valeurs projetées + `projectedBalance`.
+- Tooltip mois courant : `Réel à date / Prévu / Projection fin de mois`.
 
-## Étape E — Vérification finale
+Le tableau (`ForecastTable.tsx`) reste inchangé sur la grille catégorielle (colonnes Réel/Prévu intactes). Seule la ligne « Variation nette / Solde fin de mois » du mois courant bascule sur la projection.
 
-- Recalcul SQL : `Opening + Σ Net forecast` mois par mois → s'assurer que la courbe ne grimpe plus mécaniquement.
-- Comparaison réel vs forecast sur les 3 derniers mois → écart cible < 15%.
-- Livraison au client d'un rapport markdown :
-  - Snapshot ID de rollback
-  - Liste des écritures effectuées (table, count, montant total)
-  - Catégories volatiles non traitées (action manuelle requise)
-  - Graphique avant/après (texte ASCII)
+## Tests (obligatoires)
 
----
+### `currentMonthProjection.test.ts` (helper pur)
+1. Tous les buckets vides → projection vide.
+2. Forecast seul, actual vide → projection = forecast.
+3. Actual partiel < forecast (par bucket) → projection = forecast.
+4. Actual qui dépasse forecast (par bucket) → projection = actual.
+5. Mix : un bucket dépassé, un autre sous-consommé → règle appliquée indépendamment par bucket.
+6. Outflows : signe négatif préservé.
 
-## Détails techniques
+### `computeTreasuryPlan.test.ts` (engine)
+7. 1er du mois sans actuals → mois courant projette le forecast complet (≠ zéro).
+8. Mois passés → `source: 'actual'`, mois futurs → `source: 'forecast'`.
+9. Mois courant → `source: 'blended'` + `projectionMode: 'current_projected'` (contrat non cassé).
+10. **Marche avant — NOUVEAU TEST OBLIGATOIRE** :
+    - Setup : actuals juin (mois courant) avec revenue 400k > forecast revenue 250k, opening 100k.
+    - Forecasts juillet : revenue 250k, expenses 200k.
+    - Vérifier : `openingBalance(juillet) === closingBalance(juin) === 100k + netProjected(juin)`, **pas** `100k + netActual(juin)` brut.
+    - Concrètement : si actual juin = +200k net (réel dépasse), juillet doit ouvrir à 300k, pas à autre chose.
+11. Invariant `Opening + Σ projected.net = Closing` sur horizon mixte.
 
-- **Tables touchées** : `category_forecasts` (INSERT + UPDATE), `categories` (UPDATE 1 ligne pour A.1), `companies` (UPDATE 1 ligne pour A.2), `bp_snapshots` (INSERT pour rollback).
-- **Outil utilisé** : `supabase--insert` (pas de migration, pas de schéma touché).
-- **Scope** : `WHERE company_id = '12ea5853-35f4-46d3-a97d-3d8f466e59d8'` sur chaque requête, sans exception.
-- **Réversibilité** : snapshot pré-modification + suffixe `notes` daté pour pouvoir DELETE ciblé si rollback partiel.
-- **Non couvert volontairement** : aucune création de catégorie, aucun changement d'architecture, aucune modification de code TS/React, aucun ajout de feature « forecast coverage quality » (sera proposé séparément en PR6 si validé).
+### `useForecasts.test.ts` (intégration légère)
+12. Mock catégories + forecasts + actuals : `getClosingBalance(currentMonth).projectedBalance` aligne sur le moteur, et `getOpeningBalance(nextMonth).balance` part bien de cette projection.
 
----
+## Zones à risque
 
-## Points qui nécessitent ta validation avant exécution
+- **Double-comptage** : si un code consommateur lit à la fois `forecastLines` et `projectedLines`, risque d'addition. → audit grep des usages de `TreasuryPlanMonth` dans la PR.
+- **Tableau vs Graphique** : la ligne de total mois courant du tableau doit afficher la projection pour éviter écart visuel.
+- **Memory mise à jour** : `treasury-forecast-ledger-architecture` + `forecast-arithmetic-consistency` à compléter avec la sémantique du mois courant (helper unique).
 
-1. Confirmer le nom exact de la catégorie système de transfert interne (je le lirai dans le code avant d'écrire).
-2. Confirmer la date snapshot du zero-point pour ajuster `initial_balance` correctement.
-3. Valider l'hypothèse « moyenne 3 mois » pour le backfill (vs 6 mois, ou mois courant uniquement).
-4. Valider la prolongation par simple duplication (vs avec un coefficient de croissance/inflation).
+## Livraison
+
+PR atomique :
+- `currentMonthProjection.ts` + `currentMonthProjection.test.ts`
+- `computeTreasuryPlan.ts` + tests étendus (cas 7–11)
+- `useForecasts.ts` + test intégration (cas 12)
+- `ForecastChart.tsx` (consommation + tooltip)
+- `ForecastTable.tsx` (ligne totale mois courant uniquement)
+- Update mémoire
+
+Validation visuelle Cloud Vapor au 1er juin : barre juin = ~257k vert / ~268k rouge, courbe ne plonge plus brutalement, juillet démarre depuis la projection juin.

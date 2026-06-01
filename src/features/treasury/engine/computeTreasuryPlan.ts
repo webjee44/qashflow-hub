@@ -3,7 +3,6 @@ import {
   firstOfMonthParis,
   buildMonthRange,
   dayKeyParis,
-  isBeforeDay,
 } from '@/lib/finance';
 import type {
   CashFlowBucket,
@@ -11,16 +10,27 @@ import type {
   TreasuryActualMonth,
 } from '../types/treasuryActuals';
 import { INFLOW_BUCKETS } from '../types/treasuryActuals';
+import {
+  computeCurrentMonthProjection,
+  linesToBucketAmounts,
+  bucketAmountsToLines,
+} from './currentMonthProjection';
 
 const INFLOW_SET = new Set<CashFlowBucket>(INFLOW_BUCKETS);
 
 /**
  * Forecast entry as accepted by the engine. The engine is agnostic of the
  * actual storage table — adapters convert DB rows to this shape.
+ *
+ * Note: forecasts are treated as MONTHLY ENVELOPES. The `date` field is
+ * normalized to its month (YYYY-MM) for matching and for the current-month
+ * projection rule. We do NOT compare day-by-day against asOfDate anymore —
+ * doing so causes month-start cliffs (forecasts stored at the 1st are
+ * filtered out on the 1st), which is the bug this engine was tracking.
  */
 export interface TreasuryForecastEntry {
   id: string;
-  /** Precise date of the forecasted movement (ISO YYYY-MM-DD or Date). */
+  /** ISO YYYY-MM-DD or Date. Only the month part is used. */
   date: string | Date;
   bucket: CashFlowBucket;
   /** Absolute positive amount. Direction is implied by `bucket`. */
@@ -31,11 +41,32 @@ export interface TreasuryPlanMonth extends TreasuryActualMonth {
   /**
    * - 'actual'   → month entirely in the past, only actuals.
    * - 'forecast' → month entirely in the future, only forecasts.
-   * - 'blended'  → current month: actuals up to asOfDate + forecasts after.
+   * - 'blended'  → current month: combination of actuals and forecast envelope.
+   *
+   * Stable contract: any consumer matching on `source === 'blended'` keeps
+   * working. The PROJECTION rule applied to blended months is exposed via
+   * `projectionMode` and via the co-exposed `*Lines` arrays.
    */
   source: 'actual' | 'forecast' | 'blended';
+  /**
+   * Set ONLY when `source === 'blended'`. Identifies which projection
+   * algorithm was used to derive `lines` / `net` / `closingBalance` for the
+   * current month. Today the only value is 'current_projected' (the rule
+   * defined in `currentMonthProjection.ts`).
+   */
+  projectionMode?: 'current_projected';
   openingBalance: number;
   closingBalance: number;
+  /**
+   * Co-exposed views for the UI. Components MUST NOT recompute these.
+   *   - actualLines     : what's already booked this month (always defined)
+   *   - forecastLines   : full monthly forecast envelope (always defined)
+   *   - projectedLines  : === lines for past/future; for blended months,
+   *                       result of computeCurrentMonthProjection.
+   */
+  actualLines: TreasuryActualLine[];
+  forecastLines: TreasuryActualLine[];
+  projectedLines: TreasuryActualLine[];
 }
 
 export interface ComputeTreasuryPlanInput {
@@ -47,10 +78,6 @@ export interface ComputeTreasuryPlanInput {
   /** Optional explicit horizon; defaults to span of inputs. */
   fromDate?: string;
   toDate?: string;
-}
-
-function emptyLines(): TreasuryActualLine[] {
-  return [];
 }
 
 function aggregateForecastsForMonth(
@@ -74,29 +101,6 @@ function aggregateForecastsForMonth(
   return Array.from(byBucket.values());
 }
 
-function mergeLines(
-  a: TreasuryActualLine[],
-  b: TreasuryActualLine[],
-): TreasuryActualLine[] {
-  const byBucket = new Map<CashFlowBucket, TreasuryActualLine>();
-  for (const src of [a, b]) {
-    for (const l of src) {
-      const existing = byBucket.get(l.bucket);
-      if (existing) {
-        existing.amount += l.amount;
-        existing.transactionIds.push(...l.transactionIds);
-      } else {
-        byBucket.set(l.bucket, {
-          bucket: l.bucket,
-          amount: l.amount,
-          transactionIds: [...l.transactionIds],
-        });
-      }
-    }
-  }
-  return Array.from(byBucket.values());
-}
-
 function totals(lines: TreasuryActualLine[]) {
   let inflows = 0;
   let outflows = 0;
@@ -108,14 +112,15 @@ function totals(lines: TreasuryActualLine[]) {
 }
 
 /**
- * Builds the treasury plan month-by-month combining actuals and forecasts
- * according to asOfDate (Europe/Paris, day granularity, no prorata).
+ * Builds the treasury plan month-by-month combining actuals and monthly
+ * forecast envelopes according to asOfDate (Europe/Paris, month granularity
+ * for the projection rule).
  *
  * Per month M:
- *   - end(M) < startOfDay(asOfDate)   → actuals only         (source: 'actual')
- *   - start(M) > startOfDay(asOfDate) → forecasts only       (source: 'forecast')
- *   - otherwise (current month)       → actuals + forecasts whose date > asOfDate
- *                                       (source: 'blended')
+ *   - M < currentMonth → actuals only                 (source: 'actual')
+ *   - M > currentMonth → forecasts only               (source: 'forecast')
+ *   - M = currentMonth → bucket-by-bucket projection  (source: 'blended',
+ *                                                      projectionMode: 'current_projected')
  *
  * Invariant: Σ months: openingBalance + Σ net = closingBalance.
  */
@@ -159,25 +164,34 @@ export function computeTreasuryPlan(
   let runningBalance = openingBalance;
 
   for (const mk of allMonths) {
+    const actualLines: TreasuryActualLine[] =
+      actualsByMonth.get(mk)?.lines ?? [];
+    const forecastLines: TreasuryActualLine[] = aggregateForecastsForMonth(
+      forecastsByMonth.get(mk) ?? [],
+    );
+
     let source: TreasuryPlanMonth['source'];
-    let lines: TreasuryActualLine[] = emptyLines();
+    let projectionMode: TreasuryPlanMonth['projectionMode'] | undefined;
+    let projectedLines: TreasuryActualLine[];
 
     if (mk < asOfMonthKey) {
       source = 'actual';
-      lines = actualsByMonth.get(mk)?.lines ?? emptyLines();
+      projectedLines = actualLines;
     } else if (mk > asOfMonthKey) {
       source = 'forecast';
-      lines = aggregateForecastsForMonth(forecastsByMonth.get(mk) ?? []);
+      projectedLines = forecastLines;
     } else {
       source = 'blended';
-      const actualLines = actualsByMonth.get(mk)?.lines ?? emptyLines();
-      const futureForecasts = (forecastsByMonth.get(mk) ?? [])
-        .filter((f) => isBeforeDay(asOfDate, f.date)); // strict > asOfDate
-      const forecastLines = aggregateForecastsForMonth(futureForecasts);
-      lines = mergeLines(actualLines, forecastLines);
+      projectionMode = 'current_projected';
+      // Single source of truth — see currentMonthProjection.ts
+      const { projectedByBucket } = computeCurrentMonthProjection({
+        actualByBucket: linesToBucketAmounts(actualLines),
+        forecastByBucket: linesToBucketAmounts(forecastLines),
+      });
+      projectedLines = bucketAmountsToLines(projectedByBucket);
     }
 
-    const { inflows, outflows, net } = totals(lines);
+    const { inflows, outflows, net } = totals(projectedLines);
     const opening = runningBalance;
     const closing = opening + net;
     runningBalance = closing;
@@ -185,13 +199,17 @@ export function computeTreasuryPlan(
     out.push({
       month: firstOfMonthParis(`${mk}-01`),
       monthKey: mk,
-      lines,
+      lines: projectedLines,
       totalInflows: inflows,
       totalOutflows: outflows,
       net,
       source,
+      projectionMode,
       openingBalance: opening,
       closingBalance: closing,
+      actualLines,
+      forecastLines,
+      projectedLines,
     });
   }
 

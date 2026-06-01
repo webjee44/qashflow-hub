@@ -8,6 +8,7 @@ import { addMonths, startOfMonth, endOfMonth, format, isBefore, isSameMonth } fr
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { getDisplayedSectionTotals, getDisplayedNetVariation } from '@/lib/forecastDisplayTotals';
 import { calculatePercentOfRevenueForecast, getVatFromAmount, toHt, toTtc } from '@/lib/forecastAmounts';
+import { computeCurrentMonthProjection } from '@/features/treasury/engine/currentMonthProjection';
 
 export interface PayableInvoice {
   id: string;
@@ -616,10 +617,43 @@ export function useForecasts() {
     return getDisplayedNetVariation(incomeTotals, expenseTotals);
   }, [getDisplayedSectionTotalsForMonth]);
 
-  // Net forecast delta used by the balance engine — same as displayed net forecast
+  // Projected total for the CURRENT month, applied per `type`. Past months
+  // return the actual total; future months return the forecast total. The
+  // current-month projection rule is delegated to the shared engine helper
+  // (`computeCurrentMonthProjection`) so the moteur de trésorerie and ce hook
+  // restent strictement alignés.
+  const getMonthProjected = useCallback((type: 'income' | 'expense', month: Date): number => {
+    const monthStart = startOfMonth(month);
+    const todayStart = startOfMonth(new Date());
+    if (isBefore(monthStart, todayStart)) {
+      // Past closed month → actuals (categorized + uncategorized).
+      return getMonthTotalForType(type, month, 'actual') + getUncategorized(type, month);
+    }
+    if (isSameMonth(monthStart, todayStart)) {
+      // Current month → shared rule, per type.
+      const actualAbs =
+        getMonthTotalForType(type, month, 'actual') + getUncategorized(type, month);
+      const forecastAbs = getMonthTotalForType(type, month, 'forecast');
+      // Synthetic bucket carrying the right sign convention for the helper.
+      const syntheticBucket = type === 'income' ? 'revenue' : 'fixed_expenses';
+      const sign = type === 'income' ? 1 : -1;
+      const { projectedByBucket } = computeCurrentMonthProjection({
+        actualByBucket: { [syntheticBucket]: sign * actualAbs },
+        forecastByBucket: { [syntheticBucket]: sign * forecastAbs },
+      });
+      return Math.abs(projectedByBucket[syntheticBucket] ?? 0);
+    }
+    // Future month → forecast envelope.
+    return getMonthTotalForType(type, month, 'forecast');
+  }, [getMonthTotalForType, getUncategorized]);
+
+  // Net forecast delta used by the balance engine. For past months it
+  // mirrors actuals; for the current month it uses the projected view so
+  // that the forward walk (next-month opening) starts from the projected
+  // closing, not from the raw actual closing.
   const getMonthNetForecast = useCallback((month: Date): number => {
-    return getDisplayedNetTotalsForMonth(month).forecast;
-  }, [getDisplayedNetTotalsForMonth]);
+    return getMonthProjected('income', month) - getMonthProjected('expense', month);
+  }, [getMonthProjected]);
 
   // Fetch live bank balance via la vue centrale company_active_bridge_accounts
   const { data: liveBankBalance } = useQuery({
@@ -732,38 +766,54 @@ export function useForecasts() {
     return (incomeActual + uncatIncome) - (expenseActual + uncatExpense);
   }, [categories, getActual, getUncategorized]);
 
-  // Closing balance = next month's opening (which reads the snapshot or walks forward)
-  const getClosingBalance = useCallback((month: Date): { balance: number; forecastBalance?: number; isActual: boolean; isEstimated?: boolean; noData?: boolean } => {
+  // Closing balance.
+  // For past/future months: equals next month's opening (which walks the
+  // forward ledger using `getMonthNetForecast` — itself projected for the
+  // current month). For the CURRENT month we expose three views:
+  //   - balance           : opening + actual net to date (informational)
+  //   - forecastBalance   : opening + raw forecast envelope net (legacy field, kept for retro-compat)
+  //   - projectedBalance  : opening + projected net (the value to display)
+  // This is the SAME projection rule as the engine, applied via the shared
+  // helper inside getMonthNetForecast.
+  const getClosingBalance = useCallback((month: Date): {
+    balance: number;
+    forecastBalance?: number;
+    projectedBalance?: number;
+    isActual: boolean;
+    isEstimated?: boolean;
+    noData?: boolean;
+  } => {
     const opening = getOpeningBalance(month);
-    
-    // If opening has no data, closing has no data either
+
     if (opening.noData) {
       return { balance: 0, isActual: true, noData: true };
     }
 
-    // Check manual override
     const override = getBalanceOverride(month);
     if (override !== null) {
       return { balance: override, isActual: true };
     }
 
-    // Use next month's opening as closing (it reads the snapshot or walks forward)
     const nextMonth = addMonths(startOfMonth(month), 1);
     const nextOpening = getOpeningBalance(nextMonth);
-    
-    // For current month: actual balance from real transactions, forecast from projections
+
     if (isSameMonth(month, new Date())) {
       const netActual = getMonthNetActual(month);
-      const netForecast = getMonthNetForecast(month);
+      const netProjected = getMonthNetForecast(month); // projected net (helper-based)
+      // Raw forecast envelope net (kept for legacy `forecastBalance` field)
+      const rawForecastNet =
+        getMonthTotalForType('income', month, 'forecast') -
+        getMonthTotalForType('expense', month, 'forecast');
       return {
         balance: opening.balance + netActual,
-        forecastBalance: opening.balance + netForecast,
+        forecastBalance: opening.balance + rawForecastNet,
+        projectedBalance: opening.balance + netProjected,
         isActual: false,
       };
     }
 
     return { balance: nextOpening.balance, isActual: nextOpening.isActual, noData: nextOpening.noData };
-  }, [getOpeningBalance, getMonthNetForecast, getMonthNetActual, getBalanceOverride]);
+  }, [getOpeningBalance, getMonthNetForecast, getMonthNetActual, getMonthTotalForType, getBalanceOverride]);
 
   return {
     months,
@@ -785,6 +835,8 @@ export function useForecasts() {
     getUncategorized,
     getIncomeForecastTotal,
     getIncomeForecastTotalTtc,
+    // Projection per type (past=actual, current=projected via shared helper, future=forecast)
+    getMonthProjected,
     // Closing balance
     getClosingBalance,
     // Balance overrides
