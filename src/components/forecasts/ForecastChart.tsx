@@ -21,17 +21,24 @@ import { Card, CardContent } from '@/components/ui/card';
 interface ClosingBalanceData {
   balance: number;
   forecastBalance?: number | null;
+  projectedBalance?: number | null;
 }
 
 interface ForecastChartProps {
   months: Date[];
   getMonthTotal: (type: 'income' | 'expense', monthIndex: number, valueType: 'forecast' | 'actual') => number;
+  /**
+   * Projected total per type (single source of truth: shared helper).
+   * Past months → actuals, current month → projection, future → forecast.
+   * Optional for retro-compat; when omitted, falls back to legacy logic.
+   */
+  getMonthProjected?: (type: 'income' | 'expense', month: Date) => number;
   getClosingBalance: (month: Date) => ClosingBalanceData;
   getUncategorized?: (type: 'income' | 'expense', month: Date) => number;
   getNetVatForecast?: (month: Date) => number;
 }
 
-export function ForecastChart({ months, getMonthTotal, getClosingBalance, getUncategorized, getNetVatForecast }: ForecastChartProps) {
+export function ForecastChart({ months, getMonthTotal, getMonthProjected, getClosingBalance, getUncategorized, getNetVatForecast }: ForecastChartProps) {
   const today = startOfMonth(new Date());
 
   const data = useMemo(() => {
@@ -39,28 +46,36 @@ export function ForecastChart({ months, getMonthTotal, getClosingBalance, getUnc
       const isPast = isBefore(month, today);
       const isCurrent = isSameMonth(month, today);
       const isActualPeriod = isPast || isCurrent;
-      
-      let income = getMonthTotal('income', index, isActualPeriod ? 'actual' : 'forecast');
-      let expense = getMonthTotal('expense', index, isActualPeriod ? 'actual' : 'forecast');
-      
-      // Include uncategorized transactions in actual bars
-      if (isActualPeriod && getUncategorized) {
-        income += getUncategorized('income', month);
-        expense += getUncategorized('expense', month);
+
+      let income: number;
+      let expense: number;
+
+      if (getMonthProjected) {
+        // Unified rule: past=actual, current=projected, future=forecast (helper-based).
+        income = getMonthProjected('income', month);
+        expense = getMonthProjected('expense', month);
+      } else {
+        // Legacy fallback (kept for safety; should not be hit once wired).
+        income = getMonthTotal('income', index, isActualPeriod ? 'actual' : 'forecast');
+        expense = getMonthTotal('expense', index, isActualPeriod ? 'actual' : 'forecast');
+        if (isActualPeriod && getUncategorized) {
+          income += getUncategorized('income', month);
+          expense += getUncategorized('expense', month);
+        }
+        if (!isActualPeriod && getNetVatForecast) {
+          const netVat = getNetVatForecast(month);
+          if (netVat > 0) expense += netVat;
+        }
       }
 
-      // For future months, include net VAT in expenses (same as displayed totals)
-      if (!isActualPeriod && getNetVatForecast) {
-        const netVat = getNetVatForecast(month);
-        if (netVat > 0) expense += netVat;
-      }
-
-      // Get real closing balance from the forecast engine
+      // Closing balance: prefer projected for current month, then forecast, then actual.
       const closingData = getClosingBalance(month);
-      const endBalance = (isCurrent && closingData.forecastBalance != null)
-        ? closingData.forecastBalance
-        : closingData.balance;
-      
+      const endBalance = isCurrent && closingData.projectedBalance != null
+        ? closingData.projectedBalance
+        : isCurrent && closingData.forecastBalance != null
+          ? closingData.forecastBalance
+          : closingData.balance;
+
       return {
         month: format(month, 'MMM', { locale: fr }),
         fullMonth: format(month, 'MMMM yyyy', { locale: fr }),
@@ -70,7 +85,7 @@ export function ForecastChart({ months, getMonthTotal, getClosingBalance, getUnc
         isPast: isActualPeriod,
       };
     });
-  }, [months, getMonthTotal, getClosingBalance, getUncategorized, getNetVatForecast, today]);
+  }, [months, getMonthTotal, getMonthProjected, getClosingBalance, getUncategorized, getNetVatForecast, today]);
 
   const formatValue = (value: number) => {
     if (Math.abs(value) >= 1000) {
