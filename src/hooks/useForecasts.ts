@@ -766,38 +766,54 @@ export function useForecasts() {
     return (incomeActual + uncatIncome) - (expenseActual + uncatExpense);
   }, [categories, getActual, getUncategorized]);
 
-  // Closing balance = next month's opening (which reads the snapshot or walks forward)
-  const getClosingBalance = useCallback((month: Date): { balance: number; forecastBalance?: number; isActual: boolean; isEstimated?: boolean; noData?: boolean } => {
+  // Closing balance.
+  // For past/future months: equals next month's opening (which walks the
+  // forward ledger using `getMonthNetForecast` — itself projected for the
+  // current month). For the CURRENT month we expose three views:
+  //   - balance           : opening + actual net to date (informational)
+  //   - forecastBalance   : opening + raw forecast envelope net (legacy field, kept for retro-compat)
+  //   - projectedBalance  : opening + projected net (the value to display)
+  // This is the SAME projection rule as the engine, applied via the shared
+  // helper inside getMonthNetForecast.
+  const getClosingBalance = useCallback((month: Date): {
+    balance: number;
+    forecastBalance?: number;
+    projectedBalance?: number;
+    isActual: boolean;
+    isEstimated?: boolean;
+    noData?: boolean;
+  } => {
     const opening = getOpeningBalance(month);
-    
-    // If opening has no data, closing has no data either
+
     if (opening.noData) {
       return { balance: 0, isActual: true, noData: true };
     }
 
-    // Check manual override
     const override = getBalanceOverride(month);
     if (override !== null) {
       return { balance: override, isActual: true };
     }
 
-    // Use next month's opening as closing (it reads the snapshot or walks forward)
     const nextMonth = addMonths(startOfMonth(month), 1);
     const nextOpening = getOpeningBalance(nextMonth);
-    
-    // For current month: actual balance from real transactions, forecast from projections
+
     if (isSameMonth(month, new Date())) {
       const netActual = getMonthNetActual(month);
-      const netForecast = getMonthNetForecast(month);
+      const netProjected = getMonthNetForecast(month); // projected net (helper-based)
+      // Raw forecast envelope net (kept for legacy `forecastBalance` field)
+      const rawForecastNet =
+        getMonthTotalForType('income', month, 'forecast') -
+        getMonthTotalForType('expense', month, 'forecast');
       return {
         balance: opening.balance + netActual,
-        forecastBalance: opening.balance + netForecast,
+        forecastBalance: opening.balance + rawForecastNet,
+        projectedBalance: opening.balance + netProjected,
         isActual: false,
       };
     }
 
     return { balance: nextOpening.balance, isActual: nextOpening.isActual, noData: nextOpening.noData };
-  }, [getOpeningBalance, getMonthNetForecast, getMonthNetActual, getBalanceOverride]);
+  }, [getOpeningBalance, getMonthNetForecast, getMonthNetActual, getMonthTotalForType, getBalanceOverride]);
 
   return {
     months,
