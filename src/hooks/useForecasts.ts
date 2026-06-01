@@ -835,6 +835,8 @@ export function useForecasts() {
     getUncategorized,
     getIncomeForecastTotal,
     getIncomeForecastTotalTtc,
+    // Projection per type (past=actual, current=projected via shared helper, future=forecast)
+    getMonthProjected,
     // Closing balance
     getClosingBalance,
     // Balance overrides
