@@ -617,10 +617,43 @@ export function useForecasts() {
     return getDisplayedNetVariation(incomeTotals, expenseTotals);
   }, [getDisplayedSectionTotalsForMonth]);
 
-  // Net forecast delta used by the balance engine — same as displayed net forecast
+  // Projected total for the CURRENT month, applied per `type`. Past months
+  // return the actual total; future months return the forecast total. The
+  // current-month projection rule is delegated to the shared engine helper
+  // (`computeCurrentMonthProjection`) so the moteur de trésorerie and ce hook
+  // restent strictement alignés.
+  const getMonthProjected = useCallback((type: 'income' | 'expense', month: Date): number => {
+    const monthStart = startOfMonth(month);
+    const todayStart = startOfMonth(new Date());
+    if (isBefore(monthStart, todayStart)) {
+      // Past closed month → actuals (categorized + uncategorized).
+      return getMonthTotalForType(type, month, 'actual') + getUncategorized(type, month);
+    }
+    if (isSameMonth(monthStart, todayStart)) {
+      // Current month → shared rule, per type.
+      const actualAbs =
+        getMonthTotalForType(type, month, 'actual') + getUncategorized(type, month);
+      const forecastAbs = getMonthTotalForType(type, month, 'forecast');
+      // Synthetic bucket carrying the right sign convention for the helper.
+      const syntheticBucket = type === 'income' ? 'revenue' : 'fixed_expenses';
+      const sign = type === 'income' ? 1 : -1;
+      const { projectedByBucket } = computeCurrentMonthProjection({
+        actualByBucket: { [syntheticBucket]: sign * actualAbs },
+        forecastByBucket: { [syntheticBucket]: sign * forecastAbs },
+      });
+      return Math.abs(projectedByBucket[syntheticBucket] ?? 0);
+    }
+    // Future month → forecast envelope.
+    return getMonthTotalForType(type, month, 'forecast');
+  }, [getMonthTotalForType, getUncategorized]);
+
+  // Net forecast delta used by the balance engine. For past months it
+  // mirrors actuals; for the current month it uses the projected view so
+  // that the forward walk (next-month opening) starts from the projected
+  // closing, not from the raw actual closing.
   const getMonthNetForecast = useCallback((month: Date): number => {
-    return getDisplayedNetTotalsForMonth(month).forecast;
-  }, [getDisplayedNetTotalsForMonth]);
+    return getMonthProjected('income', month) - getMonthProjected('expense', month);
+  }, [getMonthProjected]);
 
   // Fetch live bank balance via la vue centrale company_active_bridge_accounts
   const { data: liveBankBalance } = useQuery({
