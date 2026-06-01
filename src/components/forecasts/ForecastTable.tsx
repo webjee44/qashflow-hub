@@ -120,6 +120,7 @@ export const ForecastTable = forwardRef<ForecastTableRef>(function ForecastTable
     getPayableOutflowUncategorized,
     getOpeningBalance,
     getClosingBalance,
+    getMonthProjected,
     upsertForecast, 
     upsertBalanceOverride,
     deleteBalanceOverride,
