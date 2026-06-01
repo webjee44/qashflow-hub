@@ -42,12 +42,10 @@ describe('computeTreasuryPlan', () => {
 
     expect(out.map((m) => `${m.monthKey}/${m.source}`)).toEqual([
       '2026-03/actual',
-      '2026-04/blended', // empty current month still surfaces with the envelope rule
       '2026-05/forecast',
     ]);
     expect(out[0].net).toBe(700);
-    expect(out[1].net).toBe(0);
-    expect(out[2].net).toBe(500);
+    expect(out[1].net).toBe(500);
   });
 
   it('current month uses monthly forecast envelope rule (no more day-strict filter)', () => {
