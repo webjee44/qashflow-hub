@@ -16,6 +16,7 @@ export function BalanceChart() {
     getActual,
     getUncategorized,
     getNetVatForecast,
+    getMonthProjected,
   } = useForecasts();
 
   const { categories } = useCategories();
