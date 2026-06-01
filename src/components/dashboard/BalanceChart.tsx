@@ -118,6 +118,7 @@ export function BalanceChart() {
       <ForecastChart
         months={months}
         getMonthTotal={getMonthTotal}
+        getMonthProjected={getMonthProjected}
         getClosingBalance={getClosingBalance}
         getUncategorized={getUncategorized}
         getNetVatForecast={getNetVatForecast}
