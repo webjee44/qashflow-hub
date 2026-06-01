@@ -2095,6 +2095,7 @@ export const ForecastTable = forwardRef<ForecastTableRef>(function ForecastTable
       <ForecastChart 
         months={months}
         getMonthTotal={getMonthTotal}
+        getMonthProjected={getMonthProjected}
         getClosingBalance={getClosingBalance}
         getUncategorized={getUncategorized}
         getNetVatForecast={getNetVatForecast}
