@@ -51,9 +51,10 @@ export function BalanceChart() {
     const balances = months.map(month => {
       const closingData = getClosingBalance(month);
       const isCurrent = isSameMonth(month, today);
-      return (isCurrent && closingData.forecastBalance != null)
-        ? closingData.forecastBalance
-        : closingData.balance;
+      if (isCurrent) {
+        return closingData.projectedBalance ?? closingData.forecastBalance ?? closingData.balance;
+      }
+      return closingData.balance;
     });
 
     const minBalance = Math.min(...balances);
