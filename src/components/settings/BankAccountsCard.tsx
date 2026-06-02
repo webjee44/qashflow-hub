@@ -195,6 +195,10 @@ export function BankAccountsCard() {
       : companies.map(c => ({ id: c.id, name: c.name, bridge_user_uuid: c.bridge_user_uuid }))
   ), [orgCompanies, companies]);
   const orgCompanyIds = useMemo(() => allCompanies.map(c => c.id), [allCompanies]);
+  const orgBridgeUserUuidsKey = useMemo(
+    () => allCompanies.map(c => c.bridge_user_uuid || '').join(','),
+    [allCompanies],
+  );
 
   const [accounts, setAccounts] = useState<BridgeAccount[]>([]);
   const [pendingAccounts, setPendingAccounts] = useState<BridgeAccount[]>([]);
@@ -404,7 +408,7 @@ export function BankAccountsCard() {
     };
 
     loadData();
-  }, [isOrgAdmin, currentCompany?.id, orgCompanyIds.join(',')]);
+  }, [isOrgAdmin, currentCompany?.id, orgCompanyIds.join(','), orgBridgeUserUuidsKey]);
 
   // Réintègre un compte exclu (lève l'exclusion + réactive). Le trigger
   // DB exige que les champs d'exclusion soient explicitement remis à NULL,
