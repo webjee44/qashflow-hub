@@ -213,14 +213,14 @@ export function BankAccountsCard() {
   // Filter displayed accounts based on role
   const displayedAccounts = useMemo(() => {
     if (isOrgAdmin) {
-      return accounts;
+      return [...accounts, ...pendingAccounts];
     }
     // For members: only show accounts assigned to their current company
     return accounts.filter(account => {
       const assignment = assignments.get(account.bridge_account_id);
       return assignment?.is_enabled && assignment?.company_id === currentCompany?.id;
     });
-  }, [isOrgAdmin, accounts, assignments, currentCompany?.id]);
+  }, [isOrgAdmin, accounts, pendingAccounts, assignments, currentCompany?.id]);
 
   // Calculate total balance for displayed accounts
   const totalDisplayedBalance = useMemo(() => {
@@ -658,7 +658,8 @@ export function BankAccountsCard() {
       }
 
       // Only delete assignments for accounts we're managing within the current organization.
-      const accountIds = accounts.map(a => a.bridge_account_id);
+      const managedAccounts = [...accounts, ...pendingAccounts];
+      const accountIds = managedAccounts.map(a => a.bridge_account_id);
       const managedCompanyIds = allCompanies.map(c => c.id);
 
       // Fetch current DB assignments before deleting to detect changes
