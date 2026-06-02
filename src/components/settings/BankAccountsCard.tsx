@@ -20,6 +20,7 @@ import { useCompany } from '@/hooks/useCompany';
 import { useOrganization } from '@/hooks/useOrganization';
 import { toast } from 'sonner';
 import { logError, logDebug } from '@/lib/logger';
+import { selectPendingBridgeAccounts, type BridgeAccountVisibilityRow } from '@/lib/bankAccountVisibility';
 
 type ItemStatus = 'ok' | 'needs_action' | 'error' | 'deleted';
 
@@ -196,8 +197,9 @@ export function BankAccountsCard() {
   const orgCompanyIds = useMemo(() => allCompanies.map(c => c.id), [allCompanies]);
 
   const [accounts, setAccounts] = useState<BridgeAccount[]>([]);
+  const [pendingAccounts, setPendingAccounts] = useState<BridgeAccount[]>([]);
   const [excludedAccounts, setExcludedAccounts] = useState<BridgeAccount[]>([]);
-  const [blockedAccounts, setBlockedAccounts] = useState<Array<{ id: string; company_id: string; bridge_account_id: number; iban: string | null; iban_last4: string | null; reason: string | null; blocked_at: string }>>([]);
+  const [blockedAccounts, setBlockedAccounts] = useState<Array<{ id: string; company_id: string; bridge_account_id: number; account_identity: string | null; iban: string | null; iban_last4: string | null; reason: string | null; blocked_at: string }>>([]);
   const [assignments, setAssignments] = useState<Map<number, AccountAssignment>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -262,6 +264,9 @@ export function BankAccountsCard() {
 
         setAccounts(bridgeAccounts);
 
+        let nextExcludedAccounts: BridgeAccount[] = [];
+        let nextBlockedAccounts: Array<{ id: string; company_id: string; bridge_account_id: number; account_identity: string | null; iban: string | null; iban_last4: string | null; reason: string | null; blocked_at: string }> = [];
+
         // 2. Comptes EXCLUS — table cba + jointure bridge_accounts
         // Admin uniquement (les membres ne pilotent pas l'exclusion).
         if (isOrgAdmin) {
@@ -281,7 +286,7 @@ export function BankAccountsCard() {
           if (excludedErr) {
             logError('Failed to load excluded accounts:', excludedErr);
           } else {
-            const mapped: BridgeAccount[] = (excludedRows || []).map((row: any) => ({
+            nextExcludedAccounts = (excludedRows || []).map((row: any) => ({
               id: `${row.company_id}:${row.bridge_account_id}:excluded`,
               bridge_account_id: row.bridge_account_id,
               bridge_item_id: row.bridge_accounts?.bridge_item_id ?? row.bridge_account_id,
@@ -297,7 +302,7 @@ export function BankAccountsCard() {
               item_status: null,
               item_status_message: row.exclusion_reason ?? null,
             }));
-            setExcludedAccounts(mapped);
+            setExcludedAccounts(nextExcludedAccounts);
           }
         } else {
           setExcludedAccounts([]);
@@ -307,7 +312,7 @@ export function BankAccountsCard() {
         if (isOrgAdmin) {
           const { data: blockRows, error: blockErr } = await supabase
             .from('bridge_account_blocks')
-            .select('id, company_id, bridge_account_id, iban, iban_last4, reason, blocked_at')
+            .select('id, company_id, bridge_account_id, account_identity, iban, iban_last4, reason, blocked_at')
             .in('company_id', scopedCompanyIds)
             .eq('is_active', true)
             .order('blocked_at', { ascending: false });
@@ -315,11 +320,61 @@ export function BankAccountsCard() {
             logError('Failed to load blocked accounts:', blockErr);
             setBlockedAccounts([]);
           } else {
-            setBlockedAccounts((blockRows || []) as any);
+            nextBlockedAccounts = (blockRows || []) as any;
+            setBlockedAccounts(nextBlockedAccounts);
           }
         } else {
           setBlockedAccounts([]);
         }
+
+        // 4. Comptes synchronisés mais PAS encore assignés — cas multi-sociétés.
+        // Ces comptes existent dans bridge_accounts mais ne peuvent pas être dans
+        // company_active_bridge_accounts tant qu'aucune décision métier n'a été prise.
+        let nextPendingAccounts: BridgeAccount[] = [];
+        if (isOrgAdmin) {
+          const bridgeUserUuids = Array.from(new Set(
+            allCompanies.map(c => c.bridge_user_uuid).filter(Boolean) as string[],
+          ));
+
+          if (bridgeUserUuids.length > 0) {
+            const { data: rawRows, error: pendingErr } = await supabase
+              .from('bridge_accounts')
+              .select('bridge_account_id, bridge_item_id, bridge_user_uuid, account_identity, iban, name, balance, account_type, bank_name, item_status, lifecycle_status, created_at, updated_at')
+              .in('bridge_user_uuid', bridgeUserUuids)
+              .eq('lifecycle_status', 'active');
+
+            if (pendingErr) {
+              logError('Failed to load pending accounts:', pendingErr);
+            } else {
+              const pendingRows = selectPendingBridgeAccounts((rawRows || []) as BridgeAccountVisibilityRow[], {
+                decidedBridgeAccountIds: [
+                  ...bridgeAccounts.map(a => a.bridge_account_id),
+                  ...nextExcludedAccounts.map(a => a.bridge_account_id),
+                ],
+                blockedBridgeAccountIds: nextBlockedAccounts.map(a => a.bridge_account_id),
+                blockedAccountIdentities: nextBlockedAccounts.map(a => a.account_identity),
+              });
+
+              nextPendingAccounts = pendingRows.map((row: any) => ({
+                id: `pending:${row.bridge_account_id}`,
+                bridge_account_id: row.bridge_account_id,
+                bridge_item_id: row.bridge_item_id ?? row.bridge_account_id,
+                name: row.name ?? null,
+                iban: row.iban ?? null,
+                balance: row.balance === null || row.balance === undefined ? null : Number(row.balance),
+                account_type: row.account_type ?? null,
+                bank_name: row.bank_name ?? null,
+                bridge_user_uuid: row.bridge_user_uuid,
+                company_id: '',
+                item_status: ['ok', 'needs_action', 'error', 'deleted'].includes(row.item_status || '')
+                  ? row.item_status as ItemStatus
+                  : null,
+                item_status_message: null,
+              }));
+            }
+          }
+        }
+        setPendingAccounts(nextPendingAccounts);
 
         // Build assignments map
         const assignmentMap = new Map<number, AccountAssignment>();
@@ -328,6 +383,14 @@ export function BankAccountsCard() {
             bridge_account_id: account.bridge_account_id,
             company_id: account.company_id,
             is_enabled: true,
+            status: 'active',
+          });
+        });
+        nextPendingAccounts.forEach(account => {
+          assignmentMap.set(account.bridge_account_id, {
+            bridge_account_id: account.bridge_account_id,
+            company_id: null,
+            is_enabled: false,
             status: 'active',
           });
         });
