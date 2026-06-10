@@ -1,5 +1,3 @@
-import type { SupabaseClient } from "jsr:@supabase/supabase-js@2";
-
 export interface AutomationRule {
   id: string;
   target_category_id: string;
@@ -19,7 +17,7 @@ export interface RuleCondition {
 }
 
 export class AutomationRepository {
-  constructor(private client: SupabaseClient) {}
+  constructor(private client: any) {}
 
   private chunkIds(ids: string[], chunkSize = 100): string[][] {
     const chunks: string[][] = [];
