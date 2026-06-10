@@ -20,6 +20,36 @@ import {
   validationErrorResponse 
 } from '../_shared/validation.ts';
 import { deriveTransactionNormalization } from '../_shared/merchantNormalizer.ts';
+import { applyAutomationRulesForCompany } from '../_shared/automationRuleEngine.ts';
+
+/**
+ * Run automation rules for a single company through the shared engine.
+ * Replaces the previous `fetch(/apply-all-automation-rules)` round-trip:
+ * same runtime, same security checks, no token plumbing.
+ */
+async function runAutomationForCompany(
+  client: ReturnType<typeof createClient>,
+  companyId: string,
+): Promise<void> {
+  try {
+    const result = await applyAutomationRulesForCompany({
+      client,
+      companyId,
+      userId: null,
+      triggeredBy: 'bridge_sync',
+      dryRun: false,
+    });
+    console.info(
+      `[bridge-sync] Auto-categorized ${result.applied} transactions for company ${companyId} ` +
+        `(matched=${result.matched}, conflicts=${result.skippedConflict})`,
+    );
+  } catch (autoErr) {
+    console.error(
+      `[bridge-sync] Failed to apply automation rules for company ${companyId}:`,
+      autoErr,
+    );
+  }
+}
 
 function publicComputeAccountIdentity(iban: string | null | undefined, name: string | null | undefined, accountType: string | null | undefined): string {
   const normalizedIban = (iban || '').toLowerCase().replace(/\s+/g, '');
