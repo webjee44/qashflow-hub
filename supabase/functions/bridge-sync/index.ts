@@ -20,6 +20,36 @@ import {
   validationErrorResponse 
 } from '../_shared/validation.ts';
 import { deriveTransactionNormalization } from '../_shared/merchantNormalizer.ts';
+import { applyAutomationRulesForCompany } from '../_shared/automationRuleEngine.ts';
+
+/**
+ * Run automation rules for a single company through the shared engine.
+ * Replaces the previous `fetch(/apply-all-automation-rules)` round-trip:
+ * same runtime, same security checks, no token plumbing.
+ */
+async function runAutomationForCompany(
+  client: ReturnType<typeof createClient>,
+  companyId: string,
+): Promise<void> {
+  try {
+    const result = await applyAutomationRulesForCompany({
+      client,
+      companyId,
+      userId: null,
+      triggeredBy: 'bridge_sync',
+      dryRun: false,
+    });
+    console.info(
+      `[bridge-sync] Auto-categorized ${result.applied} transactions for company ${companyId} ` +
+        `(matched=${result.matched}, conflicts=${result.skippedConflict})`,
+    );
+  } catch (autoErr) {
+    console.error(
+      `[bridge-sync] Failed to apply automation rules for company ${companyId}:`,
+      autoErr,
+    );
+  }
+}
 
 function publicComputeAccountIdentity(iban: string | null | undefined, name: string | null | undefined, accountType: string | null | undefined): string {
   const normalizedIban = (iban || '').toLowerCase().replace(/\s+/g, '');
@@ -808,34 +838,12 @@ Deno.serve(async (req) => {
               `${inserted} new, ${updated} updated transactions`
           );
 
-          // Apply automation rules per impacted company when new transactions came in
-          // Trigger on inserts OR updates: Bridge frequently marks settled/pending
-          // transitions as "updated", and signature-based dedup can also bucket
-          // genuinely new transactions there. apply-all is idempotent (uncategorized only).
+          // Apply automation rules per impacted company when new transactions
+          // came in. The shared engine is idempotent (uncategorized + non-deleted
+          // only) and enforces tenant security on each companyId.
           if (inserted > 0 || updated > 0) {
             for (const cid of impactedCompanyIds) {
-              try {
-                const applyRes = await fetch(
-                  `${supabaseUrl}/functions/v1/apply-all-automation-rules`,
-                  {
-                    method: 'POST',
-                    headers: {
-                      'Content-Type': 'application/json',
-                      'Authorization': `Bearer ${supabaseServiceKey}`,
-                    },
-                    body: JSON.stringify({ company_id: cid }),
-                  }
-                );
-                const applyData = await applyRes.json();
-                console.info(
-                  `[bridge-sync] Auto-categorized ${applyData.updated || 0} transactions for company ${cid}`
-                );
-              } catch (autoErr) {
-                console.error(
-                  `[bridge-sync] Failed to apply automation rules for company ${cid}:`,
-                  autoErr
-                );
-              }
+              await runAutomationForCompany(supabaseAdmin, cid);
             }
           }
         } catch (err) {
@@ -1044,28 +1052,7 @@ Deno.serve(async (req) => {
               )
             );
             for (const cid of impactedCompanyIds) {
-              try {
-                const applyRes = await fetch(
-                  `${supabaseUrl}/functions/v1/apply-all-automation-rules`,
-                  {
-                    method: 'POST',
-                    headers: {
-                      'Content-Type': 'application/json',
-                      'Authorization': `Bearer ${supabaseServiceKey}`,
-                    },
-                    body: JSON.stringify({ company_id: cid }),
-                  }
-                );
-                const applyData = await applyRes.json();
-                console.info(
-                  `[bridge-sync] Auto-categorized ${applyData.updated || 0} transactions for company ${cid}`
-                );
-              } catch (autoErr) {
-                console.error(
-                  `[bridge-sync] Failed to apply automation rules for company ${cid}:`,
-                  autoErr
-                );
-              }
+              await runAutomationForCompany(supabaseAdmin, cid);
             }
           }
 
@@ -1130,24 +1117,8 @@ Deno.serve(async (req) => {
 
           // Apply automation rules after full-sync if new transactions were inserted
           if (inserted > 0 || updated > 0) {
-            try {
-              console.info(`[bridge-sync] Applying automation rules after full-sync for company ${company_id}...`);
-              const applyRes = await fetch(
-                `${supabaseUrl}/functions/v1/apply-all-automation-rules`,
-                {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${supabaseServiceKey}`,
-                  },
-                  body: JSON.stringify({ company_id }),
-                }
-              );
-              const applyData = await applyRes.json();
-              console.info(`[bridge-sync] Auto-categorized ${applyData.updated || 0} transactions`);
-            } catch (autoErr) {
-              console.error(`[bridge-sync] Failed to apply automation rules:`, autoErr);
-            }
+            console.info(`[bridge-sync] Applying automation rules after full-sync for company ${company_id}...`);
+            await runAutomationForCompany(supabaseAdmin, company_id);
           }
         } catch (bgErr) {
           console.error(`[bridge-sync] Background sync error:`, bgErr);

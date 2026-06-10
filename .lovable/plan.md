@@ -1,141 +1,188 @@
+## Objectif PR1
 
-# Plan — Fiabilisation projection trésorerie (enveloppes mensuelles) — v2
+Unifier le moteur d’automatisation côté serveur sans toucher aux splits, créations manuelles, decategorize ni au diagnostic. Tout matching métier doit passer par une seule source de vérité, avec sécurité tenant stricte et décisions explicites par transaction.
 
-## Cause racine retenue
+## Cause racine traitée
 
-Les forecasts catégoriels sont stockés au 1er du mois (`category_forecasts.month = YYYY-MM-01`). Le moteur les traite comme des événements datés avec un filtre `forecast.date > asOfDate`. Chaque 1er du mois, tous les forecasts du mois courant sont exclus → falaise structurelle. Le `ForecastChart` aggrave en lisant les `actual` pour le mois courant (vide en début de mois).
+Aujourd’hui, `apply-automation-rule`, `apply-all-automation-rules` et `automation-rule-preview` reconstruisent chacun leur propre `matchesRule` et leur propre orchestration. Le frontend peut donc afficher “une règle couvre déjà cette transaction” alors que le runner appliqué n’a pas écrit la catégorie. La correction consiste à supprimer ces variantes au profit d’un moteur partagé, et à brancher Bridge dessus.
 
-## Règle métier cible (single source of truth)
+## Périmètre PR1
 
-Par bucket et par mois :
+Inclus :
 
-```text
-mois passé clos     → actuals
-mois futur          → forecast (enveloppe mensuelle entière)
-mois courant        → actualsToDate + max(monthlyForecast − actualsToDate, 0)
-```
+- nouveau module `supabase/functions/_shared/automationRuleEngine.ts`
+- refonte de `apply-automation-rule`
+- refonte de `apply-all-automation-rules`
+- refonte de `automation-rule-preview`
+- appel `bridge-sync` aligné sur le nouveau contrat
+- tests : VAPOSTORE + conflit
 
-Invariant `Opening + Net = Closing` préservé (addition de non-négatifs).
+Exclus de PR1 :
 
-## Architecture — helper unique, pas de duplication
+- splits
+- créations manuelles
+- `decategorize-rule-transactions`
+- `explain-rule-match`
+- refacto du frontend (`useAutomationRules`, modal, boutons)
 
-### Nouveau fichier `src/features/treasury/engine/currentMonthProjection.ts`
+Le frontend continue d’appeler `apply-automation-rule`, `apply-all-automation-rules`, `automation-rule-preview` avec le même contrat HTTP qu’aujourd’hui. Aucun changement UI dans cette PR.
 
-Helper pur, sans I/O, sans dépendance React :
+## Détail technique
 
-```ts
-export interface BucketAmounts {
-  // Map bucket → signed amount (>0 inflow, <0 outflow), même convention que TreasuryActualLine
-  [bucket: string]: number;
-}
+### 1. Module partagé `automationRuleEngine.ts`
 
-export interface CurrentMonthProjectionInput {
-  actualByBucket: BucketAmounts;
-  forecastByBucket: BucketAmounts;
-}
+Responsabilités :
 
-export interface CurrentMonthProjectionOutput {
-  projectedByBucket: BucketAmounts;
-  // Pour debug / UI : par bucket, le surplus pris du forecast restant
-  remainingByBucket: BucketAmounts;
-}
+- charger les règles actives d’une société (via repository existant)
+- charger les conditions additionnelles
+- charger les types des catégories cibles
+- normaliser les règles dans un contrat unique
+- tester une transaction contre une règle via `automationRuleMatchingCore.ts`
+- résoudre la règle gagnante (priorité, specificity, created_at)
+- détecter les conflits via `isConflictingScore`
+- produire un `RunItemInput` d’audit cohérent
 
-// Règle unique :
-//   projected[b] = sign(b) * (|actual[b]| + max(|forecast[b]| − |actual[b]|, 0))
-// Travaille sur valeurs absolues puis ré-applique le signe du bucket.
-export function computeCurrentMonthProjection(
-  input: CurrentMonthProjectionInput,
-): CurrentMonthProjectionOutput;
-```
-
-**Cette fonction est l'UNIQUE source de la règle métier.** Tout autre code qui veut une projection du mois courant doit l'appeler.
-
-### Consommateurs
-
-1. **`computeTreasuryPlan.ts`** — l'agrégation bucket-par-bucket du mois courant délègue à `computeCurrentMonthProjection`.
-2. **`useForecasts.ts`** — nouveau helper `getMonthProjected(type, month)` qui appelle `computeCurrentMonthProjection` après avoir regroupé les catégories par bucket. `getMonthNetForecast` du mois courant lit la sortie projetée. `getClosingBalance` du mois courant expose `projectedBalance` = `opening + netProjected`.
-
-Test unitaire dédié `currentMonthProjection.test.ts` qui couvre la règle à l'unité (mix inflow/outflow, dépassement, sous-consommation, vide).
-
-## Contrat `source` — pas de rename partiel
-
-Décision : **on garde `'blended'` et on ajoute un champ orthogonal `projectionMode`**.
+Surfaces publiques :
 
 ```ts
-export interface TreasuryPlanMonth extends TreasuryActualMonth {
-  source: 'actual' | 'forecast' | 'blended';          // INCHANGÉ
-  projectionMode?: 'current_projected';                // nouveau, présent ssi source==='blended'
-  openingBalance: number;
-  closingBalance: number;
-  // Co-exposition pour l'UI (pas de recalcul côté composant)
-  actualLines: TreasuryActualLine[];
-  forecastLines: TreasuryActualLine[];
-  projectedLines: TreasuryActualLine[];
+type Decision =
+  | 'applied'
+  | 'no_match'
+  | 'already_categorized'
+  | 'type_mismatch'
+  | 'target_category_invalid'
+  | 'conflict';
+
+interface TransactionDecision {
+  transaction_id: string;
+  decision: Decision;
+  winning_rule_id: string | null;
+  target_category_id: string | null;
+  competing_rules?: string[];
+  reason_codes: string[];
 }
+
+interface ApplyArgs {
+  companyId: string;
+  userId: string;          // utilisateur initiateur (auth) ou null pour cron
+  triggeredBy: 'manual' | 'cron' | 'system' | 'bridge_sync';
+  ruleId?: string;         // restreint à une seule règle si fourni
+  transactionIds?: string[]; // restreint à un sous-ensemble si fourni
+  dryRun: boolean;
+}
+
+interface ApplyResult {
+  runId: string | null;
+  matched: number;
+  applied: number;
+  skippedConflict: number;
+  decisions: TransactionDecision[];
+}
+
+async function applyAutomationRulesForCompany(args: ApplyArgs): Promise<ApplyResult>;
 ```
 
-Tous les consommateurs existants qui matchent sur `source === 'blended'` continuent de fonctionner. Le nouveau champ est consulté uniquement par l'UI Forecast (chart + tooltip) pour afficher la projection.
+Le moteur est idempotent : il ne traite que les transactions non catégorisées, et `applied` n’écrase jamais une catégorie existante.
 
-## Surface technique
+### 2. Sécurité tenant obligatoire dans l’orchestrateur
 
-### 1. `src/features/treasury/engine/currentMonthProjection.ts` (NOUVEAU)
-Helper pur + tests.
+Avant tout dry-run ou application, `applyAutomationRulesForCompany` doit :
 
-### 2. `src/features/treasury/engine/computeTreasuryPlan.ts`
-- Indexer les forecasts par `monthKey` (enveloppes mensuelles), retirer le filtre `date > asOfDate`.
-- Mois courant : appeler `computeCurrentMonthProjection`. `source` reste `'blended'`, on ajoute `projectionMode: 'current_projected'`.
-- Renvoyer `actualLines`, `forecastLines`, `projectedLines` co-exposés.
+- vérifier que `companyId` est non nul
+- si `userId` est fourni (appel utilisateur) : vérifier que l’utilisateur a bien accès à `companyId` via la table d’appartenance (organization/companies), sinon throw `403`
+- si `ruleId` est fourni : vérifier que `rule.company_id === companyId` et `rule.is_active === true`, sinon throw `403`
+- si `transactionIds` est fourni : vérifier que toutes les transactions appartiennent à `companyId` et ne sont pas supprimées, sinon throw `403`
+- vérifier la cohérence `ruleId` ↔ `companyId` ↔ `transactionIds` ; toute incohérence fait throw
 
-### 3. `src/hooks/useForecasts.ts`
-- `getMonthProjected(type, month)` (passe par le helper unique).
-- `getMonthNetForecast` mois courant → utilise projeté.
-- `getClosingBalance` mois courant → champ supplémentaire `projectedBalance = opening + netProjected` (rétro-compat : `balance` et `forecastBalance` conservés).
-- **Marche avant futurs** : la boucle `getOpeningBalance` qui projette mois par mois doit, pour le mois courant, additionner `netProjected` (pas `netForecast` brut, ni `netActual`). C'est ce qui garantit que juillet démarre depuis la projection juin.
+Pour `triggeredBy: 'cron' | 'system' | 'bridge_sync'` : pas de check user, mais `companyId` reste obligatoire et toutes les autres vérifications restent actives.
 
-### 4. `src/components/forecasts/ForecastChart.tsx`
-- Mois passés : `actual`. Mois futurs : `forecast`. Mois courant : valeurs projetées + `projectedBalance`.
-- Tooltip mois courant : `Réel à date / Prévu / Projection fin de mois`.
+Ces vérifications vivent dans l’orchestrateur, pas dans les endpoints. Les endpoints ne font que de la validation de schéma + auth + appel orchestrateur.
 
-Le tableau (`ForecastTable.tsx`) reste inchangé sur la grille catégorielle (colonnes Réel/Prévu intactes). Seule la ligne « Variation nette / Solde fin de mois » du mois courant bascule sur la projection.
+### 3. Décisions explicites et idempotence
 
-## Tests (obligatoires)
+Pour chaque transaction testée (uniquement non catégorisées + non supprimées + appartenant à la société), le moteur retourne exactement une décision :
 
-### `currentMonthProjection.test.ts` (helper pur)
-1. Tous les buckets vides → projection vide.
-2. Forecast seul, actual vide → projection = forecast.
-3. Actual partiel < forecast (par bucket) → projection = forecast.
-4. Actual qui dépasse forecast (par bucket) → projection = actual.
-5. Mix : un bucket dépassé, un autre sous-consommé → règle appliquée indépendamment par bucket.
-6. Outflows : signe négatif préservé.
+- `applied` : règle gagnante trouvée, écriture effectuée (ou planifiée en dry-run)
+- `no_match` : aucune règle ne matche
+- `already_categorized` : la transaction a déjà une catégorie, ignorée
+- `type_mismatch` : règle matchait mais le type de la catégorie cible ne correspond pas au type transaction
+- `target_category_invalid` : règle matchait mais `target_category_id` manquant ou catégorie introuvable
+- `conflict` : deux règles candidates de scores proches vers des catégories différentes, aucune n’est appliquée
 
-### `computeTreasuryPlan.test.ts` (engine)
-7. 1er du mois sans actuals → mois courant projette le forecast complet (≠ zéro).
-8. Mois passés → `source: 'actual'`, mois futurs → `source: 'forecast'`.
-9. Mois courant → `source: 'blended'` + `projectionMode: 'current_projected'` (contrat non cassé).
-10. **Marche avant — NOUVEAU TEST OBLIGATOIRE** :
-    - Setup : actuals juin (mois courant) avec revenue 400k > forecast revenue 250k, opening 100k.
-    - Forecasts juillet : revenue 250k, expenses 200k.
-    - Vérifier : `openingBalance(juillet) === closingBalance(juin) === 100k + netProjected(juin)`, **pas** `100k + netActual(juin)` brut.
-    - Concrètement : si actual juin = +200k net (réel dépasse), juillet doit ouvrir à 300k, pas à autre chose.
-11. Invariant `Opening + Σ projected.net = Closing` sur horizon mixte.
+Toutes les décisions non-trivialement `no_match` produisent un `automation_run_items` avec `reason_codes` cohérent. Le run est créé même à zéro match (audit), comme aujourd’hui.
 
-### `useForecasts.test.ts` (intégration légère)
-12. Mock catégories + forecasts + actuals : `getClosingBalance(currentMonth).projectedBalance` aligne sur le moteur, et `getOpeningBalance(nextMonth).balance` part bien de cette projection.
+Idempotence : un second appel sur la même société sans nouvelle transaction non catégorisée doit retourner `applied: 0`.
 
-## Zones à risque
+### 4. Endpoints refactorisés
 
-- **Double-comptage** : si un code consommateur lit à la fois `forecastLines` et `projectedLines`, risque d'addition. → audit grep des usages de `TreasuryPlanMonth` dans la PR.
-- **Tableau vs Graphique** : la ligne de total mois courant du tableau doit afficher la projection pour éviter écart visuel.
-- **Memory mise à jour** : `treasury-forecast-ledger-architecture` + `forecast-arithmetic-consistency` à compléter avec la sémantique du mois courant (helper unique).
+`apply-automation-rule` :
 
-## Livraison
+- valide `rule_id` + `company_id` via Zod
+- auth `getUser` obligatoire
+- appelle `applyAutomationRulesForCompany({ companyId, userId, triggeredBy: 'manual', ruleId, dryRun: false })`
+- retourne `{ matched, updated, run_id }` (contrat HTTP inchangé)
 
-PR atomique :
-- `currentMonthProjection.ts` + `currentMonthProjection.test.ts`
-- `computeTreasuryPlan.ts` + tests étendus (cas 7–11)
-- `useForecasts.ts` + test intégration (cas 12)
-- `ForecastChart.tsx` (consommation + tooltip)
-- `ForecastTable.tsx` (ligne totale mois courant uniquement)
-- Update mémoire
+`apply-all-automation-rules` :
 
-Validation visuelle Cloud Vapor au 1er juin : barre juin = ~257k vert / ~268k rouge, courbe ne plonge plus brutalement, juillet démarre depuis la projection juin.
+- valide `company_id` requis pour les appels utilisateur ; pour les appels CRON sans auth, le contrat reste mais l’endpoint itère société par société en appelant l’orchestrateur (qui exigera `companyId`)
+- appelle l’orchestrateur en `dryRun: false`
+- retourne `{ matched, updated }`
+
+`automation-rule-preview` :
+
+- valide le payload existant
+- appelle l’orchestrateur en `dryRun: true` avec un mode “preview ad hoc” qui injecte des conditions/règles candidates non encore persistées
+- pour rester compatible avec la preview d’une règle non créée, ajouter au moteur un mode `applyAutomationRulesForCompanyPreview({ companyId, userId, candidateRule, ruleIdBeingEdited })` qui réutilise la même fonction interne de matching/scoring et produit `PreviewResult`
+- contrat HTTP inchangé
+
+### 5. Branchement `bridge-sync`
+
+Remplacer les `fetch` vers `apply-all-automation-rules` par un appel direct à `applyAutomationRulesForCompany` dans le même runtime, avec :
+
+- `companyId` = société impactée
+- `userId` = null
+- `triggeredBy` = `'bridge_sync'`
+- `dryRun` = false
+
+Garantie : seules les transactions non catégorisées de la société impactée sont traitées. Aucun cross-tenant possible.
+
+### 6. Tests obligatoires
+
+Tests Deno dans `supabase/functions/_shared/tests/automationRuleEngine.test.ts` avec mocks repository :
+
+Test 1 — VAPOSTORE :
+
+- transaction non catégorisée : `VIR VAPOSTORE Vapostore Cloudvapor 202601380`, `amount: 10089.12`, `type: 'income'`, `company_id: C1`
+- règle active dans `C1` : `description contains VAPOSTORE → cat-ventes` (catégorie type `income`)
+- appel `applyAutomationRulesForCompany({ companyId: C1, triggeredBy: 'system', dryRun: false })`
+- attendu : `applied = 1`, décision `applied`, `winning_rule_id` correct, écriture `category_id = cat-ventes`
+- second appel : `applied = 0` (idempotence)
+
+Test 2 — conflit :
+
+- deux règles actives de specificity proches vers `cat-A` et `cat-B`
+- une transaction matche les deux
+- attendu : décision `conflict`, `competing_rules` contient les deux ids, aucune écriture, `skippedConflict = 1`
+
+Test 3 — sécurité tenant :
+
+- règle appartient à `C1`, appel avec `companyId: C2` → throw
+- transactionIds d’une autre société → throw
+- userId sans accès à companyId → throw
+
+## Validation
+
+- exécution `supabase--test_edge_functions` ciblée sur les nouveaux tests
+- déploiement des trois endpoints
+- appel manuel `apply-all-automation-rules` pour Cloud Vapor : vérifier que les transactions VAPOSTORE non catégorisées sortent catégorisées
+- vérifier que la preview du modal renvoie un compte cohérent avec ce que le runner appliquerait
+
+## Hors scope explicite
+
+- splits / créations manuelles de transactions
+- `decategorize-rule-transactions`
+- `explain-rule-match`
+- refonte UI du modal et du bouton “Appliquer la règle existante”
+- refonte `useAutomationRules` (toggle/update double appel)
+
+Ces points feront l’objet de PR ultérieures, une fois le moteur unique en place et stable.
