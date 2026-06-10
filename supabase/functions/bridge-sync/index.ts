@@ -838,34 +838,12 @@ Deno.serve(async (req) => {
               `${inserted} new, ${updated} updated transactions`
           );
 
-          // Apply automation rules per impacted company when new transactions came in
-          // Trigger on inserts OR updates: Bridge frequently marks settled/pending
-          // transitions as "updated", and signature-based dedup can also bucket
-          // genuinely new transactions there. apply-all is idempotent (uncategorized only).
+          // Apply automation rules per impacted company when new transactions
+          // came in. The shared engine is idempotent (uncategorized + non-deleted
+          // only) and enforces tenant security on each companyId.
           if (inserted > 0 || updated > 0) {
             for (const cid of impactedCompanyIds) {
-              try {
-                const applyRes = await fetch(
-                  `${supabaseUrl}/functions/v1/apply-all-automation-rules`,
-                  {
-                    method: 'POST',
-                    headers: {
-                      'Content-Type': 'application/json',
-                      'Authorization': `Bearer ${supabaseServiceKey}`,
-                    },
-                    body: JSON.stringify({ company_id: cid }),
-                  }
-                );
-                const applyData = await applyRes.json();
-                console.info(
-                  `[bridge-sync] Auto-categorized ${applyData.updated || 0} transactions for company ${cid}`
-                );
-              } catch (autoErr) {
-                console.error(
-                  `[bridge-sync] Failed to apply automation rules for company ${cid}:`,
-                  autoErr
-                );
-              }
+              await runAutomationForCompany(supabaseAdmin, cid);
             }
           }
         } catch (err) {
