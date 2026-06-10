@@ -1,4 +1,4 @@
-import { SupabaseClient } from "jsr:@supabase/supabase-js@2";
+import type { SupabaseClient } from "jsr:@supabase/supabase-js@2";
 
 export interface AutomationRule {
   id: string;
