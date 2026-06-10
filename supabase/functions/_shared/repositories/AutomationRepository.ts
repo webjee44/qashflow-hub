@@ -59,7 +59,7 @@ export class AutomationRepository {
     return data || [];
   }
 
-  async findConditionsByRuleIds(ruleIds: string[]): Promise<RuleCondition & { rule_id: string }[]> {
+  async findConditionsByRuleIds(ruleIds: string[]): Promise<Array<RuleCondition & { rule_id: string }>> {
     if (ruleIds.length === 0) return [];
 
     const conditions: (RuleCondition & { rule_id: string })[] = [];
