@@ -1,5 +1,3 @@
-import { SupabaseClient } from "jsr:@supabase/supabase-js@2";
-
 export interface AutomationRule {
   id: string;
   target_category_id: string;
@@ -19,7 +17,15 @@ export interface RuleCondition {
 }
 
 export class AutomationRepository {
-  constructor(private client: SupabaseClient) {}
+  constructor(private client: any) {}
+
+  private chunkIds(ids: string[], chunkSize = 100): string[][] {
+    const chunks: string[][] = [];
+    for (let index = 0; index < ids.length; index += chunkSize) {
+      chunks.push(ids.slice(index, index + chunkSize));
+    }
+    return chunks;
+  }
 
   async findById(ruleId: string) {
     const { data, error } = await this.client
@@ -53,14 +59,21 @@ export class AutomationRepository {
     return data || [];
   }
 
-  async findConditionsByRuleIds(ruleIds: string[]): Promise<RuleCondition & { rule_id: string }[]> {
-    const { data, error } = await this.client
-      .from('automation_rule_conditions')
-      .select('*')
-      .in('rule_id', ruleIds);
+  async findConditionsByRuleIds(ruleIds: string[]): Promise<Array<RuleCondition & { rule_id: string }>> {
+    if (ruleIds.length === 0) return [];
 
-    if (error) throw error;
-    return (data || []) as any;
+    const conditions: (RuleCondition & { rule_id: string })[] = [];
+    for (const batch of this.chunkIds(ruleIds)) {
+      const { data, error } = await this.client
+        .from('automation_rule_conditions')
+        .select('*')
+        .in('rule_id', batch);
+
+      if (error) throw error;
+      conditions.push(...((data || []) as any));
+    }
+
+    return conditions;
   }
 
   async updateMatchCount(ruleId: string, newCount: number) {
