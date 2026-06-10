@@ -1052,28 +1052,7 @@ Deno.serve(async (req) => {
               )
             );
             for (const cid of impactedCompanyIds) {
-              try {
-                const applyRes = await fetch(
-                  `${supabaseUrl}/functions/v1/apply-all-automation-rules`,
-                  {
-                    method: 'POST',
-                    headers: {
-                      'Content-Type': 'application/json',
-                      'Authorization': `Bearer ${supabaseServiceKey}`,
-                    },
-                    body: JSON.stringify({ company_id: cid }),
-                  }
-                );
-                const applyData = await applyRes.json();
-                console.info(
-                  `[bridge-sync] Auto-categorized ${applyData.updated || 0} transactions for company ${cid}`
-                );
-              } catch (autoErr) {
-                console.error(
-                  `[bridge-sync] Failed to apply automation rules for company ${cid}:`,
-                  autoErr
-                );
-              }
+              await runAutomationForCompany(supabaseAdmin, cid);
             }
           }
 
