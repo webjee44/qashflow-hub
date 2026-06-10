@@ -21,6 +21,14 @@ export interface RuleCondition {
 export class AutomationRepository {
   constructor(private client: SupabaseClient) {}
 
+  private chunkIds(ids: string[], chunkSize = 100): string[][] {
+    const chunks: string[][] = [];
+    for (let index = 0; index < ids.length; index += chunkSize) {
+      chunks.push(ids.slice(index, index + chunkSize));
+    }
+    return chunks;
+  }
+
   async findById(ruleId: string) {
     const { data, error } = await this.client
       .from('automation_rules')
@@ -54,13 +62,20 @@ export class AutomationRepository {
   }
 
   async findConditionsByRuleIds(ruleIds: string[]): Promise<RuleCondition & { rule_id: string }[]> {
-    const { data, error } = await this.client
-      .from('automation_rule_conditions')
-      .select('*')
-      .in('rule_id', ruleIds);
+    if (ruleIds.length === 0) return [];
 
-    if (error) throw error;
-    return (data || []) as any;
+    const conditions: (RuleCondition & { rule_id: string })[] = [];
+    for (const batch of this.chunkIds(ruleIds)) {
+      const { data, error } = await this.client
+        .from('automation_rule_conditions')
+        .select('*')
+        .in('rule_id', batch);
+
+      if (error) throw error;
+      conditions.push(...((data || []) as any));
+    }
+
+    return conditions;
   }
 
   async updateMatchCount(ruleId: string, newCount: number) {
