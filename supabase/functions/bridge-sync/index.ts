@@ -1117,24 +1117,8 @@ Deno.serve(async (req) => {
 
           // Apply automation rules after full-sync if new transactions were inserted
           if (inserted > 0 || updated > 0) {
-            try {
-              console.info(`[bridge-sync] Applying automation rules after full-sync for company ${company_id}...`);
-              const applyRes = await fetch(
-                `${supabaseUrl}/functions/v1/apply-all-automation-rules`,
-                {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${supabaseServiceKey}`,
-                  },
-                  body: JSON.stringify({ company_id }),
-                }
-              );
-              const applyData = await applyRes.json();
-              console.info(`[bridge-sync] Auto-categorized ${applyData.updated || 0} transactions`);
-            } catch (autoErr) {
-              console.error(`[bridge-sync] Failed to apply automation rules:`, autoErr);
-            }
+            console.info(`[bridge-sync] Applying automation rules after full-sync for company ${company_id}...`);
+            await runAutomationForCompany(supabaseAdmin, company_id);
           }
         } catch (bgErr) {
           console.error(`[bridge-sync] Background sync error:`, bgErr);
