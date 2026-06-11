@@ -391,23 +391,26 @@ export class BridgeClient {
   // ============================================
 
   async fetchBank(bankId: number): Promise<BridgeBank | null> {
-    console.info(`[BridgeClient] Fetching bank ${bankId}...`);
-    
+    // Bridge v3: providers replaced banks. Endpoint is /v3/providers/{id}
+    // (NOT /v3/banks/{id} which silently 404s).
+    console.info(`[BridgeClient] Fetching provider ${bankId}...`);
+
     try {
-      const response = await fetch(`${BRIDGE_API_URL}/banks/${bankId}`, {
+      const response = await fetch(`${BRIDGE_API_URL}/providers/${bankId}`, {
         headers: this.getBaseHeaders(),
       });
 
       if (!response.ok) {
-        console.error(`[BridgeClient] Bank fetch error: ${response.status}`);
+        const body = await response.text().catch(() => '');
+        console.error(`[BridgeClient] Provider ${bankId} fetch error: ${response.status} ${body.slice(0, 200)}`);
         return null;
       }
 
       const bank = await response.json() as BridgeBank;
-      console.info(`[BridgeClient] Fetched bank: ${bank.name}`);
+      console.info(`[BridgeClient] Fetched provider ${bankId}: ${bank.name}`);
       return bank;
     } catch (error) {
-      console.error('[BridgeClient] Bank fetch error:', error);
+      console.error('[BridgeClient] Provider fetch error:', error);
       return null;
     }
   }
