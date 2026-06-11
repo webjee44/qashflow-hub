@@ -361,6 +361,10 @@ async function syncBridgeAccounts(
       || existingCompanyMap[account.id] 
       || fallbackCompanyId;
 
+    // Resolved bank_id comes from the Bridge item (v3 does not expose it on accounts)
+    const resolvedBankId = itemBankIdMap.get(itemId) ?? account.bank_id ?? null;
+    const resolvedBankName = resolvedBankId ? bankNameMap.get(resolvedBankId) ?? null : null;
+
     const { error } = await supabaseAdmin
       .from('bridge_accounts')
       .upsert({
@@ -373,22 +377,36 @@ async function syncBridgeAccounts(
         balance: account.balance || 0,
         account_type: account.type || null,
         status: account.status || 'active',
-        bank_id: account.bank_id || null,
+        bank_id: resolvedBankId,
         // Item connection status
         item_status: itemStatus?.status || 'ok',
         item_status_message: itemStatus?.message || null,
         item_status_updated_at: new Date().toISOString(),
-        // IMPORTANT: bank_name is 100% manual.
-        // We do NOT fetch or set it from Bridge to avoid overwriting user edits.
+        // bank_name volontairement absent du upsert : bootstrap réalisé juste
+        // après pour ne JAMAIS écraser une saisie manuelle existante.
         last_sync_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-      }, { 
+      }, {
         onConflict: 'bridge_account_id',
-        ignoreDuplicates: false 
+        ignoreDuplicates: false
       });
 
-    if (!error) syncedCount++;
-    else console.error('[bridge-sync] Failed to upsert account:', error);
+    if (!error) {
+      syncedCount++;
+
+      // Bootstrap bank_name depuis Bridge UNIQUEMENT si la cellule est vide.
+      // Une valeur manuelle (saisie utilisateur) n'est jamais touchée.
+      if (resolvedBankName) {
+        const { error: bnErr } = await supabaseAdmin
+          .from('bridge_accounts')
+          .update({ bank_name: resolvedBankName, updated_at: new Date().toISOString() })
+          .eq('bridge_account_id', account.id)
+          .or('bank_name.is.null,bank_name.eq.');
+        if (bnErr) console.error('[bridge-sync] bank_name bootstrap failed:', bnErr);
+      }
+    } else {
+      console.error('[bridge-sync] Failed to upsert account:', error);
+    }
   }
 
   console.info(`[bridge-sync] Synced ${syncedCount}/${accounts.length} bridge accounts`);
