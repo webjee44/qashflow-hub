@@ -2939,6 +2939,7 @@ export type Database = {
         Args: { _company_id: string; _enable: boolean; _user_id: string }
         Returns: boolean
       }
+      verify_cron_secret: { Args: { _token: string }; Returns: boolean }
     }
     Enums: {
       app_role: "owner" | "admin" | "member" | "viewer" | "superadmin"

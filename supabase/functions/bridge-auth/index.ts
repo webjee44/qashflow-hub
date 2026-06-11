@@ -92,12 +92,33 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Ownership helper: caller must own a non-deleted company linked to this bridge_user_uuid
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+    const ensureBridgeUserOwnership = async (uuid: string): Promise<boolean> => {
+      const { data, error } = await supabaseAdmin
+        .from('companies')
+        .select('id, user_id')
+        .eq('bridge_user_uuid', uuid)
+        .is('deleted_at', null);
+      if (error) {
+        console.error('[bridge-auth] ownership lookup error:', error);
+        return false;
+      }
+      if (!data || data.length === 0) return false;
+      // Caller must own at least one company linked to this bridge user
+      return data.some((c) => c.user_id === userId);
+    };
+
     // ============================================
     // Action: get-auth-token
     // ============================================
     if (action === 'get-auth-token') {
       if (!bridge_user_uuid) {
         return errorResponse('bridge_user_uuid requis');
+      }
+      if (!(await ensureBridgeUserOwnership(bridge_user_uuid))) {
+        return errorResponse('Forbidden', 403);
       }
 
       const authData = await bridgeClient.getAuthToken(bridge_user_uuid);
@@ -111,36 +132,35 @@ Deno.serve(async (req) => {
       if (!bridge_user_uuid) {
         return errorResponse('bridge_user_uuid requis');
       }
+      if (!(await ensureBridgeUserOwnership(bridge_user_uuid))) {
+        return errorResponse('Forbidden', 403);
+      }
 
-      console.info('[bridge-auth] Deleting Bridge user:', bridge_user_uuid);
-      
+      console.info('[bridge-auth] User', userId, 'deleting Bridge user:', bridge_user_uuid);
+
       // Delete user from Bridge API
       await bridgeClient.deleteUser(bridge_user_uuid);
-      
-      // Clean up local database
-      const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-      const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
-      
+
       // Delete bridge accounts linked to this user
       const { error: deleteAccountsError } = await supabaseAdmin
         .from('bridge_accounts')
         .delete()
         .eq('bridge_user_uuid', bridge_user_uuid);
-      
+
       if (deleteAccountsError) {
         console.error('[bridge-auth] Error deleting bridge_accounts:', deleteAccountsError);
       }
-      
+
       // Clear bridge_user_uuid from companies
       const { error: updateCompaniesError } = await supabaseAdmin
         .from('companies')
         .update({ bridge_user_uuid: null, bridge_accounts_count: 0 })
         .eq('bridge_user_uuid', bridge_user_uuid);
-      
+
       if (updateCompaniesError) {
         console.error('[bridge-auth] Error updating companies:', updateCompaniesError);
       }
-      
+
       console.info('[bridge-auth] Bridge user deleted and local data cleaned');
       return successResponse({ deleted: true });
     }

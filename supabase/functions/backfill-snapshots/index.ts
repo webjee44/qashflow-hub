@@ -1,8 +1,9 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { requireCronSecret, requireSuperadmin, userHasCompanyAccess, requireUser } from '../_shared/auth.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cron-secret',
 };
 
 Deno.serve(async (req) => {
@@ -10,12 +11,41 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // AuthZ: cron secret OR (authenticated user with access to requested company)
+  let bodyJson: any = {};
+  try { bodyJson = await req.clone().json(); } catch { bodyJson = {}; }
+  const targetCompanyIdForAuth = bodyJson?.company_id as string | undefined;
+
+  if (!(await requireCronSecret(req))) {
+    const sa = await requireSuperadmin(req);
+    if (!sa) {
+      const auth = await requireUser(req);
+      if (!auth) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      // Authenticated users may only backfill a specific company they own
+      if (!targetCompanyIdForAuth) {
+        return new Response(JSON.stringify({ error: 'company_id required' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const ok = await userHasCompanyAccess(auth.userId, targetCompanyIdForAuth);
+      if (!ok) {
+        return new Response(JSON.stringify({ error: 'Forbidden' }), {
+          status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    }
+  }
+
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const body = await req.json().catch(() => ({}));
+    const body = bodyJson;
     const targetCompanyId = body.company_id as string | undefined;
 
     // Get companies to backfill (one or all)
