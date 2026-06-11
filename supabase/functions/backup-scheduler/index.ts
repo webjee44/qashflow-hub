@@ -41,6 +41,17 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // AuthZ: cron secret OR superadmin
+  if (!requireCronSecret(req)) {
+    const sa = await requireSuperadmin(req);
+    if (!sa) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+  }
+
   const startTime = Date.now();
   console.log('[BACKUP-SCHEDULER] Starting scheduled backup...');
 
