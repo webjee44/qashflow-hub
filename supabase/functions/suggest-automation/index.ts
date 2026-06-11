@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { requireUser } from "../_shared/auth.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -11,6 +12,15 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // AuthN: prevent unauthenticated AI credit drain
+    const auth = await requireUser(req);
+    if (!auth) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const { description, categoryName, sampleTransactions } = await req.json();
 
     if (!description) {
