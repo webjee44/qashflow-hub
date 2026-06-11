@@ -132,8 +132,10 @@ async function syncBridgeAccounts(
         status: mapBridgeStatus(item.status),
         message: item.status_code_info,
       });
-      if (typeof item.bank_id === 'number' && Number.isFinite(item.bank_id)) {
-        itemBankIdMap.set(item.id, item.bank_id);
+      // Bridge v3 expose `provider_id`. `bank_id` est l'alias v2 conservé en fallback.
+      const providerId = (item as any).provider_id ?? (item as any).bank_id;
+      if (typeof providerId === 'number' && Number.isFinite(providerId)) {
+        itemBankIdMap.set(item.id, providerId);
       }
     }
   }
