@@ -949,7 +949,7 @@ Deno.serve(async (req) => {
       for (const a of allAccounts as any[]) {
         console.info(`[bridge-raw-dump] account id=${a.id} name="${a.name}" iban=${(a.iban || '').slice(-6)} balance=${a.balance} bank_id=${a.bank_id ?? a.item?.bank_id} item_id=${a.item_id ?? a.item?.id} type=${a.type}`);
       }
-      console.info(`[bridge-raw-dump] items=${JSON.stringify((allItems as any[]).map(i => ({ id: i.id, bank_id: i.bank_id, status: i.status, status_message: i.status_code_description })))}`);
+      console.info(`[bridge-raw-dump] items=${JSON.stringify((allItems as any[]).map(i => ({ id: i.id, provider_id: i.provider_id ?? i.bank_id, status: i.status, status_message: i.status_code_description })))}`);
 
       // Sync bridge accounts to database (with bank names and status)
       const syncedAccounts = await syncBridgeAccounts(
