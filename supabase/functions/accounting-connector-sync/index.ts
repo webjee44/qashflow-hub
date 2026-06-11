@@ -610,7 +610,7 @@ Deno.serve(async (req) => {
     // ============= CRON Sync (all companies) =============
     if (action === "cron-sync") {
       // AuthZ: only superadmin or cron secret can trigger a full cross-tenant sync
-      if (!requireCronSecret(req)) {
+      if (!(await requireCronSecret(req))) {
         const sa = await requireSuperadmin(req);
         if (!sa) {
           return new Response(

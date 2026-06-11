@@ -16,7 +16,7 @@ Deno.serve(async (req) => {
   try { bodyJson = await req.clone().json(); } catch { bodyJson = {}; }
   const targetCompanyIdForAuth = bodyJson?.company_id as string | undefined;
 
-  if (!requireCronSecret(req)) {
+  if (!(await requireCronSecret(req))) {
     const sa = await requireSuperadmin(req);
     if (!sa) {
       const auth = await requireUser(req);

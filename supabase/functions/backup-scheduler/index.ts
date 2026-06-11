@@ -42,7 +42,7 @@ Deno.serve(async (req) => {
   }
 
   // AuthZ: cron secret OR superadmin
-  if (!requireCronSecret(req)) {
+  if (!(await requireCronSecret(req))) {
     const sa = await requireSuperadmin(req);
     if (!sa) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
