@@ -609,7 +609,18 @@ Deno.serve(async (req) => {
 
     // ============= CRON Sync (all companies) =============
     if (action === "cron-sync") {
+      // AuthZ: only superadmin or cron secret can trigger a full cross-tenant sync
+      if (!requireCronSecret(req)) {
+        const sa = await requireSuperadmin(req);
+        if (!sa) {
+          return new Response(
+            JSON.stringify({ error: "Forbidden" }),
+            { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+      }
       console.log("[accounting-connector-sync] CRON sync started");
+
 
       // Find all companies that have accounting secrets configured
       const { data: secretRows, error: secretsError } = await supabase
