@@ -45,7 +45,7 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const body = await req.json().catch(() => ({}));
+    const body = bodyJson;
     const targetCompanyId = body.company_id as string | undefined;
 
     // Get companies to backfill (one or all)
