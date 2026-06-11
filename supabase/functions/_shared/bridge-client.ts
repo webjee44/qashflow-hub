@@ -40,8 +40,11 @@ export interface BridgeItem {
   id: number;
   status: number;
   status_code_info: string | null;
-  bank_id: number;
-  accounts: number[];
+  /** Bridge v3 field. v2 used `bank_id` — kept for backward compat. */
+  provider_id?: number;
+  /** @deprecated Bridge v2 alias of provider_id. */
+  bank_id?: number;
+  accounts?: number[];
 }
 
 export interface BridgeItemsResponse {
