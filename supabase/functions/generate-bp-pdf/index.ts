@@ -54,8 +54,29 @@ serve(async (req) => {
   }
 
   try {
+    // AuthN
+    const auth = await requireUser(req);
+    if (!auth) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     const { companyId, companyName, sections, scenarioId, introText, primaryColor }: PDFRequest = await req.json();
-    
+
+    // AuthZ
+    if (!companyId) {
+      return new Response(JSON.stringify({ error: 'companyId required' }), {
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    const allowed = await userHasCompanyAccess(auth.userId, companyId);
+    if (!allowed) {
+      return new Response(JSON.stringify({ error: 'Forbidden' }), {
+        status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     console.log('Generating Professional BP PDF for:', { companyId, companyName, sections: sections?.length });
 
     // Use custom primary color if provided
