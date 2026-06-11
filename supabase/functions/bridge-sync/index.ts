@@ -153,6 +153,7 @@ async function syncBridgeAccounts(
       console.error('[bridge-sync] fetchBanks failed (non-blocking):', e);
     }
   }
+  console.info(`[bridge-sync][bank-bootstrap] user=${bridgeUserUuid} items=${items?.length ?? 0} itemBankIdMap=${itemBankIdMap.size} resolvedNames=${bankNameMap.size}/${uniqueBankIds.length}`);
 
   // CRITICAL FIX: Build account→company map from company_bridge_accounts
   // so each account gets its CORRECT company_id, not the triggering company
