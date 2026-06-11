@@ -10,6 +10,7 @@ import {
   errorResponse, 
   successResponse 
 } from '../_shared/bridge-client.ts';
+import { requireSuperadmin } from '../_shared/auth.ts';
 
 Deno.serve(async (req) => {
   // Handle CORS preflight
@@ -18,6 +19,12 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // AuthZ: superadmin only
+    const sa = await requireSuperadmin(req);
+    if (!sa) {
+      return errorResponse('Accès refusé', 403);
+    }
+
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
@@ -35,7 +42,7 @@ Deno.serve(async (req) => {
       return errorResponse('bridge_user_uuid requis');
     }
 
-    console.info('[admin-bridge-delete] Deleting Bridge user:', bridge_user_uuid);
+    console.info('[admin-bridge-delete] Superadmin', sa.userId, 'deleting Bridge user:', bridge_user_uuid);
 
     // Initialize Bridge client
     const bridgeClient = new BridgeClient();
