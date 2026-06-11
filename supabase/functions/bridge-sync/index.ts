@@ -132,8 +132,10 @@ async function syncBridgeAccounts(
         status: mapBridgeStatus(item.status),
         message: item.status_code_info,
       });
-      if (typeof item.bank_id === 'number' && Number.isFinite(item.bank_id)) {
-        itemBankIdMap.set(item.id, item.bank_id);
+      // Bridge v3 expose `provider_id`. `bank_id` est l'alias v2 conservé en fallback.
+      const providerId = (item as any).provider_id ?? (item as any).bank_id;
+      if (typeof providerId === 'number' && Number.isFinite(providerId)) {
+        itemBankIdMap.set(item.id, providerId);
       }
     }
   }
@@ -947,7 +949,7 @@ Deno.serve(async (req) => {
       for (const a of allAccounts as any[]) {
         console.info(`[bridge-raw-dump] account id=${a.id} name="${a.name}" iban=${(a.iban || '').slice(-6)} balance=${a.balance} bank_id=${a.bank_id ?? a.item?.bank_id} item_id=${a.item_id ?? a.item?.id} type=${a.type}`);
       }
-      console.info(`[bridge-raw-dump] items=${JSON.stringify((allItems as any[]).map(i => ({ id: i.id, bank_id: i.bank_id, status: i.status, status_message: i.status_code_description })))}`);
+      console.info(`[bridge-raw-dump] items=${JSON.stringify((allItems as any[]).map(i => ({ id: i.id, provider_id: i.provider_id ?? i.bank_id, status: i.status, status_message: i.status_code_description })))}`);
 
       // Sync bridge accounts to database (with bank names and status)
       const syncedAccounts = await syncBridgeAccounts(
