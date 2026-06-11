@@ -123,14 +123,34 @@ async function syncBridgeAccounts(
 ): Promise<number> {
   let syncedCount = 0;
 
-  // Build item status map
+  // Build item status map + item→bank_id map (Bridge v3 exposes bank_id on items, not on accounts)
   const itemStatusMap = new Map<number, { status: string; message: string | null }>();
+  const itemBankIdMap = new Map<number, number>();
   if (items) {
     for (const item of items) {
       itemStatusMap.set(item.id, {
         status: mapBridgeStatus(item.status),
         message: item.status_code_info,
       });
+      if (typeof item.bank_id === 'number' && Number.isFinite(item.bank_id)) {
+        itemBankIdMap.set(item.id, item.bank_id);
+      }
+    }
+  }
+
+  // Resolve bank names from Bridge (/v3/banks/{id}).
+  // Bootstrap source of truth for bank_name: applied only when the row has no
+  // manual value yet (see UPDATE below). Manual edits are never overwritten.
+  const uniqueBankIds = Array.from(new Set(Array.from(itemBankIdMap.values())));
+  const bankNameMap = new Map<number, string>();
+  if (uniqueBankIds.length > 0) {
+    try {
+      const banks = await bridgeClient.fetchBanks(uniqueBankIds);
+      banks.forEach((bank, id) => {
+        if (bank?.name) bankNameMap.set(id, bank.name);
+      });
+    } catch (e) {
+      console.error('[bridge-sync] fetchBanks failed (non-blocking):', e);
     }
   }
 
