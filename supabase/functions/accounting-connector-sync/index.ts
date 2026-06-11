@@ -544,6 +544,15 @@ Deno.serve(async (req) => {
         );
       }
 
+      // AuthZ: verify caller has access to this company
+      const allowed = await userHasCompanyAccess(user.id, company_id);
+      if (!allowed) {
+        return new Response(
+          JSON.stringify({ error: "Forbidden" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       console.log(`[accounting-connector-sync] Starting sync for company ${company_id}`);
 
       // Get company secrets to determine which provider is configured
