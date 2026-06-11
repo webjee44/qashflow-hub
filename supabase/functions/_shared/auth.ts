@@ -71,16 +71,32 @@ export async function userHasCompanyAccess(userId: string, companyId: string): P
   return data === true;
 }
 
-/** Verify the request carries the shared CRON_SECRET (header X-Cron-Secret or Bearer). */
-export function requireCronSecret(req: Request): boolean {
-  const expected = Deno.env.get('CRON_SECRET');
-  if (!expected) {
-    console.error('[auth] CRON_SECRET not configured');
+/** Verify the request carries the shared cron secret. Accepts either the
+ *  CRON_SECRET env var (Lovable-managed) or a value matching the DB-stored
+ *  `private.app_secrets.cron_secret` row, allowing pg_cron jobs to embed the
+ *  secret without us syncing two systems. */
+export async function requireCronSecret(req: Request): Promise<boolean> {
+  const headerSecret =
+    req.headers.get('X-Cron-Secret') ??
+    (req.headers.get('Authorization')?.startsWith('Bearer ')
+      ? req.headers.get('Authorization')!.slice(7)
+      : null);
+  if (!headerSecret) return false;
+
+  const envSecret = Deno.env.get('CRON_SECRET');
+  if (envSecret && headerSecret === envSecret) return true;
+
+  // Fallback: verify against DB-stored cron secret via SECURITY DEFINER RPC
+  try {
+    const admin = getServiceClient();
+    const { data, error } = await admin.rpc('verify_cron_secret', { _token: headerSecret });
+    if (error) {
+      console.error('[auth] verify_cron_secret error:', error);
+      return false;
+    }
+    return data === true;
+  } catch (e) {
+    console.error('[auth] verify_cron_secret threw:', e);
     return false;
   }
-  const headerSecret = req.headers.get('X-Cron-Secret');
-  if (headerSecret && headerSecret === expected) return true;
-  const auth = req.headers.get('Authorization');
-  if (auth?.startsWith('Bearer ') && auth.slice(7) === expected) return true;
-  return false;
 }
