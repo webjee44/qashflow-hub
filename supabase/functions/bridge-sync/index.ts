@@ -143,12 +143,17 @@ async function syncBridgeAccounts(
   // manual value yet (see UPDATE below). Manual edits are never overwritten.
   const uniqueBankIds = Array.from(new Set(Array.from(itemBankIdMap.values())));
   const bankNameMap = new Map<number, string>();
+  console.warn(`[bridge-sync][bank-bootstrap] user=${bridgeUserUuid} items=${items?.length ?? 0} itemBankIdMap=${itemBankIdMap.size} uniqueBankIds=${JSON.stringify(uniqueBankIds)}`);
+  if (items && items.length > 0) {
+    console.warn(`[bridge-sync][bank-bootstrap] raw items sample: ${JSON.stringify((items as any[]).slice(0, 3).map(i => ({ id: i.id, bank_id: i.bank_id, keys: Object.keys(i) })))}`);
+  }
   if (uniqueBankIds.length > 0) {
     try {
       const banks = await bridgeClient.fetchBanks(uniqueBankIds);
       banks.forEach((bank, id) => {
         if (bank?.name) bankNameMap.set(id, bank.name);
       });
+      console.warn(`[bridge-sync][bank-bootstrap] resolved ${bankNameMap.size}/${uniqueBankIds.length} bank names`);
     } catch (e) {
       console.error('[bridge-sync] fetchBanks failed (non-blocking):', e);
     }
