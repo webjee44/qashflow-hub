@@ -6,7 +6,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { CompanyProvider } from "@/hooks/useCompany";
-import { OrganizationProvider } from "@/hooks/useOrganization";
 import { AppModeProvider } from "@/hooks/useAppMode";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -16,7 +15,6 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 // Auth pages (loaded immediately)
 import SignIn from "./pages/SignIn";
-import JoinInvitation from "./pages/JoinInvitation";
 import NotFound from "./pages/NotFound";
 
 // Protected pages (lazy loading)
@@ -74,61 +72,54 @@ const App = () => (
   <ErrorBoundary>
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <OrganizationProvider>
-          <CompanyProvider>
-            <AppModeProvider>
-              <TooltipProvider>
-                <Toaster />
-                <Sonner />
-                <BrowserRouter>
-                  <GoogleAnalyticsTracker />
-                  <Routes>
-                    {/* Root & auth */}
-                    <Route path="/" element={<RootRedirect />} />
-                    <Route path="/auth" element={<Navigate to="/sign-in" replace />} />
-                    <Route path="/sign-in" element={<SignIn />} />
+        <CompanyProvider>
+          <AppModeProvider>
+            <TooltipProvider>
+              <Toaster />
+              <Sonner />
+              <BrowserRouter>
+                <GoogleAnalyticsTracker />
+                <Routes>
+                  <Route path="/" element={<RootRedirect />} />
+                  <Route path="/auth" element={<Navigate to="/sign-in" replace />} />
+                  <Route path="/sign-in" element={<SignIn />} />
 
-                    {/* Invitation route (internal team members) */}
-                    <Route path="/join" element={<JoinInvitation />} />
+                  <Route
+                    element={
+                      <ProtectedRoute>
+                        <AppLayout />
+                      </ProtectedRoute>
+                    }
+                  >
+                    <Route path="/groupe" element={<Suspense fallback={<PageLoader />}><GroupOverview /></Suspense>} />
+                    <Route path="/dashboard" element={<Suspense fallback={<PageLoader />}><Dashboard /></Suspense>} />
+                    <Route path="/transactions" element={<Suspense fallback={<PageLoader />}><Transactions /></Suspense>} />
+                    <Route path="/previsions" element={<Suspense fallback={<PageLoader />}><Forecasts /></Suspense>} />
+                    <Route path="/creances" element={<Suspense fallback={<PageLoader />}><Invoices /></Suspense>} />
+                    <Route path="/categorisation" element={<Suspense fallback={<PageLoader />}><Categorisation /></Suspense>} />
+                    <Route path="/automatisations" element={<Suspense fallback={<PageLoader />}><Automations /></Suspense>} />
+                    <Route path="/parametres" element={<Suspense fallback={<PageLoader />}><Settings /></Suspense>} />
 
-                    {/* Protected routes */}
-                    <Route
-                      element={
-                        <ProtectedRoute>
-                          <AppLayout />
-                        </ProtectedRoute>
-                      }
-                    >
-                      <Route path="/groupe" element={<Suspense fallback={<PageLoader />}><GroupOverview /></Suspense>} />
-                      <Route path="/dashboard" element={<Suspense fallback={<PageLoader />}><Dashboard /></Suspense>} />
-                      <Route path="/transactions" element={<Suspense fallback={<PageLoader />}><Transactions /></Suspense>} />
-                      <Route path="/previsions" element={<Suspense fallback={<PageLoader />}><Forecasts /></Suspense>} />
-                      <Route path="/creances" element={<Suspense fallback={<PageLoader />}><Invoices /></Suspense>} />
-                      <Route path="/categorisation" element={<Suspense fallback={<PageLoader />}><Categorisation /></Suspense>} />
-                      <Route path="/automatisations" element={<Suspense fallback={<PageLoader />}><Automations /></Suspense>} />
-                      <Route path="/parametres" element={<Suspense fallback={<PageLoader />}><Settings /></Suspense>} />
+                    <Route path="/bp" element={<Navigate to="/bp/revenus" replace />} />
+                    <Route path="/bp/revenus" element={<Suspense fallback={<PageLoader />}><RevenueAssumptions /></Suspense>} />
+                    <Route path="/bp/charges" element={<Suspense fallback={<PageLoader />}><Expenses /></Suspense>} />
+                    <Route path="/bp/equipe" element={<Suspense fallback={<PageLoader />}><Team /></Suspense>} />
+                    <Route path="/bp/investissements" element={<Suspense fallback={<PageLoader />}><Investments /></Suspense>} />
+                    <Route path="/bp/financements" element={<Suspense fallback={<PageLoader />}><Financings /></Suspense>} />
+                    <Route path="/bp/pnl" element={<Suspense fallback={<PageLoader />}><ProfitLoss /></Suspense>} />
+                    <Route path="/bp/tresorerie" element={<Suspense fallback={<PageLoader />}><CashFlow /></Suspense>} />
+                    <Route path="/bp/scenarios" element={<Suspense fallback={<PageLoader />}><Scenarios /></Suspense>} />
+                    <Route path="/bp/stocks" element={<Suspense fallback={<PageLoader />}><Stocks /></Suspense>} />
+                    <Route path="/bp/bilan" element={<Suspense fallback={<PageLoader />}><BalanceSheet /></Suspense>} />
+                    <Route path="/bp/plan-financement" element={<Suspense fallback={<PageLoader />}><FundingPlan /></Suspense>} />
+                  </Route>
 
-                      <Route path="/bp" element={<Navigate to="/bp/revenus" replace />} />
-                      <Route path="/bp/revenus" element={<Suspense fallback={<PageLoader />}><RevenueAssumptions /></Suspense>} />
-                      <Route path="/bp/charges" element={<Suspense fallback={<PageLoader />}><Expenses /></Suspense>} />
-                      <Route path="/bp/equipe" element={<Suspense fallback={<PageLoader />}><Team /></Suspense>} />
-                      <Route path="/bp/investissements" element={<Suspense fallback={<PageLoader />}><Investments /></Suspense>} />
-                      <Route path="/bp/financements" element={<Suspense fallback={<PageLoader />}><Financings /></Suspense>} />
-                      <Route path="/bp/pnl" element={<Suspense fallback={<PageLoader />}><ProfitLoss /></Suspense>} />
-                      <Route path="/bp/tresorerie" element={<Suspense fallback={<PageLoader />}><CashFlow /></Suspense>} />
-                      <Route path="/bp/scenarios" element={<Suspense fallback={<PageLoader />}><Scenarios /></Suspense>} />
-                      <Route path="/bp/stocks" element={<Suspense fallback={<PageLoader />}><Stocks /></Suspense>} />
-                      <Route path="/bp/bilan" element={<Suspense fallback={<PageLoader />}><BalanceSheet /></Suspense>} />
-                      <Route path="/bp/plan-financement" element={<Suspense fallback={<PageLoader />}><FundingPlan /></Suspense>} />
-                    </Route>
-
-                    <Route path="*" element={<NotFound />} />
-                  </Routes>
-                </BrowserRouter>
-              </TooltipProvider>
-            </AppModeProvider>
-          </CompanyProvider>
-        </OrganizationProvider>
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </BrowserRouter>
+            </TooltipProvider>
+          </AppModeProvider>
+        </CompanyProvider>
       </AuthProvider>
     </QueryClientProvider>
   </ErrorBoundary>

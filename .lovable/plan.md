@@ -1,188 +1,112 @@
-## Objectif PR1
+# LOT S2 — Choc de simplification data
 
-Unifier le moteur d’automatisation côté serveur sans toucher aux splits, créations manuelles, decategorize ni au diagnostic. Tout matching métier doit passer par une seule source de vérité, avec sécurité tenant stricte et décisions explicites par transaction.
+Objectif : effacer la dette multi-tenance. Un seul groupe (Tradeflix), 9 sociétés, accès via `company_members`.
 
-## Cause racine traitée
+## 1. Migration SQL (un seul lot atomique)
 
-Aujourd’hui, `apply-automation-rule`, `apply-all-automation-rules` et `automation-rule-preview` reconstruisent chacun leur propre `matchesRule` et leur propre orchestration. Le frontend peut donc afficher “une règle couvre déjà cette transaction” alors que le runner appliqué n’a pas écrit la catégorie. La correction consiste à supprimer ces variantes au profit d’un moteur partagé, et à brancher Bridge dessus.
+Fichier : `supabase/migrations/<ts>_s2_drop_multitenant.sql`, transactionnel.
 
-## Périmètre PR1
-
-Inclus :
-
-- nouveau module `supabase/functions/_shared/automationRuleEngine.ts`
-- refonte de `apply-automation-rule`
-- refonte de `apply-all-automation-rules`
-- refonte de `automation-rule-preview`
-- appel `bridge-sync` aligné sur le nouveau contrat
-- tests : VAPOSTORE + conflit
-
-Exclus de PR1 :
-
-- splits
-- créations manuelles
-- `decategorize-rule-transactions`
-- `explain-rule-match`
-- refacto du frontend (`useAutomationRules`, modal, boutons)
-
-Le frontend continue d’appeler `apply-automation-rule`, `apply-all-automation-rules`, `automation-rule-preview` avec le même contrat HTTP qu’aujourd’hui. Aucun changement UI dans cette PR.
-
-## Détail technique
-
-### 1. Module partagé `automationRuleEngine.ts`
-
-Responsabilités :
-
-- charger les règles actives d’une société (via repository existant)
-- charger les conditions additionnelles
-- charger les types des catégories cibles
-- normaliser les règles dans un contrat unique
-- tester une transaction contre une règle via `automationRuleMatchingCore.ts`
-- résoudre la règle gagnante (priorité, specificity, created_at)
-- détecter les conflits via `isConflictingScore`
-- produire un `RunItemInput` d’audit cohérent
-
-Surfaces publiques :
-
-```ts
-type Decision =
-  | 'applied'
-  | 'no_match'
-  | 'already_categorized'
-  | 'type_mismatch'
-  | 'target_category_invalid'
-  | 'conflict';
-
-interface TransactionDecision {
-  transaction_id: string;
-  decision: Decision;
-  winning_rule_id: string | null;
-  target_category_id: string | null;
-  competing_rules?: string[];
-  reason_codes: string[];
-}
-
-interface ApplyArgs {
-  companyId: string;
-  userId: string;          // utilisateur initiateur (auth) ou null pour cron
-  triggeredBy: 'manual' | 'cron' | 'system' | 'bridge_sync';
-  ruleId?: string;         // restreint à une seule règle si fourni
-  transactionIds?: string[]; // restreint à un sous-ensemble si fourni
-  dryRun: boolean;
-}
-
-interface ApplyResult {
-  runId: string | null;
-  matched: number;
-  applied: number;
-  skippedConflict: number;
-  decisions: TransactionDecision[];
-}
-
-async function applyAutomationRulesForCompany(args: ApplyArgs): Promise<ApplyResult>;
+### 1a. Détachement FK & drop colonnes
+```
+ALTER TABLE public.companies              DROP COLUMN IF EXISTS organization_id;
+ALTER TABLE public.audit_logs             DROP COLUMN IF EXISTS organization_id;
+ALTER TABLE public.user_activity_logs     DROP COLUMN IF EXISTS organization_id;
+-- + tout autre `organization_id` détecté au moment de la migration
 ```
 
-Le moteur est idempotent : il ne traite que les transactions non catégorisées, et `applied` n’écrase jamais une catégorie existante.
+### 1b. Drop tables mortes
+```
+DROP TABLE IF EXISTS public.subscription_usage        CASCADE;
+DROP TABLE IF EXISTS public.organization_invitations  CASCADE;
+DROP TABLE IF EXISTS public.organization_members_safe CASCADE; -- vue ou table
+DROP TABLE IF EXISTS public.organization_members      CASCADE;
+DROP TABLE IF EXISTS public.organizations             CASCADE;
+DROP TABLE IF EXISTS public.forecasts                 CASCADE; -- 0 ligne
+DROP TABLE IF EXISTS public.bank_balance_snapshots    CASCADE; -- pipeline mort
+```
+Rappel : archive déjà présente dans `qashflow_archive`.
 
-### 2. Sécurité tenant obligatoire dans l’orchestrateur
+### 1c. Fonctions utilitaires RLS
+Une seule fonction canonique pour la nouvelle règle "équipe" :
 
-Avant tout dry-run ou application, `applyAutomationRulesForCompany` doit :
+```sql
+CREATE OR REPLACE FUNCTION public.is_team_member_of_company(_company_id uuid)
+RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.company_members cm_target
+    WHERE cm_target.company_id = _company_id
+      AND EXISTS (
+        SELECT 1 FROM public.company_members cm_self
+        WHERE cm_self.user_id = auth.uid()
+      )
+  )
+  OR EXISTS (
+    SELECT 1 FROM public.companies c
+    WHERE c.id = _company_id AND c.user_id = auth.uid()
+  );
+$$;
+```
+(Version finale précise en fonction du schéma réel de `company_members` — inspection au moment de la migration.)
 
-- vérifier que `companyId` est non nul
-- si `userId` est fourni (appel utilisateur) : vérifier que l’utilisateur a bien accès à `companyId` via la table d’appartenance (organization/companies), sinon throw `403`
-- si `ruleId` est fourni : vérifier que `rule.company_id === companyId` et `rule.is_active === true`, sinon throw `403`
-- si `transactionIds` est fourni : vérifier que toutes les transactions appartiennent à `companyId` et ne sont pas supprimées, sinon throw `403`
-- vérifier la cohérence `ruleId` ↔ `companyId` ↔ `transactionIds` ; toute incohérence fait throw
+### 1d. Refonte RLS globale
+Pour chaque table `T` du domaine qui porte `company_id` :
+1. `DROP POLICY` sur toutes les policies existantes.
+2. `CREATE POLICY "team_access" ON public.T FOR ALL TO authenticated USING (public.is_team_member_of_company(company_id)) WITH CHECK (public.is_team_member_of_company(company_id));`
 
-Pour `triggeredBy: 'cron' | 'system' | 'bridge_sync'` : pas de check user, mais `companyId` reste obligatoire et toutes les autres vérifications restent actives.
+Tables sans `company_id` (profiles, roles utilisateurs, categories globales) : policies triviales `auth.uid() = user_id` uniquement.
 
-Ces vérifications vivent dans l’orchestrateur, pas dans les endpoints. Les endpoints ne font que de la validation de schéma + auth + appel orchestrateur.
+Compte cible : ~1 policy par table domaine ≈ 40. Rapport de diff avant/après fourni.
 
-### 3. Décisions explicites et idempotence
+### 1e. Nettoyage fonctions/vues obsolètes
+Drop de `has_organization_role`, `user_organization_id`, `organization_members_safe`, `get_organization_stats`, etc. si présents.
 
-Pour chaque transaction testée (uniquement non catégorisées + non supprimées + appartenant à la société), le moteur retourne exactement une décision :
+## 2. Code — purge & adaptation
 
-- `applied` : règle gagnante trouvée, écriture effectuée (ou planifiée en dry-run)
-- `no_match` : aucune règle ne matche
-- `already_categorized` : la transaction a déjà une catégorie, ignorée
-- `type_mismatch` : règle matchait mais le type de la catégorie cible ne correspond pas au type transaction
-- `target_category_invalid` : règle matchait mais `target_category_id` manquant ou catégorie introuvable
-- `conflict` : deux règles candidates de scores proches vers des catégories différentes, aucune n’est appliquée
+### 2a. Suppressions
+- `src/hooks/useOrganization.tsx`
+- `src/hooks/useInvitations.ts` (invitations organization) → remplacé par un flux minimal `company_members` si nécessaire, sinon supprimé.
+- Toute page/composant Settings/Join référençant `organization_id`.
 
-Toutes les décisions non-trivialement `no_match` produisent un `automation_run_items` avec `reason_codes` cohérent. Le run est créé même à zéro match (audit), comme aujourd’hui.
+### 2b. Adaptation `useCompany.tsx`
+Nouvelle règle de listing :
+```ts
+// companies visibles = union(
+//   companies.user_id = auth.uid(),
+//   companies.id in (select company_id from company_members where user_id = auth.uid())
+// )
+```
+Un simple `select * from companies` suffira (RLS s'en charge). Suppression de `currentOrganization`, `orgId`, `.eq('organization_id', ...)`.
 
-Idempotence : un second appel sur la même société sans nouvelle transaction non catégorisée doit retourner `applied: 0`.
+### 2c. `App.tsx`
+Retirer `<OrganizationProvider>` et son import.
 
-### 4. Endpoints refactorisés
+### 2d. Autres hooks touchés
+- `useAuditLogs.ts`, `useActivityTracker.ts`, `useOnboarding.ts`, `useRevenueStreams.ts`, `useDashboardStats.ts` : retirer tout `organization_id` (filtrage RLS suffit) et remplacer par `company_id` là où pertinent.
+- Edge functions `check-subscription`, `create-checkout`, `customer-portal`, `check-clients`, `admin-delete-user`, `snapshot-balances` : soit suppression (billing, snapshots) soit purge des refs `organization_id`.
 
-`apply-automation-rule` :
+### 2e. Types Supabase
+`src/integrations/supabase/types.ts` sera régénéré par la plateforme après migration. Pas d'édition manuelle.
 
-- valide `rule_id` + `company_id` via Zod
-- auth `getUser` obligatoire
-- appelle `applyAutomationRulesForCompany({ companyId, userId, triggeredBy: 'manual', ruleId, dryRun: false })`
-- retourne `{ matched, updated, run_id }` (contrat HTTP inchangé)
+## 3. Edge functions à décommissionner
+- `snapshot-balances` (pipeline mort, table drop) → `supabase--delete_edge_functions`.
+- `check-subscription`, `create-checkout`, `customer-portal` (billing supprimé S1) → à confirmer et delete.
 
-`apply-all-automation-rules` :
+## 4. Tests & validation
+- `bunx vitest run` : suite complète verte (moteur trésorerie inchangé, tests 190+ intacts).
+- `tsgo --noEmit` : build type OK après régénération de `types.ts`.
+- Sanity SQL post-migration (fourni au user) : compte des policies avant/après, listing des tables restantes.
 
-- valide `company_id` requis pour les appels utilisateur ; pour les appels CRON sans auth, le contrat reste mais l’endpoint itère société par société en appelant l’orchestrateur (qui exigera `companyId`)
-- appelle l’orchestrateur en `dryRun: false`
-- retourne `{ matched, updated }`
+## 5. Livrables
+1. 1 fichier de migration atomique.
+2. Rapport diff policies (fichier markdown ou logué dans la réponse).
+3. Liste fichiers supprimés/édités.
+4. Liste FK cassées assumées confirmées (celles listées en 1a).
 
-`automation-rule-preview` :
+## Points nécessitant confirmation avant exécution
+1. **`company_members` schéma** : nom exact des colonnes (`user_id`, `company_id`, `role` ?) — à confirmer via `security--get_table_schema` juste avant migration.
+2. **Edge functions billing** : OK pour delete `check-subscription`, `create-checkout`, `customer-portal`, `snapshot-balances` ?
+3. **`useInvitations`** : conserver un flux d'invitation vers `company_members` (utile pour ajouter un membre à une société) OU supprimer entièrement ? La demande dit « garder juste l'invitation vers company_members » — je pars sur "conserver et adapter", en drop de la référence `organization_id`.
+4. **Tests** : je n'ajoute pas de nouveau test (pas de code métier nouveau). OK ?
 
-- valide le payload existant
-- appelle l’orchestrateur en `dryRun: true` avec un mode “preview ad hoc” qui injecte des conditions/règles candidates non encore persistées
-- pour rester compatible avec la preview d’une règle non créée, ajouter au moteur un mode `applyAutomationRulesForCompanyPreview({ companyId, userId, candidateRule, ruleIdBeingEdited })` qui réutilise la même fonction interne de matching/scoring et produit `PreviewResult`
-- contrat HTTP inchangé
-
-### 5. Branchement `bridge-sync`
-
-Remplacer les `fetch` vers `apply-all-automation-rules` par un appel direct à `applyAutomationRulesForCompany` dans le même runtime, avec :
-
-- `companyId` = société impactée
-- `userId` = null
-- `triggeredBy` = `'bridge_sync'`
-- `dryRun` = false
-
-Garantie : seules les transactions non catégorisées de la société impactée sont traitées. Aucun cross-tenant possible.
-
-### 6. Tests obligatoires
-
-Tests Deno dans `supabase/functions/_shared/tests/automationRuleEngine.test.ts` avec mocks repository :
-
-Test 1 — VAPOSTORE :
-
-- transaction non catégorisée : `VIR VAPOSTORE Vapostore Cloudvapor 202601380`, `amount: 10089.12`, `type: 'income'`, `company_id: C1`
-- règle active dans `C1` : `description contains VAPOSTORE → cat-ventes` (catégorie type `income`)
-- appel `applyAutomationRulesForCompany({ companyId: C1, triggeredBy: 'system', dryRun: false })`
-- attendu : `applied = 1`, décision `applied`, `winning_rule_id` correct, écriture `category_id = cat-ventes`
-- second appel : `applied = 0` (idempotence)
-
-Test 2 — conflit :
-
-- deux règles actives de specificity proches vers `cat-A` et `cat-B`
-- une transaction matche les deux
-- attendu : décision `conflict`, `competing_rules` contient les deux ids, aucune écriture, `skippedConflict = 1`
-
-Test 3 — sécurité tenant :
-
-- règle appartient à `C1`, appel avec `companyId: C2` → throw
-- transactionIds d’une autre société → throw
-- userId sans accès à companyId → throw
-
-## Validation
-
-- exécution `supabase--test_edge_functions` ciblée sur les nouveaux tests
-- déploiement des trois endpoints
-- appel manuel `apply-all-automation-rules` pour Cloud Vapor : vérifier que les transactions VAPOSTORE non catégorisées sortent catégorisées
-- vérifier que la preview du modal renvoie un compte cohérent avec ce que le runner appliquerait
-
-## Hors scope explicite
-
-- splits / créations manuelles de transactions
-- `decategorize-rule-transactions`
-- `explain-rule-match`
-- refonte UI du modal et du bouton “Appliquer la règle existante”
-- refonte `useAutomationRules` (toggle/update double appel)
-
-Ces points feront l’objet de PR ultérieures, une fois le moteur unique en place et stable.
+Réponds "go" (et lève les 4 points ci-dessus si besoin) et j'exécute.

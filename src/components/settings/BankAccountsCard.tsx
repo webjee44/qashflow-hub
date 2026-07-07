@@ -17,7 +17,7 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { supabase } from '@/integrations/supabase/client';
 import { useCompany } from '@/hooks/useCompany';
-import { useOrganization } from '@/hooks/useOrganization';
+
 import { toast } from 'sonner';
 import { logError, logDebug } from '@/lib/logger';
 import { selectPendingBridgeAccounts, type BridgeAccountVisibilityRow } from '@/lib/bankAccountVisibility';
@@ -141,45 +141,36 @@ interface OrgCompanyOption {
 
 export function BankAccountsCard() {
   const { companies, currentCompany, refetch: refetchCompanies } = useCompany();
-  const { isOwner, isAdmin, currentOrganization } = useOrganization();
-  const isOrgAdmin = isOwner || isAdmin;
+  // Trusted-team mode: the current user is trusted with every company; no org-level admin gating.
+  const isOrgAdmin = true;
 
   // Résolution des noms de sociétés : on charge dynamiquement TOUTES les sociétés
-  // référencées (org courante + sociétés assignées aux comptes affichés, qui peuvent
-  // appartenir à d'autres orgs en mode super-admin/impersonation).
+  // référencées par les comptes affichés.
   const [resolvedCompanies, setResolvedCompanies] = useState<Map<string, string>>(new Map());
 
   const companyNameById = useMemo(() => {
     const map = new Map<string, string>();
-    // Base : sociétés du hook useCompany
     companies.forEach(c => map.set(c.id, c.name));
-    // Surcharge / complément : sociétés résolues dynamiquement
     resolvedCompanies.forEach((name, id) => map.set(id, name));
     return map;
   }, [companies, resolvedCompanies]);
 
-  // Liste des sociétés sélectionnables dans le dropdown (org courante uniquement)
+  // Liste des sociétés sélectionnables dans le dropdown (toutes les sociétés de l'équipe).
   const [orgCompanies, setOrgCompanies] = useState<OrgCompanyOption[]>([]);
 
   useEffect(() => {
     const loadOrgCompanies = async () => {
-      if (!currentOrganization?.id) {
-        setOrgCompanies(companies.map(c => ({ id: c.id, name: c.name, bridge_user_uuid: c.bridge_user_uuid })));
-        return;
-      }
       const { data, error } = await supabase
         .from('companies')
         .select('id, name, bridge_user_uuid')
-        .eq('organization_id', currentOrganization.id)
         .is('deleted_at', null)
         .order('name');
       if (error) {
-        logError('Failed to load org companies:', error);
+        logError('Failed to load companies:', error);
         setOrgCompanies(companies.map(c => ({ id: c.id, name: c.name, bridge_user_uuid: c.bridge_user_uuid })));
         return;
       }
       setOrgCompanies((data || []) as OrgCompanyOption[]);
-      // Alimente aussi la résolution des noms
       setResolvedCompanies(prev => {
         const next = new Map(prev);
         (data || []).forEach(c => next.set(c.id, c.name));
@@ -187,7 +178,7 @@ export function BankAccountsCard() {
       });
     };
     loadOrgCompanies();
-  }, [currentOrganization?.id, companies]);
+  }, [companies]);
 
   const allCompanies = useMemo(() => (
     orgCompanies.length > 0
@@ -787,17 +778,12 @@ export function BankAccountsCard() {
         return;
       }
 
-      // Refetch companies in the current organization to get latest bridge_user_uuid state
-      let freshCompaniesQuery = supabase
+      // Refetch companies to get latest bridge_user_uuid state
+      const { data: freshCompanies } = await supabase
         .from('companies')
         .select('id, bridge_user_uuid')
         .is('deleted_at', null);
 
-      if (currentOrganization?.id) {
-        freshCompaniesQuery = freshCompaniesQuery.eq('organization_id', currentOrganization.id);
-      }
-
-      const { data: freshCompanies } = await freshCompaniesQuery;
       
       // Get fresh bridge_user_uuid from refetched data
       let bridgeUserUuid = freshCompanies?.find(c => c.bridge_user_uuid)?.bridge_user_uuid || null;

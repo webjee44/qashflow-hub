@@ -110,7 +110,6 @@ Deno.serve(async (req) => {
 
     // 1) Revoke access (memberships)
     await supabaseAdmin.from("company_members").delete().eq("user_id", resolvedUserId);
-    await supabaseAdmin.from("organization_members").delete().eq("user_id", resolvedUserId);
 
     // 2) Remove roles + profile
     await supabaseAdmin.from("user_roles").delete().eq("user_id", resolvedUserId);
@@ -119,10 +118,6 @@ Deno.serve(async (req) => {
     // 3) Anonymize audit logs (keep history but remove user link)
     await supabaseAdmin.from("audit_logs").update({ user_id: null }).eq("user_id", resolvedUserId);
 
-    // 4) Remove pending invitations for this email (optional cleanup)
-    if (email) {
-      await supabaseAdmin.from("organization_invitations").delete().ilike("email", email);
-    }
 
     // 5) Delete auth user (removes from Cloud → Users)
     const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(resolvedUserId);

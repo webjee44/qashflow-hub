@@ -27,13 +27,11 @@ const BACKUP_TABLES = [
   'categories',
   'category_forecasts',
   'transactions',
-  'forecasts',
   'companies',
-  'organizations',
-  'organization_members',
   'profiles',
   'automation_rules',
 ];
+
 
 Deno.serve(async (req) => {
   // Handle CORS preflight requests
