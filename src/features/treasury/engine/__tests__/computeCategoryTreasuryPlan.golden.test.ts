@@ -101,7 +101,7 @@ function buildGolden(): Map<string, CategoryMonthPlan> {
   const catsById = new Map(categories.map(c => [c.id, c]));
   const storedMap = new Map(storedForecasts.map(s => [`${s.categoryId}::${s.monthKey}`, s]));
   const actualsMap = new Map(actuals.map(a => [`${a.categoryId}::${a.monthKey}`, a]));
-  const uncatMap = new Map(uncategorized.map(u => [u.monthKey, u]));
+  const uncatMap = new Map(uncategorized.map(u => [u.monthKey, { income: u.income, expense: u.expense }]));
 
   const anchorAll = computeBalanceAnchors({
     currentBalance,
