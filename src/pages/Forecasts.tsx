@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ForecastTable, ForecastTableRef } from '@/components/forecasts/ForecastTable';
-import { ForecastDemoBanner } from '@/components/forecasts/ForecastDemoBanner';
+
 import { BPImportDialog } from '@/components/forecasts/BPImportDialog';
 import { Button } from '@/components/ui/button';
 import { FileDown, FileSpreadsheet } from 'lucide-react';
