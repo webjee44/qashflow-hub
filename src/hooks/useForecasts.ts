@@ -9,6 +9,7 @@ import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { getDisplayedSectionTotals, getDisplayedNetVariation } from '@/lib/forecastDisplayTotals';
 import { calculatePercentOfRevenueForecast, getVatFromAmount, toHt, toTtc } from '@/lib/forecastAmounts';
 import { computeCurrentMonthProjection } from '@/features/treasury/engine/currentMonthProjection';
+import { computeBalanceAnchors } from '@/features/treasury/engine/computeBalanceAnchors';
 
 export interface PayableInvoice {
   id: string;
