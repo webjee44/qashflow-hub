@@ -104,8 +104,6 @@ export function Sidebar() {
   const { user, signOut } = useAuth();
   const { mode, setMode, isBusinessPlan, isTreasury } = useAppMode();
   const { settings } = useBPSettings();
-  const { isCompleted: onboardingCompleted } = useOnboarding();
-  const { isCompleted: bpTourCompleted } = useBPOnboarding();
   const { currentCompany, companies: allCompanies } = useCompany();
   const { currentOrganization, organizations, setCurrentOrganization } = useOrganization();
   const location = useLocation();
