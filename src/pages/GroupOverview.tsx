@@ -1,6 +1,8 @@
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Building2, AlertCircle, Landmark } from 'lucide-react';
+import { Building2, AlertCircle, Landmark, RefreshCw } from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns';
+import { fr } from 'date-fns/locale';
 import { Card, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -63,6 +65,20 @@ export default function GroupOverview() {
                   <p className={`text-3xl font-bold tracking-tight ${consolidatedBalance >= 0 ? 'text-foreground' : 'text-destructive'}`}>
                     {formatCurrency(consolidatedBalance)}
                   </p>
+                  {(() => {
+                    const lastSync = companies.reduce<string | null>((max, c) => {
+                      if (!c.lastSyncAt) return max;
+                      if (!max || c.lastSyncAt > max) return c.lastSyncAt;
+                      return max;
+                    }, null);
+                    if (!lastSync) return null;
+                    return (
+                      <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1.5">
+                        <RefreshCw className="h-3 w-3" />
+                        Dernière synchronisation {formatDistanceToNow(new Date(lastSync), { addSuffix: true, locale: fr })}
+                      </p>
+                    );
+                  })()}
                 </div>
                 <div className="flex gap-6">
                   <div className="flex items-center gap-2">
