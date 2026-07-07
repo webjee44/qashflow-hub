@@ -14,34 +14,6 @@ interface OnboardingStep {
 
 const ONBOARDING_STEPS: OnboardingStep[] = [
   {
-    id: 'dashboard',
-    target: '[data-tour="dashboard"]',
-    title: 'Votre tableau de bord',
-    description: 'Vue d\'ensemble de votre trésorerie en temps réel. Suivez vos entrées, sorties et solde actuel.',
-    position: 'bottom',
-  },
-  {
-    id: 'balance',
-    target: '[data-tour="balance"]',
-    title: 'Solde actuel',
-    description: 'Votre solde bancaire synchronisé automatiquement. Les variations sont calculées sur 30 jours.',
-    position: 'bottom',
-  },
-  {
-    id: 'chart',
-    target: '[data-tour="chart"]',
-    title: 'Graphique de trésorerie',
-    description: 'Visualisez l\'évolution de votre trésorerie sur les 30 derniers jours et anticipez les tendances.',
-    position: 'top',
-  },
-  {
-    id: 'transactions',
-    target: '[data-tour="transactions"]',
-    title: 'Dernières transactions',
-    description: 'Toutes vos transactions sont importées automatiquement. Cliquez pour voir les détails.',
-    position: 'left',
-  },
-  {
     id: 'categories',
     target: '[data-tour="categories"]',
     title: 'Catégories',
