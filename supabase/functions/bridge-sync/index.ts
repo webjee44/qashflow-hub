@@ -874,10 +874,31 @@ Deno.serve(async (req) => {
             }
           }
         } catch (err) {
+          // Persist the failure so the UI banner (item_status='error') surfaces it.
+          // Silent console-only failures are the anti-pattern we want to kill:
+          // a broken cron slot for one bridge_user_uuid must be visible to the
+          // user, not only to whoever tails logs.
+          const message = err instanceof Error ? err.message : String(err);
+          const truncated = message.slice(0, 500);
           console.error(
             `[bridge-sync] Error syncing bridge_user_uuid ${bridgeUserUuid}:`,
             err
           );
+          try {
+            await supabaseAdmin
+              .from('bridge_accounts')
+              .update({
+                item_status: 'error',
+                item_status_message: truncated,
+                item_status_updated_at: new Date().toISOString(),
+              })
+              .eq('bridge_user_uuid', bridgeUserUuid);
+          } catch (persistErr) {
+            console.error(
+              `[bridge-sync] Failed to persist sync error for ${bridgeUserUuid}:`,
+              persistErr,
+            );
+          }
         }
       }
 
