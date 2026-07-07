@@ -2339,6 +2339,9 @@ export const ForecastTable = forwardRef<ForecastTableRef>(function ForecastTable
             {/* Net Row */}
             {renderNetRow()}
 
+            {/* Reconciliation Gap Row — hidden unless a visible gap exists */}
+            {renderReconciliationRow()}
+
             {/* Closing Balance Row */}
             {renderClosingBalanceRow()}
           </tbody>
