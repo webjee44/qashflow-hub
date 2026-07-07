@@ -49,7 +49,6 @@ interface NavItem {
 }
 
 const treasuryNavItemsBase: NavItem[] = [
-  { icon: LayoutDashboard, label: 'Tableau de bord', href: '/dashboard', prefetchKeys: ['dashboard-stats'] },
   { icon: TrendingUp, label: 'Prévisions', href: '/previsions', prefetchKeys: ['forecasts'] },
   { icon: ArrowLeftRight, label: 'Transactions', href: '/transactions', prefetchKeys: ['transactions'] },
   { icon: Receipt, label: 'Engagements', href: '/creances', prefetchKeys: ['invoices'] },
@@ -92,7 +91,7 @@ const componentPreloaders: Record<string, () => Promise<unknown>> = {
   '/bp/scenarios': () => import('@/pages/BusinessPlan/Scenarios'),
   '/groupe': () => import('@/pages/GroupOverview'),
   '/intergroupe': () => import('@/pages/Intergroupe'),
-  '/dashboard': () => import('@/pages/Dashboard'),
+  
   '/transactions': () => import('@/pages/Transactions'),
   '/previsions': () => import('@/pages/Forecasts'),
   '/creances': () => import('@/pages/Invoices'),
