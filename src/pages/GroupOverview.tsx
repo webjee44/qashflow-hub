@@ -1,18 +1,13 @@
-import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Building2, AlertCircle, Landmark, RefreshCw, TrendingUp, TrendingDown, ArrowLeftRight } from 'lucide-react';
+import { Building2, AlertCircle, Landmark, RefreshCw } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Card, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useGroupBalances } from '@/hooks/useGroupBalances';
-import { useGroupFlowSummary } from '@/hooks/useGroupFlowSummary';
 import { useCompany } from '@/hooks/useCompany';
 import { CompanyCard } from '@/components/group/CompanyCard';
 
@@ -24,25 +19,10 @@ const formatCurrency = (value: number) =>
     maximumFractionDigits: 0,
   }).format(value);
 
-const NEUTRALIZE_KEY = 'group_neutralize_intercos';
-
 export default function GroupOverview() {
   const navigate = useNavigate();
   const { setCurrentCompany, companies: rawCompanies } = useCompany();
   const { companies, consolidatedBalance, criticalAlerts, totalAlerts, isLoading } = useGroupBalances();
-
-  const [neutralize, setNeutralize] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return true;
-    const v = window.localStorage.getItem(NEUTRALIZE_KEY);
-    return v === null ? true : v === 'true';
-  });
-  const setNeutralizePersist = (v: boolean) => {
-    setNeutralize(v);
-    try { window.localStorage.setItem(NEUTRALIZE_KEY, String(v)); } catch { /* noop */ }
-  };
-
-  const flowsQ = useGroupFlowSummary(rawCompanies.map(c => c.id), 30);
-  const flows = flowsQ.data;
 
   const handleCompanyClick = (companyId: string) => {
     const company = rawCompanies.find(c => c.id === companyId);
@@ -52,9 +32,6 @@ export default function GroupOverview() {
     }
   };
 
-  const displayedInflow = flows ? (neutralize ? flows.neutralizedInflow : flows.grossInflow) : 0;
-  const displayedOutflow = flows ? (neutralize ? flows.neutralizedOutflow : flows.grossOutflow) : 0;
-  const displayedNet = flows ? (neutralize ? flows.neutralizedNet : flows.grossNet) : 0;
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
