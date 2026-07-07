@@ -15,12 +15,11 @@ import { useCompany } from '@/hooks/useCompany';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
-const VALID_TABS = ['organization', 'companies', 'accounts', 'billing', 'profile'] as const;
+const VALID_TABS = ['organization', 'companies', 'accounts', 'profile'] as const;
 type TabValue = typeof VALID_TABS[number];
 
 export default function Settings() {
   const { user } = useAuth();
-  const { isCompleted } = useOnboarding();
   const { companies } = useCompany();
   const navigate = useNavigate();
   const location = useLocation();
