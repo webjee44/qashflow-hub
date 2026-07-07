@@ -763,9 +763,6 @@ export function useForecasts() {
 
     // Past & current month: consult the backward-walk map (which already
     // resolves override priority and noData boundary).
-    if (!isBefore(addMonths(todayMonth, 1), addMonths(targetMonth, 1)) === false) {
-      // targetMonth > todayMonth → future, fall through.
-    }
     if (!isBefore(todayMonth, targetMonth)) {
       // targetMonth ≤ todayMonth
       const anchor = anchorMap.get(targetKey);
@@ -776,7 +773,6 @@ export function useForecasts() {
           noData: anchor.noData || undefined,
         };
       }
-      // Should not happen (months prop includes targetMonth), but stay safe.
       return { balance: 0, isActual: true, noData: true };
     }
 
