@@ -302,6 +302,22 @@ export function useBalanceChartData() {
           });
         }
 
+        setData(chartData);
+      } catch (error) {
+        logError('Error fetching balance chart data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [currentCompany?.id]);
+
+  return { data, loading };
+}
+
+
+
 
 export function useCategoryBreakdown() {
   const { currentCompany } = useCompany();
