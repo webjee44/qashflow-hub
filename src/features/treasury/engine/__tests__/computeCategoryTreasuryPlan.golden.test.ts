@@ -437,19 +437,22 @@ describe('computeCategoryTreasuryPlan — invariants', () => {
   });
 
   it('reconciliation = 0 when the whole ledger is visible (no ignored txs)', () => {
-    // Rebuild fixture WITHOUT the two ignored txs, and remove them from uncat/actual mismatch.
-    const txsClean = anchorTransactions.filter(t => t.date !== '2026-06-22' && t.date !== '2026-07-12');
+    // Ledger fully visible → each month's bank net matches the displayed net.
+    // Keep only txs that map to categorized actuals or uncategorized entries
+    // present in the fixture (June & July). Drop the stray May tx and both
+    // ignored txs. Remove the override so closings truly follow the bank.
+    const txsClean = anchorTransactions.filter(t =>
+      t.date !== '2026-05-15' && t.date !== '2026-06-22' && t.date !== '2026-07-12',
+    );
     const cleanPlan = computeCategoryTreasuryPlan({
       ...input,
       anchorTransactions: txsClean,
-      // No override so that closing(June) truly equals bank reality.
       balanceOverrides: [],
     });
-    for (const mk of ['2026-05', '2026-06', '2026-07']) {
+    for (const mk of ['2026-06', '2026-07']) {
       const p = cleanPlan.byMonth.get(mk)!;
-      if (p.reconciliationGap) {
-        expect(p.reconciliationGap.gap).toBeCloseTo(0, 6);
-      }
+      expect(p.reconciliationGap).not.toBeNull();
+      expect(p.reconciliationGap!.gap).toBeCloseTo(0, 6);
     }
   });
 });
