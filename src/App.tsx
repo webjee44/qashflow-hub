@@ -18,7 +18,7 @@ import SignIn from "./pages/SignIn";
 import NotFound from "./pages/NotFound";
 
 // Protected pages (lazy loading)
-const Dashboard = lazy(() => import("./pages/Dashboard"));
+
 const Transactions = lazy(() => import("./pages/Transactions"));
 const Forecasts = lazy(() => import("./pages/Forecasts"));
 const Invoices = lazy(() => import("./pages/Invoices"));
@@ -66,7 +66,7 @@ function GoogleAnalyticsTracker() {
 function RootRedirect() {
   const { user, loading } = useAuth();
   if (loading) return <PageLoader />;
-  return <Navigate to={user ? "/dashboard" : "/sign-in"} replace />;
+  return <Navigate to={user ? "/previsions" : "/sign-in"} replace />;
 }
 
 const App = () => (
@@ -94,7 +94,7 @@ const App = () => (
                   >
                     <Route path="/groupe" element={<Suspense fallback={<PageLoader />}><GroupOverview /></Suspense>} />
                     <Route path="/intergroupe" element={<Suspense fallback={<PageLoader />}><Intergroupe /></Suspense>} />
-                    <Route path="/dashboard" element={<Suspense fallback={<PageLoader />}><Dashboard /></Suspense>} />
+                    
                     <Route path="/transactions" element={<Suspense fallback={<PageLoader />}><Transactions /></Suspense>} />
                     <Route path="/previsions" element={<Suspense fallback={<PageLoader />}><Forecasts /></Suspense>} />
                     <Route path="/creances" element={<Suspense fallback={<PageLoader />}><Invoices /></Suspense>} />

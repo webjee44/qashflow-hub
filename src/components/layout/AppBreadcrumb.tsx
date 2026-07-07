@@ -12,14 +12,13 @@ import { Home } from 'lucide-react';
 // Route configuration with labels and hierarchy
 const routeConfig: Record<string, { label: string; parent?: string }> = {
   // Treasury routes
-  '/dashboard': { label: 'Tableau de bord' },
   '/transactions': { label: 'Transactions' },
   '/previsions': { label: 'Prévisions' },
   '/reglages-tresorerie': { label: 'Réglages trésorerie' },
   '/parametres': { label: 'Paramètres' },
   
   // Business Plan routes
-  '/bp': { label: 'Tableau de bord', parent: 'Prévisions' },
+  '/bp': { label: 'Business Plan', parent: 'Prévisions' },
   '/bp/revenus': { label: 'Hypothèses CA', parent: 'Prévisions' },
   '/bp/charges': { label: 'Charges', parent: 'Prévisions' },
   '/bp/investissements': { label: 'Investissements', parent: 'Prévisions' },
@@ -61,7 +60,7 @@ export function AppBreadcrumb() {
         <BreadcrumbList>
           <BreadcrumbItem>
             <BreadcrumbLink asChild>
-              <Link to="/dashboard" className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors">
+              <Link to="/previsions" className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors">
                 <Home className="h-3.5 w-3.5" />
                 <span className="sr-only">Accueil</span>
               </Link>
