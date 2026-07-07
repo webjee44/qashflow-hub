@@ -193,14 +193,16 @@ export async function categorizeIntercompanyLinks(
       try {
         const categoryId = await ensureCategory(owner, other, tx.type);
         if (!categoryId) continue;
-        const { error: uErr, count } = await client
+        // Idempotence : ne remplace jamais une catégorie déjà posée.
+        // On récupère la ligne mise à jour ; length 0 = la course a été perdue.
+        const { data: updated, error: uErr } = await client
           .from('transactions')
           .update({ category_id: categoryId })
           .eq('id', tx.id)
           .is('category_id', null)
-          .select('id', { count: 'exact', head: true });
+          .select('id');
         if (uErr) throw uErr;
-        if ((count ?? 0) > 0) {
+        if ((updated ?? []).length > 0) {
           result.categorized_legs++;
           tx.category_id = categoryId; // in-memory refresh (safety)
         } else {
