@@ -284,6 +284,7 @@ export function matchIntercompanyTransfers(input: MatchInput): IntercompanyMatch
       company_out: best.txOut.company_id,
       company_in: best.txIn.company_id,
       amount: Math.abs(best.txOut.amount),
+      tx_date: best.txOut.date,
       score: best.score,
       score_breakdown: best.breakdown,
       status,
