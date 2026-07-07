@@ -94,20 +94,21 @@ describe('matchIntercompanyTransfers', () => {
 
 
 
-  it('montant rond fréquent => pénalité -15', () => {
-    // 6 sorties de 1000 EUR le même mois, sociétés variées
+  it('montant rond fréquent => pénalité -15 (visible dans le breakdown)', () => {
+    // 6 sorties rondes de 1000 EUR le même mois => freq > 5 => pénalité.
+    // On ajoute des alias pour rester au-dessus du seuil suggested (score = 40+20+25-15 = 70).
     const txs: IntercompanyTx[] = [];
     for (let k = 0; k < 6; k++) {
-      txs.push(tx(`o${k}`, C_A, '2026-06-05', 1000, 'expense', 'Virement'));
-      txs.push(tx(`i${k}`, C_B, '2026-06-05', 1000, 'income', 'Virement'));
+      txs.push(tx(`o${k}`, C_A, '2026-06-05', 1000, 'expense', 'Virement Vapeclub'));
+      txs.push(tx(`i${k}`, C_B, '2026-06-05', 1000, 'income', 'Virement Tradeflix'));
     }
     const decisions = matchIntercompanyTransfers({ transactions: txs, aliases, existingLinks: [] });
-    // Chaque décision inclut la pénalité -15
     expect(decisions.length).toBeGreaterThan(0);
     for (const d of decisions) {
       expect(d.score_breakdown.round_amount_penalty).toBe(-15);
     }
   });
+
 
   it('idempotence : les transactions déjà liées sont ignorées', () => {
     const txs: IntercompanyTx[] = [
