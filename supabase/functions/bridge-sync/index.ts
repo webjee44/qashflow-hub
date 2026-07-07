@@ -1104,64 +1104,12 @@ Deno.serve(async (req) => {
             }
           }
 
-          // ============================================
-          // Point Zéro: Create initial snapshot if none exists
-          // ============================================
-          const { data: existingSnapshots } = await supabaseAdmin
-            .from('bank_balance_snapshots')
-            .select('id')
-            .eq('company_id', company_id)
-            .limit(1);
+          // NOTE (S2): the legacy "Point Zéro" snapshot block used to seed
+          // bank_balance_snapshots here. That table was dropped in S2 — the
+          // treasury engine now anchors via computeBalanceAnchors on the fly,
+          // so no seeding is needed anymore.
 
-          if (!existingSnapshots || existingSnapshots.length === 0) {
-            console.info(`[bridge-sync] No snapshots found for company ${company_id}, creating Point Zéro...`);
-            
-            const { data: companyAssignments } = await supabaseAdmin
-              .from('company_bridge_accounts')
-              .select('bridge_account_id')
-              .eq('company_id', company_id)
-              .eq('status', 'active');
-            
-            const assignedAccountIds = (companyAssignments || []).map((a: any) => a.bridge_account_id);
-            
-            if (assignedAccountIds.length > 0) {
-              const now = new Date();
-              const firstOfMonth = `${now.toISOString().substring(0, 7)}-01`;
-              const todayStr = now.toISOString().split('T')[0];
-              
-              const { data: monthTxs } = await supabaseAdmin
-                .from('transactions')
-                .select('amount, type')
-                .eq('company_id', company_id)
-                .gte('date', firstOfMonth)
-                .lte('date', todayStr)
-                .is('deleted_at', null)
-                .or('is_ignored.is.null,is_ignored.eq.false');
-              
-              const netThisMonth = (monthTxs || []).reduce((sum: number, tx: any) => {
-                const amt = Number(tx.amount);
-                return sum + (tx.type === 'income' ? amt : -amt);
-              }, 0);
-              
-              const pointZeroBalance = Math.round((assignedBalance - netThisMonth) * 100) / 100;
-              const primaryAccountId = assignedAccountIds[0];
-              
-              const { error: snapError } = await supabaseAdmin
-                .from('bank_balance_snapshots')
-                .upsert({
-                  company_id: company_id,
-                  bridge_account_id: primaryAccountId,
-                  balance: pointZeroBalance,
-                  snapshot_date: firstOfMonth,
-                }, { onConflict: 'bridge_account_id,snapshot_date' });
-              
-              if (snapError) {
-                console.error(`[bridge-sync] Failed to create Point Zéro snapshot:`, snapError);
-              } else {
-                console.info(`[bridge-sync] Point Zéro created: ${pointZeroBalance}€ at ${firstOfMonth}`);
-              }
-            }
-          }
+
 
           // Apply automation rules after full-sync if new transactions were inserted
           if (inserted > 0 || updated > 0) {
