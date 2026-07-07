@@ -154,7 +154,7 @@ export function useTransactionHandlers({
   const handleCreateCategory = useCallback(async (data: {
     name: string; color: string; icon: string; type: 'income' | 'expense';
     vat_rate?: number; parent_id?: string | null;
-    forecast_mode?: 'manual' | 'percent_of_revenue'; forecast_percent?: number;
+    forecast_mode?: 'manual' | 'percent_of_revenue' | 'auto_vat'; forecast_percent?: number;
   }) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;

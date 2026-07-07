@@ -60,11 +60,25 @@ import type { CashFlowBucket } from '../types/treasuryActuals';
 
 // ---------- Public types ----------
 
+export type CategoryForecastMode =
+  | 'manual'
+  | 'percent_of_revenue'
+  /**
+   * Auto-computed VAT payment. The category acts as a real cash-flow line
+   * whose forecast equals the scheduled VAT remittance derived from the
+   * VAT collected/deductible on the other categories, per the company's
+   * `vat_regime`. A manually stored forecast on this category still wins
+   * (same override semantics as `percent_of_revenue`).
+   */
+  | 'auto_vat';
+
+export type VatRegime = 'monthly' | 'quarterly' | 'none';
+
 export interface CategoryInput {
   id: string;
   type: 'income' | 'expense';
   vat_rate: number | null;
-  forecast_mode?: 'manual' | 'percent_of_revenue' | null;
+  forecast_mode?: CategoryForecastMode | null;
   forecast_percent?: number | null;
   is_system?: boolean | null;
 }
@@ -112,6 +126,16 @@ export interface ComputeCategoryTreasuryPlanInput {
   earliestTransactionDate?: string | Date | null;
   /** Fallback if there is no anchor and no live balance. */
   initialBalance?: number;
+  /**
+   * Company VAT regime driving the auto_vat scheduling.
+   * - 'monthly'   : net VAT of month P is paid in month P+1.
+   * - 'quarterly' : net VAT of civil quarter Q is paid in the month
+   *                 following the end of Q (Apr/Jul/Oct/Jan).
+   * - 'none'      : no auto flow (any auto_vat category yields 0 unless
+   *                 a manual forecast is stored for the month).
+   * Defaults to 'none' if omitted.
+   */
+  vatRegime?: VatRegime;
 }
 
 export interface CategoryComputedRow {
@@ -235,6 +259,13 @@ export function computeCategoryTreasuryPlan(
   const categoriesById = new Map<string, CategoryInput>();
   for (const c of input.categories) categoriesById.set(c.id, c);
 
+  // Auto-VAT: category ids in auto_vat mode. These lines' forecast value is
+  // computed by the engine (VAT payment schedule) and MUST be excluded from
+  // the VAT base to avoid recursion / double-counting.
+  const isAutoVatCat = (c: CategoryInput): boolean => c.forecast_mode === 'auto_vat';
+  // Populated later, once vatForecast/vatActual helpers are defined.
+  const autoVatPaymentByMonth = new Map<string, number>();
+
   // 3. Backward-walk anchors for every past/current month + one extra month
   //    after the horizon (used for reconciliation on the last past month).
   const anchorMonths = new Set<string>(uniqueMks);
@@ -257,7 +288,7 @@ export function computeCategoryTreasuryPlan(
     earliestTransactionDate: input.earliestTransactionDate ?? null,
   });
 
-  // 4. Per-category forecast (with percent_of_revenue rule) — pure helper.
+  // 4. Per-category forecast (with percent_of_revenue and auto_vat rules).
   const forecastForCategoryMonth = (catId: string, monthKeyValue: string): number => {
     const cat = categoriesById.get(catId);
     if (!cat) return 0;
@@ -284,6 +315,14 @@ export function computeCategoryTreasuryPlan(
         vatRate: cat.vat_rate,
         outputBasis: 'ttc',
       });
+    }
+
+    if (isAutoVatCat(cat)) {
+      // Manual override wins — same semantics as percent_of_revenue.
+      if (stored) return toTtc(stored.expectedAmount, stored.amountBasis, cat.vat_rate);
+      // Otherwise the engine-scheduled VAT payment (already TTC — VAT settled
+      // to the State has no VAT itself).
+      return autoVatPaymentByMonth.get(monthKeyValue) ?? 0;
     }
 
     return stored ? toTtc(stored.expectedAmount, stored.amountBasis, cat.vat_rate) : 0;
@@ -350,11 +389,15 @@ export function computeCategoryTreasuryPlan(
     return income - expense;
   };
 
-  // 6. VAT (informational, same rules as useForecasts).
+  // 6. VAT aggregates (informational + auto_vat base).
+  // Auto_vat categories are EXCLUDED here: their "amount" is a VAT
+  // settlement, not a taxable base. Including them would double-count and
+  // create a recursive dependency on the schedule we're building.
   const vatForecastFor = (type: 'income' | 'expense', monthKeyValue: string): number => {
     let sum = 0;
     for (const c of input.categories) {
       if (c.type !== type || c.is_system) continue;
+      if (isAutoVatCat(c)) continue;
       const stored = storedByCatMonth.get(`${c.id}::${monthKeyValue}`);
       if (stored) {
         sum += getVatFromAmount(stored.expectedAmount, stored.amountBasis, c.vat_rate);
@@ -371,12 +414,118 @@ export function computeCategoryTreasuryPlan(
     let sum = 0;
     for (const c of input.categories) {
       if (c.type !== type || c.is_system) continue;
+      if (isAutoVatCat(c)) continue;
       const actualAbs = Math.abs(actualForCategoryMonth(c.id, monthKeyValue));
       const rate = c.vat_rate ?? 0;
       if (rate > 0) sum += (actualAbs * rate) / (1 + rate);
     }
     return sum;
   };
+
+  // 6bis. Auto-VAT payment schedule.
+  // ----------------------------------------------------------------------------
+  // Business rule:
+  //   - For each source period P (a month in 'monthly' regime, a civil
+  //     quarter in 'quarterly'), net VAT = VAT collected(P) − VAT deductible(P)
+  //     computed from the categories (auto_vat cats excluded) with the SAME
+  //     temporal rule used everywhere in the engine:
+  //       past → actuals TTC reverse-computed
+  //       future → forecasts
+  //       current → projected (single-bucket blend with computeCurrentMonthProjection)
+  //   - Payment month:
+  //       monthly   → P + 1 month
+  //       quarterly → month right after the end of the quarter (Apr/Jul/Oct/Jan)
+  //   - Carry-forward: if net VAT is NEGATIVE on a period (deductible >
+  //     collected), no payment is due AND the |net| credit rolls over to
+  //     the next period, reducing that period's payment first. The walk
+  //     starts from the earliest source period whose payment month falls
+  //     within the requested horizon (uniqueMks).
+  //   - Regime 'none' or absent: nothing scheduled.
+  //   - Any manually stored forecast on the auto_vat category still wins
+  //     over the scheduled value (handled by forecastForCategoryMonth).
+  {
+    const regime: VatRegime = input.vatRegime ?? 'none';
+    if (regime !== 'none' && uniqueMks.length > 0) {
+      const projectedVatFor = (type: 'income' | 'expense', mkv: string): number => {
+        const period = periodTypeOf(mkv, currentMk);
+        const a = vatActualFor(type, mkv);
+        const f = vatForecastFor(type, mkv);
+        if (period === 'past') return a;
+        if (period === 'future') return f;
+        // 'current': project VAT with the shared helper (single synth bucket).
+        const { projectedByBucket } = computeCurrentMonthProjection({
+          actualByBucket: { revenue: a },
+          forecastByBucket: { revenue: f },
+        });
+        return Math.abs(projectedByBucket.revenue ?? 0);
+      };
+      const vatNetForMonth = (mkv: string): number =>
+        projectedVatFor('income', mkv) - projectedVatFor('expense', mkv);
+
+      if (regime === 'monthly') {
+        // Source months: distinct M such that M+1 ∈ uniqueMks.
+        const sourceSet = new Set<string>();
+        for (const pm of uniqueMks) sourceSet.add(shiftMonthKey(pm, -1));
+        const sources = Array.from(sourceSet).sort();
+        let credit = 0;
+        for (const src of sources) {
+          const net = vatNetForMonth(src);
+          const rawDebt = net - credit;
+          let payment = 0;
+          if (rawDebt > 0) {
+            payment = rawDebt;
+            credit = 0;
+          } else {
+            credit = -rawDebt;
+          }
+          if (payment > 0) autoVatPaymentByMonth.set(shiftMonthKey(src, 1), payment);
+        }
+      } else {
+        // 'quarterly'.
+        const quarterMonths = (y: number, q: number): string[] => {
+          const startMonth = (q - 1) * 3 + 1;
+          return [0, 1, 2].map(i => {
+            const mm = String(startMonth + i).padStart(2, '0');
+            return `${y}-${mm}`;
+          });
+        };
+        const paymentMonthOfQuarter = (y: number, q: number): string => {
+          if (q === 4) return `${y + 1}-01`;
+          const mm = String(q * 3 + 1).padStart(2, '0');
+          return `${y}-${mm}`;
+        };
+        const seen = new Set<string>();
+        const sources: Array<{ y: number; q: number }> = [];
+        for (const pm of uniqueMks) {
+          const [py, pmn] = pm.split('-').map(Number);
+          let sy: number, sq: number;
+          if (pmn === 1) { sy = py - 1; sq = 4; }
+          else if (pmn === 4) { sy = py; sq = 1; }
+          else if (pmn === 7) { sy = py; sq = 2; }
+          else if (pmn === 10) { sy = py; sq = 3; }
+          else continue;
+          const k = `${sy}-Q${sq}`;
+          if (!seen.has(k)) { seen.add(k); sources.push({ y: sy, q: sq }); }
+        }
+        sources.sort((a, b) => (a.y === b.y ? a.q - b.q : a.y - b.y));
+        let credit = 0;
+        for (const { y, q } of sources) {
+          let net = 0;
+          for (const m of quarterMonths(y, q)) net += vatNetForMonth(m);
+          const rawDebt = net - credit;
+          let payment = 0;
+          if (rawDebt > 0) {
+            payment = rawDebt;
+            credit = 0;
+          } else {
+            credit = -rawDebt;
+          }
+          if (payment > 0) autoVatPaymentByMonth.set(paymentMonthOfQuarter(y, q), payment);
+        }
+      }
+    }
+  }
+
 
   // 7. Opening balance.
   const openingFor = (

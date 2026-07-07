@@ -21,7 +21,14 @@ import {
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
-import { useCompany, Company } from '@/hooks/useCompany';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { useCompany, Company, VatRegime } from '@/hooks/useCompany';
 import { Building2, Wallet } from 'lucide-react';
 import { logError } from '@/lib/logger';
 
@@ -29,6 +36,7 @@ const formSchema = z.object({
   name: z.string().min(1, 'Le nom est requis'),
   initial_balance: z.coerce.number().default(0),
   is_default: z.boolean().default(false),
+  vat_regime: z.enum(['monthly', 'quarterly', 'none']).default('monthly'),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -49,6 +57,7 @@ export function CompanyDialog({ open, onOpenChange, company }: CompanyDialogProp
       name: '',
       initial_balance: 0,
       is_default: false,
+      vat_regime: 'monthly',
     },
   });
 
@@ -58,12 +67,14 @@ export function CompanyDialog({ open, onOpenChange, company }: CompanyDialogProp
         name: company.name,
         initial_balance: company.initial_balance || 0,
         is_default: company.is_default,
+        vat_regime: (company.vat_regime ?? 'monthly') as VatRegime,
       });
     } else {
       form.reset({
         name: '',
         initial_balance: 0,
         is_default: false,
+        vat_regime: 'monthly',
       });
     }
   }, [company, form, open]);
@@ -75,6 +86,7 @@ export function CompanyDialog({ open, onOpenChange, company }: CompanyDialogProp
           name: values.name,
           is_default: values.is_default,
           initial_balance: values.initial_balance,
+          vat_regime: values.vat_regime,
         });
       } else {
         await createCompany({
@@ -140,6 +152,32 @@ export function CompanyDialog({ open, onOpenChange, company }: CompanyDialogProp
                   </FormControl>
                   <FormDescription>
                     Solde de départ de vos comptes bancaires
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="vat_regime"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Régime de TVA</FormLabel>
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="monthly">Mensuel</SelectItem>
+                      <SelectItem value="quarterly">Trimestriel</SelectItem>
+                      <SelectItem value="none">Non assujetti</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormDescription>
+                    Détermine la fréquence de décaissement de la TVA planifiée dans la trésorerie.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
