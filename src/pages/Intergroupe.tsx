@@ -5,8 +5,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { RefreshCw, TrendingUp, TrendingDown, Landmark } from 'lucide-react';
+import { TrendingUp, TrendingDown, Landmark } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -19,7 +18,6 @@ import { useCompany } from '@/hooks/useCompany';
 import {
   useIntercompanyLinks,
   useIntercompanyAnomalies,
-  useRunIncrementalMatch,
 } from '@/features/intercompany/hooks/useIntercompanyData';
 import {
   computeIntercompanyPositions,
@@ -45,12 +43,12 @@ export default function Intergroupe() {
   const { companies } = useCompany();
   const linksQ = useIntercompanyLinks();
   const anomaliesQ = useIntercompanyAnomalies();
-  const runMatch = useRunIncrementalMatch();
 
   const [includeSuggested, setIncludeSuggested] = useState(false);
   const [period, setPeriod] = useState<PeriodPresetKey>('all');
   const [selectedPair, setSelectedPair] = useState<{ a: string; b: string } | null>(null);
   const [drillOpen, setDrillOpen] = useState(false);
+
 
   const companyName = useMemo(() => {
     const map = new Map(companies.map(c => [c.id, c.name]));
