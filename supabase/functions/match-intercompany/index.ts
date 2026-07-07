@@ -232,9 +232,12 @@ Deno.serve(async (req: Request) => {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  const body: RequestBody = req.method === 'POST' ? await req.json().catch(() => ({})) : {};
+  const body: RequestBody & { triggered_by?: string } =
+    req.method === 'POST' ? await req.json().catch(() => ({})) : {};
   const mode: 'backfill' | 'incremental' = body.mode ?? 'incremental';
+  const triggeredBy = body.triggered_by ?? 'manual';
   const minAmount = body.min_amount ?? 500;
+
 
   const summary: RunSummary = {
     windows_processed: 0,
