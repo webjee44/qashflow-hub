@@ -91,6 +91,7 @@ const componentPreloaders: Record<string, () => Promise<unknown>> = {
   '/bp/financement': () => import('@/pages/BusinessPlan/FundingPlan'),
   '/bp/scenarios': () => import('@/pages/BusinessPlan/Scenarios'),
   '/groupe': () => import('@/pages/GroupOverview'),
+  '/intergroupe': () => import('@/pages/Intergroupe'),
   '/dashboard': () => import('@/pages/Dashboard'),
   '/transactions': () => import('@/pages/Transactions'),
   '/previsions': () => import('@/pages/Forecasts'),
@@ -163,6 +164,7 @@ export function Sidebar() {
     if (allCompanies.length >= 2) {
       return [
         { icon: Building2, label: 'Vue groupe', href: '/groupe' } as NavItem,
+        { icon: ArrowLeftRight, label: 'Intergroupe', href: '/intergroupe' } as NavItem,
         ...treasuryNavItemsBase,
       ];
     }
