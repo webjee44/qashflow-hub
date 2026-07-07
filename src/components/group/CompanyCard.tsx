@@ -1,5 +1,7 @@
 import { motion } from 'framer-motion';
-import { AlertTriangle, AlertCircle, Info, Landmark, Building2 } from 'lucide-react';
+import { AlertTriangle, AlertCircle, Info, Landmark, Building2, RefreshCw } from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns';
+import { fr } from 'date-fns/locale';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
