@@ -432,20 +432,6 @@ export default function SignIn() {
             </>
           )}
 
-          {mode === 'login' && (
-            <p className="text-center text-muted-foreground mt-6">
-              Pas encore de compte ?{' '}
-              <Link to="/sign-up" className="text-primary hover:underline font-medium">
-                Créer un compte
-              </Link>
-            </p>
-          )}
-
-          <p className="text-center text-muted-foreground mt-6 text-xs">
-            <Link to="/" className="hover:underline">
-              ← Retour à l'accueil
-            </Link>
-          </p>
         </motion.div>
       </div>
     </div>
