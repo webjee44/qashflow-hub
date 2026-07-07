@@ -26,6 +26,7 @@ const Categorisation = lazy(() => import("./pages/TreasurySettings"));
 const Automations = lazy(() => import("./pages/Automations"));
 const Settings = lazy(() => import("./pages/Settings"));
 const GroupOverview = lazy(() => import("./pages/GroupOverview"));
+const Intergroupe = lazy(() => import("./pages/Intergroupe"));
 
 // Business Plan pages (lazy loading)
 const RevenueAssumptions = lazy(() => import("./pages/BusinessPlan/RevenueAssumptions"));
@@ -92,6 +93,7 @@ const App = () => (
                     }
                   >
                     <Route path="/groupe" element={<Suspense fallback={<PageLoader />}><GroupOverview /></Suspense>} />
+                    <Route path="/intergroupe" element={<Suspense fallback={<PageLoader />}><Intergroupe /></Suspense>} />
                     <Route path="/dashboard" element={<Suspense fallback={<PageLoader />}><Dashboard /></Suspense>} />
                     <Route path="/transactions" element={<Suspense fallback={<PageLoader />}><Transactions /></Suspense>} />
                     <Route path="/previsions" element={<Suspense fallback={<PageLoader />}><Forecasts /></Suspense>} />
