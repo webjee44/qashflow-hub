@@ -99,3 +99,7 @@ verify_jwt = false
 [functions.match-intercompany]
 verify_jwt = false
 
+[functions.apply-intercompany-categorization]
+verify_jwt = false
+
+
