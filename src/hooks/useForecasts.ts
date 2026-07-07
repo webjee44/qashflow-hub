@@ -9,6 +9,7 @@ import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { getDisplayedSectionTotals, getDisplayedNetVariation } from '@/lib/forecastDisplayTotals';
 import { calculatePercentOfRevenueForecast, getVatFromAmount, toHt, toTtc } from '@/lib/forecastAmounts';
 import { computeCurrentMonthProjection } from '@/features/treasury/engine/currentMonthProjection';
+import { computeBalanceAnchors } from '@/features/treasury/engine/computeBalanceAnchors';
 
 export interface PayableInvoice {
   id: string;
@@ -426,20 +427,80 @@ export function useForecasts() {
 
   // allTransactions query REMOVED — replaced by snapshot-based forward-only approach
 
-  // Fetch balance snapshots for past months (use real recorded balances instead of retroactive calc)
-  const { data: balanceSnapshots = [] } = useQuery({
-    queryKey: ['balance-snapshots', currentCompany?.id],
+  // === Backward-walk anchor data ===
+  // Purpose: derive `opening(M) = currentBalance − Σ tx ∈ [1er de M, aujourd'hui]`
+  // for every past & current month, without ever using the live balance as
+  // the opening of the current month. See computeBalanceAnchors.ts.
+  //
+  // We fetch SIGNED bank movements (income+, expense−) bounded by the widest
+  // displayed window. `is_ignored` IS included on purpose: an ignored tx still
+  // moved money at the bank, so it must count in the walk. `deleted_at` is
+  // excluded. Restricted to active bank accounts via `company_active_bridge_accounts`
+  // to match the same perimeter as `liveBankBalance`.
+  const { data: anchorWalkData } = useQuery({
+    queryKey: ['balance-anchor-walk', currentCompany?.id, startMonthStr],
     queryFn: async () => {
-      if (!currentCompany?.id) return [];
-      const { data, error } = await supabase
-        .from('bank_balance_snapshots')
-        .select('bridge_account_id, balance, snapshot_date')
+      if (!currentCompany?.id || !startMonthStr) {
+        return { transactions: [] as Array<{ date: string; amount: number }>, earliestDate: null as string | null };
+      }
+      const todayStr = format(new Date(), 'yyyy-MM-dd');
+
+      // Active account ids (same perimeter as liveBankBalance).
+      const { data: activeAccounts, error: accErr } = await supabase
+        .from('company_active_bridge_accounts')
+        .select('bridge_account_id')
+        .eq('company_id', currentCompany.id);
+      if (accErr) throw accErr;
+      const activeIds = (activeAccounts ?? [])
+        .map(a => (a as { bridge_account_id: number | null }).bridge_account_id)
+        .filter((v): v is number => v != null);
+
+      // Paginated fetch of SIGNED tx in [startMonthStr, today]. Includes is_ignored.
+      const pageSize = 1000;
+      const rows: Array<{ date: string; amount: number; type: string; bridge_account_id: number | null }> = [];
+      let from = 0;
+      // Cap safety: 20 pages = 20k rows / window. Widen only if the horizon grows.
+      for (let page = 0; page < 20; page++) {
+        let q = supabase
+          .from('transactions')
+          .select('date, amount, type, bridge_account_id')
+          .eq('company_id', currentCompany.id)
+          .is('deleted_at', null)
+          .gte('date', startMonthStr)
+          .lte('date', todayStr)
+          .order('date', { ascending: true })
+          .range(from, from + pageSize - 1);
+        if (activeIds.length > 0) {
+          q = q.in('bridge_account_id', activeIds);
+        }
+        const { data, error } = await q;
+        if (error) throw error;
+        const chunk = (data ?? []) as typeof rows;
+        rows.push(...chunk);
+        if (chunk.length < pageSize) break;
+        from += pageSize;
+      }
+
+      const transactions = rows.map(r => ({
+        date: r.date,
+        amount: r.type === 'income' ? Math.abs(Number(r.amount)) : -Math.abs(Number(r.amount)),
+      }));
+
+      // Earliest known transaction (any date) — bounds the noData region.
+      const { data: earliest, error: earliestErr } = await supabase
+        .from('transactions')
+        .select('date')
         .eq('company_id', currentCompany.id)
-        .order('snapshot_date', { ascending: false });
-      if (error) throw error;
-      return (data || []) as { bridge_account_id: number; balance: number; snapshot_date: string }[];
+        .is('deleted_at', null)
+        .order('date', { ascending: true })
+        .limit(1);
+      if (earliestErr) throw earliestErr;
+      const earliestDate = earliest?.[0]?.date ?? null;
+
+      return { transactions, earliestDate };
     },
-    enabled: !!currentCompany?.id,
+    enabled: !!currentCompany?.id && !!startMonthStr,
+    staleTime: 30 * 1000,
   });
 
   // Fetch manual balance overrides
@@ -675,54 +736,65 @@ export function useForecasts() {
     staleTime: 30 * 1000,
   });
 
-  // Helper: get the aggregated snapshot balance for a specific date (1st of month)
-  const getSnapshotForDate = useCallback((dateStr: string): number | null => {
-    const dateSnapshots = balanceSnapshots.filter(s => s.snapshot_date === dateStr);
-    if (dateSnapshots.length === 0) return null;
-    return dateSnapshots.reduce((sum, s) => sum + Number(s.balance), 0);
-  }, [balanceSnapshots]);
+  // Backward-walk anchors for all past & current months displayed.
+  // Uses the SAME perimeter as `liveBankBalance` (active bridge accounts) and
+  // includes `is_ignored` transactions (they moved the bank balance).
+  const anchorMap = useMemo(() => {
+    if (!months.length) return new Map<string, ReturnType<typeof computeBalanceAnchors> extends Map<string, infer V> ? V : never>();
+    const currentBalance =
+      liveBankBalance ?? currentCompany?.initial_balance ?? 0;
+    return computeBalanceAnchors({
+      currentBalance,
+      transactions: anchorWalkData?.transactions ?? [],
+      asOfDate: new Date(),
+      months,
+      overrides: balanceOverrides.map(o => ({ month: o.month, balance: Number(o.balance) })),
+      earliestTransactionDate: anchorWalkData?.earliestDate ?? null,
+    });
+  }, [months, liveBankBalance, currentCompany?.initial_balance, anchorWalkData, balanceOverrides]);
 
-  // Calculate the opening balance — Point Zéro forward-only approach
-  // Past & current: read snapshot. If absent → use initial_balance for current month, noData for past
-  // Future: current month anchor + Σ net forecasts
+  // Opening balance — backward walk from live balance for past & current
+  // month; forward walk from the current-month anchor (never the live balance
+  // directly) for future months.
   const getOpeningBalance = useCallback((month: Date): { balance: number; isActual: boolean; isEstimated?: boolean; noData?: boolean } => {
     const todayMonth = startOfMonth(new Date());
     const targetMonth = startOfMonth(month);
-    const targetDateStr = format(targetMonth, 'yyyy-MM-01');
+    const targetKey = format(targetMonth, 'yyyy-MM');
 
-    // 1. Check override on the previous month (closing = opening of next)
-    const prevMonth = addMonths(targetMonth, -1);
-    const prevOverride = getBalanceOverride(prevMonth);
+    // Past & current month: consult the backward-walk map (which already
+    // resolves override priority and noData boundary).
+    if (!isBefore(todayMonth, targetMonth)) {
+      // targetMonth ≤ todayMonth
+      const anchor = anchorMap.get(targetKey);
+      if (anchor) {
+        return {
+          balance: anchor.balance,
+          isActual: anchor.isActual,
+          noData: anchor.noData || undefined,
+        };
+      }
+      return { balance: 0, isActual: true, noData: true };
+    }
+
+    // Future month: anchor at current-month opening + forward net walk.
+    // Override on prev month still wins.
+    const prevOverride = getBalanceOverride(addMonths(targetMonth, -1));
     if (prevOverride !== null) {
       return { balance: prevOverride, isActual: true };
     }
 
-    // 2. Past & current months: read snapshot directly
-    if (isBefore(targetMonth, addMonths(todayMonth, 1))) {
-      const snapshot = getSnapshotForDate(targetDateStr);
-      if (snapshot !== null) {
-        return { balance: snapshot, isActual: true };
-      }
-      // Current month with no snapshot: use initial_balance as fallback (company without bank)
-      if (isSameMonth(targetMonth, todayMonth)) {
-        const fallback = liveBankBalance ?? currentCompany?.initial_balance ?? 0;
-        return { balance: fallback, isActual: true };
-      }
-      // Past month with no snapshot = pre-enrollment
-      return { balance: 0, isActual: true, noData: true };
-    }
+    const currentKey = format(todayMonth, 'yyyy-MM');
+    const currentAnchor = anchorMap.get(currentKey);
+    const openingCurrent = currentAnchor?.balance
+      ?? (liveBankBalance ?? currentCompany?.initial_balance ?? 0);
 
-    // 3. Future: find anchor and walk forward
-    const currentMonthStr = format(todayMonth, 'yyyy-MM-01');
-    const currentSnapshot = getSnapshotForDate(currentMonthStr);
-    const anchorBalance = currentSnapshot ?? liveBankBalance ?? currentCompany?.initial_balance ?? 0;
-
-    let projectedBalance = anchorBalance;
-    for (let m = todayMonth; isBefore(m, targetMonth); m = addMonths(m, 1)) {
-      projectedBalance += getMonthNetForecast(m);
+    // Start from current-month CLOSING (opening + projected net), then walk.
+    let balance = openingCurrent + getMonthNetForecast(todayMonth);
+    for (let m = addMonths(todayMonth, 1); isBefore(m, targetMonth); m = addMonths(m, 1)) {
+      balance += getMonthNetForecast(m);
     }
-    return { balance: projectedBalance, isActual: false };
-  }, [liveBankBalance, currentCompany, balanceSnapshots, getSnapshotForDate, getMonthNetForecast, getBalanceOverride]);
+    return { balance, isActual: false };
+  }, [anchorMap, liveBankBalance, currentCompany?.initial_balance, getMonthNetForecast, getBalanceOverride]);
 
   // Helper to get total income forecast (HT) for a month - used as the base for variable charge calculation.
   // Calculation MUST stay on HT — see mem://features/treasury/cash-flow-standard.
