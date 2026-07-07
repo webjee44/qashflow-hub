@@ -477,7 +477,8 @@ export function computeCategoryTreasuryPlan(
       rows.set(c.id, { categoryId: c.id, forecast, actual, projected });
     }
 
-    const uncat = uncategorizedByMonth.get(monthKeyValue) ?? { income: 0, expense: 0 };
+    const uncatRaw = uncategorizedByMonth.get(monthKeyValue);
+    const uncat = { income: uncatRaw?.income ?? 0, expense: uncatRaw?.expense ?? 0 };
 
     const incomeSection: SectionTotals = {
       actual: categorizedTotal('income', monthKeyValue, 'actual') + uncat.income,
