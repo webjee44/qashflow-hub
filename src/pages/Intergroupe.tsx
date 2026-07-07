@@ -252,18 +252,7 @@ export default function Intergroupe() {
           )}
         </TabsContent>
 
-        <TabsContent value="anomalies" className="space-y-3">
-          <div className="flex justify-end">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => runMatch.mutate(90)}
-              disabled={runMatch.isPending}
-            >
-              <RefreshCw className={`h-3.5 w-3.5 mr-2 ${runMatch.isPending ? 'animate-spin' : ''}`} />
-              Lancer un appariement (90 j)
-            </Button>
-          </div>
+        <TabsContent value="anomalies">
           {anomaliesQ.isLoading ? (
             <Skeleton className="h-64 w-full" />
           ) : (
