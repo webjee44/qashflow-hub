@@ -21,6 +21,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Tables } from '@/integrations/supabase/types';
 import { Category } from '@/hooks/useCategories';
+import { ConflictBadge } from './ConflictBadge';
+import type { ConflictedTransactionInfo } from '@/features/automations/api/conflictedTransactionsApi';
 
 type Transaction = Tables<'transactions'>;
 
@@ -41,6 +43,7 @@ interface TransactionTableRowProps {
   expenseCategories: Category[];
   formatAmount: (amount: number) => string;
   formatDate: (date: string) => string;
+  conflictInfo?: ConflictedTransactionInfo;
 }
 
 export const TransactionTableRow = memo(function TransactionTableRow({
@@ -60,6 +63,7 @@ export const TransactionTableRow = memo(function TransactionTableRow({
   expenseCategories,
   formatAmount,
   formatDate,
+  conflictInfo,
 }: TransactionTableRowProps) {
   const isUncategorized = !transaction.category_id;
 
@@ -124,6 +128,9 @@ export const TransactionTableRow = memo(function TransactionTableRow({
                 {Math.round(Number(transaction.ai_confidence) * 100)}%
               </span>
             </div>
+          )}
+          {conflictInfo && conflictInfo.competingRuleIds.length > 0 && (
+            <ConflictBadge competingRuleIds={conflictInfo.competingRuleIds} />
           )}
         </div>
       </div>

@@ -333,6 +333,170 @@ Deno.test('conflict between two close-specificity rules is detected, no write', 
 });
 
 // ---------------------------------------------------------------------------
+// Test 2b — Priority breaks the conflict
+// ---------------------------------------------------------------------------
+
+function pushConflictPair(
+  store: Store,
+  opts: { priorityA: number; priorityB: number },
+) {
+  const ruleA = cryptoRandomId();
+  const ruleB = cryptoRandomId();
+  store.automation_rules.push(
+    {
+      id: ruleA,
+      name: 'A (fine)',
+      company_id: C1,
+      user_id: USER1,
+      is_active: true,
+      priority: opts.priorityA,
+      specificity_score: 50,
+      created_at: '2026-01-01T00:00:00Z',
+      target_category_id: CAT_VENTES,
+      condition_field: 'description',
+      condition_operator: 'contains',
+      condition_value: 'OVERLAP',
+      match_count: 0,
+    },
+    {
+      id: ruleB,
+      name: 'B (broad)',
+      company_id: C1,
+      user_id: USER1,
+      is_active: true,
+      priority: opts.priorityB,
+      specificity_score: 51,
+      created_at: '2026-01-02T00:00:00Z',
+      target_category_id: CAT_OTHER,
+      condition_field: 'description',
+      condition_operator: 'contains',
+      condition_value: 'OVERLAP',
+      match_count: 0,
+    },
+  );
+  const txId = cryptoRandomId();
+  store.transactions.push({
+    id: txId,
+    company_id: C1,
+    user_id: USER1,
+    description: 'OVERLAP test',
+    amount: 100,
+    type: 'income',
+    category_id: null,
+    bank_account_name: null,
+    merchant_key: null,
+    normalized_description: null,
+    deleted_at: null,
+  });
+  return { ruleA, ruleB, txId };
+}
+
+Deno.test('priority tiebreak: higher priority wins over close-specificity conflict', async () => {
+  const store = buildBaseStore();
+  const { ruleB, txId } = pushConflictPair(store, { priorityA: 100, priorityB: 200 });
+  const client = makeClient(store);
+
+  const result = await applyAutomationRulesForCompany({
+    client,
+    companyId: C1,
+    userId: USER1,
+    triggeredBy: 'manual',
+    dryRun: false,
+  });
+
+  assertEquals(result.applied, 1);
+  assertEquals(result.skippedConflict, 0);
+  const d = result.decisions.find((x) => x.transaction_id === txId)!;
+  assertEquals(d.decision, 'applied');
+  // ruleB has priority 200 → wins even though its specificity is lower.
+  assertEquals(d.winning_rule_id, ruleB);
+  assertEquals(d.reason_codes.includes('priority_tiebreak'), true);
+  // competing_rules is still recorded for audit.
+  assertEquals((d.competing_rules ?? []).length, 2);
+});
+
+Deno.test('priority tiebreak: equal priorities keep the conflict (no silent winner)', async () => {
+  const store = buildBaseStore();
+  pushConflictPair(store, { priorityA: 100, priorityB: 100 });
+  const client = makeClient(store);
+
+  const result = await applyAutomationRulesForCompany({
+    client,
+    companyId: C1,
+    userId: USER1,
+    triggeredBy: 'manual',
+    dryRun: false,
+  });
+
+  assertEquals(result.applied, 0);
+  assertEquals(result.skippedConflict, 1);
+  assertEquals(result.decisions[0].decision, 'conflict');
+});
+
+// ---------------------------------------------------------------------------
+// Test 2c — Status ventilation: type_mismatch / invalid_target are NOT
+// counted as conflicts anymore.
+// ---------------------------------------------------------------------------
+
+Deno.test('run items ventilate skip reasons; only real conflicts feed total_skipped_conflict', async () => {
+  const store = buildBaseStore();
+
+  // Rule targeting an income category but the matching tx is an expense → type_mismatch.
+  const ruleMismatch = cryptoRandomId();
+  store.automation_rules.push({
+    id: ruleMismatch,
+    name: 'income-only rule',
+    company_id: C1,
+    user_id: USER1,
+    is_active: true,
+    priority: 100,
+    specificity_score: 10,
+    created_at: '2026-01-01T00:00:00Z',
+    target_category_id: CAT_VENTES, // income
+    condition_field: 'description',
+    condition_operator: 'contains',
+    condition_value: 'MISMATCH',
+    match_count: 0,
+  });
+  store.transactions.push({
+    id: cryptoRandomId(),
+    company_id: C1,
+    user_id: USER1,
+    description: 'MISMATCH row',
+    amount: 10,
+    type: 'expense', // ← different from category type
+    category_id: null,
+    bank_account_name: null,
+    merchant_key: null,
+    normalized_description: null,
+    deleted_at: null,
+  });
+
+  // Real conflict pair (equal priority, close specificity, different targets).
+  pushConflictPair(store, { priorityA: 100, priorityB: 100 });
+
+  const client = makeClient(store);
+  const result = await applyAutomationRulesForCompany({
+    client,
+    companyId: C1,
+    userId: USER1,
+    triggeredBy: 'manual',
+    dryRun: false,
+  });
+
+  // skippedConflict must count ONLY the real conflict, not the type_mismatch row.
+  assertEquals(result.skippedConflict, 1);
+
+  // run_items must ventilate skip reasons across distinct statuses.
+  const statuses = store.automation_run_items.map((i) => i.status).sort();
+  assertEquals(statuses, ['skipped_conflict', 'skipped_type_mismatch']);
+
+  // The persisted total on the run mirrors the API result — no more inflation.
+  assertEquals(store.automation_runs[0].total_skipped_conflict, 1);
+});
+
+
+// ---------------------------------------------------------------------------
 // Test 3 — Tenant security boundaries
 // ---------------------------------------------------------------------------
 

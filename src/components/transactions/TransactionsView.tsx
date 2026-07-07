@@ -12,6 +12,7 @@ import { useBankBalance } from '@/hooks/useBankBalance';
 import { useBankAccounts } from './hooks/useBankAccounts';
 import { useTransactionFilters } from './hooks/useTransactionFilters';
 import { useTransactionHandlers } from './hooks/useTransactionHandlers';
+import { useConflictedTransactions } from '@/features/automations/hooks/useConflictedTransactions';
 import { TransactionStatsBar } from './TransactionStatsBar';
 import { TransactionTabsFilter } from './TransactionTabsFilter';
 import { TransactionFiltersBar } from './TransactionFiltersBar';
@@ -30,6 +31,7 @@ export function TransactionsView() {
   const { categories } = useCategories();
   const { balance: bankBalance } = useBankBalance();
   const { accountToBankMap, uniqueBankNames, getBankAccountDisplay } = useBankAccounts();
+  const { conflictMap } = useConflictedTransactions();
 
   const filters = useTransactionFilters({ transactions, categories, accountToBankMap });
 
@@ -182,6 +184,7 @@ export function TransactionsView() {
         expenseCategories={filters.expenseCategories}
         formatAmount={formatAmount}
         formatDate={formatDate}
+        conflictMap={conflictMap}
       />
 
       <p className="text-sm text-muted-foreground text-center">

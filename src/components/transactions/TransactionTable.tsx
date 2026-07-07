@@ -8,6 +8,7 @@ import { TransactionTableRow } from './TransactionTableRow';
 import { ArrowUp, ArrowDown, ChevronsUpDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { SortOption } from '@/hooks/useTransactions';
+import type { ConflictedTransactionInfo } from '@/features/automations/api/conflictedTransactionsApi';
 
 type Transaction = Tables<'transactions'>;
 
@@ -45,6 +46,7 @@ interface TransactionTableProps {
   expenseCategories: Category[];
   formatAmount: (amount: number) => string;
   formatDate: (date: string) => string;
+  conflictMap?: Map<string, ConflictedTransactionInfo>;
 }
 
 export const TransactionTable = memo(function TransactionTable({
@@ -66,6 +68,7 @@ export const TransactionTable = memo(function TransactionTable({
   expenseCategories,
   formatAmount,
   formatDate,
+  conflictMap,
 }: TransactionTableProps) {
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -203,6 +206,7 @@ export const TransactionTable = memo(function TransactionTable({
                       expenseCategories={expenseCategories}
                       formatAmount={formatAmount}
                       formatDate={formatDate}
+                      conflictInfo={conflictMap?.get(transaction.id)}
                     />
                   </div>
                 );
