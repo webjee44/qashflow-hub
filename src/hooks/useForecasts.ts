@@ -443,7 +443,7 @@ export function useForecasts() {
         id: c.id,
         type: c.type as 'income' | 'expense',
         vat_rate: c.vat_rate ?? 0,
-        forecast_mode: (c.forecast_mode ?? null) as 'manual' | 'percent_of_revenue' | null,
+        forecast_mode: (c.forecast_mode ?? null) as 'manual' | 'percent_of_revenue' | 'auto_vat' | null,
         forecast_percent: c.forecast_percent ?? null,
         is_system: c.is_system ?? false,
       })),
@@ -455,6 +455,9 @@ export function useForecasts() {
       balanceOverrides: balanceOverrides.map(o => ({ monthKey: o.month, balance: Number(o.balance) })),
       earliestTransactionDate: anchorWalkData?.earliestDate ?? null,
       initialBalance: currentCompany?.initial_balance ?? 0,
+      // The company's VAT regime drives the auto_vat scheduling; the engine
+      // no-ops when no auto_vat category exists or the regime is 'none'.
+      vatRegime: (currentCompany?.vat_regime ?? 'none') as 'monthly' | 'quarterly' | 'none',
     };
 
     return computeCategoryTreasuryPlan(input);
@@ -466,6 +469,7 @@ export function useForecasts() {
     uncategorized,
     liveBankBalance,
     currentCompany?.initial_balance,
+    currentCompany?.vat_regime,
     anchorWalkData,
     balanceOverrides,
   ]);

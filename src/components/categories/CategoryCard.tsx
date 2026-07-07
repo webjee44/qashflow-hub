@@ -53,6 +53,11 @@ export function CategoryCard({
               {category.is_system && (
                 <Lock className="w-3.5 h-3.5 text-muted-foreground" />
               )}
+              {category.forecast_mode === 'auto_vat' && (
+                <span className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-primary/10 text-primary">
+                  auto
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-2 mt-1">
               {category.type === 'income' ? (

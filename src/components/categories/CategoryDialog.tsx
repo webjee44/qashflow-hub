@@ -31,7 +31,7 @@ interface CategoryDialogProps {
     type: 'income' | 'expense';
     vat_rate: number;
     parent_id?: string | null;
-    forecast_mode?: 'manual' | 'percent_of_revenue';
+    forecast_mode?: 'manual' | 'percent_of_revenue' | 'auto_vat';
     forecast_percent?: number;
     cash_flow_bucket?: StoredCashFlowBucket | null;
   }) => Promise<any>;
@@ -96,7 +96,7 @@ export function CategoryDialog({
     type: 'expense' as 'income' | 'expense',
     vat_rate: 0.20,
     parent_id: null as string | null,
-    forecast_mode: 'manual' as 'manual' | 'percent_of_revenue',
+    forecast_mode: 'manual' as 'manual' | 'percent_of_revenue' | 'auto_vat',
     forecast_percent: 0,
     cash_flow_bucket: null as StoredCashFlowBucket | null,
   });
@@ -242,7 +242,7 @@ export function CategoryDialog({
           {form.type === 'expense' && (
             <div className="space-y-2">
               <Label>Mode de prévision</Label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <button
                   type="button"
                   onClick={() => setForm({ ...form, forecast_mode: 'manual', forecast_percent: 0 })}
@@ -268,7 +268,24 @@ export function CategoryDialog({
                   <Percent className="w-4 h-4" />
                   <span className="font-medium text-sm">% du CA</span>
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setForm({ ...form, forecast_mode: 'auto_vat', forecast_percent: 0 })}
+                  className={cn(
+                    "flex items-center justify-center gap-2 p-3 rounded-lg border-2 transition-all",
+                    form.forecast_mode === 'auto_vat'
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border hover:border-primary/50"
+                  )}
+                >
+                  <span className="font-medium text-sm">Auto TVA</span>
+                </button>
               </div>
+              {form.forecast_mode === 'auto_vat' && (
+                <p className="text-xs text-muted-foreground">
+                  Le montant est calculé automatiquement à partir de la TVA collectée moins la TVA déductible du mois, selon le régime de TVA de la société. Un montant saisi manuellement écrase le calcul.
+                </p>
+              )}
               {form.forecast_mode === 'percent_of_revenue' && (
                 <div className="space-y-1.5">
                   <Label htmlFor="forecast-percent">Pourcentage du CA HT</Label>

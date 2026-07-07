@@ -10,7 +10,7 @@ export interface CategoryInsert {
   type: 'income' | 'expense';
   vat_rate?: number;
   parent_id?: string | null;
-  forecast_mode?: 'manual' | 'percent_of_revenue';
+  forecast_mode?: 'manual' | 'percent_of_revenue' | 'auto_vat';
   forecast_percent?: number;
   is_system?: boolean;
   cash_flow_bucket?: StoredCashFlowBucket | null;

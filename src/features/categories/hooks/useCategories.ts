@@ -21,7 +21,7 @@ export interface Category {
   company_id?: string | null;
   parent_id?: string | null;
   sort_order?: number;
-  forecast_mode?: 'manual' | 'percent_of_revenue';
+  forecast_mode?: 'manual' | 'percent_of_revenue' | 'auto_vat';
   forecast_percent?: number;
   is_system?: boolean;
   /** True for the system "TVA à payer" category (one per company). */
@@ -131,7 +131,7 @@ export function useCategories() {
       type: 'income' | 'expense';
       vat_rate?: number;
       parent_id?: string | null;
-      forecast_mode?: 'manual' | 'percent_of_revenue';
+      forecast_mode?: 'manual' | 'percent_of_revenue' | 'auto_vat';
       forecast_percent?: number;
       cash_flow_bucket?: StoredCashFlowBucket | null;
     }) => {
@@ -159,7 +159,7 @@ export function useCategories() {
     type: 'income' | 'expense';
     vat_rate?: number;
     parent_id?: string | null;
-    forecast_mode?: 'manual' | 'percent_of_revenue';
+    forecast_mode?: 'manual' | 'percent_of_revenue' | 'auto_vat';
     forecast_percent?: number;
     cash_flow_bucket?: StoredCashFlowBucket | null;
   }) => {

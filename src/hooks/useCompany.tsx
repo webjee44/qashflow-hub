@@ -5,7 +5,7 @@ import { useAuth } from './useAuth';
 import { useOrganization } from './useOrganization';
 import { toast } from 'sonner';
 
-export type VatRegime = 'monthly_real' | 'quarterly_real' | 'simplified' | 'franchise';
+export type VatRegime = 'monthly' | 'quarterly' | 'none';
 
 export interface Company {
   id: string;
