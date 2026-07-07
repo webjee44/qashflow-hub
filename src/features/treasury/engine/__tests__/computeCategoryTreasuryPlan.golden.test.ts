@@ -387,13 +387,14 @@ describe('computeCategoryTreasuryPlan — golden parity', () => {
     });
   }
 
-  it('percent_of_revenue: auto-calc = 10% × (sales HT July) for commissions, override wins for variable', () => {
+  it('percent_of_revenue: auto-calc = %×Σ(incomeHT) TTC; manual override wins', () => {
     const jul = actualPlan.byMonth.get('2026-07')!;
-    // sales stored HT 10000 → HT base = 10000. Commissions 10% TTC 20% → 10000*0.1*1.2 = 1200
-    expect(jul.categories.get('commissions')!.forecast).toBeCloseTo(1200, 6);
-    // 'variable' has no override in July either → 15% × 10000 × 1.2 = 1800
-    expect(jul.categories.get('variable')!.forecast).toBeCloseTo(1800, 6);
-    // June: 'variable' has manual override 1000 → wins over % (12000 TTC/1.2 = 10000 HT → 15% = 1500 TTC)
+    // Sales HT 10000 + other-inc HT 300 (vat 0) = 10300 HT.
+    // Commissions 10% TTC vat 20% → 10300 × 0.10 × 1.20 = 1236.
+    expect(jul.categories.get('commissions')!.forecast).toBeCloseTo(1236, 6);
+    // Variable 15% TTC vat 20% → 10300 × 0.15 × 1.20 = 1854.
+    expect(jul.categories.get('variable')!.forecast).toBeCloseTo(1854, 6);
+    // June: 'variable' has manual override 1000 → wins over % auto-calc.
     const jun = actualPlan.byMonth.get('2026-06')!;
     expect(jun.categories.get('variable')!.forecast).toBeCloseTo(1000, 6);
   });
