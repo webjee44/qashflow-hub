@@ -2,7 +2,6 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
-import { useOrganization } from './useOrganization';
 import { toast } from 'sonner';
 
 export type VatRegime = 'monthly' | 'quarterly' | 'none';
@@ -10,7 +9,6 @@ export type VatRegime = 'monthly' | 'quarterly' | 'none';
 export interface Company {
   id: string;
   user_id: string;
-  organization_id: string | null;
   name: string;
   is_default: boolean;
   initial_balance: number;
@@ -41,53 +39,46 @@ const STORAGE_KEY = 'selected_company_id';
 
 export function CompanyProvider({ children }: { children: ReactNode }) {
   const { user, loading: authLoading } = useAuth();
-  const { currentOrganization } = useOrganization();
   const queryClient = useQueryClient();
   const [currentCompany, setCurrentCompanyState] = useState<Company | null>(null);
   const [hasInitialized, setHasInitialized] = useState(false);
 
-  const orgId = currentOrganization?.id;
-
-  // Fetch companies filtered by current organization
+  // With the "trusted team" RLS model, a simple SELECT returns every company
+  // the caller can reach (team membership + ownership fallback).
   const { data: companies = [], isLoading, refetch } = useQuery({
-    queryKey: ['companies', user?.id, orgId],
+    queryKey: ['companies', user?.id],
     queryFn: async () => {
-      if (!user?.id || !orgId) return [];
-      
+      if (!user?.id) return [];
+
       const { data, error } = await supabase
         .from('companies')
         .select('*')
-        .eq('organization_id', orgId)
         .is('deleted_at', null)
         .order('is_default', { ascending: false })
         .order('created_at', { ascending: true });
-      
-      if (error) throw error;
 
+      if (error) throw error;
       return (data || []) as Company[];
     },
-    enabled: !!user?.id && !!orgId,
+    enabled: !!user?.id,
   });
 
-  // Set current company from localStorage or default - runs once when companies are loaded
   useEffect(() => {
     if (companies.length > 0 && !hasInitialized) {
       const storedId = localStorage.getItem(STORAGE_KEY);
       const storedCompany = storedId ? companies.find(c => c.id === storedId) : null;
       const defaultCompany = companies.find(c => c.is_default) || companies[0];
-      
+
       setCurrentCompanyState(storedCompany || defaultCompany);
       setHasInitialized(true);
     }
   }, [companies, hasInitialized]);
 
-  // Keep currentCompany in sync when companies are refetched/updated
   useEffect(() => {
     if (!currentCompany || companies.length === 0) return;
     const latest = companies.find(c => c.id === currentCompany.id);
     if (!latest) return;
 
-    // Update when server data changed (e.g. bank_balance after sync)
     if (
       latest.updated_at !== currentCompany.updated_at ||
       latest.bank_balance !== currentCompany.bank_balance ||
@@ -100,7 +91,6 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     }
   }, [companies, currentCompany]);
 
-  // Clear company when user logs out (but NOT during initial auth loading)
   useEffect(() => {
     if (!authLoading && !user) {
       setCurrentCompanyState(null);
@@ -109,29 +99,19 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     }
   }, [user, authLoading]);
 
-  // Reset initialization when organization changes
-  useEffect(() => {
-    setHasInitialized(false);
-    setCurrentCompanyState(null);
-  }, [orgId]);
-
   const setCurrentCompany = (company: Company | null) => {
     const previousCompanyId = currentCompany?.id;
     setCurrentCompanyState(company);
-    
+
     if (company) {
       localStorage.setItem(STORAGE_KEY, company.id);
-      
-      // Invalidate all company-specific data when switching companies
+
       if (previousCompanyId && previousCompanyId !== company.id) {
-        // Invalidate treasury/forecast data
         queryClient.invalidateQueries({ queryKey: ['transactions'] });
         queryClient.invalidateQueries({ queryKey: ['forecasts'] });
         queryClient.invalidateQueries({ queryKey: ['categories'] });
         queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
         queryClient.invalidateQueries({ queryKey: ['automationRules'] });
-        
-        // Invalidate Business Plan data (using underscores to match hook queryKeys)
         queryClient.invalidateQueries({ queryKey: ['business_plans'] });
         queryClient.invalidateQueries({ queryKey: ['bp_settings'] });
         queryClient.invalidateQueries({ queryKey: ['bp_revenue_streams'] });
@@ -146,7 +126,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
         queryClient.invalidateQueries({ queryKey: ['bp_scenarios'] });
         queryClient.invalidateQueries({ queryKey: ['bp_notes'] });
         queryClient.invalidateQueries({ queryKey: ['bp_snapshots'] });
-        
+
         toast.info(`Contexte changé vers ${company.name}`);
       }
     } else {
@@ -154,27 +134,19 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Create company
   const createCompany = async (data: { name: string; initial_balance?: number; is_default?: boolean }): Promise<Company> => {
     if (!user?.id) throw new Error('Non authentifié');
-    if (!orgId) throw new Error('Aucune organisation sélectionnée');
 
-    // If this is the first company or is_default is true, make it default
     const isDefault = data.is_default || companies.length === 0;
 
-    // If setting as default, unset other defaults
     if (isDefault && companies.length > 0) {
-      await supabase
-        .from('companies')
-        .update({ is_default: false })
-        .eq('user_id', user.id);
+      await supabase.from('companies').update({ is_default: false }).eq('user_id', user.id);
     }
 
     const { data: newCompany, error } = await supabase
       .from('companies')
       .insert({
         user_id: user.id,
-        organization_id: orgId,
         name: data.name,
         initial_balance: data.initial_balance || 0,
         is_default: isDefault,
@@ -185,8 +157,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     if (error) throw error;
 
     await refetch();
-    
-    // Auto-select if first company
+
     if (companies.length === 0) {
       setCurrentCompany(newCompany as Company);
     }
@@ -195,20 +166,13 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     return newCompany as Company;
   };
 
-  // Update company
   const updateCompany = async (id: string, data: { name?: string; initial_balance?: number; is_default?: boolean; vat_regime?: VatRegime }) => {
     if (!user?.id) throw new Error('Non authentifié');
 
-    // If setting as default, unset other defaults
     if (data.is_default) {
-      await supabase
-        .from('companies')
-        .update({ is_default: false })
-        .eq('user_id', user.id)
-        .neq('id', id);
+      await supabase.from('companies').update({ is_default: false }).eq('user_id', user.id).neq('id', id);
     }
 
-    // Update company basic info
     const updateData: { name?: string; initial_balance?: number; is_default?: boolean; vat_regime?: VatRegime } = {};
     if (data.name !== undefined) updateData.name = data.name;
     if (data.initial_balance !== undefined) updateData.initial_balance = data.initial_balance;
@@ -216,41 +180,28 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     if (data.vat_regime !== undefined) updateData.vat_regime = data.vat_regime;
 
     if (Object.keys(updateData).length > 0) {
-      const { error } = await supabase
-        .from('companies')
-        .update(updateData)
-        .eq('id', id);
-
+      const { error } = await supabase.from('companies').update(updateData).eq('id', id);
       if (error) throw error;
     }
 
     await refetch();
 
-    // Update current company if it was the one updated
     if (currentCompany?.id === id) {
       const updated = companies.find(c => c.id === id);
-      if (updated) {
-        setCurrentCompany({ ...updated, ...data } as Company);
-      }
+      if (updated) setCurrentCompany({ ...updated, ...data } as Company);
     }
 
     toast.success('Société mise à jour');
   };
 
-  // Soft delete company (set deleted_at instead of hard delete)
   const deleteCompany = async (id: string) => {
     if (!user?.id) throw new Error('Non authentifié');
 
-    const { error } = await supabase
-      .from('companies')
-      .update({ deleted_at: new Date().toISOString() })
-      .eq('id', id);
-
+    const { error } = await supabase.from('companies').update({ deleted_at: new Date().toISOString() }).eq('id', id);
     if (error) throw error;
 
     await refetch();
 
-    // If deleted current company, switch to another
     if (currentCompany?.id === id) {
       const remaining = companies.filter(c => c.id !== id);
       setCurrentCompany(remaining[0] || null);
@@ -259,15 +210,10 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     toast.success('Société supprimée');
   };
 
-  // Restore a soft-deleted company
   const restoreCompany = async (id: string) => {
     if (!user?.id) throw new Error('Non authentifié');
 
-    const { error } = await supabase
-      .from('companies')
-      .update({ deleted_at: null })
-      .eq('id', id);
-
+    const { error } = await supabase.from('companies').update({ deleted_at: null }).eq('id', id);
     if (error) throw error;
 
     await refetch();

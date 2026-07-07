@@ -30,7 +30,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useAppMode } from '@/hooks/useAppMode';
 import { useBPSettings } from '@/hooks/useBPSettings';
 import { useCompany } from '@/hooks/useCompany';
-import { useOrganization } from '@/hooks/useOrganization';
+
 import { BPSettingsDialog } from '@/features/business-plan/dialogs';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Separator } from '@/components/ui/separator';
@@ -105,7 +105,7 @@ export function Sidebar() {
   const { mode, setMode, isBusinessPlan, isTreasury } = useAppMode();
   const { settings } = useBPSettings();
   const { currentCompany, companies: allCompanies } = useCompany();
-  const { currentOrganization, organizations, setCurrentOrganization } = useOrganization();
+  
   const location = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -255,42 +255,6 @@ export function Sidebar() {
         </button>
       </div>
 
-      {/* Organization Selector - always show to display current org name */}
-      {organizations.length >= 1 && (
-        <div className={cn("border-b border-border", isCollapsed ? "px-2 py-2" : "px-4 py-3")}>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className={cn(
-                "w-full flex items-center gap-2 rounded-lg transition-colors hover:bg-muted px-3 py-2 text-left",
-                isCollapsed && "justify-center px-2"
-              )}>
-                <Building2 size={16} className="shrink-0 text-primary" />
-                {!isCollapsed && (
-                  <>
-                    <span className="text-sm font-medium truncate flex-1">{currentOrganization?.name}</span>
-                    <ChevronsUpDown size={14} className="shrink-0 text-muted-foreground" />
-                  </>
-                )}
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent side="right" align="start" className="w-56">
-              {organizations.map((org) => (
-                <DropdownMenuItem
-                  key={org.id}
-                  onClick={() => setCurrentOrganization(org)}
-                  className={cn(
-                    "cursor-pointer",
-                    org.id === currentOrganization?.id && "bg-primary/10 font-medium"
-                  )}
-                >
-                  <Building2 size={14} className="mr-2 shrink-0" />
-                  <span className="truncate">{org.name}</span>
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      )}
 
       {/* Mode indicator + BP Settings (collapsed shows current mode icon) */}
       {isCollapsed && (

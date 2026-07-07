@@ -3,11 +3,9 @@ import { motion } from 'framer-motion';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { CompanyList } from '@/components/settings/CompanyList';
-import { OrganizationCard } from '@/components/settings/OrganizationCard';
 import { BankAccountsCard } from '@/components/settings/BankAccountsCard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Button } from '@/components/ui/button';
 import { Building2, User, Landmark } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { logError } from '@/lib/logger';
@@ -15,7 +13,7 @@ import { useCompany } from '@/hooks/useCompany';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
-const VALID_TABS = ['organization', 'companies', 'accounts', 'profile'] as const;
+const VALID_TABS = ['companies', 'accounts', 'profile'] as const;
 type TabValue = typeof VALID_TABS[number];
 
 export default function Settings() {
@@ -25,29 +23,25 @@ export default function Settings() {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const [isSyncing, setIsSyncing] = useState(false);
-  
-  // Get tab from URL hash or query param
+
   const getTabFromHash = (): TabValue => {
-    // First check query param (Bridge callback uses ?tab=)
     const tabParam = searchParams.get('tab');
     if (tabParam && VALID_TABS.includes(tabParam as TabValue)) {
       return tabParam as TabValue;
     }
-    // Then check hash
     const hash = location.hash.replace('#', '');
-    return VALID_TABS.includes(hash as TabValue) ? (hash as TabValue) : 'organization';
+    return VALID_TABS.includes(hash as TabValue) ? (hash as TabValue) : 'companies';
   };
-  
+
   const [activeTab, setActiveTab] = useState<TabValue>(getTabFromHash);
 
-  // Handle Bridge callback after bank connection
   const handleBridgeCallback = useCallback(async () => {
     const bridgeCallback = searchParams.get('bridge_callback');
     if (bridgeCallback !== 'success') return;
-    
+
     setIsSyncing(true);
     toast.info('Synchronisation des comptes bancaires...');
-    
+
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
@@ -55,24 +49,21 @@ export default function Settings() {
         return;
       }
 
-      // Refetch to get the latest bridge_user_uuid
       const { data: freshCompanies } = await supabase
         .from('companies')
         .select('id, bridge_user_uuid')
         .not('bridge_user_uuid', 'is', null);
-      
+
       if (!freshCompanies || freshCompanies.length === 0) {
         toast.error('Aucune connexion bancaire trouvée');
-        // Still clear the URL params
         navigate('/parametres#accounts', { replace: true });
         return;
       }
 
-      // Sync accounts for freshly connected company
       for (const company of freshCompanies) {
         await supabase.functions.invoke('bridge-sync', {
           headers: { Authorization: `Bearer ${session.access_token}` },
-          body: { 
+          body: {
             action: 'sync-accounts',
             bridge_user_uuid: company.bridge_user_uuid,
             company_id: company.id,
@@ -81,11 +72,7 @@ export default function Settings() {
       }
 
       toast.success('Comptes bancaires synchronisés !');
-      
-      // Clear URL params and navigate to accounts tab with hash
       navigate('/parametres#accounts', { replace: true });
-      
-      // Force page reload to refresh the accounts list
       setTimeout(() => window.location.reload(), 500);
     } catch (error) {
       logError('Bridge sync error:', error);
@@ -96,7 +83,6 @@ export default function Settings() {
     }
   }, [searchParams, navigate]);
 
-  // Trigger Bridge callback handler
   useEffect(() => {
     const bridgeCallback = searchParams.get('bridge_callback');
     if (bridgeCallback === 'success') {
@@ -104,7 +90,6 @@ export default function Settings() {
     }
   }, [searchParams, handleBridgeCallback]);
 
-  // Sync tab with URL hash
   useEffect(() => {
     setActiveTab(getTabFromHash());
   }, [location.hash, searchParams]);
@@ -113,7 +98,6 @@ export default function Settings() {
     setActiveTab(value as TabValue);
     navigate(`/parametres#${value}`, { replace: true });
   };
-
 
   return (
     <div className="min-h-screen">
@@ -126,10 +110,6 @@ export default function Settings() {
       >
         <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
           <TabsList className="bg-card border border-border w-full flex flex-wrap h-auto gap-1 p-1">
-            <TabsTrigger value="organization" className="gap-2">
-              <Building2 className="w-4 h-4" />
-              <span className="hidden sm:inline">Organisation</span>
-            </TabsTrigger>
             <TabsTrigger value="companies" className="gap-2">
               <Building2 className="w-4 h-4" />
               <span className="hidden sm:inline">Sociétés</span>
@@ -143,10 +123,6 @@ export default function Settings() {
               <span className="hidden sm:inline">Profil</span>
             </TabsTrigger>
           </TabsList>
-
-          <TabsContent value="organization">
-            <OrganizationCard />
-          </TabsContent>
 
           <TabsContent value="companies">
             <CompanyList />
