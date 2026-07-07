@@ -101,7 +101,7 @@ export default function Intergroupe() {
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       <PageHeader
         title="Intergroupe"
-        subtitle="Positions de trésorerie (virements appariés). La facturation intragroupe non réglée n'est pas incluse."
+        subtitle="Positions de compte courant intergroupe : uniquement les virements catégorisés C/C, Apport ou Compte courant sur les deux jambes. Les factures payées pour compte d'autrui et la facturation intragroupe non réglée ne sont pas incluses."
       />
 
       {/* KPI cards */}
