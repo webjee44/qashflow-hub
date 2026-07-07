@@ -1,18 +1,13 @@
-import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Building2, AlertCircle, Landmark, RefreshCw, TrendingUp, TrendingDown, ArrowLeftRight } from 'lucide-react';
+import { Building2, AlertCircle, Landmark, RefreshCw } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Card, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useGroupBalances } from '@/hooks/useGroupBalances';
-import { useGroupFlowSummary } from '@/hooks/useGroupFlowSummary';
 import { useCompany } from '@/hooks/useCompany';
 import { CompanyCard } from '@/components/group/CompanyCard';
 
@@ -24,25 +19,10 @@ const formatCurrency = (value: number) =>
     maximumFractionDigits: 0,
   }).format(value);
 
-const NEUTRALIZE_KEY = 'group_neutralize_intercos';
-
 export default function GroupOverview() {
   const navigate = useNavigate();
   const { setCurrentCompany, companies: rawCompanies } = useCompany();
   const { companies, consolidatedBalance, criticalAlerts, totalAlerts, isLoading } = useGroupBalances();
-
-  const [neutralize, setNeutralize] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return true;
-    const v = window.localStorage.getItem(NEUTRALIZE_KEY);
-    return v === null ? true : v === 'true';
-  });
-  const setNeutralizePersist = (v: boolean) => {
-    setNeutralize(v);
-    try { window.localStorage.setItem(NEUTRALIZE_KEY, String(v)); } catch { /* noop */ }
-  };
-
-  const flowsQ = useGroupFlowSummary(rawCompanies.map(c => c.id), 30);
-  const flows = flowsQ.data;
 
   const handleCompanyClick = (companyId: string) => {
     const company = rawCompanies.find(c => c.id === companyId);
@@ -52,9 +32,6 @@ export default function GroupOverview() {
     }
   };
 
-  const displayedInflow = flows ? (neutralize ? flows.neutralizedInflow : flows.grossInflow) : 0;
-  const displayedOutflow = flows ? (neutralize ? flows.neutralizedOutflow : flows.grossOutflow) : 0;
-  const displayedNet = flows ? (neutralize ? flows.neutralizedNet : flows.grossNet) : 0;
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -137,83 +114,6 @@ export default function GroupOverview() {
         </motion.div>
       )}
 
-      {/* Consolidated flows (30j) with intercompany neutralization toggle */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-sm font-semibold text-foreground">Flux consolidés (30 derniers jours)</h2>
-            <p className="text-xs text-muted-foreground">
-              Somme des encaissements et décaissements de toutes les sociétés du groupe.
-            </p>
-          </div>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="flex items-center gap-2">
-                <Switch
-                  id="neutralize"
-                  checked={neutralize}
-                  onCheckedChange={setNeutralizePersist}
-                />
-                <Label htmlFor="neutralize" className="text-sm cursor-pointer">
-                  Neutraliser les flux intergroupe
-                </Label>
-              </div>
-            </TooltipTrigger>
-            <TooltipContent className="max-w-xs">
-              Exclut les jambes des liens intercompany (auto ou confirmés) des agrégats consolidés.
-              N'affecte jamais les trésoreries par société.
-            </TooltipContent>
-          </Tooltip>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <Card>
-            <CardContent className="p-4">
-              <p className="text-xs text-muted-foreground flex items-center gap-1">
-                <TrendingUp className="h-3.5 w-3.5 text-emerald-600" />
-                Encaissements
-              </p>
-              {flowsQ.isLoading ? (
-                <Skeleton className="h-7 w-32 mt-1" />
-              ) : (
-                <p className="text-2xl font-bold tabular-nums mt-1">{formatCurrency(displayedInflow)}</p>
-              )}
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <p className="text-xs text-muted-foreground flex items-center gap-1">
-                <TrendingDown className="h-3.5 w-3.5 text-destructive" />
-                Décaissements
-              </p>
-              {flowsQ.isLoading ? (
-                <Skeleton className="h-7 w-32 mt-1" />
-              ) : (
-                <p className="text-2xl font-bold tabular-nums mt-1">{formatCurrency(displayedOutflow)}</p>
-              )}
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <p className="text-xs text-muted-foreground">Net</p>
-              {flowsQ.isLoading ? (
-                <Skeleton className="h-7 w-32 mt-1" />
-              ) : (
-                <p className={`text-2xl font-bold tabular-nums mt-1 ${displayedNet >= 0 ? 'text-foreground' : 'text-destructive'}`}>
-                  {formatCurrency(displayedNet)}
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        {neutralize && flows && flows.neutralizedCount > 0 && (
-          <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-            <ArrowLeftRight className="h-3 w-3" />
-            {flows.neutralizedCount} jambe{flows.neutralizedCount > 1 ? 's' : ''} intergroupe neutralisée{flows.neutralizedCount > 1 ? 's' : ''} — volume {formatCurrency(flows.neutralizedVolume)}
-          </p>
-        )}
-      </div>
 
       {/* Company grid */}
       {isLoading ? (
