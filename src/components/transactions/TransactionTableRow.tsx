@@ -129,6 +129,9 @@ export const TransactionTableRow = memo(function TransactionTableRow({
               </span>
             </div>
           )}
+          {conflictInfo && conflictInfo.competingRuleIds.length > 0 && (
+            <ConflictBadge competingRuleIds={conflictInfo.competingRuleIds} />
+          )}
         </div>
       </div>
 
