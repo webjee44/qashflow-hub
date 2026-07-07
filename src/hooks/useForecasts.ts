@@ -427,20 +427,80 @@ export function useForecasts() {
 
   // allTransactions query REMOVED — replaced by snapshot-based forward-only approach
 
-  // Fetch balance snapshots for past months (use real recorded balances instead of retroactive calc)
-  const { data: balanceSnapshots = [] } = useQuery({
-    queryKey: ['balance-snapshots', currentCompany?.id],
+  // === Backward-walk anchor data ===
+  // Purpose: derive `opening(M) = currentBalance − Σ tx ∈ [1er de M, aujourd'hui]`
+  // for every past & current month, without ever using the live balance as
+  // the opening of the current month. See computeBalanceAnchors.ts.
+  //
+  // We fetch SIGNED bank movements (income+, expense−) bounded by the widest
+  // displayed window. `is_ignored` IS included on purpose: an ignored tx still
+  // moved money at the bank, so it must count in the walk. `deleted_at` is
+  // excluded. Restricted to active bank accounts via `company_active_bridge_accounts`
+  // to match the same perimeter as `liveBankBalance`.
+  const { data: anchorWalkData } = useQuery({
+    queryKey: ['balance-anchor-walk', currentCompany?.id, startMonthStr],
     queryFn: async () => {
-      if (!currentCompany?.id) return [];
-      const { data, error } = await supabase
-        .from('bank_balance_snapshots')
-        .select('bridge_account_id, balance, snapshot_date')
+      if (!currentCompany?.id || !startMonthStr) {
+        return { transactions: [] as Array<{ date: string; amount: number }>, earliestDate: null as string | null };
+      }
+      const todayStr = format(new Date(), 'yyyy-MM-dd');
+
+      // Active account ids (same perimeter as liveBankBalance).
+      const { data: activeAccounts, error: accErr } = await supabase
+        .from('company_active_bridge_accounts')
+        .select('bridge_account_id')
+        .eq('company_id', currentCompany.id);
+      if (accErr) throw accErr;
+      const activeIds = (activeAccounts ?? [])
+        .map(a => (a as { bridge_account_id: number | null }).bridge_account_id)
+        .filter((v): v is number => v != null);
+
+      // Paginated fetch of SIGNED tx in [startMonthStr, today]. Includes is_ignored.
+      const pageSize = 1000;
+      const rows: Array<{ date: string; amount: number; type: string; bridge_account_id: number | null }> = [];
+      let from = 0;
+      // Cap safety: 20 pages = 20k rows / window. Widen only if the horizon grows.
+      for (let page = 0; page < 20; page++) {
+        let q = supabase
+          .from('transactions')
+          .select('date, amount, type, bridge_account_id')
+          .eq('company_id', currentCompany.id)
+          .is('deleted_at', null)
+          .gte('date', startMonthStr)
+          .lte('date', todayStr)
+          .order('date', { ascending: true })
+          .range(from, from + pageSize - 1);
+        if (activeIds.length > 0) {
+          q = q.in('bridge_account_id', activeIds);
+        }
+        const { data, error } = await q;
+        if (error) throw error;
+        const chunk = (data ?? []) as typeof rows;
+        rows.push(...chunk);
+        if (chunk.length < pageSize) break;
+        from += pageSize;
+      }
+
+      const transactions = rows.map(r => ({
+        date: r.date,
+        amount: r.type === 'income' ? Math.abs(Number(r.amount)) : -Math.abs(Number(r.amount)),
+      }));
+
+      // Earliest known transaction (any date) — bounds the noData region.
+      const { data: earliest, error: earliestErr } = await supabase
+        .from('transactions')
+        .select('date')
         .eq('company_id', currentCompany.id)
-        .order('snapshot_date', { ascending: false });
-      if (error) throw error;
-      return (data || []) as { bridge_account_id: number; balance: number; snapshot_date: string }[];
+        .is('deleted_at', null)
+        .order('date', { ascending: true })
+        .limit(1);
+      if (earliestErr) throw earliestErr;
+      const earliestDate = earliest?.[0]?.date ?? null;
+
+      return { transactions, earliestDate };
     },
-    enabled: !!currentCompany?.id,
+    enabled: !!currentCompany?.id && !!startMonthStr,
+    staleTime: 30 * 1000,
   });
 
   // Fetch manual balance overrides
