@@ -28,7 +28,7 @@ export default function GroupOverview() {
     const company = rawCompanies.find(c => c.id === companyId);
     if (company) {
       setCurrentCompany(company);
-      navigate('/dashboard');
+      navigate('/previsions');
     }
   };
 

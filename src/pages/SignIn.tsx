@@ -172,7 +172,7 @@ export default function SignIn() {
             title: 'Mot de passe mis à jour',
             description: 'Vous pouvez maintenant vous connecter avec votre nouveau mot de passe.',
           });
-          navigate('/dashboard');
+          navigate('/previsions');
         }
       }
     } finally {

@@ -110,7 +110,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
         queryClient.invalidateQueries({ queryKey: ['transactions'] });
         queryClient.invalidateQueries({ queryKey: ['forecasts'] });
         queryClient.invalidateQueries({ queryKey: ['categories'] });
-        queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
+        
         queryClient.invalidateQueries({ queryKey: ['automationRules'] });
         queryClient.invalidateQueries({ queryKey: ['business_plans'] });
         queryClient.invalidateQueries({ queryKey: ['bp_settings'] });
