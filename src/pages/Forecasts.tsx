@@ -99,7 +99,7 @@ export default function Forecasts() {
             </div>
           }
         />
-        <ForecastDemoBanner />
+        
         <ForecastTable key={currentCompany.id} ref={tableRef} />
       </div>
       
