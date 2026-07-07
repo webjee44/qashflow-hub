@@ -95,3 +95,7 @@ verify_jwt = false
 
 [functions.rollback-automation-run]
 verify_jwt = false
+
+[functions.match-intercompany]
+verify_jwt = false
+

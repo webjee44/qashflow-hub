@@ -1961,6 +1961,140 @@ export type Database = {
           },
         ]
       }
+      intercompany_links: {
+        Row: {
+          amount: number
+          company_in: string
+          company_out: string
+          created_at: string
+          decided_at: string | null
+          decided_by: string | null
+          id: string
+          matched_at: string
+          score: number
+          score_breakdown: Json
+          status: string
+          tx_in_id: string
+          tx_out_id: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          company_in: string
+          company_out: string
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          id?: string
+          matched_at?: string
+          score: number
+          score_breakdown?: Json
+          status: string
+          tx_in_id: string
+          tx_out_id: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          company_in?: string
+          company_out?: string
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          id?: string
+          matched_at?: string
+          score?: number
+          score_breakdown?: Json
+          status?: string
+          tx_in_id?: string
+          tx_out_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "intercompany_links_company_in_fkey"
+            columns: ["company_in"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "intercompany_links_company_out_fkey"
+            columns: ["company_out"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "intercompany_links_tx_in_id_fkey"
+            columns: ["tx_in_id"]
+            isOneToOne: true
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "intercompany_links_tx_out_id_fkey"
+            columns: ["tx_out_id"]
+            isOneToOne: true
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      intercompany_match_runs: {
+        Row: {
+          auto_matched: number
+          candidates_scanned: number
+          created_at: string
+          details: Json
+          error_message: string | null
+          finished_at: string
+          id: string
+          inserted: number
+          mode: string
+          skipped_existing: number
+          started_at: string
+          status: string
+          suggested: number
+          triggered_by: string
+          windows_processed: number
+        }
+        Insert: {
+          auto_matched?: number
+          candidates_scanned?: number
+          created_at?: string
+          details?: Json
+          error_message?: string | null
+          finished_at?: string
+          id?: string
+          inserted?: number
+          mode: string
+          skipped_existing?: number
+          started_at?: string
+          status: string
+          suggested?: number
+          triggered_by: string
+          windows_processed?: number
+        }
+        Update: {
+          auto_matched?: number
+          candidates_scanned?: number
+          created_at?: string
+          details?: Json
+          error_message?: string | null
+          finished_at?: string
+          id?: string
+          inserted?: number
+          mode?: string
+          skipped_existing?: number
+          started_at?: string
+          status?: string
+          suggested?: number
+          triggered_by?: string
+          windows_processed?: number
+        }
+        Relationships: []
+      }
       invoices: {
         Row: {
           amount_ht: number
