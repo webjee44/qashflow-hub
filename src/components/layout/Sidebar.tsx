@@ -2,7 +2,6 @@ import { motion } from 'framer-motion';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { 
-  LayoutDashboard, 
   ArrowLeftRight, 
   TrendingUp, 
   Settings,
