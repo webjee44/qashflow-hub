@@ -282,6 +282,7 @@ Deno.serve(async (req: Request) => {
       windows = [{ from: isoDay(start), to: isoDay(end) }];
     }
 
+    const allInsertedAutoIds: string[] = [];
     for (const w of windows) {
       // Recharger les existingLinks à chaque fenêtre (une passe peut créer des liens
       // qui influencent la détection récurrente de la fenêtre suivante).
@@ -294,13 +295,28 @@ Deno.serve(async (req: Request) => {
         existing,
         minAmount,
       );
-      const { inserted, skipped } = await persistDecisions(client, decisions);
+      const { inserted, skipped, insertedIds } = await persistDecisions(client, decisions);
       summary.windows_processed++;
       summary.candidates_scanned += scanned;
       summary.auto_matched += decisions.filter(d => d.status === 'auto_matched').length;
       summary.suggested += decisions.filter(d => d.status === 'suggested').length;
       summary.inserted += inserted;
       summary.skipped_existing += skipped;
+      allInsertedAutoIds.push(...insertedIds);
+    }
+
+    // Auto-catégorisation des jambes non catégorisées des nouveaux liens auto.
+    if (allInsertedAutoIds.length > 0) {
+      try {
+        const cat = await categorizeIntercompanyLinks(client, allInsertedAutoIds);
+        (summary as any).categorized_legs = cat.categorized_legs;
+        (summary as any).created_categories = cat.created_categories;
+        if (cat.errors.length > 0) summary.errors.push(...cat.errors);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error('[match-intercompany] categorization failed:', msg);
+        summary.errors.push(`categorization: ${msg}`);
+      }
     }
 
     await logRun(client, mode, triggeredBy, summary);
