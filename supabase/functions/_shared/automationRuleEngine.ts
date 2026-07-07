@@ -448,6 +448,22 @@ function decideForTransaction(
       a.target_category_id !== b.target_category_id &&
       isConflictingScore(a.specificity_score, b.specificity_score)
     ) {
+      // Priority is the user's manual lever. If the top two candidates have
+      // DIFFERENT priorities, the higher one wins outright — no conflict.
+      // Rules are pre-sorted by priority DESC (see loadRules), so matched[0]
+      // is the higher-priority candidate. Real conflict only remains when the
+      // user has not classified them (equal priorities + close specificity +
+      // different targets).
+      if (a.priority !== b.priority) {
+        return {
+          transaction_id: tx.id,
+          decision: 'applied',
+          winning_rule_id: a.id,
+          target_category_id: a.target_category_id,
+          competing_rules: matched.slice(0, 3).map((r) => r.id),
+          reason_codes: ['rule_matched', 'priority_tiebreak'],
+        };
+      }
       return {
         transaction_id: tx.id,
         decision: 'conflict',
@@ -468,6 +484,7 @@ function decideForTransaction(
     reason_codes: ['rule_matched'],
   };
 }
+
 
 // ---------------------------------------------------------------------------
 // Persistence
