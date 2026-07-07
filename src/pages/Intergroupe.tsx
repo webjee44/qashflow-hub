@@ -25,6 +25,7 @@ import {
   type IntercompanyLinkStatus,
   type PeriodPresetKey,
 } from '@/features/intercompany/engine/computeIntercompanyPositions';
+import { isCurrentAccountLink } from '@/features/intercompany/engine/isCurrentAccountLink';
 import { PositionsList } from '@/features/intercompany/components/PositionsList';
 import { PerCompanyPositions } from '@/features/intercompany/components/PerCompanyPositions';
 import { PairDrillDown } from '@/features/intercompany/components/PairDrillDown';
@@ -63,8 +64,12 @@ export default function Intergroupe() {
       ? ['auto_matched', 'confirmed', 'suggested']
       : ['auto_matched', 'confirmed'];
     const bounds = resolvePeriodPreset(period);
+    // Ne comptent comme positions QUE les liens dont les 2 jambes sont catégorisées
+    // C/C / Apport / Compte courant. Les paiements de factures pour compte d'autrui
+    // ou virements non tagués ne créent pas de créance/dette de compte courant.
+    const currentAccountLinks = links.filter(isCurrentAccountLink);
     return computeIntercompanyPositions(
-      links.map(l => ({
+      currentAccountLinks.map(l => ({
         company_out: l.company_out,
         company_in: l.company_in,
         amount: l.amount,
@@ -96,7 +101,7 @@ export default function Intergroupe() {
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       <PageHeader
         title="Intergroupe"
-        subtitle="Positions de trésorerie (virements appariés). La facturation intragroupe non réglée n'est pas incluse."
+        subtitle="Positions de compte courant intergroupe : uniquement les virements catégorisés C/C, Apport ou Compte courant sur les deux jambes. Les factures payées pour compte d'autrui et la facturation intragroupe non réglée ne sont pas incluses."
       />
 
       {/* KPI cards */}
