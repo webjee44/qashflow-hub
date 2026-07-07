@@ -10,6 +10,7 @@ import { getDisplayedSectionTotals, getDisplayedNetVariation } from '@/lib/forec
 import { calculatePercentOfRevenueForecast, getVatFromAmount, toHt, toTtc } from '@/lib/forecastAmounts';
 import { computeCurrentMonthProjection } from '@/features/treasury/engine/currentMonthProjection';
 import { computeBalanceAnchors } from '@/features/treasury/engine/computeBalanceAnchors';
+import { computeReconciliationGap, type ReconciliationGap } from '@/features/treasury/engine/computeReconciliationGap';
 
 export interface PayableInvoice {
   id: string;
