@@ -145,8 +145,8 @@ async function loadExistingLinks(client: ReturnType<typeof createClient>): Promi
 async function persistDecisions(
   client: ReturnType<typeof createClient>,
   decisions: IntercompanyMatchDecision[],
-): Promise<{ inserted: number; skipped: number }> {
-  if (decisions.length === 0) return { inserted: 0, skipped: 0 };
+): Promise<{ inserted: number; skipped: number; insertedIds: string[] }> {
+  if (decisions.length === 0) return { inserted: 0, skipped: 0, insertedIds: [] };
   const rows = decisions.map(d => ({
     tx_out_id: d.tx_out_id,
     tx_in_id: d.tx_in_id,
@@ -162,8 +162,13 @@ async function persistDecisions(
   // (peut arriver quand deux passes se croisent).
   let inserted = 0;
   let skipped = 0;
+  const insertedIds: string[] = [];
   for (const row of rows) {
-    const { error } = await client.from('intercompany_links' as any).insert(row);
+    const { data, error } = await client
+      .from('intercompany_links' as any)
+      .insert(row)
+      .select('id, status')
+      .single();
     if (error) {
       if ((error as any).code === '23505') {
         skipped++;
@@ -172,9 +177,11 @@ async function persistDecisions(
       }
     } else {
       inserted++;
+      const rec = data as { id: string; status: string };
+      if (rec?.status === 'auto_matched') insertedIds.push(rec.id);
     }
   }
-  return { inserted, skipped };
+  return { inserted, skipped, insertedIds };
 }
 
 async function runMatching(
