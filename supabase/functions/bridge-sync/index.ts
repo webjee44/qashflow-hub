@@ -907,6 +907,26 @@ Deno.serve(async (req) => {
           `${touchedCompanyIds.size} companies touched, ${totalTransactions} transactions`
       );
 
+      // Fire-and-forget: appariement intergroupe incrémental sur les 10 derniers
+      // jours. Non bloquant : une erreur ici ne doit pas casser le cron bridge,
+      // et le run est déjà persisté dans intercompany_match_runs par l'edge cible.
+      try {
+        const matchUrl = `${supabaseUrl}/functions/v1/match-intercompany`;
+        const p = fetch(matchUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+          },
+          body: JSON.stringify({ mode: 'incremental', since_days: 10, triggered_by: 'cron_bridge_sync' }),
+        }).catch((e) => console.error('[bridge-sync] match-intercompany invoke failed:', e));
+        (globalThis as any).EdgeRuntime?.waitUntil?.(p);
+      } catch (e) {
+        console.error('[bridge-sync] failed to schedule match-intercompany:', e);
+      }
+
+
+
       return successResponse({
         synced: syncedUuidCount,
         companies_touched: touchedCompanyIds.size,
