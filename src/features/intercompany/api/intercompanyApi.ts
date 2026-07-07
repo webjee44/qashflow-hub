@@ -7,6 +7,15 @@ export type IntercompanyStatus =
   | 'suggested'
   | 'rejected';
 
+export interface IntercompanyLinkLeg {
+  id: string;
+  date: string;
+  amount: number;
+  description: string | null;
+  company_id: string;
+  category_id: string | null;
+}
+
 export interface IntercompanyLinkRow {
   id: string;
   amount: number;
@@ -21,20 +30,12 @@ export interface IntercompanyLinkRow {
   company_in: string;
   tx_out_id: string;
   tx_in_id: string;
-  tx_out: {
-    id: string;
-    date: string;
-    amount: number;
-    description: string | null;
-    company_id: string;
-  } | null;
-  tx_in: {
-    id: string;
-    date: string;
-    amount: number;
-    description: string | null;
-    company_id: string;
-  } | null;
+  tx_out: IntercompanyLinkLeg | null;
+  tx_in: IntercompanyLinkLeg | null;
+  /** Nom de catégorie de la jambe sortie (résolu client-side). null si non catégorisé. */
+  out_category_name: string | null;
+  /** Nom de catégorie de la jambe entrée (résolu client-side). null si non catégorisé. */
+  in_category_name: string | null;
 }
 
 export interface AnomalyRow {
@@ -52,8 +53,8 @@ const LINK_SELECT = `
   id, amount, status, score, score_breakdown,
   matched_at, tx_date, decided_at, decided_by,
   company_out, company_in, tx_out_id, tx_in_id,
-  tx_out:tx_out_id (id, date, amount, description, company_id),
-  tx_in:tx_in_id (id, date, amount, description, company_id)
+  tx_out:tx_out_id (id, date, amount, description, company_id, category_id),
+  tx_in:tx_in_id (id, date, amount, description, company_id, category_id)
 `;
 
 export async function fetchIntercompanyLinks(): Promise<IntercompanyLinkRow[]> {
@@ -62,7 +63,29 @@ export async function fetchIntercompanyLinks(): Promise<IntercompanyLinkRow[]> {
     .select(LINK_SELECT)
     .order('tx_date', { ascending: false });
   if (error) throw error;
-  return (data ?? []) as unknown as IntercompanyLinkRow[];
+  const rows = (data ?? []) as unknown as Array<Omit<IntercompanyLinkRow, 'out_category_name' | 'in_category_name'>>;
+
+  // Résoudre les noms de catégorie référencés par les jambes (un seul round-trip).
+  const catIds = new Set<string>();
+  for (const r of rows) {
+    if (r.tx_out?.category_id) catIds.add(r.tx_out.category_id);
+    if (r.tx_in?.category_id) catIds.add(r.tx_in.category_id);
+  }
+  let catNameById = new Map<string, string>();
+  if (catIds.size > 0) {
+    const { data: cats, error: catErr } = await supabase
+      .from('categories')
+      .select('id, name')
+      .in('id', Array.from(catIds));
+    if (catErr) throw catErr;
+    catNameById = new Map((cats ?? []).map(c => [c.id, c.name] as const));
+  }
+
+  return rows.map(r => ({
+    ...r,
+    out_category_name: r.tx_out?.category_id ? catNameById.get(r.tx_out.category_id) ?? null : null,
+    in_category_name: r.tx_in?.category_id ? catNameById.get(r.tx_in.category_id) ?? null : null,
+  }));
 }
 
 
