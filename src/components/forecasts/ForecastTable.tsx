@@ -120,6 +120,7 @@ export const ForecastTable = forwardRef<ForecastTableRef>(function ForecastTable
     getPayableOutflowUncategorized,
     getOpeningBalance,
     getClosingBalance,
+    getReconciliationGap,
     getMonthProjected,
     upsertForecast, 
     upsertBalanceOverride,
@@ -1942,6 +1943,70 @@ export const ForecastTable = forwardRef<ForecastTableRef>(function ForecastTable
     );
   };
 
+  // Écart de réconciliation bancaire — expose la divergence entre les flux
+  // affichés (variation nette) et la réalité bancaire (ouverture/clôture
+  // issues du backward walk, qui incluent les tx `is_ignored` et tout
+  // mouvement hors périmètre UI). Ne modifie AUCUN total : ligne purement
+  // informative, affichée uniquement si au moins un mois visible a un écart
+  // significatif (> 0,01 €).
+  const reconciliationByMonth = months.map(m => getReconciliationGap(m));
+  const hasVisibleGap = reconciliationByMonth.some(g => g !== null && Math.abs(g.gap) > 0.01);
+
+  const renderReconciliationRow = () => {
+    if (!hasVisibleGap) return null;
+    return (
+      <tr className="text-xs bg-muted/20 border-t border-border/40">
+        <td className="p-2 sticky left-0 z-10 bg-muted/20 border-r border-border text-muted-foreground">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex items-center gap-1.5 cursor-help">
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                Écart bancaire
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="right" className="max-w-xs">
+              Mouvements bancaires non repris dans les flux ci-dessus
+              (transactions ignorées, mouvements hors périmètre). Le solde de
+              clôture reste celui de la banque.
+            </TooltipContent>
+          </Tooltip>
+        </td>
+        {months.map((month, monthIndex) => {
+          const g = reconciliationByMonth[monthIndex];
+          const periodType = getMonthPeriodType(month);
+          if (periodType === 'future' || !g || Math.abs(g.gap) <= 0.01) {
+            return (
+              <td key={monthIndex} className={cn(
+                "p-0 border-r border-border",
+                periodType === 'current' ? "min-w-[160px] border-x-2 border-primary/30" : "min-w-[90px]",
+              )}>
+                <div className="px-3 py-1.5 text-right text-muted-foreground/40">—</div>
+              </td>
+            );
+          }
+          return (
+            <td key={monthIndex} className={cn(
+              "p-0 border-r border-border",
+              periodType === 'current' ? "min-w-[160px] border-x-2 border-primary/30" : "min-w-[90px]",
+            )}>
+              <div className={cn(
+                "px-3 py-1.5 text-right font-medium",
+                "text-amber-700 dark:text-amber-400",
+              )}>
+                {formatValue(g.gap)}
+                {g.isCurrent && (
+                  <span className="ml-1 text-[10px] text-muted-foreground">(à date)</span>
+                )}
+              </div>
+            </td>
+          );
+        })}
+      </tr>
+    );
+  };
+
+
+
   const renderClosingBalanceRow = () => {
     return (
       <tr className="font-semibold bg-primary/10 border-t-2 border-primary/30">
@@ -2273,6 +2338,9 @@ export const ForecastTable = forwardRef<ForecastTableRef>(function ForecastTable
 
             {/* Net Row */}
             {renderNetRow()}
+
+            {/* Reconciliation Gap Row — hidden unless a visible gap exists */}
+            {renderReconciliationRow()}
 
             {/* Closing Balance Row */}
             {renderClosingBalanceRow()}

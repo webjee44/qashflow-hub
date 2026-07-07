@@ -10,6 +10,7 @@ import { getDisplayedSectionTotals, getDisplayedNetVariation } from '@/lib/forec
 import { calculatePercentOfRevenueForecast, getVatFromAmount, toHt, toTtc } from '@/lib/forecastAmounts';
 import { computeCurrentMonthProjection } from '@/features/treasury/engine/currentMonthProjection';
 import { computeBalanceAnchors } from '@/features/treasury/engine/computeBalanceAnchors';
+import { computeReconciliationGap, type ReconciliationGap } from '@/features/treasury/engine/computeReconciliationGap';
 
 export interface PayableInvoice {
   id: string;
@@ -838,6 +839,67 @@ export function useForecasts() {
     return (incomeActual + uncatIncome) - (expenseActual + uncatExpense);
   }, [categories, getActual, getUncategorized]);
 
+  // === Reconciliation gap per month ===
+  // Explique la divergence entre :
+  //   - la réalité bancaire (ouvertures/clôtures issues du backward walk,
+  //     qui incluent TOUTES les transactions y compris `is_ignored`)
+  //   - la « Variation nette du mois » affichée (côté actual), qui exclut
+  //     les ignorées.
+  // Voir computeReconciliationGap.ts. Aucune modification des totaux :
+  // uniquement une information exposée à l'UI.
+  const reconciliationGaps = useMemo<Map<string, ReconciliationGap>>(() => {
+    if (!months.length) return new Map();
+    const currentBalance =
+      liveBankBalance ?? currentCompany?.initial_balance ?? 0;
+
+    const openingByMonth = new Map<string, { balance: number; noData?: boolean }>();
+    for (const [mk, anchor] of anchorMap.entries()) {
+      openingByMonth.set(mk, { balance: anchor.balance, noData: anchor.noData });
+    }
+    // Also inject the next-month opening at the horizon edge so the last
+    // displayed past month can be reconciled.
+    const lastMonth = months[months.length - 1];
+    const nextAfterLast = addMonths(startOfMonth(lastMonth), 1);
+    const nextKey = format(nextAfterLast, 'yyyy-MM');
+    if (!openingByMonth.has(nextKey)) {
+      const todayMonth = startOfMonth(new Date());
+      // Only add if it's a past/current month anchor (otherwise no bank reality yet).
+      if (!isBefore(todayMonth, nextAfterLast)) {
+        // Compute one extra anchor on the fly.
+        const extra = computeBalanceAnchors({
+          currentBalance,
+          transactions: anchorWalkData?.transactions ?? [],
+          asOfDate: new Date(),
+          months: [nextAfterLast],
+          overrides: balanceOverrides.map(o => ({ month: o.month, balance: Number(o.balance) })),
+          earliestTransactionDate: anchorWalkData?.earliestDate ?? null,
+        }).get(nextKey);
+        if (extra) openingByMonth.set(nextKey, { balance: extra.balance, noData: extra.noData });
+      }
+    }
+
+    const displayedNetByMonth = new Map<string, number>();
+    for (const m of months) {
+      const mk = format(startOfMonth(m), 'yyyy-MM');
+      displayedNetByMonth.set(mk, getMonthNetActual(m));
+    }
+
+    return computeReconciliationGap({
+      months,
+      openingByMonth,
+      displayedNetByMonth,
+      currentBalance,
+      asOfDate: new Date(),
+    });
+  }, [months, anchorMap, liveBankBalance, currentCompany?.initial_balance, anchorWalkData, balanceOverrides, getMonthNetActual]);
+
+  const getReconciliationGap = useCallback((month: Date): ReconciliationGap | null => {
+    const mk = format(startOfMonth(month), 'yyyy-MM');
+    return reconciliationGaps.get(mk) ?? null;
+  }, [reconciliationGaps]);
+
+
+
   // Closing balance.
   // For past/future months: equals next month's opening (which walks the
   // forward ledger using `getMonthNetForecast` — itself projected for the
@@ -923,6 +985,10 @@ export function useForecasts() {
     payablesLoading,
     // Opening balance
     getOpeningBalance,
+    // Reconciliation gap
+    getReconciliationGap,
+    reconciliationGaps,
+
     // Period controls
     extendBefore,
     extendAfter,
