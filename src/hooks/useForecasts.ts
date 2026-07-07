@@ -985,6 +985,10 @@ export function useForecasts() {
     payablesLoading,
     // Opening balance
     getOpeningBalance,
+    // Reconciliation gap
+    getReconciliationGap,
+    reconciliationGaps,
+
     // Period controls
     extendBefore,
     extendAfter,
