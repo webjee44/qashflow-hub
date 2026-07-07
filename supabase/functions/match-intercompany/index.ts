@@ -18,6 +18,7 @@ import {
   type ExistingLink,
   type IntercompanyMatchDecision,
 } from '../_shared/intercompany/matchIntercompanyTransfers.ts';
+import { categorizeIntercompanyLinks } from '../_shared/intercompany/categorizeLinks.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
