@@ -196,25 +196,30 @@ async function runMatching(
 
 async function logRun(
   client: ReturnType<typeof createClient>,
+  mode: 'backfill' | 'incremental',
+  triggeredBy: string,
   summary: RunSummary,
   error?: string,
 ): Promise<void> {
-  // Trace opérationnelle : le tableau automation_runs est déjà utilisé pour
-  // les cron sync ; on y insère la trace intercompany avec source dédiée.
   try {
-    await client.from('automation_runs').insert({
-      source: 'intercompany_match',
-      triggered_by: 'edge_function',
+    await client.from('intercompany_match_runs' as any).insert({
+      mode,
+      triggered_by: triggeredBy,
       status: error ? 'failed' : 'success',
-      matched: summary.candidates_scanned,
-      applied: summary.inserted,
-      skipped: summary.skipped_existing,
-      details: { ...summary, ...(error ? { error } : {}) } as any,
+      candidates_scanned: summary.candidates_scanned,
+      auto_matched: summary.auto_matched,
+      suggested: summary.suggested,
+      inserted: summary.inserted,
+      skipped_existing: summary.skipped_existing,
+      windows_processed: summary.windows_processed,
+      error_message: error ?? null,
+      details: summary as any,
     } as any);
   } catch (e) {
     console.error('[match-intercompany] failed to log run:', e);
   }
 }
+
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
