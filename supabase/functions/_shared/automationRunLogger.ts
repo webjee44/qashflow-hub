@@ -14,7 +14,13 @@ import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 export type RunMode = 'apply' | 'reclassify' | 'suggest_only';
 export type TriggeredBy = 'manual' | 'cron' | 'user' | 'system';
-export type ItemStatus = 'applied' | 'skipped_conflict' | 'rolled_back' | 'corrected';
+export type ItemStatus =
+  | 'applied'
+  | 'skipped_conflict'
+  | 'skipped_type_mismatch'
+  | 'skipped_invalid_target'
+  | 'rolled_back'
+  | 'corrected';
 
 export interface RunItemInput {
   rule_id: string | null;

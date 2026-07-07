@@ -534,8 +534,25 @@ function decisionsToRunItems(
   for (const d of decisions) {
     if (d.decision === 'no_match' || d.decision === 'already_categorized') continue;
     const rule = d.winning_rule_id ? rulesById.get(d.winning_rule_id) : null;
-    const status: RunItemInput['status'] =
-      d.decision === 'applied' ? 'applied' : 'skipped_conflict';
+    // Ventilate skip reasons so stats stop treating type_mismatch / invalid
+    // target as "conflict" (they are not — they are configuration issues).
+    let status: RunItemInput['status'];
+    switch (d.decision) {
+      case 'applied':
+        status = 'applied';
+        break;
+      case 'conflict':
+        status = 'skipped_conflict';
+        break;
+      case 'type_mismatch':
+        status = 'skipped_type_mismatch';
+        break;
+      case 'target_category_invalid':
+        status = 'skipped_invalid_target';
+        break;
+      default:
+        status = 'skipped_conflict';
+    }
     items.push({
       rule_id: d.winning_rule_id,
       transaction_id: d.transaction_id,
@@ -548,6 +565,7 @@ function decisionsToRunItems(
         decision: d.decision,
         rule_name: rule?.name,
         specificity: rule?.specificity_score,
+        priority: rule?.priority,
         competing_rules: d.competing_rules,
       },
       status,
