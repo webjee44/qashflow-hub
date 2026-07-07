@@ -29,8 +29,6 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { useAppMode } from '@/hooks/useAppMode';
 import { useBPSettings } from '@/hooks/useBPSettings';
-import { useOnboarding } from '@/hooks/useOnboarding';
-import { useBPOnboarding } from '@/hooks/useBPOnboarding';
 import { useCompany } from '@/hooks/useCompany';
 import { useOrganization } from '@/hooks/useOrganization';
 import { BPSettingsDialog } from '@/features/business-plan/dialogs';
