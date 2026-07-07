@@ -1974,6 +1974,7 @@ export type Database = {
           score: number
           score_breakdown: Json
           status: string
+          tx_date: string
           tx_in_id: string
           tx_out_id: string
           updated_at: string
@@ -1990,6 +1991,7 @@ export type Database = {
           score: number
           score_breakdown?: Json
           status: string
+          tx_date: string
           tx_in_id: string
           tx_out_id: string
           updated_at?: string
@@ -2006,6 +2008,7 @@ export type Database = {
           score?: number
           score_breakdown?: Json
           status?: string
+          tx_date?: string
           tx_in_id?: string
           tx_out_id?: string
           updated_at?: string

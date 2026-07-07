@@ -5,6 +5,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { TrendingUp, TrendingDown, Landmark } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -20,23 +21,23 @@ import {
 } from '@/features/intercompany/hooks/useIntercompanyData';
 import {
   computeIntercompanyPositions,
+  resolvePeriodPreset,
   type IntercompanyLinkStatus,
+  type PeriodPresetKey,
 } from '@/features/intercompany/engine/computeIntercompanyPositions';
-import { PositionsMatrix } from '@/features/intercompany/components/PositionsMatrix';
+import { PositionsList } from '@/features/intercompany/components/PositionsList';
+import { PerCompanyPositions } from '@/features/intercompany/components/PerCompanyPositions';
 import { PairDrillDown } from '@/features/intercompany/components/PairDrillDown';
 import { SuggestionsQueue } from '@/features/intercompany/components/SuggestionsQueue';
 import { AnomaliesList } from '@/features/intercompany/components/AnomaliesList';
 import { formatEUR } from '@/features/intercompany/lib/format';
 
-type PeriodKey = 'all' | '12m' | '6m' | '3m';
-
-function periodFrom(key: PeriodKey): string | undefined {
-  if (key === 'all') return undefined;
-  const months = key === '12m' ? 12 : key === '6m' ? 6 : 3;
-  const d = new Date();
-  d.setMonth(d.getMonth() - months);
-  return d.toISOString().slice(0, 10);
-}
+const PERIOD_LABELS: Record<PeriodPresetKey, string> = {
+  all: 'toutes périodes',
+  y2026: '2026',
+  y2025: '2025',
+  '12m': '12 derniers mois',
+};
 
 export default function Intergroupe() {
   const { companies } = useCompany();
@@ -44,9 +45,10 @@ export default function Intergroupe() {
   const anomaliesQ = useIntercompanyAnomalies();
 
   const [includeSuggested, setIncludeSuggested] = useState(false);
-  const [period, setPeriod] = useState<PeriodKey>('all');
+  const [period, setPeriod] = useState<PeriodPresetKey>('all');
   const [selectedPair, setSelectedPair] = useState<{ a: string; b: string } | null>(null);
   const [drillOpen, setDrillOpen] = useState(false);
+
 
   const companyName = useMemo(() => {
     const map = new Map(companies.map(c => [c.id, c.name]));
@@ -60,15 +62,20 @@ export default function Intergroupe() {
     const statuses: IntercompanyLinkStatus[] = includeSuggested
       ? ['auto_matched', 'confirmed', 'suggested']
       : ['auto_matched', 'confirmed'];
+    const bounds = resolvePeriodPreset(period);
     return computeIntercompanyPositions(
       links.map(l => ({
         company_out: l.company_out,
         company_in: l.company_in,
         amount: l.amount,
         status: l.status,
-        matched_at: l.matched_at,
+        tx_date: l.tx_date,
       })),
-      { includeStatuses: statuses, from: periodFrom(period) },
+      {
+        includeStatuses: statuses,
+        periodFrom: bounds.from,
+        periodTo: bounds.to,
+      },
     );
   }, [links, includeSuggested, period]);
 
@@ -78,53 +85,92 @@ export default function Intergroupe() {
   );
 
   const isLoading = linksQ.isLoading;
+  const periodLabel = PERIOD_LABELS[period];
+
+  const handleSelectPair = (pair: { a: string; b: string }) => {
+    setSelectedPair(pair);
+    setDrillOpen(true);
+  };
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       <PageHeader
         title="Intergroupe"
-        subtitle="Flux et positions entre les sociétés du groupe"
+        subtitle="Positions de trésorerie (virements appariés). La facturation intragroupe non réglée n'est pas incluse."
       />
 
       {/* KPI cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card>
           <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground">Volume brut sur la période</p>
+            <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+              <Landmark className="h-3.5 w-3.5" />
+              Total des positions ouvertes
+            </p>
             {isLoading ? (
               <Skeleton className="h-7 w-32 mt-1" />
             ) : (
-              <p className="text-2xl font-bold tabular-nums">
-                {formatEUR(aggregate.totalGross, { compact: true })}
-              </p>
+              <>
+                <p className="text-2xl font-bold tabular-nums mt-1">
+                  {formatEUR(aggregate.totalOpenPositions, { compact: true })}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {aggregate.openPositions.length} paire{aggregate.openPositions.length > 1 ? 's' : ''} à régler
+                </p>
+              </>
             )}
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground">Liens inclus</p>
+            <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+              <TrendingUp className="h-3.5 w-3.5 text-emerald-600" />
+              Plus gros créancier
+            </p>
             {isLoading ? (
-              <Skeleton className="h-7 w-16 mt-1" />
+              <Skeleton className="h-7 w-32 mt-1" />
+            ) : aggregate.topCreditor ? (
+              <>
+                <p className="text-lg font-semibold mt-1 truncate">
+                  {companyName(aggregate.topCreditor.company_id)}
+                </p>
+                <p className="text-sm text-emerald-600 tabular-nums">
+                  +{formatEUR(aggregate.topCreditor.net, { compact: true })} net
+                </p>
+              </>
             ) : (
-              <p className="text-2xl font-bold tabular-nums">{aggregate.totalLinks}</p>
+              <p className="text-sm text-muted-foreground mt-1">—</p>
             )}
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground">Suggestions à valider</p>
+            <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+              <TrendingDown className="h-3.5 w-3.5 text-destructive" />
+              Plus gros débiteur
+            </p>
             {isLoading ? (
-              <Skeleton className="h-7 w-16 mt-1" />
+              <Skeleton className="h-7 w-32 mt-1" />
+            ) : aggregate.topDebtor ? (
+              <>
+                <p className="text-lg font-semibold mt-1 truncate">
+                  {companyName(aggregate.topDebtor.company_id)}
+                </p>
+                <p className="text-sm text-destructive tabular-nums">
+                  −{formatEUR(Math.abs(aggregate.topDebtor.net), { compact: true })} net
+                </p>
+              </>
             ) : (
-              <p className="text-2xl font-bold tabular-nums">{suggestedCount}</p>
+              <p className="text-sm text-muted-foreground mt-1">—</p>
             )}
           </CardContent>
         </Card>
       </div>
 
-      <Tabs defaultValue="matrice" className="space-y-4">
+      <Tabs defaultValue="positions" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="matrice">Matrice</TabsTrigger>
+          <TabsTrigger value="positions">Positions</TabsTrigger>
+          <TabsTrigger value="societes">Par société</TabsTrigger>
           <TabsTrigger value="suggestions">
             Suggestions
             {suggestedCount > 0 && (
@@ -139,44 +185,59 @@ export default function Intergroupe() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="matrice" className="space-y-4">
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="flex items-center gap-2">
-              <Label htmlFor="period" className="text-sm">Période</Label>
-              <Select value={period} onValueChange={(v) => setPeriod(v as PeriodKey)}>
-                <SelectTrigger id="period" className="w-[160px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tout</SelectItem>
-                  <SelectItem value="12m">12 derniers mois</SelectItem>
-                  <SelectItem value="6m">6 derniers mois</SelectItem>
-                  <SelectItem value="3m">3 derniers mois</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-center gap-2">
-              <Switch
-                id="include-suggested"
-                checked={includeSuggested}
-                onCheckedChange={setIncludeSuggested}
-              />
-              <Label htmlFor="include-suggested" className="text-sm">
-                Inclure les suggérés
-              </Label>
-            </div>
+        {/* Shared filter bar */}
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex items-center gap-2">
+            <Label htmlFor="period" className="text-sm">Période (variation)</Label>
+            <Select value={period} onValueChange={(v) => setPeriod(v as PeriodPresetKey)}>
+              <SelectTrigger id="period" className="w-[180px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tout</SelectItem>
+                <SelectItem value="y2026">2026</SelectItem>
+                <SelectItem value="y2025">2025</SelectItem>
+                <SelectItem value="12m">12 derniers mois</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
+          <div className="flex items-center gap-2">
+            <Switch
+              id="include-suggested"
+              checked={includeSuggested}
+              onCheckedChange={setIncludeSuggested}
+            />
+            <Label htmlFor="include-suggested" className="text-sm">
+              Inclure les suggérés
+            </Label>
+          </div>
+          <p className="text-xs text-muted-foreground ml-auto">
+            Le solde est cumulé depuis le début. La période ne pilote que la variation et le drill-down.
+          </p>
+        </div>
 
+        <TabsContent value="positions" className="space-y-4">
           {isLoading ? (
             <Skeleton className="h-64 w-full" />
           ) : (
-            <PositionsMatrix
-              positions={aggregate.net}
+            <PositionsList
+              positions={aggregate.positions}
               companyName={companyName}
-              onSelect={(pair) => {
-                setSelectedPair(pair);
-                setDrillOpen(true);
-              }}
+              onSelect={handleSelectPair}
+              periodLabel={periodLabel}
+            />
+          )}
+        </TabsContent>
+
+        <TabsContent value="societes" className="space-y-4">
+          {isLoading ? (
+            <Skeleton className="h-64 w-full" />
+          ) : (
+            <PerCompanyPositions
+              perCompany={aggregate.perCompany}
+              companyName={companyName}
+              periodLabel={periodLabel}
+              onSelectPair={handleSelectPair}
             />
           )}
         </TabsContent>

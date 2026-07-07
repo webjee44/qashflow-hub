@@ -33,7 +33,7 @@ export function PairDrillDown({ open, onOpenChange, pair, links, companyName }: 
             (l.company_out === pair.a && l.company_in === pair.b) ||
             (l.company_out === pair.b && l.company_in === pair.a),
         )
-        .sort((x, y) => (y.matched_at > x.matched_at ? 1 : -1))
+        .sort((x, y) => (y.tx_date > x.tx_date ? 1 : -1))
     : [];
 
   return (
@@ -70,7 +70,7 @@ export function PairDrillDown({ open, onOpenChange, pair, links, companyName }: 
                 const meta = statusMeta[l.status] ?? { label: l.status, variant: 'outline' as const };
                 return (
                   <TableRow key={l.id}>
-                    <TableCell className="whitespace-nowrap">{formatDateFR(l.matched_at)}</TableCell>
+                    <TableCell className="whitespace-nowrap">{formatDateFR(l.tx_date)}</TableCell>
                     <TableCell className="text-xs text-muted-foreground">
                       {companyName(l.company_out)} → {companyName(l.company_in)}
                     </TableCell>

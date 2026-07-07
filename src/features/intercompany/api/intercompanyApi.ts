@@ -14,6 +14,7 @@ export interface IntercompanyLinkRow {
   score: number;
   score_breakdown: Json;
   matched_at: string;
+  tx_date: string;
   decided_at: string | null;
   decided_by: string | null;
   company_out: string;
@@ -49,7 +50,7 @@ export interface AnomalyRow {
 
 const LINK_SELECT = `
   id, amount, status, score, score_breakdown,
-  matched_at, decided_at, decided_by,
+  matched_at, tx_date, decided_at, decided_by,
   company_out, company_in, tx_out_id, tx_in_id,
   tx_out:tx_out_id (id, date, amount, description, company_id),
   tx_in:tx_in_id (id, date, amount, description, company_id)
@@ -59,10 +60,11 @@ export async function fetchIntercompanyLinks(): Promise<IntercompanyLinkRow[]> {
   const { data, error } = await supabase
     .from('intercompany_links')
     .select(LINK_SELECT)
-    .order('matched_at', { ascending: false });
+    .order('tx_date', { ascending: false });
   if (error) throw error;
   return (data ?? []) as unknown as IntercompanyLinkRow[];
 }
+
 
 export async function decideLinkStatus(
   linkId: string,

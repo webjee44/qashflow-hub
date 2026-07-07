@@ -51,10 +51,13 @@ export interface IntercompanyMatchDecision {
   company_out: string;
   company_in: string;
   amount: number;
+  /** Date de la transaction sortie (YYYY-MM-DD). Source de vérité pour l'aggrégation temporelle. */
+  tx_date: string;
   score: number;
   score_breakdown: ScoreBreakdown;
   status: 'auto_matched' | 'suggested';
 }
+
 
 export interface MatchInput {
   transactions: IntercompanyTx[];
@@ -281,6 +284,7 @@ export function matchIntercompanyTransfers(input: MatchInput): IntercompanyMatch
       company_out: best.txOut.company_id,
       company_in: best.txIn.company_id,
       amount: Math.abs(best.txOut.amount),
+      tx_date: best.txOut.date,
       score: best.score,
       score_breakdown: best.breakdown,
       status,
