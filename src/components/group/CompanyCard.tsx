@@ -89,6 +89,12 @@ export function CompanyCard({ company, index, onClick }: CompanyCardProps) {
                   <Landmark className="h-3 w-3" />
                   {company.accountCount} compte{company.accountCount !== 1 ? 's' : ''}
                 </p>
+                {company.lastSyncAt && (
+                  <p className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5">
+                    <RefreshCw className="h-2.5 w-2.5" />
+                    Sync {formatDistanceToNow(new Date(company.lastSyncAt), { addSuffix: true, locale: fr })}
+                  </p>
+                )}
               </div>
             </div>
             <p className={cn(
