@@ -528,24 +528,6 @@ async function syncCompanyTransactions(
       const description = bridgeClient.getTransactionDescription(transaction);
       const absAmount = Math.abs(transaction.amount);
 
-      // TEMP DEBUG: dump raw Bridge fields for "Remise CB" to identify which field carries the full label
-      const anyTx = transaction as any;
-      const candidateLabels = [
-        anyTx.provider_description,
-        anyTx.raw_description,
-        anyTx.bank_description,
-        anyTx.description,
-        anyTx.clean_description,
-      ].filter(Boolean).join(' | ');
-      if (candidateLabels.toUpperCase().includes('REMISE CB')) {
-        console.info(`[bridge-sync][DEBUG REMISE_CB] id=${transaction.id} account=${accountName} fields=${JSON.stringify({
-          provider_description: anyTx.provider_description,
-          raw_description: anyTx.raw_description,
-          bank_description: anyTx.bank_description,
-          description: anyTx.description,
-          clean_description: anyTx.clean_description,
-        })}`);
-      }
 
       // Check if already exists by bridge_transaction_id OR legacy pennylane_id
       let match: MatchEntry | undefined = existingByBridgeId.get(transaction.id)
@@ -849,8 +831,12 @@ Deno.serve(async (req) => {
             }
           }
 
+          // Cron-sync is incremental by design: 7 days is enough to catch
+          // late-settling transactions without hitting Edge Function CPU limits
+          // on connections with many accounts. Full 365j reste réservé au
+          // full-sync manuel déclenché via l'UI.
           const allTransactions = await bridgeClient.fetchAllTransactions(
-            since_days ?? 365,
+            since_days ?? 7,
             cutoffDateStr
           );
 
@@ -888,10 +874,31 @@ Deno.serve(async (req) => {
             }
           }
         } catch (err) {
+          // Persist the failure so the UI banner (item_status='error') surfaces it.
+          // Silent console-only failures are the anti-pattern we want to kill:
+          // a broken cron slot for one bridge_user_uuid must be visible to the
+          // user, not only to whoever tails logs.
+          const message = err instanceof Error ? err.message : String(err);
+          const truncated = message.slice(0, 500);
           console.error(
             `[bridge-sync] Error syncing bridge_user_uuid ${bridgeUserUuid}:`,
             err
           );
+          try {
+            await supabaseAdmin
+              .from('bridge_accounts')
+              .update({
+                item_status: 'error',
+                item_status_message: truncated,
+                item_status_updated_at: new Date().toISOString(),
+              })
+              .eq('bridge_user_uuid', bridgeUserUuid);
+          } catch (persistErr) {
+            console.error(
+              `[bridge-sync] Failed to persist sync error for ${bridgeUserUuid}:`,
+              persistErr,
+            );
+          }
         }
       }
 
@@ -1097,64 +1104,12 @@ Deno.serve(async (req) => {
             }
           }
 
-          // ============================================
-          // Point Zéro: Create initial snapshot if none exists
-          // ============================================
-          const { data: existingSnapshots } = await supabaseAdmin
-            .from('bank_balance_snapshots')
-            .select('id')
-            .eq('company_id', company_id)
-            .limit(1);
+          // NOTE (S2): the legacy "Point Zéro" snapshot block used to seed
+          // bank_balance_snapshots here. That table was dropped in S2 — the
+          // treasury engine now anchors via computeBalanceAnchors on the fly,
+          // so no seeding is needed anymore.
 
-          if (!existingSnapshots || existingSnapshots.length === 0) {
-            console.info(`[bridge-sync] No snapshots found for company ${company_id}, creating Point Zéro...`);
-            
-            const { data: companyAssignments } = await supabaseAdmin
-              .from('company_bridge_accounts')
-              .select('bridge_account_id')
-              .eq('company_id', company_id)
-              .eq('status', 'active');
-            
-            const assignedAccountIds = (companyAssignments || []).map((a: any) => a.bridge_account_id);
-            
-            if (assignedAccountIds.length > 0) {
-              const now = new Date();
-              const firstOfMonth = `${now.toISOString().substring(0, 7)}-01`;
-              const todayStr = now.toISOString().split('T')[0];
-              
-              const { data: monthTxs } = await supabaseAdmin
-                .from('transactions')
-                .select('amount, type')
-                .eq('company_id', company_id)
-                .gte('date', firstOfMonth)
-                .lte('date', todayStr)
-                .is('deleted_at', null)
-                .or('is_ignored.is.null,is_ignored.eq.false');
-              
-              const netThisMonth = (monthTxs || []).reduce((sum: number, tx: any) => {
-                const amt = Number(tx.amount);
-                return sum + (tx.type === 'income' ? amt : -amt);
-              }, 0);
-              
-              const pointZeroBalance = Math.round((assignedBalance - netThisMonth) * 100) / 100;
-              const primaryAccountId = assignedAccountIds[0];
-              
-              const { error: snapError } = await supabaseAdmin
-                .from('bank_balance_snapshots')
-                .upsert({
-                  company_id: company_id,
-                  bridge_account_id: primaryAccountId,
-                  balance: pointZeroBalance,
-                  snapshot_date: firstOfMonth,
-                }, { onConflict: 'bridge_account_id,snapshot_date' });
-              
-              if (snapError) {
-                console.error(`[bridge-sync] Failed to create Point Zéro snapshot:`, snapError);
-              } else {
-                console.info(`[bridge-sync] Point Zéro created: ${pointZeroBalance}€ at ${firstOfMonth}`);
-              }
-            }
-          }
+
 
           // Apply automation rules after full-sync if new transactions were inserted
           if (inserted > 0 || updated > 0) {
