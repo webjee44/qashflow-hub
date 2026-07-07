@@ -110,13 +110,11 @@ export async function fetchIntercompanyAnomalies(): Promise<AnomalyRow[]> {
   if (txErr) throw txErr;
   if (!txs || txs.length === 0) return [];
 
-  // 3. Exclure celles qui appartiennent à un lien intercompany
-  const txIds = txs.map(t => t.id);
+  // 3. Exclure celles qui appartiennent à un lien intercompany actif
   const { data: linked, error: lErr } = await supabase
     .from('intercompany_links')
-    .select('tx_out_id, tx_in_id')
-    .neq('status', 'rejected')
-    .or(`tx_out_id.in.(${txIds.join(',')}),tx_in_id.in.(${txIds.join(',')})`);
+    .select('tx_out_id, tx_in_id, status')
+    .neq('status', 'rejected');
   if (lErr) throw lErr;
   const linkedIds = new Set<string>();
   for (const l of linked ?? []) {
