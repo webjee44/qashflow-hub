@@ -22,7 +22,6 @@ export type Database = {
           metadata: Json | null
           new_data: Json | null
           old_data: Json | null
-          organization_id: string | null
           record_id: string
           table_name: string
           user_id: string | null
@@ -34,7 +33,6 @@ export type Database = {
           metadata?: Json | null
           new_data?: Json | null
           old_data?: Json | null
-          organization_id?: string | null
           record_id: string
           table_name: string
           user_id?: string | null
@@ -46,7 +44,6 @@ export type Database = {
           metadata?: Json | null
           new_data?: Json | null
           old_data?: Json | null
-          organization_id?: string | null
           record_id?: string
           table_name?: string
           user_id?: string | null
@@ -322,41 +319,6 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "balance_overrides_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "companies"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      bank_balance_snapshots: {
-        Row: {
-          balance: number
-          bridge_account_id: number
-          company_id: string
-          created_at: string
-          id: string
-          snapshot_date: string
-        }
-        Insert: {
-          balance?: number
-          bridge_account_id: number
-          company_id: string
-          created_at?: string
-          id?: string
-          snapshot_date: string
-        }
-        Update: {
-          balance?: number
-          bridge_account_id?: number
-          company_id?: string
-          created_at?: string
-          id?: string
-          snapshot_date?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "bank_balance_snapshots_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
@@ -1811,7 +1773,6 @@ export type Database = {
           initial_balance: number
           is_default: boolean | null
           name: string
-          organization_id: string | null
           updated_at: string | null
           user_id: string
           vat_regime: string
@@ -1827,7 +1788,6 @@ export type Database = {
           initial_balance?: number
           is_default?: boolean | null
           name: string
-          organization_id?: string | null
           updated_at?: string | null
           user_id: string
           vat_regime?: string
@@ -1843,20 +1803,11 @@ export type Database = {
           initial_balance?: number
           is_default?: boolean | null
           name?: string
-          organization_id?: string | null
           updated_at?: string | null
           user_id?: string
           vat_regime?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "companies_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       company_bridge_account_identity_exclusions: {
         Row: {
@@ -2010,56 +1961,6 @@ export type Database = {
           },
         ]
       }
-      forecasts: {
-        Row: {
-          actual_expense: number | null
-          actual_income: number | null
-          company_id: string | null
-          created_at: string
-          expected_expense: number
-          expected_income: number
-          id: string
-          month: string
-          notes: string | null
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          actual_expense?: number | null
-          actual_income?: number | null
-          company_id?: string | null
-          created_at?: string
-          expected_expense?: number
-          expected_income?: number
-          id?: string
-          month: string
-          notes?: string | null
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          actual_expense?: number | null
-          actual_income?: number | null
-          company_id?: string | null
-          created_at?: string
-          expected_expense?: number
-          expected_income?: number
-          id?: string
-          month?: string
-          notes?: string | null
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "forecasts_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "companies"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       invoices: {
         Row: {
           amount_ht: number
@@ -2150,175 +2051,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      organization_invitations: {
-        Row: {
-          accepted_at: string | null
-          company_ids: string[] | null
-          created_at: string
-          email: string
-          expires_at: string
-          id: string
-          invited_by: string | null
-          organization_id: string
-          role: Database["public"]["Enums"]["app_role"]
-          token: string
-        }
-        Insert: {
-          accepted_at?: string | null
-          company_ids?: string[] | null
-          created_at?: string
-          email: string
-          expires_at?: string
-          id?: string
-          invited_by?: string | null
-          organization_id: string
-          role?: Database["public"]["Enums"]["app_role"]
-          token?: string
-        }
-        Update: {
-          accepted_at?: string | null
-          company_ids?: string[] | null
-          created_at?: string
-          email?: string
-          expires_at?: string
-          id?: string
-          invited_by?: string | null
-          organization_id?: string
-          role?: Database["public"]["Enums"]["app_role"]
-          token?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "organization_invitations_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      organization_members: {
-        Row: {
-          created_at: string
-          id: string
-          invited_at: string | null
-          invited_email: string | null
-          joined_at: string | null
-          organization_id: string
-          role: Database["public"]["Enums"]["app_role"]
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          invited_at?: string | null
-          invited_email?: string | null
-          joined_at?: string | null
-          organization_id: string
-          role?: Database["public"]["Enums"]["app_role"]
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          invited_at?: string | null
-          invited_email?: string | null
-          joined_at?: string | null
-          organization_id?: string
-          role?: Database["public"]["Enums"]["app_role"]
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "organization_members_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      organizations: {
-        Row: {
-          billing_address_line1: string | null
-          billing_address_line2: string | null
-          billing_city: string | null
-          billing_country: string | null
-          billing_email: string | null
-          billing_name: string | null
-          billing_postal_code: string | null
-          created_at: string
-          deleted_at: string | null
-          id: string
-          is_demo: boolean
-          max_companies: number
-          max_members: number
-          max_transactions_per_month: number
-          name: string
-          owner_id: string | null
-          plan: string
-          slug: string
-          stripe_customer_id: string | null
-          stripe_subscription_id: string | null
-          subscription_status: string
-          trial_ends_at: string | null
-          updated_at: string
-        }
-        Insert: {
-          billing_address_line1?: string | null
-          billing_address_line2?: string | null
-          billing_city?: string | null
-          billing_country?: string | null
-          billing_email?: string | null
-          billing_name?: string | null
-          billing_postal_code?: string | null
-          created_at?: string
-          deleted_at?: string | null
-          id?: string
-          is_demo?: boolean
-          max_companies?: number
-          max_members?: number
-          max_transactions_per_month?: number
-          name: string
-          owner_id?: string | null
-          plan?: string
-          slug: string
-          stripe_customer_id?: string | null
-          stripe_subscription_id?: string | null
-          subscription_status?: string
-          trial_ends_at?: string | null
-          updated_at?: string
-        }
-        Update: {
-          billing_address_line1?: string | null
-          billing_address_line2?: string | null
-          billing_city?: string | null
-          billing_country?: string | null
-          billing_email?: string | null
-          billing_name?: string | null
-          billing_postal_code?: string | null
-          created_at?: string
-          deleted_at?: string | null
-          id?: string
-          is_demo?: boolean
-          max_companies?: number
-          max_members?: number
-          max_transactions_per_month?: number
-          name?: string
-          owner_id?: string | null
-          plan?: string
-          slug?: string
-          stripe_customer_id?: string | null
-          stripe_subscription_id?: string | null
-          subscription_status?: string
-          trial_ends_at?: string | null
-          updated_at?: string
-        }
-        Relationships: []
       }
       partner_category_mappings: {
         Row: {
@@ -2421,47 +2153,6 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
-      }
-      subscription_usage: {
-        Row: {
-          ai_calls: number
-          companies_count: number
-          created_at: string
-          id: string
-          month: string
-          organization_id: string
-          transactions_synced: number
-          updated_at: string
-        }
-        Insert: {
-          ai_calls?: number
-          companies_count?: number
-          created_at?: string
-          id?: string
-          month: string
-          organization_id: string
-          transactions_synced?: number
-          updated_at?: string
-        }
-        Update: {
-          ai_calls?: number
-          companies_count?: number
-          created_at?: string
-          id?: string
-          month?: string
-          organization_id?: string
-          transactions_synced?: number
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "subscription_usage_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       transactions: {
         Row: {
@@ -2566,7 +2257,6 @@ export type Database = {
           duration_seconds: number | null
           event_type: string
           id: string
-          organization_id: string | null
           session_id: string | null
           user_id: string
         }
@@ -2575,7 +2265,6 @@ export type Database = {
           duration_seconds?: number | null
           event_type?: string
           id?: string
-          organization_id?: string | null
           session_id?: string | null
           user_id: string
         }
@@ -2584,7 +2273,6 @@ export type Database = {
           duration_seconds?: number | null
           event_type?: string
           id?: string
-          organization_id?: string | null
           session_id?: string | null
           user_id?: string
         }
@@ -2642,64 +2330,12 @@ export type Database = {
           },
         ]
       }
-      organization_members_safe: {
-        Row: {
-          created_at: string | null
-          id: string | null
-          invited_at: string | null
-          invited_email: string | null
-          joined_at: string | null
-          organization_id: string | null
-          role: Database["public"]["Enums"]["app_role"] | null
-          updated_at: string | null
-          user_id: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          id?: string | null
-          invited_at?: string | null
-          invited_email?: never
-          joined_at?: string | null
-          organization_id?: string | null
-          role?: Database["public"]["Enums"]["app_role"] | null
-          updated_at?: string | null
-          user_id?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          id?: string | null
-          invited_at?: string | null
-          invited_email?: never
-          joined_at?: string | null
-          organization_id?: string | null
-          role?: Database["public"]["Enums"]["app_role"] | null
-          updated_at?: string | null
-          user_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "organization_members_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
     }
     Functions: {
       accept_invitation: { Args: { _token: string }; Returns: Json }
       add_company_member_by_email: {
         Args: { _company_id: string; _email: string }
         Returns: string
-      }
-      add_organization_member_by_email: {
-        Args: {
-          _email: string
-          _org_id: string
-          _role?: Database["public"]["Enums"]["app_role"]
-        }
-        Returns: Json
       }
       assign_superadmin_role: {
         Args: { user_email: string }
@@ -2722,11 +2358,6 @@ export type Database = {
         }
         Returns: string
       }
-      delete_organization_cascade: {
-        Args: { _org_id: string }
-        Returns: undefined
-      }
-      generate_org_slug: { Args: { org_name: string }; Returns: string }
       get_auth_email: { Args: never; Returns: string }
       get_company_members_with_email: {
         Args: { _company_id: string }
@@ -2750,42 +2381,6 @@ export type Database = {
           organization_id: string
           organization_name: string
           role: Database["public"]["Enums"]["app_role"]
-        }[]
-      }
-      get_org_engagement_stats: {
-        Args: { _org_id: string }
-        Returns: {
-          email: string
-          full_name: string
-          last_active_at: string
-          total_logins: number
-          total_time_seconds: number
-          user_id: string
-        }[]
-      }
-      get_org_members_with_company_access: {
-        Args: { _org_id: string }
-        Returns: {
-          companies: Json
-          email: string
-          joined_at: string
-          member_id: string
-          role: Database["public"]["Enums"]["app_role"]
-          user_id: string
-        }[]
-      }
-      get_organization_billing: {
-        Args: { _org_id: string }
-        Returns: {
-          billing_address_line1: string
-          billing_address_line2: string
-          billing_city: string
-          billing_country: string
-          billing_email: string
-          billing_name: string
-          billing_postal_code: string
-          stripe_customer_id: string
-          stripe_subscription_id: string
         }[]
       }
       get_superadmin_all_members: {
@@ -2837,56 +2432,6 @@ export type Database = {
           total_users: number
         }[]
       }
-      get_superadmin_org_companies: {
-        Args: { _org_id: string }
-        Returns: {
-          created_at: string
-          id: string
-          name: string
-          user_id: string
-        }[]
-      }
-      get_superadmin_org_stats: {
-        Args: never
-        Returns: {
-          bp_count: number
-          company_count: number
-          created_at: string
-          is_demo: boolean
-          max_companies: number
-          max_members: number
-          member_count: number
-          name: string
-          organization_id: string
-          owner_email: string
-          owner_id: string
-          plan: string
-          slug: string
-          subscription_status: string
-        }[]
-      }
-      get_superadmin_org_stats_with_engagement: {
-        Args: never
-        Returns: {
-          bp_count: number
-          company_count: number
-          created_at: string
-          is_demo: boolean
-          last_active_at: string
-          max_companies: number
-          max_members: number
-          member_count: number
-          name: string
-          organization_id: string
-          owner_email: string
-          owner_id: string
-          plan: string
-          slug: string
-          subscription_status: string
-          total_logins: number
-          total_time_seconds: number
-        }[]
-      }
       get_user_email_for_superadmin: {
         Args: { _user_id: string }
         Returns: string
@@ -2895,27 +2440,11 @@ export type Database = {
         Args: { _company_id: string; _user_id: string }
         Returns: boolean
       }
-      has_org_role: {
-        Args: {
-          _org_id: string
-          _role: Database["public"]["Enums"]["app_role"]
-          _user_id: string
-        }
-        Returns: boolean
-      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
-        Returns: boolean
-      }
-      is_org_admin: {
-        Args: { _org_id: string; _user_id: string }
-        Returns: boolean
-      }
-      is_org_member: {
-        Args: { _org_id: string; _user_id: string }
         Returns: boolean
       }
       is_superadmin: { Args: { _user_id: string }; Returns: boolean }
@@ -2926,10 +2455,6 @@ export type Database = {
       reintegrate_company_bridge_account: {
         Args: { p_bridge_account_id: number; p_company_id: string }
         Returns: undefined
-      }
-      remove_organization_member: {
-        Args: { _org_id: string; _user_id: string }
-        Returns: boolean
       }
       seed_demo_companies: {
         Args: { p_org_id: string; p_user_id: string }
