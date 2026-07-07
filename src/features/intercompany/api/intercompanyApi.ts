@@ -79,6 +79,19 @@ export async function decideLinkStatus(
     })
     .eq('id', linkId);
   if (error) throw error;
+
+  // Sur confirmation, déclencher la catégorisation auto des jambes non catégorisées.
+  // Fire-and-forget côté client : la vérité DB (is('category_id', null)) garantit
+  // qu'aucune catégorie humaine ne sera écrasée même si l'appel est concurrent.
+  if (status === 'confirmed') {
+    supabase.functions
+      .invoke('apply-intercompany-categorization', {
+        body: { link_ids: [linkId] },
+      })
+      .catch((e) => {
+        console.warn('[intercompany] categorization on confirm failed:', e);
+      });
+  }
 }
 
 /**
