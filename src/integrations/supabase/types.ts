@@ -2041,6 +2041,60 @@ export type Database = {
           },
         ]
       }
+      intercompany_match_runs: {
+        Row: {
+          auto_matched: number
+          candidates_scanned: number
+          created_at: string
+          details: Json
+          error_message: string | null
+          finished_at: string
+          id: string
+          inserted: number
+          mode: string
+          skipped_existing: number
+          started_at: string
+          status: string
+          suggested: number
+          triggered_by: string
+          windows_processed: number
+        }
+        Insert: {
+          auto_matched?: number
+          candidates_scanned?: number
+          created_at?: string
+          details?: Json
+          error_message?: string | null
+          finished_at?: string
+          id?: string
+          inserted?: number
+          mode: string
+          skipped_existing?: number
+          started_at?: string
+          status: string
+          suggested?: number
+          triggered_by: string
+          windows_processed?: number
+        }
+        Update: {
+          auto_matched?: number
+          candidates_scanned?: number
+          created_at?: string
+          details?: Json
+          error_message?: string | null
+          finished_at?: string
+          id?: string
+          inserted?: number
+          mode?: string
+          skipped_existing?: number
+          started_at?: string
+          status?: string
+          suggested?: number
+          triggered_by?: string
+          windows_processed?: number
+        }
+        Relationships: []
+      }
       invoices: {
         Row: {
           amount_ht: number
