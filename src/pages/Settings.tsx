@@ -114,10 +114,6 @@ export default function Settings() {
     navigate(`/parametres#${value}`, { replace: true });
   };
 
-  const handleStartTour = () => {
-    localStorage.setItem('show-bp-onboarding-tour', 'true');
-    navigate('/bp/revenus');
-  };
 
   return (
     <div className="min-h-screen">
