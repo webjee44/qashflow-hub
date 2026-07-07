@@ -29,8 +29,6 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { useAppMode } from '@/hooks/useAppMode';
 import { useBPSettings } from '@/hooks/useBPSettings';
-import { useOnboarding } from '@/hooks/useOnboarding';
-import { useBPOnboarding } from '@/hooks/useBPOnboarding';
 import { useCompany } from '@/hooks/useCompany';
 import { useOrganization } from '@/hooks/useOrganization';
 import { BPSettingsDialog } from '@/features/business-plan/dialogs';
@@ -106,8 +104,6 @@ export function Sidebar() {
   const { user, signOut } = useAuth();
   const { mode, setMode, isBusinessPlan, isTreasury } = useAppMode();
   const { settings } = useBPSettings();
-  const { isCompleted: onboardingCompleted } = useOnboarding();
-  const { isCompleted: bpTourCompleted } = useBPOnboarding();
   const { currentCompany, companies: allCompanies } = useCompany();
   const { currentOrganization, organizations, setCurrentOrganization } = useOrganization();
   const location = useLocation();
@@ -333,18 +329,6 @@ export function Sidebar() {
             <SlidersHorizontal size={18} />
             <span className="text-sm font-medium">Paramètres du BP</span>
           </button>
-          {bpTourCompleted ? null : (
-            <button
-              onClick={() => {
-                localStorage.setItem('show-bp-onboarding-tour', 'true');
-                window.location.reload();
-              }}
-              className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 text-muted-foreground hover:bg-muted hover:text-foreground"
-            >
-              <Sparkles size={18} />
-              <span className="text-sm font-medium">Visite guidée</span>
-            </button>
-          )}
         </div>
       )}
 

@@ -2,8 +2,6 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { BalanceChart } from '@/components/dashboard/BalanceChart';
 import { TransactionList } from '@/components/dashboard/TransactionList';
 import { QuickActions } from '@/components/dashboard/QuickActions';
-import { OnboardingTour } from '@/components/onboarding/OnboardingTour';
-import { CalendlyPopup } from '@/components/onboarding/CalendlyPopup';
 import { Wallet, Landmark, MoreHorizontal, EyeOff } from 'lucide-react';
 import { useBankBalance } from '@/hooks/useBankBalance';
 import { useBridgeAutoSync } from '@/hooks/useBridgeAutoSync';
@@ -119,8 +117,6 @@ export default function Dashboard() {
 
   return (
     <>
-      <OnboardingTour />
-      <CalendlyPopup />
       <div className="space-y-8" data-tour="dashboard">
         <PageHeader 
           title="Tableau de bord" 

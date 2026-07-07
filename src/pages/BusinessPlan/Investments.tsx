@@ -8,7 +8,6 @@ import { InvestmentDialog, BPExportDialog } from '@/features/business-plan/dialo
 import { useInvestments, Investment } from '@/hooks/useInvestments';
 import { useCurrentBusinessPlan } from '@/hooks/useCurrentBusinessPlan';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { DemoDataBanner } from '@/components/onboarding/DemoDataBanner';
 
 export default function Investments() {
   const { isLoading: isLoadingBP } = useCurrentBusinessPlan();
@@ -48,7 +47,6 @@ export default function Investments() {
 
   return (
     <div className="space-y-6">
-      <DemoDataBanner />
       <PageHeader
         title="Investissements"
         subtitle="Gérez vos immobilisations : matériel, véhicules, logiciels, mobilier..."

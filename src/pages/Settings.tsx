@@ -8,21 +8,18 @@ import { BankAccountsCard } from '@/components/settings/BankAccountsCard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { Building2, User, Play, Landmark, CreditCard } from 'lucide-react';
-import { BillingCard } from '@/components/settings/BillingCard';
+import { Building2, User, Landmark } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
-import { useOnboarding } from '@/hooks/useOnboarding';
 import { logError } from '@/lib/logger';
 import { useCompany } from '@/hooks/useCompany';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
-const VALID_TABS = ['organization', 'companies', 'accounts', 'billing', 'profile'] as const;
+const VALID_TABS = ['organization', 'companies', 'accounts', 'profile'] as const;
 type TabValue = typeof VALID_TABS[number];
 
 export default function Settings() {
   const { user } = useAuth();
-  const { isCompleted } = useOnboarding();
   const { companies } = useCompany();
   const navigate = useNavigate();
   const location = useLocation();
@@ -117,10 +114,6 @@ export default function Settings() {
     navigate(`/parametres#${value}`, { replace: true });
   };
 
-  const handleStartTour = () => {
-    localStorage.setItem('show-bp-onboarding-tour', 'true');
-    navigate('/bp/revenus');
-  };
 
   return (
     <div className="min-h-screen">
@@ -145,10 +138,6 @@ export default function Settings() {
               <Landmark className="w-4 h-4" />
               <span className="hidden sm:inline">Comptes bancaires</span>
             </TabsTrigger>
-            <TabsTrigger value="billing" className="gap-2">
-              <CreditCard className="w-4 h-4" />
-              <span className="hidden sm:inline">Facturation</span>
-            </TabsTrigger>
             <TabsTrigger value="profile" className="gap-2">
               <User className="w-4 h-4" />
               <span className="hidden sm:inline">Profil</span>
@@ -167,10 +156,6 @@ export default function Settings() {
             <BankAccountsCard />
           </TabsContent>
 
-          <TabsContent value="billing">
-            <BillingCard />
-          </TabsContent>
-
           <TabsContent value="profile">
             <div className="space-y-6">
               <Card className="bg-card border-border">
@@ -187,30 +172,6 @@ export default function Settings() {
                     <label className="text-sm font-medium text-muted-foreground">ID utilisateur</label>
                     <p className="text-foreground text-sm font-mono">{user?.id}</p>
                   </div>
-                </CardContent>
-              </Card>
-
-
-              {/* Onboarding Tour */}
-              <Card className="bg-card border-border">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Play className="h-5 w-5 text-primary" />
-                    Visite guidée
-                  </CardTitle>
-                  <CardDescription>
-                    Relancez la visite guidée pour découvrir toutes les fonctionnalités de l'application.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Button 
-                    onClick={handleStartTour}
-                    variant="outline"
-                    className="gap-2"
-                  >
-                    <Play className="h-4 w-4" />
-                    {isCompleted ? "Relancer la visite guidée" : "Continuer la visite"}
-                  </Button>
                 </CardContent>
               </Card>
             </div>

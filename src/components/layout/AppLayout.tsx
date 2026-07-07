@@ -3,8 +3,6 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { AppHeader } from './AppHeader';
 import { AppBreadcrumb } from './AppBreadcrumb';
-import { TrialExpiredBlocker } from './TrialExpiredBlocker';
-import { DemoBanner } from './DemoBanner';
 import { useAppModeSync } from '@/hooks/useAppMode';
 import { useAuth } from '@/hooks/useAuth';
 import { PageLoader } from '@/components/ui/page-loader';
@@ -56,8 +54,6 @@ export function AppLayout() {
 
   return (
     <div className="min-h-screen bg-background overflow-visible">
-      <DemoBanner />
-      <TrialExpiredBlocker />
       <Sidebar />
       
       <div className="ml-64 min-h-screen flex flex-col">

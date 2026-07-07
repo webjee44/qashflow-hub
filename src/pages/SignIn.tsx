@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { useNavigate, Link, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -432,20 +432,6 @@ export default function SignIn() {
             </>
           )}
 
-          {mode === 'login' && (
-            <p className="text-center text-muted-foreground mt-6">
-              Pas encore de compte ?{' '}
-              <Link to="/sign-up" className="text-primary hover:underline font-medium">
-                Créer un compte
-              </Link>
-            </p>
-          )}
-
-          <p className="text-center text-muted-foreground mt-6 text-xs">
-            <Link to="/" className="hover:underline">
-              ← Retour à l'accueil
-            </Link>
-          </p>
         </motion.div>
       </div>
     </div>

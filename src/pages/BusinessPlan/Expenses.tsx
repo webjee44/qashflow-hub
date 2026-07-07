@@ -12,7 +12,6 @@ import { useBPFixedExpenses, BPFixedExpense } from '@/hooks/useBPFixedExpenses';
 import { useVariableExpenses, VariableExpense } from '@/hooks/useVariableExpenses';
 import { useCurrentBusinessPlan } from '@/hooks/useCurrentBusinessPlan';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { DemoDataBanner } from '@/components/onboarding/DemoDataBanner';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -174,7 +173,6 @@ export default function Expenses() {
 
   return (
     <div className="space-y-6">
-      <DemoDataBanner />
       <PageHeader
         title="Charges"
         subtitle="Gérez vos charges fixes et variables"
