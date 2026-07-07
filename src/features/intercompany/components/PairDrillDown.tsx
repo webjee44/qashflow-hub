@@ -33,7 +33,7 @@ export function PairDrillDown({ open, onOpenChange, pair, links, companyName }: 
             (l.company_out === pair.a && l.company_in === pair.b) ||
             (l.company_out === pair.b && l.company_in === pair.a),
         )
-        .sort((x, y) => (y.matched_at > x.matched_at ? 1 : -1))
+        .sort((x, y) => (y.tx_date > x.tx_date ? 1 : -1))
     : [];
 
   return (
