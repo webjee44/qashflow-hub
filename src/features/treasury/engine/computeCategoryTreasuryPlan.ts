@@ -174,7 +174,8 @@ export interface CategoryTreasuryPlan {
 // ---------- Internal helpers ----------
 
 function mk(v: string | Date): string {
-  return v.length === 7 ? (v as string) : monthKey(v as string | Date);
+  if (typeof v === 'string' && v.length === 7) return v;
+  return monthKey(v);
 }
 
 function shiftMonthKey(monthKeyValue: string, delta: number): string {
