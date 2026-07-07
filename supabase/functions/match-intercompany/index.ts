@@ -17,7 +17,7 @@ import {
   type CompanyAlias,
   type ExistingLink,
   type IntercompanyMatchDecision,
-} from './engine/matchIntercompanyTransfers.ts';
+} from '../_shared/intercompany/matchIntercompanyTransfers.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
