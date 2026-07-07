@@ -87,9 +87,12 @@ describe('matchIntercompanyTransfers', () => {
     ];
     const decisions = matchIntercompanyTransfers({ transactions: txs, aliases, existingLinks: existing });
     expect(decisions).toHaveLength(1);
-    expect(decisions[0].score).toBe(40 + 20 + 15); // base+sameday+recurring
-    expect(decisions[0].status).toBe('suggested');
+    expect(decisions[0].score).toBe(40 + 20 + 15); // base+sameday+recurring = 75
+    expect(decisions[0].score_breakdown.recurring_pair).toBe(15);
+    expect(decisions[0].status).toBe('auto_matched');
   });
+
+
 
   it('montant rond fréquent => pénalité -15', () => {
     // 6 sorties de 1000 EUR le même mois, sociétés variées
