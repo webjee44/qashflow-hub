@@ -73,7 +73,7 @@ export function useGroupBalances(): GroupBalancesResult {
       // Source unique = vue company_active_bridge_accounts
       const { data: rows, error: rowsError } = await supabase
         .from('company_active_bridge_accounts')
-        .select('company_id, bridge_account_id, name, balance, item_status, iban, account_type, bank_name')
+        .select('company_id, bridge_account_id, name, balance, item_status, iban, account_type, bank_name, last_sync_at')
         .in('company_id', companyIds);
 
       if (rowsError) throw rowsError;
@@ -88,6 +88,7 @@ export function useGroupBalances(): GroupBalancesResult {
           iban: r.iban,
           accountType: r.account_type,
           bankName: r.bank_name,
+          lastSyncAt: r.last_sync_at,
         });
       }
 
@@ -95,12 +96,18 @@ export function useGroupBalances(): GroupBalancesResult {
         const accounts = accountsMap[company.id] || [];
         const totalBalance = accounts.reduce((sum, a) => sum + a.balance, 0);
         const alerts = deriveAlerts(totalBalance, accounts);
+        const lastSyncAt = accounts.reduce<string | null>((max, a) => {
+          if (!a.lastSyncAt) return max;
+          if (!max || a.lastSyncAt > max) return a.lastSyncAt;
+          return max;
+        }, null);
 
         return {
           companyId: company.id,
           companyName: company.name,
           totalBalance,
           accountCount: accounts.length,
+          lastSyncAt,
           accounts,
           alerts,
         };
