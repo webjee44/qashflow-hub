@@ -153,6 +153,7 @@ async function persistDecisions(
     company_out: d.company_out,
     company_in: d.company_in,
     amount: d.amount,
+    tx_date: d.tx_date,
     score: d.score,
     score_breakdown: d.score_breakdown,
     status: d.status,
