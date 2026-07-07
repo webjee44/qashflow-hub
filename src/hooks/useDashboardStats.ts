@@ -143,24 +143,11 @@ export function useDashboardStats() {
           currentBalance = 0;
         }
 
-        // 90-day forecast - use forecasts table
-        let forecastQuery = supabase
-          .from('forecasts')
-          .select('expected_income, expected_expense, month')
-          .gte('month', format(now, 'yyyy-MM-dd'))
-          .lte('month', format(addMonths(now, 3), 'yyyy-MM-dd'));
+        // Forecasts table has been removed in S2 (unused pipeline).
+        // 90-day projection falls back to current balance until the
+        // treasury engine is wired here.
+        const forecast90Days = currentBalance;
 
-        if (currentCompany?.id) {
-          forecastQuery = forecastQuery.eq('company_id', currentCompany.id);
-        }
-
-        const { data: forecasts } = await forecastQuery;
-
-        const forecastNet = forecasts?.reduce((acc, f) => {
-          return acc + Number(f.expected_income) - Number(f.expected_expense);
-        }, 0) || 0;
-
-        const forecast90Days = currentBalance + forecastNet;
 
         setStats({
           currentBalance,
