@@ -18,6 +18,7 @@ import {
   type ExistingLink,
   type IntercompanyMatchDecision,
 } from '../_shared/intercompany/matchIntercompanyTransfers.ts';
+import { categorizeIntercompanyLinks } from '../_shared/intercompany/categorizeLinks.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -144,8 +145,8 @@ async function loadExistingLinks(client: ReturnType<typeof createClient>): Promi
 async function persistDecisions(
   client: ReturnType<typeof createClient>,
   decisions: IntercompanyMatchDecision[],
-): Promise<{ inserted: number; skipped: number }> {
-  if (decisions.length === 0) return { inserted: 0, skipped: 0 };
+): Promise<{ inserted: number; skipped: number; insertedIds: string[] }> {
+  if (decisions.length === 0) return { inserted: 0, skipped: 0, insertedIds: [] };
   const rows = decisions.map(d => ({
     tx_out_id: d.tx_out_id,
     tx_in_id: d.tx_in_id,
@@ -161,8 +162,13 @@ async function persistDecisions(
   // (peut arriver quand deux passes se croisent).
   let inserted = 0;
   let skipped = 0;
+  const insertedIds: string[] = [];
   for (const row of rows) {
-    const { error } = await client.from('intercompany_links' as any).insert(row);
+    const { data, error } = await client
+      .from('intercompany_links' as any)
+      .insert(row)
+      .select('id, status')
+      .single();
     if (error) {
       if ((error as any).code === '23505') {
         skipped++;
@@ -171,9 +177,11 @@ async function persistDecisions(
       }
     } else {
       inserted++;
+      const rec = data as { id: string; status: string };
+      if (rec?.status === 'auto_matched') insertedIds.push(rec.id);
     }
   }
-  return { inserted, skipped };
+  return { inserted, skipped, insertedIds };
 }
 
 async function runMatching(
@@ -274,6 +282,7 @@ Deno.serve(async (req: Request) => {
       windows = [{ from: isoDay(start), to: isoDay(end) }];
     }
 
+    const allInsertedAutoIds: string[] = [];
     for (const w of windows) {
       // Recharger les existingLinks à chaque fenêtre (une passe peut créer des liens
       // qui influencent la détection récurrente de la fenêtre suivante).
@@ -286,13 +295,28 @@ Deno.serve(async (req: Request) => {
         existing,
         minAmount,
       );
-      const { inserted, skipped } = await persistDecisions(client, decisions);
+      const { inserted, skipped, insertedIds } = await persistDecisions(client, decisions);
       summary.windows_processed++;
       summary.candidates_scanned += scanned;
       summary.auto_matched += decisions.filter(d => d.status === 'auto_matched').length;
       summary.suggested += decisions.filter(d => d.status === 'suggested').length;
       summary.inserted += inserted;
       summary.skipped_existing += skipped;
+      allInsertedAutoIds.push(...insertedIds);
+    }
+
+    // Auto-catégorisation des jambes non catégorisées des nouveaux liens auto.
+    if (allInsertedAutoIds.length > 0) {
+      try {
+        const cat = await categorizeIntercompanyLinks(client, allInsertedAutoIds);
+        (summary as any).categorized_legs = cat.categorized_legs;
+        (summary as any).created_categories = cat.created_categories;
+        if (cat.errors.length > 0) summary.errors.push(...cat.errors);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error('[match-intercompany] categorization failed:', msg);
+        summary.errors.push(`categorization: ${msg}`);
+      }
     }
 
     await logRun(client, mode, triggeredBy, summary);
