@@ -528,24 +528,6 @@ async function syncCompanyTransactions(
       const description = bridgeClient.getTransactionDescription(transaction);
       const absAmount = Math.abs(transaction.amount);
 
-      // TEMP DEBUG: dump raw Bridge fields for "Remise CB" to identify which field carries the full label
-      const anyTx = transaction as any;
-      const candidateLabels = [
-        anyTx.provider_description,
-        anyTx.raw_description,
-        anyTx.bank_description,
-        anyTx.description,
-        anyTx.clean_description,
-      ].filter(Boolean).join(' | ');
-      if (candidateLabels.toUpperCase().includes('REMISE CB')) {
-        console.info(`[bridge-sync][DEBUG REMISE_CB] id=${transaction.id} account=${accountName} fields=${JSON.stringify({
-          provider_description: anyTx.provider_description,
-          raw_description: anyTx.raw_description,
-          bank_description: anyTx.bank_description,
-          description: anyTx.description,
-          clean_description: anyTx.clean_description,
-        })}`);
-      }
 
       // Check if already exists by bridge_transaction_id OR legacy pennylane_id
       let match: MatchEntry | undefined = existingByBridgeId.get(transaction.id)
@@ -849,8 +831,12 @@ Deno.serve(async (req) => {
             }
           }
 
+          // Cron-sync is incremental by design: 7 days is enough to catch
+          // late-settling transactions without hitting Edge Function CPU limits
+          // on connections with many accounts. Full 365j reste réservé au
+          // full-sync manuel déclenché via l'UI.
           const allTransactions = await bridgeClient.fetchAllTransactions(
-            since_days ?? 365,
+            since_days ?? 7,
             cutoffDateStr
           );
 
