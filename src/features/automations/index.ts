@@ -6,6 +6,12 @@ export { AutomationRunHistory } from './components/AutomationRunHistory';
 export { fetchAutomationRulePreview } from './api/automationPreviewApi';
 export { listRunsForRule, rollbackRun } from './api/automationRunsApi';
 export type { AutomationRunSummary } from './api/automationRunsApi';
+export { useConflictedTransactions } from './hooks/useConflictedTransactions';
+export {
+  fetchConflictedTransactions,
+  bumpRulePriorityAbove,
+} from './api/conflictedTransactionsApi';
+export type { ConflictedTransactionInfo } from './api/conflictedTransactionsApi';
 export {
   computeSpecificityScore,
   computeSpecificityBreakdown,
