@@ -295,7 +295,7 @@ Deno.serve(async (req: Request) => {
       summary.skipped_existing += skipped;
     }
 
-    await logRun(client, summary);
+    await logRun(client, mode, triggeredBy, summary);
     return new Response(JSON.stringify({ ok: true, summary }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -304,7 +304,7 @@ Deno.serve(async (req: Request) => {
     const msg = err instanceof Error ? err.message : String(err);
     console.error('[match-intercompany] error:', err);
     summary.errors.push(msg);
-    await logRun(client, summary, msg);
+    await logRun(client, mode, triggeredBy, summary, msg);
     return new Response(JSON.stringify({ ok: false, error: msg, summary }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
