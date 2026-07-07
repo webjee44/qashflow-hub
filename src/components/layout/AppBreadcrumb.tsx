@@ -18,7 +18,7 @@ const routeConfig: Record<string, { label: string; parent?: string }> = {
   '/parametres': { label: 'Paramètres' },
   
   // Business Plan routes
-  '/bp': { label: 'Tableau de bord', parent: 'Prévisions' },
+  '/bp': { label: 'Business Plan', parent: 'Prévisions' },
   '/bp/revenus': { label: 'Hypothèses CA', parent: 'Prévisions' },
   '/bp/charges': { label: 'Charges', parent: 'Prévisions' },
   '/bp/investissements': { label: 'Investissements', parent: 'Prévisions' },
