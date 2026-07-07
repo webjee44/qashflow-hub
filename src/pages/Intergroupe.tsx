@@ -25,6 +25,7 @@ import {
   type IntercompanyLinkStatus,
   type PeriodPresetKey,
 } from '@/features/intercompany/engine/computeIntercompanyPositions';
+import { isCurrentAccountLink } from '@/features/intercompany/engine/isCurrentAccountLink';
 import { PositionsList } from '@/features/intercompany/components/PositionsList';
 import { PerCompanyPositions } from '@/features/intercompany/components/PerCompanyPositions';
 import { PairDrillDown } from '@/features/intercompany/components/PairDrillDown';
@@ -63,8 +64,12 @@ export default function Intergroupe() {
       ? ['auto_matched', 'confirmed', 'suggested']
       : ['auto_matched', 'confirmed'];
     const bounds = resolvePeriodPreset(period);
+    // Ne comptent comme positions QUE les liens dont les 2 jambes sont catégorisées
+    // C/C / Apport / Compte courant. Les paiements de factures pour compte d'autrui
+    // ou virements non tagués ne créent pas de créance/dette de compte courant.
+    const currentAccountLinks = links.filter(isCurrentAccountLink);
     return computeIntercompanyPositions(
-      links.map(l => ({
+      currentAccountLinks.map(l => ({
         company_out: l.company_out,
         company_in: l.company_in,
         amount: l.amount,
