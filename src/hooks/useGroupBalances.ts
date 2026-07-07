@@ -14,6 +14,7 @@ export interface CompanyBalance {
   companyName: string;
   totalBalance: number;
   accountCount: number;
+  lastSyncAt: string | null;
   accounts: Array<{
     name: string | null;
     balance: number;
@@ -21,6 +22,7 @@ export interface CompanyBalance {
     iban: string | null;
     accountType: string | null;
     bankName: string | null;
+    lastSyncAt: string | null;
   }>;
   alerts: CompanyAlert[];
 }
