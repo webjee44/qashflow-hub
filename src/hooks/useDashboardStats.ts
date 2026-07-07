@@ -217,18 +217,6 @@ export function useBalanceChartData() {
 
         const { data: transactions } = await transactionsQuery;
 
-        // Fetch forecasts for future months
-        let forecastsQuery = supabase
-          .from('forecasts')
-          .select('expected_income, expected_expense, month')
-          .gte('month', format(now, 'yyyy-MM-01'));
-
-        if (currentCompany?.id) {
-          forecastsQuery = forecastsQuery.eq('company_id', currentCompany.id);
-        }
-
-        const { data: forecasts } = await forecastsQuery;
-
         // Calculate current balance: source unique = vue company_active_bridge_accounts
         let currentBalance: number;
 
@@ -256,7 +244,7 @@ export function useBalanceChartData() {
 
         // Group past transactions by month (last 6 months)
         const monthlyData: Record<string, { income: number; expense: number }> = {};
-        
+
         for (let i = 5; i >= 0; i--) {
           const monthDate = subMonths(now, i);
           const monthKey = format(monthDate, 'yyyy-MM');
@@ -283,7 +271,7 @@ export function useBalanceChartData() {
         const totalPastNet = pastMonths.reduce((acc, month) => {
           return acc + monthlyData[month].income - monthlyData[month].expense;
         }, 0);
-        
+
         runningBalance = currentBalance - totalPastNet;
 
         // Add past months
@@ -291,7 +279,7 @@ export function useBalanceChartData() {
           const monthDate = parseISO(`${monthKey}-01`);
           const { income, expense } = monthlyData[monthKey];
           runningBalance += income - expense;
-          
+
           chartData.push({
             month: format(monthDate, 'MMM yyyy', { locale: fr }),
             balance: runningBalance,
@@ -301,39 +289,19 @@ export function useBalanceChartData() {
           });
         });
 
-        // Add future months from forecasts (next 6 months)
+        // Future months: the `forecasts` table has been removed in S2.
+        // Project a flat balance until the treasury engine is wired here.
         for (let i = 1; i <= 6; i++) {
           const futureDate = addMonths(now, i);
-          const monthKey = format(futureDate, 'yyyy-MM');
-          
-          const forecast = forecasts?.find(f => f.month.startsWith(monthKey));
-          const income = forecast ? Number(forecast.expected_income) : 0;
-          const expense = forecast ? Number(forecast.expected_expense) : 0;
-          
-          runningBalance += income - expense;
-          
           chartData.push({
             month: format(futureDate, 'MMM yyyy', { locale: fr }),
             balance: runningBalance,
-            income,
-            expense,
+            income: 0,
+            expense: 0,
             isProjection: true,
           });
         }
 
-        setData(chartData);
-      } catch (error) {
-        logError('Error fetching balance chart data:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, [currentCompany?.id]);
-
-  return { data, loading };
-}
 
 export function useCategoryBreakdown() {
   const { currentCompany } = useCompany();
