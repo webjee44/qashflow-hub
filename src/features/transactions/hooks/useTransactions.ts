@@ -128,6 +128,10 @@ export function useTransactions(options: UseTransactionsOptions = {}) {
         category_id: split.categoryId,
         description: `${original.description} (${index + 1}/${splits.length})`,
         parent_transaction_id: originalTransactionId,
+        // Propagate bank account from parent so split children remain part of
+        // the bank ledger — otherwise the backward-walk anchor (which filters
+        // on active bridge_account_ids) excludes them and openings drift.
+        bridge_account_id: (original as { bridge_account_id: number | null }).bridge_account_id ?? null,
         source: 'split',
         is_reconciled: false,
       }));
