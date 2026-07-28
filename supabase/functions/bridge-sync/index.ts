@@ -814,30 +814,15 @@ Deno.serve(async (req) => {
             touchedCompanyIds.add(cid);
           }
 
-          // Cutoff: oldest impacted company.created_at minus 1 month
-          let cutoffDateStr: string | undefined;
-          if (impactedCompanyIds.length > 0) {
-            const { data: createdRows } = await supabaseAdmin
-              .from('companies')
-              .select('created_at')
-              .in('id', impactedCompanyIds)
-              .order('created_at', { ascending: true })
-              .limit(1);
-            const oldest = createdRows?.[0]?.created_at;
-            if (oldest) {
-              const cutoff = new Date(oldest);
-              cutoff.setMonth(cutoff.getMonth() - 1);
-              cutoffDateStr = cutoff.toISOString().split('T')[0];
-            }
-          }
-
-          // Cron-sync is incremental by design: 7 days is enough to catch
+          // Cron-sync is strictly incremental: 7 days is enough to catch
           // late-settling transactions without hitting Edge Function CPU limits
           // on connections with many accounts. Full 365j reste réservé au
           // full-sync manuel déclenché via l'UI.
+          // NE PAS passer de cutoffDate ici: cutoffDate = company_created_at - 1 mois
+          // écraserait le fenêtrage incrémental (fetchAllTransactions choisit le
+          // plus ancien) et réintroduirait un fetch complet à chaque cron.
           const allTransactions = await bridgeClient.fetchAllTransactions(
             since_days ?? 7,
-            cutoffDateStr
           );
 
           // Fallback user_id only used if a target company has no resolvable owner
