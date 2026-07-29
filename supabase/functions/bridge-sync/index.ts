@@ -673,10 +673,7 @@ async function syncCompanyTransactions(
         const batch = toInsert.slice(i, i + BATCH_SIZE);
         const { data, error } = await supabaseAdmin
           .from('transactions')
-          .upsert(batch, {
-            onConflict: 'bridge_transaction_id,company_id',
-            ignoreDuplicates: true,
-          })
+          .insert(batch)
           .select('id');
         if (!error) {
           insertedCount += data?.length || 0;
