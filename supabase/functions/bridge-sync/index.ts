@@ -57,6 +57,14 @@ function publicComputeAccountIdentity(iban: string | null | undefined, name: str
   return `fallback:${(name || '').toLowerCase()}:${(accountType || '').toLowerCase()}`;
 }
 
+function chunkArray<T>(items: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size));
+  }
+  return chunks;
+}
+
 // ============================================
 // Helper: Build account_id -> company_id map
 // ============================================
@@ -472,20 +480,43 @@ async function syncCompanyTransactions(
   console.info(`[bridge-sync] Processing transactions for ${txByCompany.size} companies`);
 
   for (const [correctCompanyId, companyTransactions] of txByCompany) {
-    // Get existing bridge_transaction_ids for this company in one query.
+    // Get existing bridge_transaction_ids for this company.
     // IMPORTANT: include soft-deleted rows so we can detect transactions already split
     // (parent is soft-deleted but keeps its bridge_transaction_id). Without this, when
     // Bridge re-issues an ID (e.g. pending -> settled or refresh), the split parent
     // becomes invisible and the transaction is re-inserted as a new uncategorized row.
-    const bridgeIds = companyTransactions.map(t => t.id);
-    const { data: existingTxs } = await supabaseAdmin
-      .from('transactions')
-      .select('id, bridge_transaction_id, pennylane_id, deleted_at')
-      .eq('company_id', correctCompanyId)
-      .or(
-        `bridge_transaction_id.in.(${bridgeIds.join(',')}),` +
-        `pennylane_id.in.(${bridgeIds.map(id => `bridge_${id}`).join(',')})`
-      );
+    // Do NOT put all ids in one PostgREST `or(...in.(...))` clause: for large 7-day
+    // Bridge windows the URL becomes too large / parsing fails, existingTxs is empty,
+    // then every duplicate is retried as an insert until the Edge Function hits CPU.
+    const bridgeIds = Array.from(new Set(companyTransactions.map(t => t.id)));
+    const existingTxsById = new Map<string, any>();
+    const EXACT_LOOKUP_CHUNK_SIZE = 100;
+    for (const bridgeIdChunk of chunkArray(bridgeIds, EXACT_LOOKUP_CHUNK_SIZE)) {
+      const pennylaneIds = bridgeIdChunk.map(id => `bridge_${id}`);
+      const [byBridgeId, byPennylaneId] = await Promise.all([
+        supabaseAdmin
+          .from('transactions')
+          .select('id, bridge_transaction_id, pennylane_id, deleted_at')
+          .eq('company_id', correctCompanyId)
+          .in('bridge_transaction_id', bridgeIdChunk),
+        supabaseAdmin
+          .from('transactions')
+          .select('id, bridge_transaction_id, pennylane_id, deleted_at')
+          .eq('company_id', correctCompanyId)
+          .in('pennylane_id', pennylaneIds),
+      ]);
+
+      if (byBridgeId.error) {
+        console.error(`[bridge-sync] Existing bridge id lookup failed for company ${correctCompanyId}:`, byBridgeId.error);
+      }
+      if (byPennylaneId.error) {
+        console.error(`[bridge-sync] Existing legacy id lookup failed for company ${correctCompanyId}:`, byPennylaneId.error);
+      }
+
+      for (const row of byBridgeId.data || []) existingTxsById.set(row.id, row);
+      for (const row of byPennylaneId.data || []) existingTxsById.set(row.id, row);
+    }
+    const existingTxs = Array.from(existingTxsById.values());
 
     // Build lookup maps (track deleted_at to detect already-split / deleted parents)
     type MatchEntry = { id: string; deletedAt: string | null };
@@ -497,14 +528,29 @@ async function syncCompanyTransactions(
       if (tx.pennylane_id) existingByPennylaneId.set(tx.pennylane_id, entry);
     }
 
-    // Pre-fetch ALL existing transactions for this company for in-memory signature matching.
+    // Pre-fetch existing transactions for this company for in-memory signature matching.
     // We INCLUDE soft-deleted rows: if a Bridge transaction signature-matches a soft-deleted
     // parent, the user has already split (or deleted) it and we must NOT re-insert.
-    const { data: allExistingTxs } = await supabaseAdmin
-      .from('transactions')
-      .select('id, description, date, amount, type, bank_account_name, deleted_at')
-      .eq('company_id', correctCompanyId)
-      .limit(10000);
+    // Bound this fallback to the incoming dates: exact Bridge/Pennylane ids above are
+    // the authoritative dedupe path; signature matching only covers legacy rows that
+    // predate Bridge ids, so a 7-day date window is enough and avoids scanning years.
+    const incomingDates = Array.from(new Set(companyTransactions.map(t => t.date)));
+    const signatureRowsById = new Map<string, any>();
+    const SIGNATURE_LOOKUP_CHUNK_SIZE = 100;
+    for (const dateChunk of chunkArray(incomingDates, SIGNATURE_LOOKUP_CHUNK_SIZE)) {
+      const { data, error } = await supabaseAdmin
+        .from('transactions')
+        .select('id, description, date, amount, type, bank_account_name, deleted_at')
+        .eq('company_id', correctCompanyId)
+        .in('date', dateChunk);
+
+      if (error) {
+        console.error(`[bridge-sync] Signature lookup failed for company ${correctCompanyId}:`, error);
+        continue;
+      }
+      for (const row of data || []) signatureRowsById.set(row.id, row);
+    }
+    const allExistingTxs = Array.from(signatureRowsById.values());
 
     // Build signature lookup. When both an active and a soft-deleted row share the same
     // signature, prefer the active one so normal updates still go through.
