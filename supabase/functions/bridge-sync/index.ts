@@ -911,10 +911,11 @@ Deno.serve(async (req) => {
               `${inserted} new, ${updated} updated transactions`
           );
 
-          // Apply automation rules per impacted company when new transactions
-          // came in. The shared engine is idempotent (uncategorized + non-deleted
-          // only) and enforces tenant security on each companyId.
-          if (inserted > 0 || updated > 0) {
+          // Apply automation rules per impacted company only when new transactions
+          // came in. Existing Bridge rows are refreshed on every cron; treating
+          // those routine updates as categorization work re-scans thousands of
+          // historical rows and can burn the Edge CPU budget before the cron ends.
+          if (inserted > 0) {
             for (const cid of impactedCompanyIds) {
               await runAutomationForCompany(supabaseAdmin, cid);
             }
