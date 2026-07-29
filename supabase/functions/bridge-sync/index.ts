@@ -480,6 +480,9 @@ async function syncCompanyTransactions(
   console.info(`[bridge-sync] Processing transactions for ${txByCompany.size} companies`);
 
   for (const [correctCompanyId, companyTransactions] of txByCompany) {
+    const uniqueCompanyTransactions = Array.from(
+      new Map(companyTransactions.map((transaction) => [transaction.id, transaction])).values()
+    );
     // Get existing bridge_transaction_ids for this company.
     // IMPORTANT: include soft-deleted rows so we can detect transactions already split
     // (parent is soft-deleted but keeps its bridge_transaction_id). Without this, when
@@ -488,7 +491,7 @@ async function syncCompanyTransactions(
     // Do NOT put all ids in one PostgREST `or(...in.(...))` clause: for large 7-day
     // Bridge windows the URL becomes too large / parsing fails, existingTxs is empty,
     // then every duplicate is retried as an insert until the Edge Function hits CPU.
-    const bridgeIds = Array.from(new Set(companyTransactions.map(t => t.id)));
+    const bridgeIds = Array.from(new Set(uniqueCompanyTransactions.map(t => t.id)));
     const existingTxsById = new Map<string, any>();
     const EXACT_LOOKUP_CHUNK_SIZE = 100;
     for (const bridgeIdChunk of chunkArray(bridgeIds, EXACT_LOOKUP_CHUNK_SIZE)) {
@@ -496,12 +499,12 @@ async function syncCompanyTransactions(
       const [byBridgeId, byPennylaneId] = await Promise.all([
         supabaseAdmin
           .from('transactions')
-          .select('id, bridge_transaction_id, pennylane_id, deleted_at')
+          .select('id, bridge_transaction_id, pennylane_id, deleted_at, amount, description, date, type, bank_account_name, bridge_account_id')
           .eq('company_id', correctCompanyId)
           .in('bridge_transaction_id', bridgeIdChunk),
         supabaseAdmin
           .from('transactions')
-          .select('id, bridge_transaction_id, pennylane_id, deleted_at')
+          .select('id, bridge_transaction_id, pennylane_id, deleted_at, amount, description, date, type, bank_account_name, bridge_account_id')
           .eq('company_id', correctCompanyId)
           .in('pennylane_id', pennylaneIds),
       ]);
@@ -519,11 +522,11 @@ async function syncCompanyTransactions(
     const existingTxs = Array.from(existingTxsById.values());
 
     // Build lookup maps (track deleted_at to detect already-split / deleted parents)
-    type MatchEntry = { id: string; deletedAt: string | null };
+    type MatchEntry = { id: string; deletedAt: string | null; row?: any };
     const existingByBridgeId = new Map<number, MatchEntry>();
     const existingByPennylaneId = new Map<string, MatchEntry>();
     for (const tx of existingTxs || []) {
-      const entry: MatchEntry = { id: tx.id, deletedAt: tx.deleted_at };
+      const entry: MatchEntry = { id: tx.id, deletedAt: tx.deleted_at, row: tx };
       if (tx.bridge_transaction_id) existingByBridgeId.set(tx.bridge_transaction_id, entry);
       if (tx.pennylane_id) existingByPennylaneId.set(tx.pennylane_id, entry);
     }
@@ -534,13 +537,13 @@ async function syncCompanyTransactions(
     // Bound this fallback to the incoming dates: exact Bridge/Pennylane ids above are
     // the authoritative dedupe path; signature matching only covers legacy rows that
     // predate Bridge ids, so a 7-day date window is enough and avoids scanning years.
-    const incomingDates = Array.from(new Set(companyTransactions.map(t => t.date)));
+    const incomingDates = Array.from(new Set(uniqueCompanyTransactions.map(t => t.date)));
     const signatureRowsById = new Map<string, any>();
     const SIGNATURE_LOOKUP_CHUNK_SIZE = 100;
     for (const dateChunk of chunkArray(incomingDates, SIGNATURE_LOOKUP_CHUNK_SIZE)) {
       const { data, error } = await supabaseAdmin
         .from('transactions')
-        .select('id, description, date, amount, type, bank_account_name, deleted_at')
+        .select('id, description, date, amount, type, bank_account_name, deleted_at, bridge_transaction_id, pennylane_id, bridge_account_id')
         .eq('company_id', correctCompanyId)
         .in('date', dateChunk);
 
@@ -559,7 +562,7 @@ async function syncCompanyTransactions(
       const sig = `${tx.description}|${tx.date}|${tx.amount}|${tx.type}|${tx.bank_account_name || ''}`;
       const prev = signatureMap.get(sig);
       if (!prev || (prev.deletedAt && !tx.deleted_at)) {
-        signatureMap.set(sig, { id: tx.id, deletedAt: tx.deleted_at });
+        signatureMap.set(sig, { id: tx.id, deletedAt: tx.deleted_at, row: tx });
       }
     }
 
@@ -568,7 +571,7 @@ async function syncCompanyTransactions(
     const toUpdate: { id: string; data: any }[] = [];
     let skippedAlreadySplitOrDeleted = 0;
 
-    for (const transaction of companyTransactions) {
+    for (const transaction of uniqueCompanyTransactions) {
       const transactionType = bridgeClient.getTransactionType(transaction);
       const accountName = accountNameMap[transaction.account_id] || null;
       const description = bridgeClient.getTransactionDescription(transaction);
@@ -605,6 +608,21 @@ async function syncCompanyTransactions(
       const existingId = match?.id;
 
       if (existingId) {
+        const existing = match?.row;
+        const alreadyUpToDate = existing
+          && Number(existing.amount) === absAmount
+          && existing.description === description
+          && existing.date === transaction.date
+          && existing.type === transactionType
+          && (existing.bank_account_name || null) === (accountName || null)
+          && Number(existing.bridge_account_id) === Number(transaction.account_id)
+          && Number(existing.bridge_transaction_id) === Number(transaction.id)
+          && existing.pennylane_id === `bridge_${transaction.id}`;
+
+        if (alreadyUpToDate) {
+          continue;
+        }
+
         const norm = deriveTransactionNormalization(description);
         toUpdate.push({
           id: existingId,
@@ -644,26 +662,21 @@ async function syncCompanyTransactions(
       }
     }
 
-    // Batch insert new transactions with individual fallback on failure
+    // Batch insert new transactions. Ignore conflicts without falling back to
+    // per-row inserts: duplicate Bridge rows are expected in reconnect/history
+    // edge cases, and retrying them one by one is what was burning CPU.
     if (toInsert.length > 0) {
       const BATCH_SIZE = 100;
       for (let i = 0; i < toInsert.length; i += BATCH_SIZE) {
         const batch = toInsert.slice(i, i + BATCH_SIZE);
-        const { error } = await supabaseAdmin.from('transactions').insert(batch);
+        const { data, error } = await supabaseAdmin
+          .from('transactions')
+          .insert(batch, { ignoreDuplicates: true })
+          .select('id');
         if (!error) {
-          insertedCount += batch.length;
+          insertedCount += data?.length || 0;
         } else {
-          // Batch failed (likely duplicate trigger) - fall back to individual inserts
-          console.warn(`[bridge-sync] Batch insert failed: ${error.message}. Falling back to individual inserts for ${batch.length} transactions.`);
-          for (const tx of batch) {
-            const { error: singleError } = await supabaseAdmin.from('transactions').insert(tx);
-            if (!singleError) {
-              insertedCount++;
-            } else {
-              // Skip this duplicate silently (expected for duplicates)
-              console.debug(`[bridge-sync] Skipped duplicate: ${tx.description} ${tx.date} ${tx.amount}`);
-            }
-          }
+          console.warn(`[bridge-sync] Batch insert skipped after failure: ${error.message}`);
         }
       }
     }
