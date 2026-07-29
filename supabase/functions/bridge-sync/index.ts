@@ -499,12 +499,12 @@ async function syncCompanyTransactions(
       const [byBridgeId, byPennylaneId] = await Promise.all([
         supabaseAdmin
           .from('transactions')
-          .select('id, bridge_transaction_id, pennylane_id, deleted_at, amount, description, date, type, bank_account_name, bridge_account_id')
+          .select('id, bridge_transaction_id, pennylane_id, deleted_at, amount, description, date, type, bank_account_name, bridge_account_id, merchant_key, normalized_description')
           .eq('company_id', correctCompanyId)
           .in('bridge_transaction_id', bridgeIdChunk),
         supabaseAdmin
           .from('transactions')
-          .select('id, bridge_transaction_id, pennylane_id, deleted_at, amount, description, date, type, bank_account_name, bridge_account_id')
+          .select('id, bridge_transaction_id, pennylane_id, deleted_at, amount, description, date, type, bank_account_name, bridge_account_id, merchant_key, normalized_description')
           .eq('company_id', correctCompanyId)
           .in('pennylane_id', pennylaneIds),
       ]);
@@ -543,7 +543,7 @@ async function syncCompanyTransactions(
     for (const dateChunk of chunkArray(incomingDates, SIGNATURE_LOOKUP_CHUNK_SIZE)) {
       const { data, error } = await supabaseAdmin
         .from('transactions')
-        .select('id, description, date, amount, type, bank_account_name, deleted_at, bridge_transaction_id, pennylane_id, bridge_account_id')
+        .select('id, description, date, amount, type, bank_account_name, deleted_at, bridge_transaction_id, pennylane_id, bridge_account_id, merchant_key, normalized_description')
         .eq('company_id', correctCompanyId)
         .in('date', dateChunk);
 
@@ -609,6 +609,7 @@ async function syncCompanyTransactions(
 
       if (existingId) {
         const existing = match?.row;
+        const norm = deriveTransactionNormalization(description);
         const alreadyUpToDate = existing
           && Number(existing.amount) === absAmount
           && existing.description === description
@@ -617,13 +618,14 @@ async function syncCompanyTransactions(
           && (existing.bank_account_name || null) === (accountName || null)
           && Number(existing.bridge_account_id) === Number(transaction.account_id)
           && Number(existing.bridge_transaction_id) === Number(transaction.id)
-          && existing.pennylane_id === `bridge_${transaction.id}`;
+          && existing.pennylane_id === `bridge_${transaction.id}`
+          && existing.merchant_key === norm.merchant_key
+          && existing.normalized_description === norm.normalized_description;
 
         if (alreadyUpToDate) {
           continue;
         }
 
-        const norm = deriveTransactionNormalization(description);
         toUpdate.push({
           id: existingId,
           data: {
@@ -671,7 +673,10 @@ async function syncCompanyTransactions(
         const batch = toInsert.slice(i, i + BATCH_SIZE);
         const { data, error } = await supabaseAdmin
           .from('transactions')
-          .insert(batch, { ignoreDuplicates: true })
+          .upsert(batch, {
+            onConflict: 'bridge_transaction_id,company_id',
+            ignoreDuplicates: true,
+          })
           .select('id');
         if (!error) {
           insertedCount += data?.length || 0;
