@@ -563,10 +563,32 @@ export function BankAccountsCard() {
         }
       }
 
-      toast.success(`${totalAccounts} comptes synchronisés !`);
-      
+      // Vérité de sortie : après le retour de Bridge, on relit le statut réel des
+      // items. Un écran Bridge « tout est ok » ne garantit pas que la SCA a été
+      // repassée — sans ce contrôle, l'utilisateur croit avoir reconnecté.
+      const { data: statusRows } = await supabase
+        .from('bridge_accounts')
+        .select('bank_name, item_status')
+        .in('company_id', companiesWithBridge.map(c => c.id));
+
+      const stillBlocked = Array.from(new Set(
+        (statusRows || [])
+          .filter(r => r.item_status === 'needs_action' || r.item_status === 'error')
+          .map(r => r.bank_name || 'Banque')
+      ));
+
+      if (stillBlocked.length > 0) {
+        toast.error(
+          `Validation bancaire non aboutie : ${stillBlocked.join(', ')} reste en attente de SCA. Relancez « Reconnecter » et validez la demande dans votre application bancaire.`,
+          { duration: 12000 }
+        );
+      } else {
+        toast.success(`${totalAccounts} comptes synchronisés !`);
+      }
+
       // Reload to refresh the accounts list
       window.location.reload();
+
     } catch (error) {
       logError('Auto sync error:', error);
       toast.error('Erreur lors de la synchronisation automatique');
