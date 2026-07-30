@@ -1068,6 +1068,11 @@ Deno.serve(async (req) => {
       const allItems = await bridgeClient.fetchAllItems();
       console.info(`[bridge-sync] Fetched ${allAccounts.length} accounts and ${allItems.length} items from Bridge`);
 
+      // Synchro manuelle : on force une re-agrégation des items périmés (>1h)
+      // pour que l'utilisateur obtienne des soldes réellement à jour.
+      await refreshStaleBridgeItems(bridgeClient, allAccounts, 1);
+
+
       // [BRIDGE-RAW-DUMP] Temporary diagnostic: log raw Bridge accounts for this user
       console.info(`[bridge-raw-dump] user=${bridge_user_uuid} company=${company_id} count=${allAccounts.length}`);
       for (const a of allAccounts as any[]) {
