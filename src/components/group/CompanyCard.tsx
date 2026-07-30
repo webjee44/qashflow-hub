@@ -2,6 +2,7 @@ import { motion } from 'framer-motion';
 import { AlertTriangle, AlertCircle, Info, Landmark, Building2, RefreshCw } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { Link } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -93,10 +94,14 @@ export function CompanyCard({ company, index, onClick }: CompanyCardProps) {
                   {company.accountCount} compte{company.accountCount !== 1 ? 's' : ''}
                 </p>
                 {hasBlockedBankConnection ? (
-                  <p className="text-[11px] text-warning flex items-center gap-1 mt-0.5">
+                  <Link
+                    to="/parametres?tab=accounts"
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-[11px] text-warning flex items-center gap-1 mt-0.5 underline underline-offset-2 hover:text-warning/80"
+                  >
                     <AlertTriangle className="h-2.5 w-2.5" />
-                    Synchro bloquée — reconnexion requise
-                  </p>
+                    Synchro bloquée — reconnecter la banque
+                  </Link>
                 ) : company.lastSyncAt ? (
                   <p className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5">
                     <RefreshCw className="h-2.5 w-2.5" />
