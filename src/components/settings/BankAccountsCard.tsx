@@ -1606,20 +1606,21 @@ function BankAccountsList({
                 
                 <StatusBadge status={group.itemStatus} message={group.itemStatusMessage} />
                 
-                {(group.itemStatus === 'needs_action' || group.itemStatus === 'error') && (
+                {group.bridgeItemId && group.bridgeUserUuid && (
                   <Button
-                    variant="outline"
+                    variant={group.itemStatus === 'needs_action' || group.itemStatus === 'error' ? 'outline' : 'ghost'}
                     size="sm"
                     onClick={(e) => {
                       e.stopPropagation();
                       onReconnect(group.bridgeUserUuid, group.bridgeItemId);
                     }}
-                    className="gap-1 h-7 text-xs"
+                    className="gap-1 h-7 text-xs text-muted-foreground hover:text-foreground"
                   >
                     <RotateCcw className="w-3 h-3" />
                     Reconnecter
                   </Button>
                 )}
+
               </div>
               <span className="font-semibold text-foreground">
                 {formatBalance(group.totalBalance)}
