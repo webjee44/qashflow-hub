@@ -15,6 +15,8 @@ export interface CompanyBalance {
   totalBalance: number;
   accountCount: number;
   lastSyncAt: string | null;
+  /** Fraîcheur réelle du solde côté banque (le plus ancien des comptes). */
+  balanceRefreshedAt: string | null;
   accounts: Array<{
     name: string | null;
     balance: number;
@@ -23,6 +25,7 @@ export interface CompanyBalance {
     accountType: string | null;
     bankName: string | null;
     lastSyncAt: string | null;
+    balanceRefreshedAt: string | null;
   }>;
   alerts: CompanyAlert[];
 }
