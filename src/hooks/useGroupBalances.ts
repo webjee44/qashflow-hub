@@ -49,12 +49,12 @@ function deriveAlerts(balance: number, accounts: CompanyBalance['accounts']): Co
 
   const hasError = accounts.some(a => a.itemStatus === 'error' || a.itemStatus === 'deleted');
   if (hasError) {
-    alerts.push({ severity: 'critical', message: 'Connexion en erreur' });
+    alerts.push({ severity: 'critical', message: 'Connexion bancaire bloquée' });
   }
 
   const hasNeedsAction = accounts.some(a => a.itemStatus === 'needs_action');
   if (hasNeedsAction) {
-    alerts.push({ severity: 'warning', message: 'Action requise' });
+    alerts.push({ severity: 'warning', message: 'Reconnexion bancaire requise' });
   }
 
   return alerts;
