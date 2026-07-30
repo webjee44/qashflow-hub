@@ -121,7 +121,49 @@ async function recomputeCompanyStats(supabaseAdmin: any, companyId: string): Pro
 // ============================================
 // Helper: Sync transactions for a company
 // ============================================
+/**
+ * Demande à Bridge de re-agréger les items dont les données bancaires sont
+ * périmées. Sans cela, l'API ne sert que son cache : après une SCA repassée,
+ * l'item redevient `ok` mais le solde reste figé jusqu'à la prochaine
+ * agrégation spontanée de Bridge (parfois >24 h).
+ * L'agrégation est asynchrone : le résultat est visible au sync suivant.
+ */
+async function refreshStaleBridgeItems(
+  bridgeClient: BridgeClient,
+  accounts: BridgeAccount[],
+  stalenessHours = 4
+): Promise<number> {
+  const thresholdMs = Date.now() - stalenessHours * 60 * 60 * 1000;
+  const staleItemIds = new Set<number>();
+
+  for (const account of accounts) {
+    const anyAccount = account as any;
+    const itemId = anyAccount.item_id ?? anyAccount.bridge_item_id ?? null;
+    if (typeof itemId !== 'number' || !Number.isFinite(itemId)) continue;
+
+    const refreshedAt = anyAccount.updated_at ? Date.parse(anyAccount.updated_at) : NaN;
+    if (Number.isNaN(refreshedAt) || refreshedAt < thresholdMs) {
+      staleItemIds.add(itemId);
+    }
+  }
+
+  let requested = 0;
+  for (const itemId of staleItemIds) {
+    const result = await bridgeClient.refreshItem(itemId);
+    if (result.ok) requested++;
+  }
+
+  if (staleItemIds.size > 0) {
+    console.info(
+      `[bridge-sync] Refresh demandé pour ${requested}/${staleItemIds.size} items périmés (>${stalenessHours}h)`
+    );
+  }
+
+  return requested;
+}
+
 async function syncBridgeAccounts(
+
   supabaseAdmin: any,
   bridgeClient: BridgeClient,
   fallbackCompanyId: string,
