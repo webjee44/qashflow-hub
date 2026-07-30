@@ -396,6 +396,10 @@ async function syncBridgeAccounts(
         // bank_name volontairement absent du upsert : bootstrap réalisé juste
         // après pour ne JAMAIS écraser une saisie manuelle existante.
         last_sync_at: new Date().toISOString(),
+        // Fraîcheur RÉELLE du solde côté banque (Bridge `updated_at`), à ne
+        // jamais confondre avec l'horodatage de notre job : un item bloqué
+        // (SCA) continue d'être "synchronisé" alors que le solde est gelé.
+        balance_last_refreshed_at: (account as any).updated_at || null,
         updated_at: new Date().toISOString(),
       }, {
         onConflict: 'bridge_account_id',
