@@ -878,6 +878,10 @@ Deno.serve(async (req) => {
           const allAccounts = await bridgeClient.fetchAllAccounts();
           const allItems = await bridgeClient.fetchAllItems();
 
+          // Réveil de l'agrégation bancaire pour les items dont le solde est figé.
+          await refreshStaleBridgeItems(bridgeClient, allAccounts);
+
+
           console.info(`[bridge-raw-dump] user=${bridgeUserUuid} count=${allAccounts.length}`);
 
           // Build the account→company map BEFORE syncing accounts so we can
