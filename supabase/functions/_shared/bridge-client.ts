@@ -386,6 +386,29 @@ export class BridgeClient {
     return allItems;
   }
 
+  /**
+   * Demande à Bridge de re-agréger un item auprès de la banque.
+   * Sans cet appel, l'API ne renvoie que le dernier cache Bridge : les soldes
+   * peuvent rester figés même quand l'item est en status ok (post-SCA).
+   * L'agrégation est asynchrone côté Bridge : le résultat est visible au sync suivant.
+   */
+  async refreshItem(itemId: number): Promise<{ ok: boolean; status: number; body: string }> {
+    const response = await fetch(`${BRIDGE_API_URL}/aggregation/items/${itemId}/refresh`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(),
+    });
+
+    const body = await response.text();
+    if (!response.ok) {
+      console.error(`[BridgeClient] Refresh item ${itemId} failed [${response.status}]: ${body}`);
+    } else {
+      console.info(`[BridgeClient] Refresh requested for item ${itemId}`);
+    }
+
+    return { ok: response.ok, status: response.status, body };
+  }
+
+
   // ============================================
   // Bank Methods
   // ============================================
