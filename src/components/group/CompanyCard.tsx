@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { AlertTriangle, AlertCircle, Info, Landmark, Building2, RefreshCw } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
+import { format, formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -103,6 +103,11 @@ export function CompanyCard({ company, index, onClick }: CompanyCardProps) {
                     Sync {formatDistanceToNow(new Date(company.lastSyncAt), { addSuffix: true, locale: fr })}
                   </p>
                 ) : null}
+                {company.balanceRefreshedAt && (
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    Solde arrêté au {format(new Date(company.balanceRefreshedAt), 'dd/MM/yyyy HH:mm', { locale: fr })}
+                  </p>
+                )}
               </div>
             </div>
             <p className={cn(

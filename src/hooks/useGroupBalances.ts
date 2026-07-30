@@ -15,6 +15,8 @@ export interface CompanyBalance {
   totalBalance: number;
   accountCount: number;
   lastSyncAt: string | null;
+  /** Fraîcheur réelle du solde côté banque (le plus ancien des comptes). */
+  balanceRefreshedAt: string | null;
   accounts: Array<{
     name: string | null;
     balance: number;
@@ -23,6 +25,7 @@ export interface CompanyBalance {
     accountType: string | null;
     bankName: string | null;
     lastSyncAt: string | null;
+    balanceRefreshedAt: string | null;
   }>;
   alerts: CompanyAlert[];
 }
@@ -73,7 +76,7 @@ export function useGroupBalances(): GroupBalancesResult {
       // Source unique = vue company_active_bridge_accounts
       const { data: rows, error: rowsError } = await supabase
         .from('company_active_bridge_accounts')
-        .select('company_id, bridge_account_id, name, balance, item_status, iban, account_type, bank_name, last_sync_at')
+        .select('company_id, bridge_account_id, name, balance, item_status, iban, account_type, bank_name, last_sync_at, balance_last_refreshed_at')
         .in('company_id', companyIds);
 
       if (rowsError) throw rowsError;
@@ -89,6 +92,7 @@ export function useGroupBalances(): GroupBalancesResult {
           accountType: r.account_type,
           bankName: r.bank_name,
           lastSyncAt: r.last_sync_at,
+          balanceRefreshedAt: r.balance_last_refreshed_at ?? null,
         });
       }
 
@@ -101,6 +105,12 @@ export function useGroupBalances(): GroupBalancesResult {
           if (!max || a.lastSyncAt > max) return a.lastSyncAt;
           return max;
         }, null);
+        // Fraîcheur du solde consolidé = le maillon le plus ancien.
+        const balanceRefreshedAt = accounts.reduce<string | null>((min, a) => {
+          if (!a.balanceRefreshedAt) return min;
+          if (!min || a.balanceRefreshedAt < min) return a.balanceRefreshedAt;
+          return min;
+        }, null);
 
         return {
           companyId: company.id,
@@ -108,6 +118,7 @@ export function useGroupBalances(): GroupBalancesResult {
           totalBalance,
           accountCount: accounts.length,
           lastSyncAt,
+          balanceRefreshedAt,
           accounts,
           alerts,
         };

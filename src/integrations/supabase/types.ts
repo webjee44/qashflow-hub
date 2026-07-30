@@ -1406,6 +1406,7 @@ export type Database = {
           account_identity: string | null
           account_type: string | null
           balance: number | null
+          balance_last_refreshed_at: string | null
           bank_id: number | null
           bank_name: string | null
           bridge_account_id: number
@@ -1432,6 +1433,7 @@ export type Database = {
           account_identity?: string | null
           account_type?: string | null
           balance?: number | null
+          balance_last_refreshed_at?: string | null
           bank_id?: number | null
           bank_name?: string | null
           bridge_account_id: number
@@ -1458,6 +1460,7 @@ export type Database = {
           account_identity?: string | null
           account_type?: string | null
           balance?: number | null
+          balance_last_refreshed_at?: string | null
           bank_id?: number | null
           bank_name?: string | null
           bridge_account_id?: number
@@ -2443,6 +2446,7 @@ export type Database = {
           account_type: string | null
           assignment_status: string | null
           balance: number | null
+          balance_last_refreshed_at: string | null
           bank_name: string | null
           bridge_account_id: number | null
           bridge_item_id: number | null
@@ -2452,6 +2456,7 @@ export type Database = {
           exclusion_reason: string | null
           iban: string | null
           item_status: string | null
+          item_status_message: string | null
           last_sync_at: string | null
           lifecycle_status: string | null
           name: string | null
