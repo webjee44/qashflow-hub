@@ -103,6 +103,11 @@ export function CompanyCard({ company, index, onClick }: CompanyCardProps) {
                     Sync {formatDistanceToNow(new Date(company.lastSyncAt), { addSuffix: true, locale: fr })}
                   </p>
                 ) : null}
+                {company.balanceRefreshedAt && (
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    Solde arrêté au {format(new Date(company.balanceRefreshedAt), 'dd/MM/yyyy HH:mm', { locale: fr })}
+                  </p>
+                )}
               </div>
             </div>
             <p className={cn(
