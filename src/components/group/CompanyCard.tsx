@@ -60,6 +60,9 @@ interface CompanyCardProps {
 export function CompanyCard({ company, index, onClick }: CompanyCardProps) {
   const hasCritical = company.alerts.some(a => a.severity === 'critical');
   const hasWarning = company.alerts.some(a => a.severity === 'warning');
+  const hasBlockedBankConnection = company.accounts.some(account =>
+    account.itemStatus === 'needs_action' || account.itemStatus === 'error' || account.itemStatus === 'deleted'
+  );
 
   return (
     <motion.div
@@ -89,12 +92,17 @@ export function CompanyCard({ company, index, onClick }: CompanyCardProps) {
                   <Landmark className="h-3 w-3" />
                   {company.accountCount} compte{company.accountCount !== 1 ? 's' : ''}
                 </p>
-                {company.lastSyncAt && (
+                {hasBlockedBankConnection ? (
+                  <p className="text-[11px] text-warning flex items-center gap-1 mt-0.5">
+                    <AlertTriangle className="h-2.5 w-2.5" />
+                    Synchro bloquée — reconnexion requise
+                  </p>
+                ) : company.lastSyncAt ? (
                   <p className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5">
                     <RefreshCw className="h-2.5 w-2.5" />
                     Sync {formatDistanceToNow(new Date(company.lastSyncAt), { addSuffix: true, locale: fr })}
                   </p>
-                )}
+                ) : null}
               </div>
             </div>
             <p className={cn(
@@ -111,25 +119,31 @@ export function CompanyCard({ company, index, onClick }: CompanyCardProps) {
               {company.accounts.map((account, i) => {
                 const isLow = account.balance > 0 && account.balance < 1000;
                 const isNegative = account.balance < 0;
+                const isBlocked = account.itemStatus === 'needs_action' || account.itemStatus === 'error' || account.itemStatus === 'deleted';
                 return (
                   <div
                     key={i}
                     className={cn(
                       'flex items-center justify-between px-3 py-2 rounded-lg text-sm',
-                      isNegative ? 'bg-destructive/5' : isLow ? 'bg-amber-500/5' : 'bg-muted/50'
+                      isBlocked ? 'bg-warning/5' : isNegative ? 'bg-destructive/5' : isLow ? 'bg-amber-500/5' : 'bg-muted/50'
                     )}
                   >
                     <div className="flex items-center gap-2 min-w-0">
-                      <Landmark className={cn(
+                      {isBlocked ? <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-warning" /> : <Landmark className={cn(
                         'h-3.5 w-3.5 shrink-0',
                         isNegative ? 'text-destructive' : isLow ? 'text-amber-500' : 'text-muted-foreground'
-                      )} />
+                      )} />}
                       <span className="truncate text-foreground">
                         {account.bankName || account.name || getAccountTypeLabel(account.accountType)}
                       </span>
                       {account.iban && (
                         <span className="text-xs text-muted-foreground shrink-0">
                           •••{account.iban.slice(-4)}
+                        </span>
+                      )}
+                      {isBlocked && (
+                        <span className="text-xs text-warning shrink-0">
+                          Reconnexion requise
                         </span>
                       )}
                     </div>
