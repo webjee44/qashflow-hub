@@ -144,21 +144,21 @@ export function CompanyCard({ company, index, onClick }: CompanyCardProps) {
               {company.accounts.map((account, i) => {
                 const isLow = account.balance > 0 && account.balance < 1000;
                 const isNegative = account.balance < 0;
-                const isBlocked = account.itemStatus === 'needs_action' || account.itemStatus === 'error' || account.itemStatus === 'deleted';
+                const isBlocked = isBlockedStatus(account.itemStatus);
                 return (
                   <div
                     key={i}
                     className={cn(
                       'flex items-center justify-between px-3 py-2 rounded-lg text-sm',
-                      isBlocked ? 'bg-warning/5' : isNegative ? 'bg-destructive/5' : isLow ? 'bg-amber-500/5' : 'bg-muted/50'
+                      isBlocked ? 'bg-destructive/5 border border-destructive/20' : isNegative ? 'bg-destructive/5' : isLow ? 'bg-amber-500/5' : 'bg-muted/50'
                     )}
                   >
                     <div className="flex items-center gap-2 min-w-0">
-                      {isBlocked ? <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-warning" /> : <Landmark className={cn(
+                      {isBlocked ? <PlugZap className="h-3.5 w-3.5 shrink-0 text-destructive" /> : <Landmark className={cn(
                         'h-3.5 w-3.5 shrink-0',
                         isNegative ? 'text-destructive' : isLow ? 'text-amber-500' : 'text-muted-foreground'
                       )} />}
-                      <span className="truncate text-foreground">
+                      <span className={cn('truncate', isBlocked ? 'text-destructive' : 'text-foreground')}>
                         {account.bankName || account.name || getAccountTypeLabel(account.accountType)}
                       </span>
                       {account.iban && (
@@ -167,19 +167,25 @@ export function CompanyCard({ company, index, onClick }: CompanyCardProps) {
                         </span>
                       )}
                       {isBlocked && (
-                        <span className="text-xs text-warning shrink-0">
-                          Reconnexion requise
-                        </span>
+                        <Badge variant="outline" className="shrink-0 gap-1 text-[10px] font-medium border-destructive/30 bg-destructive/10 text-destructive">
+                          Déconnecté
+                          {account.balanceRefreshedAt && (
+                            <span className="font-normal">
+                              · figé au {format(new Date(account.balanceRefreshedAt), 'dd/MM HH:mm', { locale: fr })}
+                            </span>
+                          )}
+                        </Badge>
                       )}
                     </div>
                     <span className={cn(
                       'font-medium tabular-nums shrink-0 ml-2',
-                      isNegative ? 'text-destructive' : isLow ? 'text-amber-600' : 'text-foreground'
+                      isBlocked ? 'text-destructive/70 line-through decoration-destructive/40' : isNegative ? 'text-destructive' : isLow ? 'text-amber-600' : 'text-foreground'
                     )}>
                       {formatCurrency(account.balance)}
                     </span>
                   </div>
                 );
+
               })}
             </div>
           )}
