@@ -5,6 +5,7 @@ import { useCompany } from './useCompany';
 import { toast } from 'sonner';
 import { logError } from '@/lib/logger';
 import { computeSpecificityScore } from '@/features/automations';
+import { useQueryClient } from '@tanstack/react-query';
 
 export interface RuleCondition {
   id?: string;
@@ -48,6 +49,7 @@ export interface Category {
 export function useAutomationRules() {
   const { user } = useAuth();
   const { currentCompany } = useCompany();
+  const queryClient = useQueryClient();
   const [rules, setRules] = useState<AutomationRule[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -151,7 +153,15 @@ export function useAutomationRules() {
         return 0;
       }
 
-      return data?.updated || 0;
+      const updated = data?.updated || 0;
+      if (updated > 0) {
+        // The automation engine mutates transactions server-side, outside the
+        // useTransactions mutation lifecycle. Invalidate every transaction
+        // query immediately so the UI cannot keep showing stale categories.
+        await queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      }
+
+      return updated;
     } catch (error) {
       logError('Error applying rule:', error);
       return 0;
