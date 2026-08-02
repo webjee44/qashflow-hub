@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { AlertTriangle, AlertCircle, Info, Landmark, Building2, RefreshCw } from 'lucide-react';
+import { AlertTriangle, AlertCircle, Info, Landmark, Building2, RefreshCw, PlugZap } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Link } from 'react-router-dom';
@@ -58,12 +58,14 @@ interface CompanyCardProps {
   onClick: () => void;
 }
 
+const isBlockedStatus = (status: string | null) =>
+  status === 'needs_action' || status === 'error' || status === 'deleted';
+
 export function CompanyCard({ company, index, onClick }: CompanyCardProps) {
   const hasCritical = company.alerts.some(a => a.severity === 'critical');
   const hasWarning = company.alerts.some(a => a.severity === 'warning');
-  const hasBlockedBankConnection = company.accounts.some(account =>
-    account.itemStatus === 'needs_action' || account.itemStatus === 'error' || account.itemStatus === 'deleted'
-  );
+  const blockedAccounts = company.accounts.filter(a => isBlockedStatus(a.itemStatus));
+  const hasBlockedBankConnection = blockedAccounts.length > 0;
 
   return (
     <motion.div
@@ -75,32 +77,41 @@ export function CompanyCard({ company, index, onClick }: CompanyCardProps) {
         onClick={onClick}
         className={cn(
           'cursor-pointer transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 border',
-          hasCritical && 'border-destructive/30',
-          hasWarning && !hasCritical && 'border-amber-500/30',
-          !hasCritical && !hasWarning && 'border-border'
+          hasBlockedBankConnection && 'border-destructive/40 bg-destructive/[0.02]',
+          !hasBlockedBankConnection && hasCritical && 'border-destructive/30',
+          !hasBlockedBankConnection && hasWarning && !hasCritical && 'border-amber-500/30',
+          !hasBlockedBankConnection && !hasCritical && !hasWarning && 'border-border'
         )}
       >
         <CardContent className="p-5">
           {/* Header */}
           <div className="flex items-start justify-between mb-3">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                <Building2 className="h-5 w-5 text-primary" />
+              <div className={cn(
+                'w-10 h-10 rounded-xl flex items-center justify-center',
+                hasBlockedBankConnection ? 'bg-destructive/10' : 'bg-primary/10'
+              )}>
+                <Building2 className={cn('h-5 w-5', hasBlockedBankConnection ? 'text-destructive' : 'text-primary')} />
               </div>
               <div>
                 <h3 className="font-semibold text-foreground">{company.companyName}</h3>
                 <p className="text-xs text-muted-foreground flex items-center gap-1">
                   <Landmark className="h-3 w-3" />
                   {company.accountCount} compte{company.accountCount !== 1 ? 's' : ''}
+                  {hasBlockedBankConnection && (
+                    <span className="text-destructive font-medium">
+                      · {blockedAccounts.length} déconnecté{blockedAccounts.length > 1 ? 's' : ''}
+                    </span>
+                  )}
                 </p>
                 {hasBlockedBankConnection ? (
                   <Link
                     to="/parametres?tab=accounts"
                     onClick={(e) => e.stopPropagation()}
-                    className="text-[11px] text-warning flex items-center gap-1 mt-0.5 underline underline-offset-2 hover:text-warning/80"
+                    className="text-[11px] text-destructive font-medium flex items-center gap-1 mt-0.5 underline underline-offset-2 hover:text-destructive/80"
                   >
                     <AlertTriangle className="h-2.5 w-2.5" />
-                    Synchro bloquée — reconnecter la banque
+                    Connexion bancaire rompue — reconnecter
                   </Link>
                 ) : company.lastSyncAt ? (
                   <p className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5">
@@ -109,8 +120,11 @@ export function CompanyCard({ company, index, onClick }: CompanyCardProps) {
                   </p>
                 ) : null}
                 {company.balanceRefreshedAt && (
-                  <p className="text-[11px] text-muted-foreground mt-0.5">
-                    Solde arrêté au {format(new Date(company.balanceRefreshedAt), 'dd/MM/yyyy HH:mm', { locale: fr })}
+                  <p className={cn(
+                    'text-[11px] mt-0.5',
+                    hasBlockedBankConnection ? 'text-destructive' : 'text-muted-foreground'
+                  )}>
+                    Données bancaires arrêtées au {format(new Date(company.balanceRefreshedAt), 'dd/MM/yyyy HH:mm', { locale: fr })}
                   </p>
                 )}
               </div>
@@ -123,27 +137,28 @@ export function CompanyCard({ company, index, onClick }: CompanyCardProps) {
             </p>
           </div>
 
+
           {/* Sub-accounts list */}
           {company.accounts.length > 0 && (
             <div className="space-y-1.5 mb-3">
               {company.accounts.map((account, i) => {
                 const isLow = account.balance > 0 && account.balance < 1000;
                 const isNegative = account.balance < 0;
-                const isBlocked = account.itemStatus === 'needs_action' || account.itemStatus === 'error' || account.itemStatus === 'deleted';
+                const isBlocked = isBlockedStatus(account.itemStatus);
                 return (
                   <div
                     key={i}
                     className={cn(
                       'flex items-center justify-between px-3 py-2 rounded-lg text-sm',
-                      isBlocked ? 'bg-warning/5' : isNegative ? 'bg-destructive/5' : isLow ? 'bg-amber-500/5' : 'bg-muted/50'
+                      isBlocked ? 'bg-destructive/5 border border-destructive/20' : isNegative ? 'bg-destructive/5' : isLow ? 'bg-amber-500/5' : 'bg-muted/50'
                     )}
                   >
                     <div className="flex items-center gap-2 min-w-0">
-                      {isBlocked ? <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-warning" /> : <Landmark className={cn(
+                      {isBlocked ? <PlugZap className="h-3.5 w-3.5 shrink-0 text-destructive" /> : <Landmark className={cn(
                         'h-3.5 w-3.5 shrink-0',
                         isNegative ? 'text-destructive' : isLow ? 'text-amber-500' : 'text-muted-foreground'
                       )} />}
-                      <span className="truncate text-foreground">
+                      <span className={cn('truncate', isBlocked ? 'text-destructive' : 'text-foreground')}>
                         {account.bankName || account.name || getAccountTypeLabel(account.accountType)}
                       </span>
                       {account.iban && (
@@ -152,19 +167,25 @@ export function CompanyCard({ company, index, onClick }: CompanyCardProps) {
                         </span>
                       )}
                       {isBlocked && (
-                        <span className="text-xs text-warning shrink-0">
-                          Reconnexion requise
-                        </span>
+                        <Badge variant="outline" className="shrink-0 gap-1 text-[10px] font-medium border-destructive/30 bg-destructive/10 text-destructive">
+                          Déconnecté
+                          {account.balanceRefreshedAt && (
+                            <span className="font-normal">
+                              · figé au {format(new Date(account.balanceRefreshedAt), 'dd/MM HH:mm', { locale: fr })}
+                            </span>
+                          )}
+                        </Badge>
                       )}
                     </div>
                     <span className={cn(
                       'font-medium tabular-nums shrink-0 ml-2',
-                      isNegative ? 'text-destructive' : isLow ? 'text-amber-600' : 'text-foreground'
+                      isBlocked ? 'text-destructive/70 line-through decoration-destructive/40' : isNegative ? 'text-destructive' : isLow ? 'text-amber-600' : 'text-foreground'
                     )}>
                       {formatCurrency(account.balance)}
                     </span>
                   </div>
                 );
+
               })}
             </div>
           )}

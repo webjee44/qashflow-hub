@@ -1,6 +1,6 @@
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Building2, AlertCircle, Landmark, RefreshCw } from 'lucide-react';
+import { Building2, AlertCircle, Landmark, RefreshCw, PlugZap } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Card, CardContent } from '@/components/ui/card';
@@ -40,6 +40,34 @@ export default function GroupOverview() {
         subtitle="Synthèse consolidée de toutes vos sociétés"
       />
 
+      {/* Bandeau comptes déconnectés — vérité de connexion avant tout */}
+      {(() => {
+        const disconnected = companies
+          .map(c => ({
+            name: c.companyName,
+            count: c.accounts.filter(a =>
+              a.itemStatus === 'needs_action' || a.itemStatus === 'error' || a.itemStatus === 'deleted'
+            ).length,
+          }))
+          .filter(c => c.count > 0);
+        if (disconnected.length === 0) return null;
+        const total = disconnected.reduce((s, c) => s + c.count, 0);
+        return (
+          <Alert variant="destructive">
+            <PlugZap className="h-4 w-4" />
+            <AlertDescription className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span>
+                {total} compte{total > 1 ? 's' : ''} déconnecté{total > 1 ? 's' : ''} — soldes figés, non fiables :
+                {' '}{disconnected.map(c => `${c.name} (${c.count})`).join(', ')}.
+              </span>
+              <Link to="/parametres?tab=accounts" className="underline underline-offset-2 font-medium">
+                Reconnecter les banques
+              </Link>
+            </AlertDescription>
+          </Alert>
+        );
+      })()}
+
       {/* Critical alerts banner */}
       {criticalAlerts > 0 && (
         <Alert variant="destructive">
@@ -49,6 +77,7 @@ export default function GroupOverview() {
           </AlertDescription>
         </Alert>
       )}
+
 
       {/* Hero consolidated card */}
       {isLoading ? (
@@ -72,14 +101,29 @@ export default function GroupOverview() {
                       if (!max || c.lastSyncAt > max) return c.lastSyncAt;
                       return max;
                     }, null);
-                    if (!lastSync) return null;
+                    const oldestData = companies.reduce<string | null>((min, c) => {
+                      if (!c.balanceRefreshedAt) return min;
+                      if (!min || c.balanceRefreshedAt < min) return c.balanceRefreshedAt;
+                      return min;
+                    }, null);
+                    if (!lastSync && !oldestData) return null;
                     return (
-                      <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1.5">
-                        <RefreshCw className="h-3 w-3" />
-                        Dernière synchronisation {formatDistanceToNow(new Date(lastSync), { addSuffix: true, locale: fr })}
-                      </p>
+                      <div className="mt-2 space-y-0.5">
+                        {oldestData && (
+                          <p className="text-xs text-muted-foreground">
+                            Données bancaires les plus anciennes : {formatDistanceToNow(new Date(oldestData), { addSuffix: true, locale: fr })}
+                          </p>
+                        )}
+                        {lastSync && (
+                          <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                            <RefreshCw className="h-3 w-3" />
+                            Dernier job de synchronisation {formatDistanceToNow(new Date(lastSync), { addSuffix: true, locale: fr })}
+                          </p>
+                        )}
+                      </div>
                     );
                   })()}
+
                 </div>
                 <div className="flex gap-6">
                   <div className="flex items-center gap-2">
