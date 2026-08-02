@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { AlertTriangle, AlertCircle, Info, Landmark, Building2, RefreshCw } from 'lucide-react';
+import { AlertTriangle, AlertCircle, Info, Landmark, Building2, RefreshCw, PlugZap } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Link } from 'react-router-dom';
