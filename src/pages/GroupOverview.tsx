@@ -101,14 +101,29 @@ export default function GroupOverview() {
                       if (!max || c.lastSyncAt > max) return c.lastSyncAt;
                       return max;
                     }, null);
-                    if (!lastSync) return null;
+                    const oldestData = companies.reduce<string | null>((min, c) => {
+                      if (!c.balanceRefreshedAt) return min;
+                      if (!min || c.balanceRefreshedAt < min) return c.balanceRefreshedAt;
+                      return min;
+                    }, null);
+                    if (!lastSync && !oldestData) return null;
                     return (
-                      <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1.5">
-                        <RefreshCw className="h-3 w-3" />
-                        Dernière synchronisation {formatDistanceToNow(new Date(lastSync), { addSuffix: true, locale: fr })}
-                      </p>
+                      <div className="mt-2 space-y-0.5">
+                        {oldestData && (
+                          <p className="text-xs text-muted-foreground">
+                            Données bancaires les plus anciennes : {formatDistanceToNow(new Date(oldestData), { addSuffix: true, locale: fr })}
+                          </p>
+                        )}
+                        {lastSync && (
+                          <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                            <RefreshCw className="h-3 w-3" />
+                            Dernier job de synchronisation {formatDistanceToNow(new Date(lastSync), { addSuffix: true, locale: fr })}
+                          </p>
+                        )}
+                      </div>
                     );
                   })()}
+
                 </div>
                 <div className="flex gap-6">
                   <div className="flex items-center gap-2">
