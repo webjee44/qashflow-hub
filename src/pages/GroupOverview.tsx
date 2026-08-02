@@ -40,6 +40,34 @@ export default function GroupOverview() {
         subtitle="Synthèse consolidée de toutes vos sociétés"
       />
 
+      {/* Bandeau comptes déconnectés — vérité de connexion avant tout */}
+      {(() => {
+        const disconnected = companies
+          .map(c => ({
+            name: c.companyName,
+            count: c.accounts.filter(a =>
+              a.itemStatus === 'needs_action' || a.itemStatus === 'error' || a.itemStatus === 'deleted'
+            ).length,
+          }))
+          .filter(c => c.count > 0);
+        if (disconnected.length === 0) return null;
+        const total = disconnected.reduce((s, c) => s + c.count, 0);
+        return (
+          <Alert variant="destructive">
+            <PlugZap className="h-4 w-4" />
+            <AlertDescription className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span>
+                {total} compte{total > 1 ? 's' : ''} déconnecté{total > 1 ? 's' : ''} — soldes figés, non fiables :
+                {' '}{disconnected.map(c => `${c.name} (${c.count})`).join(', ')}.
+              </span>
+              <Link to="/parametres?tab=accounts" className="underline underline-offset-2 font-medium">
+                Reconnecter les banques
+              </Link>
+            </AlertDescription>
+          </Alert>
+        );
+      })()}
+
       {/* Critical alerts banner */}
       {criticalAlerts > 0 && (
         <Alert variant="destructive">
@@ -49,6 +77,7 @@ export default function GroupOverview() {
           </AlertDescription>
         </Alert>
       )}
+
 
       {/* Hero consolidated card */}
       {isLoading ? (
