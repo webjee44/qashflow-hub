@@ -1,6 +1,6 @@
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Building2, AlertCircle, Landmark, RefreshCw } from 'lucide-react';
+import { Building2, AlertCircle, Landmark, RefreshCw, PlugZap } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Card, CardContent } from '@/components/ui/card';
